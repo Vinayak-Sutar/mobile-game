@@ -1,0 +1,46 @@
+{
+  "name": "player",
+  "image": "player.png",
+  "frameWidth": 128,
+  "frameHeight": 128,
+  "originX": 64,
+  "originY": 64,
+  "scale": 3.4,
+  "clips": {
+    "idle": {
+      "row": 0,
+      "frames": 16,
+      "duration": 2.4,
+      "loop": true,
+      "fps": 6.666666666666667
+    },
+    "run": {
+      "row": 1,
+      "frames": 12,
+      "duration": 0.54,
+      "loop": true,
+      "fps": 22.22222222222222
+    },
+    "dash": {
+      "row": 2,
+      "frames": 8,
+      "duration": 0.3,
+      "loop": false,
+      "fps": 26.666666666666668
+    },
+    "hurt": {
+      "row": 3,
+      "frames": 8,
+      "duration": 0.34,
+      "loop": false,
+      "fps": 23.52941176470588
+    },
+    "death": {
+      "row": 4,
+      "frames": 16,
+      "duration": 0.9,
+      "loop": false,
+      "fps": 17.77777777777778
+    }
+  }
+}

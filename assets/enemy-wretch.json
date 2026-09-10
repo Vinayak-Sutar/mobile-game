@@ -1,0 +1,32 @@
+{
+  "name": "wretch",
+  "image": "wretch.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 2.2058823529411766,
+  "clips": {
+    "move": {
+      "row": 0,
+      "frames": 5,
+      "duration": 0.26,
+      "loop": true,
+      "fps": 19.23076923076923
+    },
+    "windup": {
+      "row": 1,
+      "frames": 7,
+      "duration": 0.34,
+      "loop": false,
+      "fps": 20.588235294117645
+    },
+    "lunge": {
+      "row": 2,
+      "frames": 5,
+      "duration": 0.26,
+      "loop": false,
+      "fps": 19.23076923076923
+    }
+  }
+}

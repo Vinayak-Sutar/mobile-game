@@ -1,0 +1,67 @@
+{
+  "name": "warden",
+  "image": "warden.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 0.487012987012987,
+  "clips": {
+    "idle": {
+      "row": 0,
+      "frames": 16,
+      "duration": 1.6,
+      "loop": true,
+      "fps": 10
+    },
+    "slam": {
+      "row": 1,
+      "frames": 16,
+      "duration": 0.8,
+      "loop": false,
+      "fps": 20
+    },
+    "volley": {
+      "row": 2,
+      "frames": 8,
+      "duration": 0.38,
+      "loop": true,
+      "fps": 21.05263157894737
+    },
+    "aim": {
+      "row": 3,
+      "frames": 14,
+      "duration": 0.7,
+      "loop": false,
+      "fps": 20
+    },
+    "charge": {
+      "row": 4,
+      "frames": 6,
+      "duration": 0.3,
+      "loop": true,
+      "fps": 20
+    },
+    "stun": {
+      "row": 5,
+      "frames": 16,
+      "duration": 1.15,
+      "loop": false,
+      "fps": 13.913043478260871
+    },
+    "roar": {
+      "row": 6,
+      "frames": 16,
+      "duration": 1.5,
+      "loop": false,
+      "fps": 10.666666666666666
+    },
+    "summon": {
+      "row": 7,
+      "frames": 10,
+      "duration": 0.5,
+      "loop": false,
+      "fps": 20
+    }
+  }
+}

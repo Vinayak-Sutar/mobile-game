@@ -1,0 +1,32 @@
+{
+  "name": "slinger",
+  "image": "slinger.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 1.9736849381130708,
+  "clips": {
+    "move": {
+      "row": 0,
+      "frames": 16,
+      "duration": 0.9,
+      "loop": true,
+      "fps": 17.77777777777778
+    },
+    "aim": {
+      "row": 1,
+      "frames": 8,
+      "duration": 0.42,
+      "loop": false,
+      "fps": 19.047619047619047
+    },
+    "fire": {
+      "row": 2,
+      "frames": 8,
+      "duration": 0.4,
+      "loop": false,
+      "fps": 20
+    }
+  }
+}

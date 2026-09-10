@@ -1,0 +1,25 @@
+{
+  "name": "spitter",
+  "image": "spitter.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 1.7647058823529411,
+  "clips": {
+    "idle": {
+      "row": 0,
+      "frames": 16,
+      "duration": 2,
+      "loop": true,
+      "fps": 8
+    },
+    "wind": {
+      "row": 1,
+      "frames": 10,
+      "duration": 0.5,
+      "loop": false,
+      "fps": 20
+    }
+  }
+}

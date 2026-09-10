@@ -1,0 +1,39 @@
+{
+  "name": "charger",
+  "image": "charger.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 1.486278647651254,
+  "clips": {
+    "walk": {
+      "row": 0,
+      "frames": 14,
+      "duration": 0.7,
+      "loop": true,
+      "fps": 20
+    },
+    "aim": {
+      "row": 1,
+      "frames": 12,
+      "duration": 0.62,
+      "loop": false,
+      "fps": 19.35483870967742
+    },
+    "charge": {
+      "row": 2,
+      "frames": 7,
+      "duration": 0.35,
+      "loop": true,
+      "fps": 20
+    },
+    "stun": {
+      "row": 3,
+      "frames": 16,
+      "duration": 1.05,
+      "loop": false,
+      "fps": 15.238095238095237
+    }
+  }
+}

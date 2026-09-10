@@ -1,0 +1,25 @@
+{
+  "name": "bomber",
+  "image": "bomber.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 1.837733383810008,
+  "clips": {
+    "float": {
+      "row": 0,
+      "frames": 16,
+      "duration": 1.1,
+      "loop": true,
+      "fps": 14.545454545454545
+    },
+    "fuse": {
+      "row": 1,
+      "frames": 16,
+      "duration": 0.82,
+      "loop": false,
+      "fps": 19.51219512195122
+    }
+  }
+}

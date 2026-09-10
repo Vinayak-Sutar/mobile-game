@@ -1,0 +1,15 @@
+{
+  "name": "ashfall",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Top-down action roguelike prototype (Hades-like), vanilla canvas.",
+  "scripts": {
+    "start": "python serve.py",
+    "bundle": "esbuild src/game.js --bundle --format=iife --outfile=dist/bundle.js",
+    "build": "npm run bundle && node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

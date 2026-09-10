@@ -1,0 +1,32 @@
+{
+  "name": "brute",
+  "image": "brute.png",
+  "frameWidth": 96,
+  "frameHeight": 96,
+  "originX": 48,
+  "originY": 48,
+  "scale": 1.100738456123314,
+  "clips": {
+    "walk": {
+      "row": 0,
+      "frames": 16,
+      "duration": 0.9,
+      "loop": true,
+      "fps": 17.77777777777778
+    },
+    "wind": {
+      "row": 1,
+      "frames": 16,
+      "duration": 0.78,
+      "loop": false,
+      "fps": 20.51282051282051
+    },
+    "recover": {
+      "row": 2,
+      "frames": 16,
+      "duration": 0.85,
+      "loop": false,
+      "fps": 18.823529411764707
+    }
+  }
+}
