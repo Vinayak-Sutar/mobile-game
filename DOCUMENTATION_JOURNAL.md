@@ -4,9 +4,9 @@
 > understand the entire project without the conversation history that produced
 > it. Written to be read top to bottom once, then used as a reference.
 >
-> **Last updated:** 2026-09-10, after 3 lives and the Version 1 / Version 2
-> split (and the boss-battles update before it). If code and this document
-> disagree, **the code wins** — then fix this document.
+> **Last updated:** 2026-09-11, after commit `27ea3fb` (3 lives and the
+> Version 1 / Version 2 split), which followed `e8f73d3` (boss battles). If
+> code and this document disagree, **the code wins** — then fix this document.
 
 ---
 
@@ -17,8 +17,9 @@
 - **Stack:** vanilla JavaScript ES modules + Canvas 2D + WebAudio. **No engine,
   no framework, no build step to run, no image/audio asset files** — all art is
   drawn procedurally and all sound is synthesised at runtime.
-- **Size:** ~11,000 lines of code: 30 JS modules in `src/` plus `index.html`,
-  `serve.py`, `build.mjs`, `sw.js`, `manifest.json`. Entry point `src/game.js`.
+- **Size:** Version 2 is ~11,250 lines in 30 JS modules in `src/`, plus
+  `index.html`, `serve.py`, `build.mjs`, `sw.js`, `manifest.json`; entry point
+  `src/game.js`. Version 1 (`v1/`) is a separate ~8,400 lines in 26 modules.
 - **Run:** 15 chambers. Chambers 3/6/9/12 are four creature bosses (turtle,
   crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
   of Ash. Bosses follow written "hard but fair" rules (§5.14). **3 lives** per
@@ -29,7 +30,8 @@
   cache. A switch on each title screen links the two (§5.15). Unless told
   otherwise, "the game" means Version 2.
 - **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
-  printed LAN URL on a phone on the same Wi-Fi. Landscape only.
+  printed LAN URL on a phone on the same Wi-Fi (Version 1 is at `/v1/`).
+  Landscape only.
 - **Repo:** `https://github.com/Vinayak-Sutar/mobile-game` (branch `main`).
   Intended to be served by GitHub Pages at
   `https://vinayak-sutar.github.io/mobile-game/`.
@@ -229,13 +231,15 @@ src/
      projectiles, **hazards**, pickups, room, fx; set music intensity; handle a
      chosen door; detect death → `dying`.
   4. If `dying`: keep animating (including `updatePlayer`, so the death clip
-     plays) for 1.15 s, then `onDeath()`.
+     plays) and updating enemies, projectiles and hazards for 1.15 s. Then
+     `revivePlayer()` → back to `playing` if `p.lives > 1`, else `onDeath()`
+     (§5.15).
   5. `updateUi(dt)`, the **music rule** (§2 rule 3), `endFrameInput()`.
 
 ### 4.2 Game states (`state` in `game.js`)
 
-`title` → `biome` → `weapon` → `playing` ⇄ `paused` / `boon` → `dying` → `dead`,
-or → `victory`. Also `mirror` (meta shop), `padcheck` (controller diagnostic)
+`title` → `biome` → `weapon` → `playing` ⇄ `paused` / `boon` → `dying` →
+(`playing` again if a life remains) → `dead`, or → `victory`. Also `mirror` (meta shop), `padcheck` (controller diagnostic)
 and `trials` (Boss Trials: `trials` → `weapon` → a single boss room; the chosen
 boss waits in `pendingTrial`, and `beginRun()` dispatches to `startTrial()`).
 Menus are DOM overlays built by `show*()` functions in `game.js`; clicks route
@@ -277,11 +281,13 @@ damageLog{}, timeScale, paused`.
 
 | Stat | Value |
 | --- | --- |
+| Lives | 3 per run (`START_LIVES`); a spare life revives at full HP (§5.15) |
 | Max HP | 80 (+10 per Vitality level) |
 | Move speed | 268 u/s (34% while attacking, 55% while charging the bow) |
 | Dash | 0.17 s at 920 u/s; **2 charges**, one recharges every 0.75 s |
 | Dash invulnerability | whole dash + 0.09 s; dashing **cancels attack recovery** |
-| Hit invulnerability | 0.8 s after taking damage |
+| Hit invulnerability | 0.8 s after taking damage (2.5 s after a revive) |
+| Hurtbox | body r 17 for walls; ×0.72 against enemy bullets, ×0.6 against hazards |
 | Crit | 5% chance, 2× damage |
 | Auto-aim | nearest enemy within 420 units when no explicit aim input |
 
@@ -369,7 +375,8 @@ ends winded and EXPOSED for 1 s). Eight animation clips including the roar.
 The creature bosses are in §5.14.
 
 Scaling (combat rooms use `effDepth`, §5.6): `enemyScale = 1 + (eff-1)×0.19 + loop×0.75` multiplies HP;
-`dmgScale = min(2.0, 0.9 + scale×0.26)`. **Elites** (depth 3 and 6): ×1.22
+`dmgScale = min(2.0, 0.9 + scale×0.26)`. **Elites** (chambers 5 and 11 in V2;
+3 and 6 in V1): ×1.22
 radius, ×1.9 HP, ×1.15 damage, ×1.08 speed, gold ring. Enemies spawn through a
 0.75 s portal telegraph, at least 250 units from the player. `e.mvx/e.mvy` hold
 each enemy's real per-frame velocity. No pathfinding: they steer straight at the
@@ -399,8 +406,10 @@ player and slide along obstacles.
   Warden HP ×1.9, damage ×1.1. Loops add HP ×0.8 and damage ×0.3.
 - Kill drops: 1–3 coins (elite 7, boss 22); heal pickup 14% (boss 100%) worth 16
   HP; magnet radius 170.
-- After the boss: *Victory* screen with **Press Deeper** (loop +1, harder) or a
-  new run.
+- After the **final** boss (the Warden, chamber 15): *Victory* screen with
+  **Press Deeper** (loop +1, harder; the boss order is kept) or a new run.
+- **Version 1** (`v1/src/rooms.js`) is the old structure: `BOSS_DEPTH = 8`,
+  elites at 3 and 6, the Warden at scale 1.45, no `effDepth`.
 
 ### 5.7 Boons (`boons.js`) — 17 across 5 gods, stackable
 
@@ -418,9 +427,18 @@ builds converge). Boons mutate `player.stats`; their side effects run inside
 
 ### 5.8 Meta progression and save (`save.js`)
 
-- localStorage key **`ashfall.save.v1`**. Defaults: `darkness 0, upgrades
-  {vitality, might, alacrity, fortune}, best {depth, kills, gold}, runs, wins,
-  muted false, musicOn true, musicVolume 0.7, biome 'ember'`.
+- **Version 2** uses localStorage key **`ashfall.save.v1`**. Careful: the
+  `v1` in that key is the *save-format* version and predates the Version 1 /
+  Version 2 split; it is Version 2's save. Don't rename it: that would wipe
+  every existing player's progress.
+- **Version 1** uses **`ashfall.classic.save`**. On its first launch, when that
+  key is empty, it loads `ashfall.save.v1` as a starting point, then writes
+  only its own key. So whatever the shared save held at that moment
+  (including any Version 2 progress) is Version 1's starting point.
+- Defaults: `darkness 0, upgrades {vitality, might, alacrity, fortune}, best
+  {depth, kills, gold}, runs, wins, muted false, musicOn true, musicVolume 0.7,
+  biome 'ember'`.
+- Boss Trials never call `bankRun()`: no darkness, no run counted.
 - Gold is banked as **darkness** win or lose (× Fortune multiplier).
 - **Mirror of Night** upgrades: Vitality +10 HP (5 levels, cost 30+25×lv) ·
   Might +6% dmg (5, 35+30×lv) · Alacrity +1 dash (2, 120+150×lv) · Fortune +20%
@@ -443,9 +461,17 @@ builds converge). Boons mutate `player.stats`; their side effects run inside
   shows the prompt and pauses the game (verified: no damage taken meanwhile).
 - iPhone Safari has no Fullscreen API for pages; "Add to Home Screen" gives the
   app-like experience.
-- PWA: `manifest.json` (fullscreen, landscape) + `sw.js` (network-first, cache
-  `ashfall-v1`). Registered only over http(s). GitHub Pages plus caching can delay
-  updates by up to ~10 minutes.
+- PWA: `manifest.json` (fullscreen, landscape) + `sw.js` (network-first).
+  Registered only over http(s). GitHub Pages plus caching can delay updates by
+  up to ~10 minutes.
+- **Two service workers.** Root `sw.js` (scope `/`) caches as `ashfall-main-N`
+  and on activate deletes only `ashfall-main-*` plus the legacy `ashfall-v1`.
+  `v1/sw.js` (scope `/v1/`, the more specific scope wins there) caches as
+  `ashfall-classic-N` and deletes only `ashfall-classic-*`. Before the split,
+  each worker deleted *every* other cache, so two versions would have wiped
+  each other's offline copy. Bump `N` in the matching file when shipping.
+- `v1/manifest.json` is named "Ashfall — Version 1" / "Ashfall v1", so the two
+  are distinguishable if both get installed to a home screen.
 
 ### 5.10 Audio (`audio.js`)
 
@@ -464,8 +490,9 @@ music is stopped while paused.
 0.12 s lookahead) against the AudioContext clock. D minor i–VI–VII–v (Dm, B♭,
 C, Am). Layers: pad, filtered-sawtooth bass (+octave double), arpeggio (the part
 you hear on phones; 290–600 Hz), kick (with a click transient), hats, and a snare
-only for the boss. **Intensity** (set every tick): 0 = room cleared (no drums),
-1 = combat, 2 = boss (16th-note saw arpeggio, 4-on-the-floor, snare). Measured:
+only for bosses. **Intensity** (set every tick): 0 = room cleared (no drums),
+1 = combat, 2 = any boss alive (16th-note saw arpeggio, 4-on-the-floor,
+snare). Every boss shares the same boss track; per-boss music is an idea in §11. Measured:
 42–78% of scheduled notes are above 250 Hz (the first version: 0%).
 
 **Lifecycle rules:** see §2 rule 3. The whole AudioContext is suspended when the
@@ -474,8 +501,12 @@ click and keydown, because mobile browsers differ on which gesture unlocks audio
 Music cuts the instant you die.
 
 **SFX** (`sfx.*`): swing, hit, crit, hurt, dash, shoot, arrow, explode,
-telegraph, spawn, pickup, heal, boon, door, death, bossRoar, bossDown, ui, block.
-All synthesised from oscillators and one shared noise buffer.
+telegraph, spawn, pickup, heal, boon, door, death, bossRoar, bossDown, ui, block,
+plus the boss kit: `beam`, `thud` (quiet impacts such as floor cracks and
+mortar landings), `chime` (peacock), `splash` (croc), `whirr` (turtle spin),
+`exposed` (bright two-note cue for the punish window) and `roar(pitch)` (each
+boss's phase change). All synthesised from oscillators and one shared noise
+buffer. A revive plays `boon`.
 
 **Debug:** `ashfall.outputLevel()` → `{ peakDb, rmsDb }` of the final output;
 `musicRunning()`, `audioContextState()` in the module.
@@ -495,8 +526,16 @@ All synthesised from oscillators and one shared noise buffer.
   dash / hurt / death. Drawn at `RIG_SCALE 1.18` (a visual slightly larger than
   the 17 px hitbox). Body faces the aim; strafing leans the torso.
 - Enemies: bone colours are *roles* (`main`, `dark`, `light`, `accent`) resolved
-  per instance, so each type keeps its palette. The rig scales by `e.r /
-  rig.ref`, so elites and splitter children work automatically.
+  per instance, so each type keeps its palette; a bone can also carry a literal
+  hex colour (the bosses mix both). The rig scales by `e.r / rig.ref`, so
+  elites and splitter children work automatically.
+- Optional rig hooks, used by the boss rigs (`updateEnemyAnim`):
+  `speedFor(e, clip)` sets playback speed (bosses stretch telegraph clips to
+  `e.clipTime`), `post(e, anim)` layers procedural motion after sampling, and
+  `e.animSerial` changing forces a non-looping clip to restart even if it's
+  the same clip. `drawSkeleton` skips bones scaled to 0 (hidden bones). The
+  player revive needs no special case: the finished death clip hands back to
+  idle on its own.
 
 ### 5.12 Visuals: textures, biomes, fx (`texture.js`, `biomes.js`, `fx.js`)
 
@@ -524,7 +563,10 @@ the top-down sprite rotates at draw time). Enemy rigs are fitted to 96 px cells
 using the computed `rigExtent`. `ashfall.saveAssets()` POSTs everything to
 `serve.py`, which writes `assets/` (13 PNGs + JSON). **Nothing at runtime loads
 these** — the live game draws vectors. They exist to hand to another engine or
-to swap real art in against a known format.
+to swap real art in against a known format. `ENEMY_RIGS` now includes the
+four boss rigs, so `bakeEnemySheet('gorilla')` etc. work (verified: turtle
+11 clips, croc 13, gorilla 15, peacock 9), but the committed `assets/`
+predate the bosses and don't include them.
 
 ### 5.14 Creature bosses (`bosses.js`, `boss-rigs.js`, `hazards.js`)
 
@@ -646,8 +688,10 @@ After: 12 full bot runs → 0 wins, 12 deaths, average chamber 5.7 (range 3–8)
 
 **Caveats:** the bot flails rather than dodging, so this measures *relative*
 danger well and absolute difficulty poorly. The bow looks weakest in bot runs,
-but the bot taps instead of charging, which undersells it. **Grenades and the
-bow-as-default were added after this pass and have not been re-measured.**
+but the bot taps instead of charging, which undersells it. **Grenades, the
+bow-as-default, the 15-chamber run and 3 lives were all added after this pass
+and have not been re-measured.** Lives alone roughly triple how much damage a
+run can absorb, so the "0 wins in 12 bot runs" result is certainly out of date.
 
 ### 6.1 Bosses: idle vs dodging (damage taken per minute, slot-1 trial)
 
@@ -684,6 +728,10 @@ PLAYER_CLIPS, resolvePose, drawSkeleton, ctx`.
 
 Modules can also be imported directly in the console:
 `await import('/src/audio.js')`.
+
+**Version 1** exposes the same `window.ashfall` handle (minus `trial`) at
+`/v1/`; import its modules relative to the page, e.g.
+`await import('./src/combat.js')`, not `/src/…` (that would load Version 2's).
 
 ### 7.2 Standard regression (run after every change)
 
@@ -743,6 +791,23 @@ Also run each boss alone with `A.trial(type)` for 45 s and list the
 
 **Boss kills freeze the sim for 0.3 s (hitstop).** A test that checks "room
 cleared" 5 ticks after a boss kill will wrongly report it still alive.
+
+**Lives test (both versions):** `startRun`, then three times: `p.invuln = 0;
+combat.damagePlayer(9999, p.x - 10, p.y, 'wretch')` and tick until
+`A.state` is `playing` with `!p.dead`, or `dead`. Expect `3 → 2 → 1 → dead`,
+full HP and `invuln 2.5` after each revive, and "Slain" on the end screen.
+(Enemy shots counted right after a revive may still include ones flagged
+`cleared`; they are gone on the next tick.)
+
+**Version 1 regression:** the same loop at `/v1/` with `d <= 7`, then the
+boss at chamber 8 and its exit door; expect `victory@8` for all four weapons.
+Last results (`27ea3fb`): V2 full runs with bow and blade → `victory@15`; V1
+all four weapons → `victory@8`; lives test passes in both; saves stay
+separate; the version switch works both ways; 0 errors.
+
+**Clean up afterwards.** Test runs bank darkness into the preview browser's
+localStorage. Clear `ashfall*` keys when done so a later look at the title
+screen isn't misleading.
 
 ### 7.3 Quirks of the in-app preview browser
 
@@ -812,12 +877,18 @@ prints. `.claude/launch.json` defines preview servers `ashfall` (port 8000) and
 ```bash
 python serve.py                 # http://localhost:8000 + LAN URL
 python serve.py --https         # https on :8443, self-signed (.certs/, gitignored)
-npx --yes esbuild@0.25.0 src/game.js --bundle --format=iife --outfile=/dev/null   # static check
-npm run build                   # dist/ashfall.html single-file build (+ dist/upload/, HOW-TO-RUN.txt)
+npx --yes esbuild@0.25.0 src/game.js --bundle --format=iife --outfile=/dev/null      # static check, V2
+npx --yes esbuild@0.25.0 v1/src/game.js --bundle --format=iife --outfile=/dev/null   # static check, V1
 node --check src/<file>.js      # syntax only (package.json has "type":"module")
 # undefined / unused identifiers (esbuild misses these):
-npx --yes eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module,ecmaVersion:2022 --rule '{"no-undef":"error","no-unused-vars":["warn",{"args":"none"}]}' src/*.js
+npx --yes eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module,ecmaVersion:2022 --rule '{"no-undef":"error","no-unused-vars":["warn",{"args":"none"}]}' src/*.js v1/src/*.js
+# single-file build (dist/ashfall.html, ~372 KB, Version 2 only; dist/ is gitignored):
+npx --yes esbuild@0.25.0 src/game.js --bundle --format=iife --outfile=dist/bundle.js && node build.mjs
 ```
+
+`npm run build` fails on this PC ("'esbuild' is not recognized") because
+`node_modules` was never installed. Either `npm install` once, or use the
+`npx` line above. The single-file build does not include Version 1.
 
 Share zips (`Ashfall.zip`, `Ashfall-web.zip`, `Ashfall-assets.zip`) are made with
 PowerShell `Compress-Archive`; they are gitignored.
@@ -828,8 +899,13 @@ PowerShell `Compress-Archive`; they are gitignored.
   ("unexpected EOF"). Write patch scripts to the session scratchpad as `.py` files
   and run them. Each patch asserts that its search string exists, so a stale
   assumption fails loudly instead of silently editing nothing.
-- After edits: `node --check` each touched file, esbuild bundle, then the
-  regression (§7.2).
+- After edits: `node --check` each touched file, esbuild bundle, eslint
+  `no-undef`, then the regression (§7.2). If `v1/` was touched, bundle and
+  regress it too.
+- Patching the same change into both versions: a scratchpad Python script
+  that loops over `['src/ui.js', 'v1/src/ui.js']` and asserts each anchor
+  exists keeps the two copies identical. (Bash heredocs with `python -` work
+  for short patches; long ones go in a `.py` file.)
 
 ### 8.4 Git and GitHub
 
@@ -845,7 +921,13 @@ PowerShell `Compress-Archive`; they are gitignored.
   makes fullscreen, wake lock, PWA install and WebHID work without workarounds.
 
 History: `f7c94f2` initial prototype → `d964581` README LAN-IP fix → `e51fbf2`
-music only during runs → `0fb271c` bow first, landscape-only, music volume.
+music only during runs → `0fb271c` bow first, landscape-only, music volume →
+`c12c2d1` documentation journal (**the snapshot `v1/` was taken from**) →
+`e8f73d3` boss battles, 15-chamber run → `27ea3fb` 3 lives, Version 1 /
+Version 2 split, menu-clipping fix.
+
+- The Pages URL serves both versions: `…/mobile-game/` is Version 2 and
+  `…/mobile-game/v1/` is Version 1.
 
 ---
 
@@ -908,6 +990,12 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
     `c12c2d1`, the revive system, hearts HUD and version switch. Found and
     fixed a pre-existing bug on the way: tall menus were clipped at the top on
     landscape phones (flex centring), which hid the title and the new switch.
+    Also split the service-worker caches so the versions can't delete each
+    other's. Commit `27ea3fb`.
+19. **Journal refresh (2026-09-11).** Brought every section in line with the
+    two-version, 15-chamber, 3-lives game. Found that `npm run build` fails
+    without `npm install`, and corrected the README's single-file size
+    ("~160 KB" → ~370 KB, measured).
 
 ---
 
@@ -917,8 +1005,20 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
   to work than Bluetooth (CRC32 path).
 - **Fullscreen and landscape lock** can't be tested in the preview browser;
   verified logically only. iPhone: no page fullscreen, no lock → rotate prompt.
-- **Balance** is bot-measured only; not re-measured since grenades and
-  bow-as-default. Needs human playtesting.
+- **Balance** is bot-measured only; not re-measured since grenades,
+  bow-as-default, the 15-chamber run or 3 lives. Needs human playtesting. With
+  three full-HP lives the game is likely much easier than the §6 numbers
+  suggest; lives were a deliberate owner request, so tune enemies rather than
+  removing them.
+- **Version 1 doesn't get fixes** made to Version 2 (rule 21). Known V2-only
+  improvements it lacks: the smaller bullet hurtbox, bullet wipes on the
+  Warden's phase change and death, the Warden's EXPOSED windows, and the
+  sprite-cached bullets. It *does* have the menu-clipping fix and lives.
+- **Version 1's first launch copies the shared save**, so if the owner played
+  Version 2 first, Version 1 starts with that progress (e.g. "best chamber 15"
+  in an 8-chamber game). Harmless, but it can look odd.
+- **Lives aren't a Mirror upgrade or a setting** — always 3, in runs and in
+  Boss Trials.
 - **Boss HP and run length are untested with humans.** A full run is now 15
   chambers (roughly 12–15 minutes). More chambers also means more boons and
   gold per run than the 8-chamber economy was tuned for; the Mirror of Night
@@ -935,7 +1035,8 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
   mid-room resize can leave them slightly off.
 - **Update lag on Pages:** service worker plus HTTP caching can show an old build
   for up to ~10 minutes.
-- **README drift:** it says `dist/ashfall.html` is "~160 KB"; it is ~256 KB now.
+- **`npm run build` needs `npm install` first** (no `node_modules` on the dev
+  PC); the `npx` form in §8.2 works as-is.
 - **Shield special naming:** "Bull Rush" is actually a thrown ricochet shield.
 - No ads, IAP or analytics yet.
 
@@ -958,6 +1059,10 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
   like the peacock's `eyeorb`. Must stay occasional.
 - Per-boss arenas (the creature bosses currently share the Warden's four
   corner pillars) and per-boss music variations.
+- Lives as a Mirror of Night upgrade, or a lives setting / "hard mode" with
+  one life. Would need a balance pass either way.
+- If Version 1 should also get specific Version 2 improvements (for example
+  the fairer bullet hurtbox), port them deliberately and list them in §5.15.
 
 ---
 
@@ -974,6 +1079,8 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
 | Exposed | A boss's punish window: stopped, gold halo, takes ×1.35 damage |
 | Hazard | A telegraphed non-projectile attack in `world.hazards` (blast, lob, shockring, beam, cone, lane) |
 | Boss Trial | Practice fight against one boss from the title screen; nothing banked |
+| Version 1 / Version 2 | V1 = the original 8-chamber game in `v1/` (frozen, own save); V2 = the current 15-chamber game at the root |
+| Life / revive | 3 per run; dying with a spare stands you back up at full HP (`revivePlayer()`) |
 | Boon | A stacking run upgrade from one of 5 gods, chosen at boon doors |
 | Darkness | Meta currency: gold banked at the end of every run |
 | Mirror of Night | Meta shop for permanent upgrades |

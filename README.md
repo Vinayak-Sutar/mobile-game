@@ -56,7 +56,7 @@ That produces:
 
 | File | Use |
 | --- | --- |
-| `dist/ashfall.html` | One ~160 KB file, no dependencies. Double-click to play. |
+| `dist/ashfall.html` | One ~370 KB file, no dependencies. Double-click to play. |
 | `dist/upload/index.html` | Same file, named for static hosts. |
 | `dist/HOW-TO-RUN.txt` | Plain-text instructions for whoever you send it to. |
 | `Ashfall.zip` | The `.html` + instructions, zipped for messaging apps. |
