@@ -7,10 +7,14 @@ import { sfx } from './audio.js';
 import { spawnProjectile, spawnPickup } from './spawn.js';
 import { TAU, rand, randInt, dist, dist2, angleTo, chance, clamp } from './util.js';
 
+// A boss left open after its big pattern takes extra damage. The window is
+// the reward for dodging everything that came before it.
+export const EXPOSED_MULT = 1.35;
+
 export function nearestEnemy(x, y, maxDist = Infinity, exclude = null) {
   let best = null, bestD = maxDist * maxDist;
   for (const e of world.enemies) {
-    if (e.dead || e === exclude || e.spawning) continue;
+    if (e.dead || e === exclude || e.spawning || e.hidden) continue;
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) { bestD = d; best = e; }
   }
@@ -20,7 +24,7 @@ export function nearestEnemy(x, y, maxDist = Infinity, exclude = null) {
 export function enemiesInRadius(x, y, radius, exclude = null) {
   const out = [];
   for (const e of world.enemies) {
-    if (e.dead || e === exclude || e.spawning) continue;
+    if (e.dead || e === exclude || e.spawning || e.invuln) continue;
     if (dist(x, y, e.x, e.y) <= radius + e.r) out.push(e);
   }
   return out;
@@ -31,7 +35,7 @@ export function enemiesInRadius(x, y, radius, exclude = null) {
  * opts: { crit, noCrit, raw, knockback, dir, source, chained, silent }
  */
 export function dealDamage(e, amount, opts = {}) {
-  if (!e || e.dead || e.hp <= 0 || e.spawning) return 0;
+  if (!e || e.dead || e.hp <= 0 || e.spawning || e.invuln) return 0;
   const p = world.player;
   const st = p ? p.stats : null;
 
@@ -43,6 +47,8 @@ export function dealDamage(e, amount, opts = {}) {
     if (!opts.noCrit && !crit && Math.random() < st.critChance) crit = true;
     if (crit) dmg *= st.critMult;
   }
+  const exposed = e.exposed > 0;
+  if (exposed) dmg *= EXPOSED_MULT;
   dmg = Math.max(1, Math.round(dmg));
 
   e.hp -= dmg;
@@ -67,7 +73,7 @@ export function dealDamage(e, amount, opts = {}) {
       life: 0.3, dir, spread: 1.5, shape: 'spark', drag: 5,
     });
     damageText(e.x, e.y - e.r, String(dmg), {
-      color: crit ? '#ffd45e' : '#ffffff', crit,
+      color: crit ? '#ffd45e' : exposed ? '#ffe9a8' : '#ffffff', crit, size: exposed ? 20 : 17,
     });
     if (crit) {
       sfx.crit();

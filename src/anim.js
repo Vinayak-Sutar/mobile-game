@@ -269,6 +269,8 @@ export function drawSkeleton(ctx, world, { tint = null, alpha = 1, palette = nul
   for (const w of order) {
     const b = w.bone;
     if (b.shape === 'none') continue;
+    // Scaled to nothing = hidden (a boulder not yet picked up, a retracted head).
+    if (w.sx <= 0.001 || w.sy <= 0.001) continue;
     const color = tint || (palette && palette[b.name]) || b.color;
     // `grow` fattens every bone uniformly — used for the dark outline pass
     // that separates the character from the floor.

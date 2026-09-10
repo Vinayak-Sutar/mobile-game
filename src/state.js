@@ -7,10 +7,13 @@ export const world = {
   hitboxes: [],
   grenades: [],
   pickups: [],
+  hazards: [],      // telegraphed ground attacks (hazards.js)
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
   biome: null,      // terrain/palette chosen at run start
+  bossOrder: [],    // the four creature bosses, shuffled per run
+  trial: null,      // boss type when playing a Boss Trial, else null
   gold: 0,
   kills: 0,
   runTime: 0,
@@ -41,9 +44,12 @@ export function resetWorld() {
   world.hitboxes.length = 0;
   world.grenades.length = 0;
   world.pickups.length = 0;
+  world.hazards.length = 0;
   world.room = null;
   world.depth = 1;
   world.loop = 0;
+  world.bossOrder = [];
+  world.trial = null;
   world.gold = 0;
   world.kills = 0;
   world.runTime = 0;
@@ -57,4 +63,5 @@ export function clearEntities() {
   world.hitboxes.length = 0;
   world.grenades.length = 0;
   world.pickups.length = 0;
+  world.hazards.length = 0;
 }

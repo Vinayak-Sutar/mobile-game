@@ -146,23 +146,49 @@ button values as you press them. Start there whenever a controller misbehaves.
 
 ## The loop
 
-Eight chambers. Clear a room, pick one of two doors, take the reward, go
-deeper. Chamber 8 is the boss. Gold is banked as *darkness* whether you win or
-die, and spends in the **Mirror of Night** on permanent upgrades — so a losing
-run still moves you forward.
+Fifteen chambers: two fights, then a guardian, five times over. Clear a room,
+pick one of two doors, take the reward, go deeper. Chambers 3, 6, 9 and 12
+hold the four creature bosses in a different order every run; chamber 15 is
+always the Warden of Ash. Gold is banked as *darkness* whether you win or die,
+and spends in the **Mirror of Night** on permanent upgrades — so a losing run
+still moves you forward.
 
 - **4 weapons.** Bow — the default, listed first — (hold to charge a piercing
   shot, volley special), Blade (3-hit combo → spin), Spear (piercing thrusts,
   thrown spear), Shield (bashes that deflect projectiles, ricocheting throw).
-- **7 enemy types + a 3-phase boss.** Wretch (lunges), Slinger (kites and
+- **7 enemy types + 5 bosses.** Wretch (lunges), Slinger (kites and
   shoots), Brute (telegraphed slam), Charger (line charge, stuns on wall
   impact), Bomber (suicide blast), Splitter (splits on death), Spitter
-  (stationary radial bullets). The Warden of Ash slams, volleys, charges,
-  summons, and opens a bullet spiral in phase 3.
+  (stationary radial bullets). Bosses below.
 - **17 boons across 5 gods**, stacking: burn, chain lightning, crits, lifesteal,
   dash damage, explode-on-kill, extra dash charges, and more.
 - **Dash i-frames** are the whole defensive game, and dashing cancels attack
   recovery — the same contract Hades runs on.
+
+## Bosses
+
+| Chamber | Boss | Moves |
+| --- | --- | --- |
+| 3/6/9/12 (shuffled) | **Gravemaw the Shellback** (turtle) | Beak snap · stomp + gapped shockwaves · ricocheting shell spin · lobbed barnacle volleys · **Tidal Rings** barrage |
+| | **Mawgrim, the Mire King** (crocodile) | Double jaw snap · tail sweep · death roll with a mud wake · submerged ambush · hatchlings · **Mire Spray** barrage |
+| | **Kharn, the Ashen Silverback** (gorilla) | Leap slams (up to 3) · boulder that bursts into shrapnel · knuckle rush that cracks the floor · thunder clap · enrages at 30% · **Ground Pound** barrage |
+| | **Solenne, the Hundred-Eyed** (peacock) | Feather darts · swoop dropping feather mines · sweeping prism beams · watching-eye turrets · **Hundred-Eyed Display** barrage |
+| 15 | **The Warden of Ash** | Slam, volleys, charges, summons, phase-3 bullet spiral |
+
+**Hard but fair** is a set of rules every boss follows (top of `src/bosses.js`):
+every attack has a pose, a sound and usually a floor marker first; each boss
+has exactly one dense *barrage*, on a long cooldown, so it isn't every
+attack; every barrage has a way through (a drifting corridor, a lattice wider
+than your hurtbox, a safe flank, or the arena's pillars); bullets are slower
+than you; and every barrage ends with the boss **EXPOSED** — stopped, gold
+halo, taking +35% damage. That's the punish window. Phase changes and death
+wipe the screen of bullets, and enemy bullets are capped at 170.
+
+Against bullets your hurtbox is ~70% of your body, as in every bullet-hell
+game: a graze that visibly misses does miss.
+
+**Boss Trials** on the title screen lets you fight any boss on its own, with
+a few boons, for practice. Nothing is banked.
 
 ## Balance
 
@@ -212,7 +238,11 @@ src/
   game.js           entry point: loop, run state machine, menus
   state.js          shared mutable world + view/arena geometry
   player.js         movement, dash, attack state machine
-  enemies.js        enemy roster + boss, each a small state machine
+  enemies.js        enemy roster + the Warden, each a small state machine
+  bosses.js         shared boss brain + turtle, crocodile, gorilla, peacock
+  boss-rigs.js      the four creature bosses, rigged and animated
+  hazards.js        floor markers: blasts, lobs, shockwave rings, beams, lanes
+  ai.js             movement/contact helpers shared by enemies and bosses
   weapons.js        weapon data + attack step executor
   combat.js         all damage flows through here (crits, boons, statuses)
   projectiles.js    projectiles, melee hitboxes, pickups
@@ -269,7 +299,7 @@ enemy type, including chargers mid-charge.
 ## Biomes
 
 Four selectable at the start of a run. Purely cosmetic — every biome runs the
-same eight chambers with the same enemies and the same numbers. The balance
+same fifteen chambers with the same enemies and the same numbers. The balance
 pass was measured against a fixed set of values and biome choice does not
 quietly undo it.
 
@@ -386,13 +416,14 @@ The page exposes `window.ashfall` for driving the sim without rAF:
 
 ```js
 ashfall.startRun(ashfall.WEAPONS[0]);   // 0 bow, 1 blade, 2 spear, 3 shield
-ashfall.spawn('brute');                 // any enemy type, or 'warden'
+ashfall.spawn('brute');                 // any enemy type
+ashfall.trial('peacock', 0);            // straight into a boss: turtle|croc|gorilla|peacock|warden
 ashfall.run(300);                       // advance 300 fixed steps
 ashfall.world.player.stats.damageMult = 10;
 ```
 
 This is how the prototype was regression-tested: a scripted bot plays all four
-weapons through all eight chambers against every enemy type.
+weapons through all fifteen chambers and all five bosses.
 
 ## Known limits
 

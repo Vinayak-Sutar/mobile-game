@@ -17,6 +17,14 @@ export function spawnProjectile(o) {
     color: '#ff6b6b',
     shape: 'orb',         // orb | arrow | shard | shield
     homing: 0,            // radians/sec of turn toward the player
+    delay: 0,             // seconds parked in place before it moves (feather mines)
+    launchSpeed: 0,       // speed on leaving the park; 0 keeps vx/vy
+    launchAtPlayer: false,// re-aim at the player the moment it launches
+    accel: 0,             // u/s^2 along its heading (negative brakes)
+    minSpeed: 40,
+    maxSpeed: 900,
+    turn: 0,              // rad/s: bends the path (curving spiral arms)
+    quiet: false,         // tiny fizzle, for patterns that fire hundreds
     spin: 0,
     rot: 0,
     trailEvery: 0.03,

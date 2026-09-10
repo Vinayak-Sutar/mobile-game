@@ -2,38 +2,22 @@
 // readable telegraph before anything that can hurt the player — that
 // readability is what makes a dodge-and-punish loop feel fair.
 
-import { world, arena, arenaBounds } from './state.js';
-import {
-  TAU, clamp, rand, randInt, dist, angleTo, polygon, resolveCircleRect, normalize, lerp,
-} from './util.js';
+import { world } from './state.js';
+import { TAU, clamp, rand, dist, angleTo, polygon, lerp } from './util.js';
 import { spawnProjectile } from './spawn.js';
-import { damagePlayer, explode, dealDamage } from './combat.js';
-import { burst, ring, shake, slash, flash as screenFlash } from './fx.js';
+import { damagePlayer, explode } from './combat.js';
+import { burst, ring, shake, flash as screenFlash } from './fx.js';
 import { sfx } from './audio.js';
 import { createEnemyAnimator, updateEnemyAnim, drawEnemyRig } from './enemy-rigs.js';
+import {
+  player, stepToward, stepAway, strafe, collideWorld, contactDamage, telegraphRing,
+} from './ai.js';
+import { BOSS_DEFS, bindBossSpawner, clearHostiles, clearBullets, drawBossExtras } from './bosses.js';
 
 const SPAWN_TIME = 0.75;
 
 // --- shared behaviour helpers ---------------------------------------------
-
-function player() { return world.player; }
-
-function stepToward(e, tx, ty, speed, dt) {
-  const [nx, ny] = normalize(tx - e.x, ty - e.y);
-  e.x += nx * speed * dt;
-  e.y += ny * speed * dt;
-  if (nx || ny) e.face = Math.atan2(ny, nx);
-}
-
-function stepAway(e, tx, ty, speed, dt) {
-  stepToward(e, e.x * 2 - tx, e.y * 2 - ty, speed, dt);
-}
-
-function strafe(e, tx, ty, speed, dt, sign) {
-  const a = angleTo(e.x, e.y, tx, ty) + (Math.PI / 2) * sign;
-  e.x += Math.cos(a) * speed * dt;
-  e.y += Math.sin(a) * speed * dt;
-}
+// Movement helpers live in ai.js so the bosses can share them.
 
 function separate(e, dt) {
   for (const o of world.enemies) {
@@ -47,35 +31,6 @@ function separate(e, dt) {
       e.y += Math.sin(a) * push;
     }
   }
-}
-
-function collideWorld(e) {
-  const b = arenaBounds();
-  let bumped = false;
-  if (e.x < b.l + e.r) { e.x = b.l + e.r; bumped = true; }
-  if (e.x > b.r - e.r) { e.x = b.r - e.r; bumped = true; }
-  if (e.y < b.t + e.r) { e.y = b.t + e.r; bumped = true; }
-  if (e.y > b.b - e.r) { e.y = b.b - e.r; bumped = true; }
-  if (world.room) {
-    for (const o of world.room.obstacles) {
-      if (resolveCircleRect(e, o)) bumped = true;
-    }
-  }
-  return bumped;
-}
-
-function contactDamage(e, dt, amount, cooldown = 0.7) {
-  const p = player();
-  if (!p || p.dead) return;
-  e.touchCd = Math.max(0, (e.touchCd || 0) - dt);
-  if (e.touchCd > 0) return;
-  if (dist(e.x, e.y, p.x, p.y) < e.r + p.r) {
-    if (damagePlayer(amount, e.x, e.y, e.type)) e.touchCd = cooldown;
-  }
-}
-
-function telegraphRing(e, progress, radius, color) {
-  ring(e.x, e.y, { r0: radius * progress, r1: radius * progress + 1, color, life: 0.06, width: 3 });
 }
 
 // --- enemy definitions -----------------------------------------------------
@@ -459,9 +414,12 @@ export const ENEMY_DEFS = {
     init(e) {
       e.noPush = true;
       e.phase = 1;
+      e.phases = [0.62, 0.3];
       e.action = 'idle';
       e.t = 1.2;
       e.title = 'The Warden of Ash';
+      // A boss's death wipes its bullets: the win should land on a clean screen.
+      e.onDeath = (self) => clearHostiles(self);
     },
     update(e, dt) {
       const p = player();
@@ -475,11 +433,14 @@ export const ENEMY_DEFS = {
         e.action = 'phase';
         e.t = 1.5;
         e.invuln = true;
+        e.exposed = 0;
+        clearBullets();
         sfx.bossRoar();
         screenFlash(0.4, '#ff9a4d');
         shake(0.9);
         return;
       }
+      if (e.exposed > 0) e.exposed = Math.max(0, e.exposed - dt);
 
       e.t -= dt;
 
@@ -557,7 +518,7 @@ export const ENEMY_DEFS = {
             burst(e.x, e.y, { count: 24, color: '#ffd45e', speed: 400, size: 5, life: 0.5, drag: 4, shape: 'spark' });
             e.chargesLeft = (e.chargesLeft || 0) - 1;
             if (e.chargesLeft > 0) { e.action = 'aim'; e.t = 0.4; }
-            else { e.action = 'stun'; e.t = 1.15; }
+            else { e.action = 'stun'; e.t = 1.15; e.exposed = 1.15; }
           }
           break;
         }
@@ -596,7 +557,8 @@ export const ENEMY_DEFS = {
             }
           }
           stepToward(e, p.x, p.y, 40, dt);
-          if (e.t <= 0) { e.action = 'idle'; e.t = 0.6; }
+          // The spiral is the Warden's densest pattern; it ends winded.
+          if (e.t <= 0) { e.action = 'stun'; e.t = 1.0; e.exposed = 1.0; }
           break;
         }
       }
@@ -638,6 +600,9 @@ export const ENEMY_DEFS = {
     },
   },
 };
+
+// The four creature bosses and their minions live in bosses.js.
+Object.assign(ENEMY_DEFS, BOSS_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -701,6 +666,12 @@ export function spawnEnemy(type, x, y, opts = {}) {
     e.mass *= 1.6;
   }
 
+  // Boss summons: recoloured to match their master, and tied to it so they
+  // vanish when it dies.
+  if (opts.color) { e.color = opts.color; e.tint = opts.color; }
+  e.summoner = opts.summoner || null;
+  if (opts.tier !== undefined) e.tier = opts.tier;
+
   e.anim = createEnemyAnimator(type);
 
   if (def.init) def.init(e);
@@ -708,6 +679,9 @@ export function spawnEnemy(type, x, y, opts = {}) {
   if (!e.spawning) sfx.spawn();
   return e;
 }
+
+// Bosses summon minions; hand them the factory rather than importing it back.
+bindBossSpawner(spawnEnemy);
 
 function defaultDamage(type) {
   return {
@@ -756,7 +730,8 @@ export function updateEnemies(dt) {
     e.speed = savedSpeed;
 
     separate(e, dt);
-    collideWorld(e);
+    // Airborne (a leaping gorilla) sails over pillars; walls still apply on landing.
+    if (!e.z) collideWorld(e);
 
     if (dt > 0) {
       e.mvx = (e.x - prevX) / dt;
@@ -786,16 +761,23 @@ export function drawEnemies(ctx) {
       continue;
     }
 
-    // Ground shadow keeps enemies readable against the floor.
-    ctx.globalAlpha = 0.3;
+    // Submerged or otherwise hidden: only the boss's own tell is drawn.
+    if (e.hidden) { drawBossExtras(e, ctx); continue; }
+
+    // Ground shadow keeps enemies readable against the floor. Airborne
+    // things (a leaping gorilla) leave it on the ground, shrinking as they rise.
+    const z = e.z || 0;
+    const shadowK = 1 / (1 + z / 160);
+    ctx.globalAlpha = 0.3 + (z > 0 ? 0.15 : 0);
     ctx.fillStyle = '#000';
     ctx.beginPath();
-    ctx.ellipse(e.x, e.y + e.r * 0.72, e.r * 0.85, e.r * 0.34, 0, 0, TAU);
+    ctx.ellipse(e.x, e.y + e.r * 0.72, e.r * 0.85 * shadowK, e.r * 0.34 * shadowK, 0, 0, TAU);
     ctx.fill();
     ctx.globalAlpha = 1;
 
     e.tint = e.flash > 0 ? '#ffffff' : (e.burn ? '#ff8a3d' : e.color);
     if (!drawEnemyRig(e, ctx)) e.def.draw(e, ctx);
+    if (e.boss || e.def.extras) drawBossExtras(e, ctx);
 
     if (e.elite && !e.boss) {
       ctx.strokeStyle = 'rgba(255,200,97,0.85)';

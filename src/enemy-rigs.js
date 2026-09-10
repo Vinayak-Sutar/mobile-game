@@ -10,6 +10,7 @@
 
 import { makeSkeleton, makeClip, Animator, resolvePose, drawSkeleton } from './anim.js';
 import { clamp } from './util.js';
+import { BOSS_RIGS } from './boss-rigs.js';
 
 const K = (t, v, ease) => ({ t, ...v, ease });
 
@@ -496,6 +497,7 @@ const warden = {
 
 export const ENEMY_RIGS = {
   wretch, slinger, brute, charger, bomber, splitter, spitter, warden,
+  ...BOSS_RIGS,
 };
 
 // --- runtime ---------------------------------------------------------------
@@ -513,26 +515,37 @@ export function updateEnemyAnim(e, dt) {
   if (!rig || !e.anim) return;
 
   const wanted = rig.clips[rig.clipFor(e)];
-  if (wanted && e.anim.clip !== wanted) {
+  // Bosses bump animSerial whenever a step begins, so a repeated step (the
+  // second snap of a double snap, each fist of a pound barrage) replays its
+  // clip even though the clip itself hasn't changed.
+  const restep = e.animSerial !== undefined && e.anim.serial !== e.animSerial;
+  if (wanted && (e.anim.clip !== wanted || (restep && !wanted.loop))) {
     // Non-looping clips restart, because they map onto a state that just
     // began; looping locomotion cross-fades instead.
     e.anim.play(wanted, { fade: wanted.loop ? 0.12 : 0.05, restart: !wanted.loop });
   }
+  if (restep) e.anim.serial = e.animSerial;
   // Locomotion speed tracks how fast the thing is actually moving.
   if (wanted && wanted.loop && (e.state === 'chase' || e.action === 'idle')) {
     e.anim.speed = clamp(0.7 + (e.speed / 160), 0.6, 1.8);
   }
+  if (wanted && rig.speedFor && !(wanted.loop && e.action === 'idle')) e.anim.speed = rig.speedFor(e, wanted);
   e.anim.update(dt);
+  // Procedural layers on top of the clip (a spinning shell, a rolling croc).
+  if (rig.post) rig.post(e, e.anim);
 }
 
 export function drawEnemyRig(e, ctx) {
   const rig = ENEMY_RIGS[e.type];
   if (!rig || !e.anim) return false;
 
-  const scale = e.r / rig.ref;
+  // Height (a leaping gorilla) lifts the body off its shadow and draws it a
+  // little larger, as if closer to the camera.
+  const z = e.z || 0;
+  const scale = (e.r / rig.ref) * (1 + z / 320);
   // The spitter never turns to face anything; it just rotates on the spot.
   const angle = e.type === 'spitter' ? (e.spin || 0) : (e.face || 0);
-  const world = resolvePose(rig.skeleton, e.anim.pose, { x: e.x, y: e.y, angle, scale });
+  const world = resolvePose(rig.skeleton, e.anim.pose, { x: e.x, y: e.y - z, angle, scale });
 
   const flashing = e.flash > 0;
   drawSkeleton(ctx, world, { tint: '#0b0712', grow: 1.6 * scale, alpha: 0.9 });

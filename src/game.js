@@ -2,7 +2,7 @@
 // and every menu screen.
 
 import { world, view, arena, arenaBounds, resetWorld, clearEntities } from './state.js';
-import { clamp, TAU } from './util.js';
+import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
@@ -15,8 +15,11 @@ import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } f
 import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
-  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro, BOSS_DEPTH,
+  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
+  FINAL_DEPTH, BOSS_EVERY, effDepth,
 } from './rooms.js';
+import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
+import { BOSS_INFO, CREATURE_BOSSES } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
@@ -53,6 +56,8 @@ let audioStarted = false;
 // A weapon picked while the phone was still upright; the run starts once
 // it's been turned sideways.
 let pendingWeapon = null;
+// Set when the weapon screen was reached from Boss Trials.
+let pendingTrial = null;
 
 // --- setup -----------------------------------------------------------------
 
@@ -115,7 +120,7 @@ function checkOrientation() {
   if (!upright && pendingWeapon) {
     const w = pendingWeapon;
     pendingWeapon = null;
-    startRun(w);
+    beginRun(w);
   }
   if (upright && state === 'playing') showPause();
 }
@@ -147,6 +152,8 @@ function startRun(weapon) {
   world.player = createPlayer(weapon, metaBonuses());
   world.depth = 1;
   world.loop = 0;
+  // A different order of guardians every run; the Warden always closes it.
+  world.bossOrder = shuffle(CREATURE_BOSSES);
 
   const room = generateRoom(1, 0);
   startRoom(room);
@@ -156,6 +163,29 @@ function startRun(weapon) {
   hideOverlay();
 }
 
+/**
+ * Boss Trials: straight into one boss fight, with a few boons so it plays
+ * like it would mid-run. Nothing is banked — it's practice, not farming.
+ */
+function startTrial(weapon, bossType) {
+  startRun(weapon);
+  world.trial = bossType;
+  const p = world.player;
+  const final = bossType === 'warden';
+  const gifts = final ? 8 : 3;
+  for (let i = 0; i < gifts; i++) {
+    const offer = offerBoons(p, 1);
+    if (offer[0]) applyBoon(p, offer[0]);
+  }
+  p.hp = p.stats.maxHp;
+  world.depth = final ? FINAL_DEPTH : BOSS_EVERY * 2;
+  clearEntities();
+  clearFx();
+  const room = generateRoom(world.depth, 0, { bossType, slot: final ? 4 : 1 });
+  startRoom(room);
+  showToast('BOSS TRIAL', BOSS_INFO[bossType].animal === 'Final' ? 'The final guardian' : BOSS_INFO[bossType].animal);
+}
+
 function advanceRoom() {
   world.depth++;
   clearEntities();
@@ -163,10 +193,19 @@ function advanceRoom() {
   const room = generateRoom(world.depth, world.loop);
   startRoom(room);
   initAmbient(world.biome || getBiome());
-  if (room.type === 'boss') showToast('THE LAST GATE', 'Something is waiting.');
+  if (room.final) showToast('THE LAST GATE', 'Something is waiting.');
+  else if (room.type === 'boss') showToast(`CHAMBER ${world.depth}`, 'A guardian bars the way.');
   else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : '');
   state = 'playing';
   hideOverlay();
+}
+
+/** The weapon was picked: a normal run, or the Boss Trial chosen before it. */
+function beginRun(weapon) {
+  const trial = pendingTrial;
+  pendingTrial = null;
+  if (trial) startTrial(weapon, trial);
+  else startRun(weapon);
 }
 
 function loopDeeper() {
@@ -178,7 +217,8 @@ function loopDeeper() {
 
 function handleDoor(door) {
   if (door.reward === 'exit') {
-    onVictory();
+    if (world.trial) showTrialEnd(true);
+    else onVictory();
     return;
   }
   if (door.reward === 'boon') {
@@ -188,7 +228,7 @@ function handleDoor(door) {
   if (door.reward === 'heal') {
     healPlayer(Math.round(world.player.stats.maxHp * 0.40));
   } else if (door.reward === 'gold') {
-    const amount = 18 + world.depth * 9;
+    const amount = Math.round(18 + effDepth(world.depth) * 9);
     world.gold += amount;
     sfx.pickup();
   }
@@ -196,14 +236,14 @@ function handleDoor(door) {
 }
 
 function onDeath() {
-  const p = world.player;
+  if (world.trial) { showTrialEnd(false); return; }
   bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
   state = 'dead';
   showRunEnd(false);
 }
 
 function onVictory() {
-  bankRun({ gold: world.gold, depth: BOSS_DEPTH, kills: world.kills, won: true });
+  bankRun({ gold: world.gold, depth: FINAL_DEPTH, kills: world.kills, won: true });
   state = 'victory';
   flash(0.4, '#ffd9a0');
   showRunEnd(true);
@@ -258,6 +298,7 @@ function tick(dt) {
       updateHitboxes(dt);
       updateGrenades(dt);
       updateProjectiles(dt);
+      updateHazards(dt);
       updatePickups(dt);
       updateRoom(dt);
       updateFx(dt);
@@ -287,6 +328,7 @@ function tick(dt) {
     updateFx(dt);
     updateEnemies(dt);
     updateProjectiles(dt);
+    updateHazards(dt);
     deathTimer -= dt;
     if (deathTimer <= 0) onDeath();
   } else {
@@ -322,11 +364,13 @@ function render() {
     drawFxBelow(ctx);
     drawObstacles(ctx);
     drawDoors(ctx, world.runTime);
+    drawHazardsBelow(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
     drawPickups(ctx);
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);
     drawProjectiles(ctx);
+    drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
     drawFxAbove(ctx);
     drawRoomIntro(ctx, world.room, world.runTime);
@@ -463,11 +507,12 @@ function showTitle() {
     <div class="panel">
       <div class="eyebrow">top-down action roguelike · prototype</div>
       <h1>Ashfall</h1>
-      <p class="sub">Eight chambers stand between you and the surface.
+      <p class="sub">Fifteen chambers and five guardians stand between you and the surface.
       Clear a room, choose a door, take a boon, go deeper.
       Death is not the end — the darkness you carry out makes you stronger.</p>
       <div class="row">
         <button class="btn" data-act="biome">Begin Run</button>
+        <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -510,7 +555,7 @@ function showBiomeSelect() {
     <div class="panel">
       <div class="eyebrow">where the gate opens</div>
       <h2>Choose your descent</h2>
-      <p class="sub">Terrain only — every biome runs the same eight chambers.</p>
+      <p class="sub">Terrain only — every biome runs the same fifteen chambers.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
     </div>`);
@@ -671,7 +716,53 @@ const KILLER_NAMES = {
   wretch: 'a Wretch', slinger: 'a Slinger', brute: 'a Brute', charger: 'a Charger',
   bomber: "a Bomber's blast", splitter: 'a Splitter', spitter: 'a Spitter',
   warden: 'the Warden of Ash', explosion: 'an explosion',
+  turtle: 'Gravemaw the Shellback', croc: 'Mawgrim, the Mire King',
+  gorilla: 'Kharn, the Ashen Silverback', peacock: 'Solenne, the Hundred-Eyed',
 };
+
+// --- Boss Trials ------------------------------------------------------------
+
+function showTrials() {
+  state = 'trials';
+  const order = [...CREATURE_BOSSES, 'warden'];
+  const cards = order.map((type) => {
+    const b = BOSS_INFO[type];
+    return `
+      <div class="card" data-act="trial-pick" data-boss="${type}" style="border-color:${b.color}66">
+        <div class="tag" style="color:${b.color}">${b.animal === 'Final' ? 'Final guardian' : b.animal}</div>
+        <div class="name" style="color:${b.color}">${b.title}</div>
+        <div class="desc">${b.subtitle}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">practice · nothing is banked</div>
+      <h2>Boss Trials</h2>
+      <p class="sub">Fight any guardian on its own, with a few boons to start.
+      In a real run they guard chambers 3, 6, 9 and 12 in a random order; the Warden waits at 15.</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
+    </div>`);
+}
+
+function showTrialEnd(won) {
+  state = won ? 'victory' : 'dead';
+  const info = BOSS_INFO[world.trial] || BOSS_INFO.warden;
+  const last = world.trial;
+  const t = world.runTime;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">boss trial</div>
+      <h2 style="color:${info.color}">${won ? 'Guardian Felled' : 'Defeated'}</h2>
+      <p class="sub">${info.title} — ${won ? 'beaten' : 'still standing'} after
+      ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.</p>
+      <div class="row">
+        <button class="btn" data-act="trial-again" data-boss="${last}">${won ? 'Fight Again' : 'Retry'}</button>
+        <button class="btn ghost" data-act="trials">Other Trials</button>
+        <button class="btn ghost" data-act="title">Title</button>
+      </div>
+    </div>`);
+}
 
 function showRunEnd(won) {
   const banked = Math.round(world.gold * goldMultiplier());
@@ -740,13 +831,25 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
   if (act !== 'padcheck') stopPadCheck();
 
   switch (act) {
-    case 'title': showTitle(); break;
+    case 'title': pendingTrial = null; showTitle(); break;
+    case 'trials': showTrials(); break;
+    case 'trial-pick': {
+      if (isTouchDevice() && !isFullscreen()) enterFullscreen();
+      pendingTrial = el.dataset.boss;
+      showWeaponSelect();
+      break;
+    }
+    case 'trial-again': {
+      pendingTrial = el.dataset.boss;
+      showWeaponSelect();
+      break;
+    }
     case 'mirror': showMirror(); break;
     case 'padcheck': showPadCheck(); break;
     case 'vol-down': applyMusicVolume(audio.musicVolume - 0.1); break;
     case 'vol-up': applyMusicVolume(audio.musicVolume + 0.1); break;
     case 'fullscreen': toggleFullscreen().then(() => showTitle()); break;
-    case 'weapon': showWeaponSelect(); break;
+    case 'weapon': pendingTrial = null; showWeaponSelect(); break;
     case 'biome': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       showBiomeSelect();
@@ -768,7 +871,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
         checkOrientation();
         break;
       }
-      startRun(WEAPONS[idx]);
+      beginRun(WEAPONS[idx]);
       break;
     }
     case 'boon': {
@@ -804,7 +907,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'abandon': {
-      bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
+      if (!world.trial) bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
       showTitle();
       break;
     }
@@ -868,6 +971,7 @@ window.ashfall = {
   get state() { return state; },
   set state(s) { state = s; },
   tick, render, startRun, advanceRoom, showTitle,
+  trial: (type, weaponIdx = 0) => startTrial(WEAPONS[weaponIdx], type),
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,

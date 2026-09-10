@@ -219,6 +219,36 @@ export const sfx = {
     tone({ freq: 1400, freq2: 700, type: 'square', dur: 0.08, vol: 0.16 });
     noise({ dur: 0.12, vol: 0.24, freq: 5000, freq2: 1500, type: 'bandpass', q: 2.5 });
   },
+
+  // --- boss kit. Everything a phone must hear keeps energy above ~250 Hz. ---
+  beam() {
+    tone({ freq: 380, freq2: 1200, type: 'sawtooth', dur: 0.35, vol: 0.12, filter: { freq: 2400 } });
+    noise({ dur: 0.4, vol: 0.18, freq: 2600, freq2: 600, type: 'bandpass', q: 1.2 });
+  },
+  thud() {
+    noise({ dur: 0.22, vol: 0.3, freq: 700, freq2: 90 });
+    tone({ freq: 300, freq2: 90, type: 'triangle', dur: 0.16, vol: 0.18 });
+  },
+  chime() {
+    [784, 988, 1175].forEach((f, i) =>
+      tone({ freq: f, type: 'sine', dur: 0.4, vol: 0.09, delay: i * 0.05 }));
+  },
+  splash() {
+    noise({ dur: 0.4, vol: 0.28, freq: 1600, freq2: 300, type: 'bandpass', q: 0.8 });
+    tone({ freq: 420, freq2: 160, type: 'sine', dur: 0.25, vol: 0.12 });
+  },
+  whirr() {
+    tone({ freq: 260, freq2: 780, type: 'sawtooth', dur: 0.6, vol: 0.1, filter: { freq: 1500 } });
+  },
+  exposed() {
+    // A bright two-note "now!" cue for the punish window.
+    tone({ freq: 988, type: 'triangle', dur: 0.12, vol: 0.14 });
+    tone({ freq: 1319, type: 'triangle', dur: 0.2, vol: 0.14, delay: 0.08 });
+  },
+  roar(pitch = 1) {
+    tone({ freq: 120 * pitch, freq2: 320 * pitch, type: 'sawtooth', dur: 0.9, vol: 0.28, filter: { freq: 1800 } });
+    noise({ dur: 0.9, vol: 0.26, freq: 900 * pitch, freq2: 260, type: 'bandpass', q: 0.7 });
+  },
 };
 
 // --- music ------------------------------------------------------------------

@@ -4,9 +4,9 @@
 > understand the entire project without the conversation history that produced
 > it. Written to be read top to bottom once, then used as a reference.
 >
-> **Last updated:** 2026-09-10, after commit `0fb271c` (bow first, landscape-only,
-> music volume). If code and this document disagree, **the code wins** — then
-> fix this document.
+> **Last updated:** 2026-09-10, with the boss-battles update (15-chamber run,
+> four creature bosses, hazards, Boss Trials). If code and this document
+> disagree, **the code wins** — then fix this document.
 
 ---
 
@@ -17,8 +17,11 @@
 - **Stack:** vanilla JavaScript ES modules + Canvas 2D + WebAudio. **No engine,
   no framework, no build step to run, no image/audio asset files** — all art is
   drawn procedurally and all sound is synthesised at runtime.
-- **Size:** ~8,800 lines of code: 26 JS modules in `src/` plus `index.html`,
+- **Size:** ~11,000 lines of code: 30 JS modules in `src/` plus `index.html`,
   `serve.py`, `build.mjs`, `sw.js`, `manifest.json`. Entry point `src/game.js`.
+- **Run:** 15 chambers. Chambers 3/6/9/12 are four creature bosses (turtle,
+  crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
+  of Ash. Bosses follow written "hard but fair" rules (§5.14).
 - **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
   printed LAN URL on a phone on the same Wi-Fi. Landscape only.
 - **Repo:** `https://github.com/Vinayak-Sutar/mobile-game` (branch `main`).
@@ -48,6 +51,8 @@
 | Music on by default | Plays only during a run; volume slider on title + pause screens. | Owner couldn't hear it on mobile; then disliked it playing on menus. |
 | Biomes are cosmetic | No gameplay differences between the 4 biomes. | Balance was measured against fixed numbers; biome choice must not undo it. |
 | Push to GitHub after changes | Owner asked for the first push to test via Pages; fixes have been pushed to `main` since. | Owner tests on the Pages URL. |
+| **Boss every third chamber** | Two fights then a guardian; creature bosses shuffled per run, Warden always last at 15. | Owner: "after every two chambers", bosses inspired by gorilla, crocodile, peacock, turtle. |
+| **Bullet patterns: rare, hard, fair** | One dense barrage per boss on a long cooldown; always a way through; always followed by an EXPOSED punish window. | Owner loves weaving through projectiles but "don't make it appear every time… people should be able to avoid those projectiles, and then get an opening to punish". |
 
 ---
 
@@ -105,6 +110,22 @@ Each of these was a real bug. Violating one reintroduces it.
 16. **Validate with the bundler.** `npx esbuild src/game.js --bundle` catches
     import cycles and errors `node --check` misses (it caught a `const`
     reassignment that only crashed once a player held more than ~14 boons).
+    esbuild does *not* catch undefined identifiers; run the eslint one-liner
+    in §8.2 for that.
+17. **Never splice `world.projectiles` from outside `updateProjectiles`.** A boss
+    can die from an arrow *inside* the projectile loop, and its death wipes
+    bullets. `clearBullets()` therefore sets `pr.cleared = true`; the loop
+    removes flagged shots silently. Splicing there would shift the loop index.
+18. **Hazards and boss attacks damage only through `damagePlayer`** (rule 1),
+    so dash i-frames and the 0.8 s hit invulnerability apply to everything.
+19. **Tracking telegraphs must lock early enough to walk out.** Measured: a croc
+    snap that tracked for 60% of its wind-up and a gorilla leap marker that
+    followed for 50% of the flight left less time than escaping takes. Both
+    now lock at 40%. When adding a tracking attack, compute
+    `time after lock ≥ distance to leave ÷ 268 u/s`.
+20. **Boss modules don't import `enemies.js`.** `bosses.js` gets `spawnEnemy`
+    via `bindBossSpawner()` and shared movement from `ai.js`; `enemies.js`
+    merges `BOSS_DEFS` into `ENEMY_DEFS`. This keeps the graph acyclic.
 
 ---
 
@@ -133,10 +154,15 @@ src/
   spawn.js        Factories: spawnProjectile, spawnHitbox, spawnPickup
   projectiles.js  Update/draw projectiles, melee hitboxes, pickups; shield deflection
   enemies.js      ENEMY_DEFS (7 types + warden boss AI), spawnEnemy, update/draw enemies
+  bosses.js       Shared boss brain (runBoss) + TURTLE/CROC/GORILLA/PEACOCK movesets, eyeorb minion,
+                  bullet helpers (shot/ringShot/fanShot, 170 cap), clearBullets/clearHostiles, BOSS_INFO
+  boss-rigs.js    Skeletons + clips for the 4 creature bosses (poseClip authoring, speedFor, post hooks)
+  hazards.js      world.hazards: blast, lob, shockring, beam, cone, lane — update + draw below/above
+  ai.js           Shared movement/contact helpers (stepToward, collideWorld, contactDamage, …)
   enemy-rigs.js   Skeletons + clips for every enemy; state→clip mapping; drawEnemyRig
   rigs.js         Player skeleton + clips; updatePlayerAnim; drawPlayerRig
   anim.js         Keyframe skeletal animation engine (skeleton, clips, Animator, draw)
-  rooms.js        Room generation, waves, doors, floor/obstacle/door drawing, BOSS_DEPTH
+  rooms.js        Room generation, waves, doors, drawing; FINAL_DEPTH, effDepth, bossForDepth, bossScaling
   boons.js        GODS, 17 BOONS, offerBoons, applyBoon
   grenade.js      GRENADE constants, tap/hold aiming, throw, flight, draw
   biomes.js       4 BIOMES (data) + ambient mote system
@@ -157,8 +183,10 @@ src/
 - `state.js` and `util.js` import nothing project-local (leaves).
 - There are **no import cycles**. Known chains: `input → gamepad → dualsense`;
   `player → input, weapons, combat, rigs, grenade`; `enemies → combat, spawn,
-  enemy-rigs`; `rooms → enemies, texture, biomes`; `ui → input, boons, enemies,
-  rooms, audio, grenade, gamepad`; `game.js` imports everything.
+  enemy-rigs, ai, bosses`; `bosses → ai, hazards, combat, spawn` (never
+  enemies — rule 20); `enemy-rigs → boss-rigs`; `rooms → enemies, bosses,
+  texture, biomes`; `ui → input, boons, enemies, rooms, bosses, audio,
+  grenade, gamepad`; `game.js` imports everything.
 - Adding an import? Rebuild with esbuild to confirm no cycle (§8.2).
 
 ---
@@ -179,8 +207,8 @@ src/
   2. Touch pause button → `showPause()` if playing.
   3. If `playing`: during **hitstop** the sim freezes and fx update at 0.18×
      speed; otherwise update player, enemies, statuses, hitboxes, grenades,
-     projectiles, pickups, room, fx; set music intensity; handle a chosen door;
-     detect death → `dying`.
+     projectiles, **hazards**, pickups, room, fx; set music intensity; handle a
+     chosen door; detect death → `dying`.
   4. If `dying`: keep animating (including `updatePlayer`, so the death clip
      plays) for 1.15 s, then `onDeath()`.
   5. `updateUi(dt)`, the **music rule** (§2 rule 3), `endFrameInput()`.
@@ -188,7 +216,9 @@ src/
 ### 4.2 Game states (`state` in `game.js`)
 
 `title` → `biome` → `weapon` → `playing` ⇄ `paused` / `boon` → `dying` → `dead`,
-or → `victory`. Also `mirror` (meta shop) and `padcheck` (controller diagnostic).
+or → `victory`. Also `mirror` (meta shop), `padcheck` (controller diagnostic)
+and `trials` (Boss Trials: `trials` → `weapon` → a single boss room; the chosen
+boss waits in `pendingTrial`, and `beginRun()` dispatches to `startTrial()`).
 Menus are DOM overlays built by `show*()` functions in `game.js`; clicks route
 through one delegated `click` listener on `#overlay` keyed on `data-act`, plus an
 `input` listener for the music volume slider.
@@ -208,15 +238,17 @@ through one delegated `click` listener on `#overlay` keyed on `data-act`, plus a
 ### 4.4 Render order (`render()`)
 
 Floor (texture + vignette + biome fog + sigil + wall band) → ambient motes → fx
-below (trails, rings) → obstacles → doors → grenade aim reticle → pickups →
-enemies → player → projectiles → grenades → fx above (slashes, particles, damage
-numbers) → boss intro text. Then, unshaken: HUD, touch controls, low-health
+below (trails, rings) → obstacles → doors → **hazard floor markers** → grenade
+aim reticle → pickups → enemies (+ boss extras: exposed halo, croc ripple) →
+player → projectiles → **lobbed shells + live beams** → grenades → fx above
+(slashes, particles, damage numbers) → boss intro text. Then, unshaken: HUD, touch controls, low-health
 vignette, full-screen flash. Screen shake is a `translate` around the world pass.
 
 ### 4.5 `world` (from `state.js`)
 
-`player, enemies[], projectiles[], hitboxes[], grenades[], pickups[], room,
-depth, loop, biome, gold, kills, runTime, damageLog{}, timeScale, paused`.
+`player, enemies[], projectiles[], hitboxes[], grenades[], pickups[],
+hazards[], room, depth, loop, biome, bossOrder[], trial, gold, kills, runTime,
+damageLog{}, timeScale, paused`.
 
 ---
 
@@ -309,13 +341,15 @@ charger 13, bomber 15, splitter 8, spitter 8, warden 22.
 | Brute | 27 | 140 | 88 | 6 | 3 | Within 140: 0.78 s wind-up (fists overhead), slam r128 |
 | Spitter | 21 | 60 | 0 | 4 | 4 | Stationary; 0.5 s wind-up, 9-bullet radial ring every 2.4 s |
 
-**Warden of Ash** (boss, chamber 8): r46, base HP 1250 × scale 1.45 (≈1813),
-damage scale 1.05. Phases at 62% and 30% HP; a phase change is a 1.5 s
-invulnerable roar ending in an r300 blast. Actions: slam (r220), volley (radial
-waves), aim→charge (880 u/s, 2 charges in phase 3), stun, summon (wretches;
-bombers in phase 3), spiral (phase 3). Eight animation clips including the roar.
+**Warden of Ash** (final boss, chamber 15): r46, base HP 1250 × scale 1.9
+(≈2375), damage scale 1.1. Phases at 62% and 30% HP; a phase change is a 1.5 s
+invulnerable roar (bullets wiped) ending in an r300 blast. Actions: slam
+(r220), volley (radial waves), aim→charge (880 u/s, 2 charges in phase 3),
+stun (now EXPOSED), summon (wretches; bombers in phase 3), spiral (phase 3,
+ends winded and EXPOSED for 1 s). Eight animation clips including the roar.
+The creature bosses are in §5.14.
 
-Scaling: `enemyScale = 1 + (depth-1)×0.19 + loop×0.75` multiplies HP;
+Scaling (combat rooms use `effDepth`, §5.6): `enemyScale = 1 + (eff-1)×0.19 + loop×0.75` multiplies HP;
 `dmgScale = min(2.0, 0.9 + scale×0.26)`. **Elites** (depth 3 and 6): ×1.22
 radius, ×1.9 HP, ×1.15 damage, ×1.08 speed, gold ring. Enemies spawn through a
 0.75 s portal telegraph, at least 250 units from the player. `e.mvx/e.mvy` hold
@@ -324,14 +358,26 @@ player and slide along obstacles.
 
 ### 5.6 Rooms and the run (`rooms.js`)
 
-- `BOSS_DEPTH = 8`. Elite room when `depth > 2 && depth % 3 === 0`.
-- Waves: 1 (depth ≤2), 2 (≤5), 3 otherwise. Budget per wave =
-  `round((4 + depth×2.8 + loop×8) × (0.75 + w×0.35))`, spent on random enemies
-  whose `minDepth ≤ depth + loop×3`.
+- `FINAL_DEPTH = 15`, `BOSS_EVERY = 3`: boss rooms at 3, 6, 9, 12 (creature
+  bosses, order = `world.bossOrder`, shuffled in `startRun`) and 15 (Warden).
+  `bossForDepth(d)` picks the type; `room.bossSlot` is 0–3 for the creatures
+  and 4 for the Warden.
+- **`effDepth(d) = 1 + (d-1)×0.5`** maps the 15-chamber run onto the
+  8-chamber curve the balance pass measured (chamber 14 ≈ old 7.5). Combat rooms
+  use it for waves, budget, enemy pool, obstacles, enemy scaling and gold.
+- Elite rooms: `ELITE_DEPTHS = [5, 11]` (= old elite depths 3 and 6 exactly).
+- Waves: 1 (eff ≤2), 2 (≤5), 3 otherwise. Budget per wave =
+  `round((4 + eff×2.8 + loop×8) × (0.75 + w×0.35))`, spent on random enemies
+  whose `minDepth ≤ eff + loop×3`.
 - On clear: two doors on the top wall (60% boon / 20% heal / 20% gold; forced
-  heal if HP < 45%; duplicate non-boon rewards become boon). Boss room: one exit.
+  heal if HP < 45%; duplicate non-boon rewards become boon). **Creature boss
+  rooms:** always a boon door, plus heal (if HP < 85%) or gold. **Final boss /
+  trial:** one exit.
 - Door rewards: **boon** → pick 1 of 3; **heal** → 40% max HP; **gold** →
-  `18 + depth×9`.
+  `18 + eff×9`.
+- **Boss scaling** (`bossScaling(room)`): creature slot s → HP ×`1 + 0.3s`,
+  damage ×`1 + 0.1s`, `tier = s` (bullets +4% speed per tier, shorter rests);
+  Warden HP ×1.9, damage ×1.1. Loops add HP ×0.8 and damage ×0.3.
 - Kill drops: 1–3 coins (elite 7, boss 22); heal pickup 14% (boss 100%) worth 16
   HP; magnet radius 170.
 - After the boss: *Victory* screen with **Press Deeper** (loop +1, harder) or a
@@ -461,7 +507,72 @@ using the computed `rigExtent`. `ashfall.saveAssets()` POSTs everything to
 these** — the live game draws vectors. They exist to hand to another engine or
 to swap real art in against a known format.
 
-### 5.14 DualSense (`dualsense.js`) — optional, unverified
+### 5.14 Creature bosses (`bosses.js`, `boss-rigs.js`, `hazards.js`)
+
+**The fairness contract** (also at the top of `bosses.js` — keep it for any new
+boss):
+1. Every attack has a tell: a pose (clip time-stretched to the telegraph via
+   `e.clipTime` + `speedFor`), a sound, and usually a floor marker (hazard).
+2. Exactly one dense **barrage** per boss, with a ~13–14 s cooldown and an
+   opening cooldown, so fights start with readable moves. Measured: the peacock
+   uses its barrage 3–4× per minute.
+3. Every barrage has a way through (drifting corridor, lattice wider than the
+   hurtbox, safe flank, pillars). Barrage bullets fly at 140–235 u/s against the
+   player's 268 u/s.
+4. Every barrage ends **EXPOSED**: the boss stops (`action 'exposed'`), a gold
+   dashed halo + orbiting stars, the HP bar turns gold, and damage ×1.35
+   (`EXPOSED_MULT` in `combat.js`). Charges/rolls/rushes into a wall and the
+   Warden's stun/spiral also expose.
+5. Phase changes wait for an exposed window to finish, then roar (1.3 s,
+   invulnerable) and `clearBullets()`. Death runs `clearHostiles()` (bullets,
+   hazards, the boss's own summons).
+6. `BULLET_CAP = 170` enemy bullets; `shot()` silently drops beyond it.
+7. Against bullets the player's hurtbox is `p.r × 0.72` (`BULLET_HURTBOX` in
+   `projectiles.js`); against hazards `p.r × 0.6`. Shockring gaps count the
+   player's centre.
+
+**Brain** (`runBoss`): per tick counts bullets, ticks timers (`e.t` action/step
+countdown, `e.at` time in action, `e.st` time in step, `e.cool[move]`), checks
+phases (`e.phases` thresholds), then runs `idle` (spec's movement) or the
+current move's `update`. `chooseMove` takes the spec's weighted pool, skips
+moves on cooldown and quarters the weight of the last move. `act()`/`sub()` set
+action/step, reset timers, set `clipTime` and bump `animSerial` (so a repeated
+step replays its clip). `idle()` shortens rests by phase (×1, ×0.8, ×0.65) and
+tier.
+
+| Boss (HP base, r) | Phases | Moves (barrage in bold) |
+| --- | --- | --- |
+| **Gravemaw the Shellback** — turtle (1250, 50) | 50% (spines up, faster) | `bite` cone r150 · `stomp` blast r125 + 1–2 shockrings with two gaps beside you · `spin` lane → ricochets 4/6 walls, bubble ring per bounce, EXPOSED 2 s · `mortar` 3–4 volleys × 4–5 lobs on marked spots · **`tide`** 6/8 rings of 20/24 slow bubbles, corridor drifting 0.22 rad/wave → EXPOSED 2.2 s |
+| **Mawgrim, the Mire King** — croc (1100, 42) | 55% (double snap, hatchlings) | `snap` cone r215 then 820 u/s lunge · `tail` blast r190 (+12 mud in ph2) · `roll` lane → 640 u/s with mud wake (parked globs launch sideways after 0.5 s) → wall → EXPOSED · `submerge` hidden+invuln ripple chases you, marks r115, erupts with 18/24 ring → EXPOSED · `hatch` 3 wretch hatchlings (ph2, ≤2 alive) · **`spray`** stream swept ±1.05 rad for 2.6/3.3 s, flanks safe → EXPOSED 1.8 s |
+| **Kharn, the Ashen Silverback** — gorilla (1200, 48) | 60%, 30% (enrage: ×1.25 speed, red eyes) | `leap` ×1/2/3, marker r130 tracks 40% of a 1.0 s flight, lands with rock ring · `boulder` ×1/2/3, bursts into 10–14 shards on expiry or wall · `rush` lane → 700 u/s, floor cracks erupt behind, wall → EXPOSED · `clap` cone r180 (+5-rock fan from ph2) · **`pound`** chest-beat, then 10/12/14 alternating rings of 14–16 rocks offset half a gap (lattice) → EXPOSED 2.3 s |
+| **Solenne, the Hundred-Eyed** — peacock (1000, 36) | 66%, 33% | Kites at 240–380. `darts` 3–4 fans of 5–7 feathers at 390 u/s · `swoop` lane across you, feather mines both sides · `beams` (ph2+) 2–3 warning lines 1 s, then sweep 0.5–0.62 rad/s the way the chevrons point → EXPOSED 1.4 s · `eyes` (ph3) 3 `eyeorb` turrets spinning spirals for 7.5 s · **`display`** glides to centre, fans tail, counter-rotating teal/gold spirals (3–4 arms); ph2 adds rippling aimed shots from 5 tail eyes; ph3 adds gapped feather rings → EXPOSED 2.2 s |
+
+**Hazards** (`spawnHazard`): `blast` (circle fills to its rim as it
+detonates; optional `follow`, `shards`), `lob` (shell arcs `x0,y0 → x1,y1`,
+then a blast), `shockring` (expands at `speed`, `width` band, `gaps [{a,w}]`,
+optional `wait`, hits once), `beam` (`warn` dashed line with sweep chevrons →
+`active` for `spin` rad/s), `cone` and `lane` (telegraph-only, owner applies
+the hit; `track(h)` can steer them). Floor markers draw under entities; shells
+and live beams draw above.
+
+**Projectile additions** (`spawn.js`): `delay` (parked, blinking, then
+launches), `launchSpeed`, `launchAtPlayer`, `accel`/`minSpeed`/`maxSpeed`,
+`turn`, `quiet` (2-particle fizzle), `cleared`. Shapes `bubble`, `mud`
+(sprite-cached like `orb`), `feather`, `rock`. Round enemy bullets are drawn
+from a per-colour sprite cache (1.3 ms render for 118 bullets on the dev PC).
+
+**Rigs** (`boss-rigs.js`): authored as whole poses with `poseClip(name, dur,
+loop, [[t, {bone: {...}}, ease]])` — bones missing from a pose are at rest.
+`post(e, anim)` layers procedural motion (turtle shell spin, croc roll flip,
+tail-sweep spin, gorilla boulder visibility). `drawSkeleton` now skips bones
+scaled to 0. `e.z` lifts a rig off its shadow (gorilla leap); `e.hidden` draws
+only the boss's own tell (croc ripple).
+
+**Boss Trials** (title screen): any boss alone, with 3 random boons (8 for the
+Warden), creature bosses at slot 1. No darkness banked, no run counted;
+`world.trial` holds the type. Debug: `ashfall.trial('gorilla', weaponIdx)`.
+
+### 5.15 DualSense (`dualsense.js`) — optional, unverified
 
 WebHID output reports: USB report `0x02` (47-byte payload); Bluetooth report
 `0x31` with a flag byte, the same payload, and a CRC32. Lightbar follows the
@@ -493,6 +604,25 @@ danger well and absolute difficulty poorly. The bow looks weakest in bot runs,
 but the bot taps instead of charging, which undersells it. **Grenades and the
 bow-as-default were added after this pass and have not been re-measured.**
 
+### 6.1 Bosses: idle vs dodging (damage taken per minute, slot-1 trial)
+
+A crude **dodge bot** (§7.4) against a player standing still, 90 s per boss,
+attributed to the boss's action when each hit landed:
+
+| Boss | Idle | Dodging | Barrage damage while dodging |
+| --- | --- | --- | --- |
+| Turtle | 339 | 105 | tide 8 |
+| Crocodile | 463 | 309 → **201** after the snap fix | spray 81–108 |
+| Gorilla | 541 | 166 → **121** after the leap fix | pound 0–30 |
+| Peacock | 264 | 61 | display 0 |
+| Warden (unchanged) | 348 | 519 | — (the bot walks into its wretches) |
+
+Reading: dodging removes 70–77% of the damage for turtle, gorilla and peacock,
+and nearly all barrage damage, so the patterns are avoidable. The croc snap
+and gorilla leap were the outliers; both telegraphs now lock earlier (rule 19).
+**Boss HP numbers are reasoned, not measured against humans** — aim was a
+45–75 s fight for a competent player. Needs playtesting.
+
 ---
 
 ## 7. Testing and verification playbook
@@ -500,7 +630,8 @@ bow-as-default were added after this pass and have not been re-measured.**
 ### 7.1 Debug handle (`window.ashfall`)
 
 `world, view, arena, input, fx, WEAPONS, state (get/set), tick, render,
-startRun, advanceRoom, showTitle, spawn(type, x?, y?, opts?), run(steps), pad,
+startRun, advanceRoom, showTitle, trial(bossType, weaponIdx), spawn(type, x?,
+y?, opts?), run(steps), pad,
 dualsense, probeDualSense, rumble, pollGamepad, bakeSpriteSheet, bakeTextures,
 exportAll, exportAsDataURLs, canvasToDataURL, saveAssets, outputLevel,
 setMusicVolume, audio, toggleFullscreen, screenState, PLAYER_SKELETON,
@@ -525,27 +656,48 @@ function drive(n, label) {
   }
   key('keyup', held); key('keyup', 'j');
 }
+const combat = await import('/src/combat.js');
 const TYPES = ['wretch','slinger','brute','charger','bomber','splitter','spitter'];
 for (const w of A.WEAPONS) {
   A.startRun(w);
   const p = A.world.player; p.stats.maxHp = 99999; p.hp = 99999;
-  for (let d = 1; d <= 7; d++) {
-    TYPES.forEach(t => A.spawn(t)); drive(90, `${w.id}:${d}`);
-    A.world.enemies.length = 0; A.world.room.waveIndex = A.world.room.waves.length;
-    drive(60, 'clear');
+  for (let d = 1; d <= 15; d++) {
+    if (A.world.room.type === 'boss') {
+      drive(600, `${w.id}:boss${d}`);             // every boss gets 10 s of real moves
+      let g = 0;                                   // then kill it once hittable
+      while (A.world.enemies.some(e => e.boss && !e.dead) && g++ < 600) {
+        const b = A.world.enemies.find(e => e.boss && !e.dead);
+        if (!b.invuln) { b.hp = 1; combat.dealDamage(b, 999, { raw: true }); }
+        A.tick(1/60);
+      }
+      A.world.enemies.forEach(e => { e.dead = true; });
+      drive(90, 'bossclear');                      // > 0.3 s: boss deaths hitstop
+    } else {
+      TYPES.forEach(t => A.spawn(t)); drive(90, `${w.id}:${d}`);
+      A.world.enemies.length = 0; A.world.room.waveIndex = A.world.room.waves.length;
+      drive(60, 'clear');
+    }
+    if (d === 15) break;
     const door = A.world.room.doors[0];
     if (door) { p.x = door.x; p.y = door.y; drive(4, 'door'); }
     if (A.state === 'boon') { const c = document.querySelector('#overlay [data-act="boon"]'); c ? c.click() : A.advanceRoom(); }
   }
-  drive(160, 'boss');
-  const b = A.world.enemies.find(e => e.boss); if (b) { b.hp = 1; drive(120, 'kill'); }
+  const exit = A.world.room.doors[0]; if (exit) { p.x = exit.x; p.y = exit.y; drive(4, 'exit'); }
+  // expect A.state === 'victory', five distinct bosses seen
+  if (A.state !== 'playing') A.showTitle();
 }
-// then the death path: startRun, maxHp = hp = 10, tick until A.state === 'dead'
+// then the death path: startRun, maxHp = hp = 10, spawn a brute, tick until A.state === 'dead'
 errors; // expect []
 ```
 
-A "boss not dead" result in bot runs is usually a bot artefact (it misses the
-invulnerable phase windows). Verify boss death directly before calling it a bug.
+Last result (boss update): 4 weapons × 15 chambers, all five bosses in a
+different shuffled order per weapon, victory at 15, death path OK, 0 errors.
+Also run each boss alone with `A.trial(type)` for 45 s and list the
+`action/sub` pairs seen, and force phases by setting `b.hp` (wait out an
+`exposed` window first — phase changes are deferred during it).
+
+**Boss kills freeze the sim for 0.3 s (hitstop).** A test that checks "room
+cleared" 5 ticks after a boss kill will wrongly report it still alive.
 
 ### 7.3 Quirks of the in-app preview browser
 
@@ -584,7 +736,20 @@ invulnerable phase windows). Verify boss death directly before calling it a bug.
 - **Loudness and clipping:** sample `ashfall.outputLevel()` every ~40 ms; pace
   combat in real time (3 ticks per 50 ms) so SFX don't stack unrealistically.
 - **Visual inspection:** render rigs at 4× onto an overlaid `<canvas>` (the game
-  loop repaints the main canvas), or bake a sheet and `Read` the PNG.
+  loop repaints the main canvas), or bake a sheet and `Read` the PNG. To
+  screenshot a boss mid-pose while the pane is live, run until the pose, then
+  set `A.fx.hitstop = 999` (freezes the sim, rendering continues).
+- **Boss fairness — the dodge bot:** each tick, sum a steering force from
+  (a) enemy bullets within 150 u that are approaching (push perpendicular to
+  their path), (b) blast/lob markers (push out), (c) cones/lanes (push out
+  sideways), (d) beams (move with the sweep), (e) a preferred 240 u distance
+  from the boss (90 when exposed) and walls; press WASD for the force
+  direction; tap dash when a bullet is about to connect or a shockring band is
+  within 34 u. Compare `damageLog` per minute against a standing player and
+  attribute each hit to `boss.action`. Moves the bot can't escape even while
+  dodging are unfair candidates (that's how the snap and leap were found).
+- **Render cost:** time `A.render()` over 120 frames at the densest barrage
+  (peacock phase 3 Display): 1.33 ms for 118 bullets on the dev PC.
 
 ---
 
@@ -605,6 +770,8 @@ python serve.py --https         # https on :8443, self-signed (.certs/, gitignor
 npx --yes esbuild@0.25.0 src/game.js --bundle --format=iife --outfile=/dev/null   # static check
 npm run build                   # dist/ashfall.html single-file build (+ dist/upload/, HOW-TO-RUN.txt)
 node --check src/<file>.js      # syntax only (package.json has "type":"module")
+# undefined / unused identifiers (esbuild misses these):
+npx --yes eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module,ecmaVersion:2022 --rule '{"no-undef":"error","no-unused-vars":["warn",{"args":"none"}]}' src/*.js
 ```
 
 Share zips (`Ashfall.zip`, `Ashfall-web.zip`, `Ashfall-assets.zip`) are made with
@@ -676,6 +843,20 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
 15. **Bow first; portrait removed** → landscape-only with fullscreen + lock and a
     rotate fallback; **music volume** slider (+9–12 dB louder by default),
     make-up gain, limiter (+2.1 dBFS clipping → −0.3 dBFS).
+16. **Documentation journal** (this file), commit `c12c2d1`.
+17. **Boss battles.** Owner asked for a boss after every two chambers,
+    creature-inspired (gorilla, crocodile, peacock, turtle), each with distinct
+    moves, and more of the "weave through projectiles" feel — rare, hard,
+    fair, with an opening to punish. Built: 15-chamber run with `effDepth`
+    keeping the measured curve; four creature bosses + the Warden; the shared
+    boss brain; hazards; parked/curving/accelerating projectiles with sprite
+    cache; EXPOSED windows (+35% damage); bullet wipes on phase change/death;
+    bullet cap; smaller bullet hurtbox; hatchling and watching-eye minions;
+    Boss Trials menu; boss-coloured HP bar with phase ticks; 15-pip chamber
+    tracker with boss markers. Fixed during testing: gorilla fur was
+    dark-on-dark against the floor (brightened); croc snap and gorilla leap
+    locked too late to walk out (now 40%); `restTime` was written but unused
+    (now folded into `idle()`).
 
 ---
 
@@ -687,6 +868,14 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
   verified logically only. iPhone: no page fullscreen, no lock → rotate prompt.
 - **Balance** is bot-measured only; not re-measured since grenades and
   bow-as-default. Needs human playtesting.
+- **Boss HP and run length are untested with humans.** A full run is now 15
+  chambers (roughly 12–15 minutes). More chambers also means more boons and
+  gold per run than the 8-chamber economy was tuned for; the Mirror of Night
+  prices may need raising. Boss fight lengths are estimates.
+- **The Warden** was not re-tuned beyond HP ×1.9 for the longer run; the dodge
+  bot does worse against it than a standing player (it walks into the adds).
+- **Best chamber** in old saves is out of 8; new runs record out of 15. No
+  migration (the number just grows).
 - **Enemies have no pathfinding**; they can look dumb around obstacles.
 - **Art is procedural** — readable at prototype scale, not a shippable art
   direction. Real art needs an artist, asset packs or image generation; the
@@ -713,6 +902,11 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
 - Packaging: Capacitor → Play Store (rewarded ads first, capped interstitials,
   remove-ads IAP), Tauri → desktop.
 - The owner has "a lot of additions" planned — ask for the list first.
+- Bullet-pattern rooms outside boss fights (owner likes weaving through
+  projectiles): e.g. an occasional "crossfire" chamber with turret enemies
+  like the peacock's `eyeorb`. Must stay occasional.
+- Per-boss arenas (the creature bosses currently share the Warden's four
+  corner pillars) and per-boss music variations.
 
 ---
 
@@ -720,9 +914,15 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
 
 | Term | Meaning |
 | --- | --- |
-| Chamber / depth | A room; the run is chambers 1–8, chamber 8 is the boss |
-| Loop | Continuing past the boss via Press Deeper; everything scales up |
-| Elite | A stronger enemy variant with a gold ring (chambers 3 and 6) |
+| Chamber / depth | A room; the run is chambers 1–15; 3/6/9/12 creature bosses, 15 the Warden |
+| Effective depth | `effDepth(d)`: the 15-chamber run mapped onto the old 8-chamber difficulty curve |
+| Loop | Continuing past the final boss via Press Deeper; everything scales up |
+| Elite | A stronger enemy variant with a gold ring (chambers 5 and 11) |
+| Boss slot / tier | 0–3 = which creature-boss chamber (3/6/9/12); drives boss HP, damage, bullet speed |
+| Barrage | A boss's one dense bullet pattern; long cooldown, always ends EXPOSED |
+| Exposed | A boss's punish window: stopped, gold halo, takes ×1.35 damage |
+| Hazard | A telegraphed non-projectile attack in `world.hazards` (blast, lob, shockring, beam, cone, lane) |
+| Boss Trial | Practice fight against one boss from the title screen; nothing banked |
 | Boon | A stacking run upgrade from one of 5 gods, chosen at boon doors |
 | Darkness | Meta currency: gold banked at the end of every run |
 | Mirror of Night | Meta shop for permanent upgrades |

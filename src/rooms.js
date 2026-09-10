@@ -4,25 +4,55 @@
 import { world, arena, arenaBounds } from './state.js';
 import { TAU, rand, randInt, pick, chance, clamp, dist, roundRect, polygon } from './util.js';
 import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
+import { CREATURE_BOSSES, BOSS_INFO } from './bosses.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
 import { getBiome, updateAmbient } from './biomes.js';
 
-export const BOSS_DEPTH = 8;
+// A run is 15 chambers: two fights, then a guardian, five times over.
+// Chambers 3, 6, 9 and 12 hold the four creature bosses in a per-run shuffled
+// order; chamber 15 is always the Warden of Ash.
+export const FINAL_DEPTH = 15;
+export const BOSS_EVERY = 3;
+export const ELITE_DEPTHS = [5, 11];
+
+export function isBossDepth(depth) { return depth % BOSS_EVERY === 0; }
+
+/**
+ * The combat difficulty curve was measured on an 8-chamber run (§6 of the
+ * journal). Stretching it over 15 chambers keeps those numbers valid: chamber
+ * 14 plays like the old chamber 7.5, and the elite chambers 5 and 11 land on
+ * the old elite depths 3 and 6 exactly.
+ */
+export function effDepth(depth) { return 1 + (depth - 1) * 0.5; }
 
 const SPAWNABLE = ['wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter'];
 
-export function generateRoom(depth, loop = 0) {
-  const isBoss = depth === BOSS_DEPTH;
-  const isElite = !isBoss && depth > 2 && depth % 3 === 0;
+/** Which boss guards a boss chamber this run. */
+export function bossForDepth(depth) {
+  if (depth >= FINAL_DEPTH) return 'warden';
+  const order = world.bossOrder && world.bossOrder.length ? world.bossOrder : CREATURE_BOSSES;
+  return order[(depth / BOSS_EVERY - 1) % order.length];
+}
+
+export function generateRoom(depth, loop = 0, opts = {}) {
+  const isBoss = !!opts.bossType || isBossDepth(depth);
+  const isElite = !isBoss && ELITE_DEPTHS.includes(depth);
+  const eff = effDepth(depth);
+  const bossType = isBoss ? (opts.bossType || bossForDepth(depth)) : null;
 
   const room = {
     depth,
+    eff,
     loop,
     type: isBoss ? 'boss' : isElite ? 'elite' : 'combat',
-    obstacles: isBoss ? bossObstacles() : makeObstacles(depth),
-    waves: isBoss ? [] : makeWaves(depth, loop, isElite),
+    bossType,
+    // Boss slot 0-3 for the creatures, 4 for the Warden: drives their scaling.
+    bossSlot: isBoss ? (opts.slot ?? Math.min(4, Math.round(depth / BOSS_EVERY) - 1)) : 0,
+    final: bossType === 'warden',
+    obstacles: isBoss ? bossObstacles() : makeObstacles(eff),
+    waves: isBoss ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,
     waveDelay: 0.6,
     cleared: false,
@@ -132,6 +162,21 @@ function enemyScale(depth, loop) {
   return 1 + (depth - 1) * 0.19 + loop * 0.75;
 }
 
+/**
+ * Bosses get their own curve rather than the depth ramp — at full depth
+ * scaling the old Warden was a ~3300 HP damage sponge. Each later creature
+ * slot is tougher and hits a little harder, because the player arrives with
+ * three more boons each time.
+ */
+export function bossScaling(room) {
+  const loop = room.loop || 0;
+  if (room.bossType === 'warden') {
+    return { scale: 1.9 + loop * 0.8, dmgScale: 1.1 + loop * 0.3, tier: 4 };
+  }
+  const slot = Math.min(3, room.bossSlot || 0);
+  return { scale: 1 + slot * 0.3 + loop * 0.8, dmgScale: 1 + slot * 0.1 + loop * 0.3, tier: slot };
+}
+
 export function updateRoom(dt) {
   const room = world.room;
   if (!room) return;
@@ -141,16 +186,12 @@ export function updateRoom(dt) {
     room.intro -= dt;
     if (room.intro <= 0) {
       const b = arenaBounds();
-      // The boss gets its own curve rather than the depth ramp — at full
-      // depth scaling it was a ~3300 HP damage sponge.
-      const boss = spawnEnemy('warden', b.l + (b.r - b.l) / 2, b.t + 120, {
-        scale: 1.45 + room.loop * 0.8,
-        dmgScale: 1.05 + room.loop * 0.3,
-      });
+      const boss = spawnEnemy(room.bossType, b.l + (b.r - b.l) / 2, b.t + 120, bossScaling(room));
       boss.spawning = false;
-      flash(0.4, '#ff3d5e');
+      const color = (BOSS_INFO[room.bossType] || {}).color || boss.color;
+      flash(0.4, color);
       shake(0.8);
-      ring(boss.x, boss.y, { r0: 10, r1: 320, color: '#ff3d5e', life: 0.7, width: 10 });
+      ring(boss.x, boss.y, { r0: 10, r1: 320, color, life: 0.7, width: 10 });
     }
     return;
   }
@@ -196,7 +237,7 @@ function spawnWave(room, wave) {
     for (let i = 0; i < slot.count; i++) {
       const pt = spawnPoint(slot.type === 'spitter' ? 300 : 250);
       spawnEnemy(slot.type, pt.x, pt.y, {
-        scale: enemyScale(room.depth, room.loop),
+        scale: enemyScale(room.eff, room.loop),
         elite: !!slot.elite && i === 0,
       });
     }
@@ -224,11 +265,18 @@ function makeDoors(room) {
   const b = arenaBounds();
   const y = b.t - 6;
 
+  const p = world.player;
+
   if (room.type === 'boss') {
-    return [makeDoor((b.l + b.r) / 2, y, 'exit')];
+    if (room.final || world.trial) return [makeDoor((b.l + b.r) / 2, y, 'exit')];
+    // A guardian always pays out a boon, plus health if you need it.
+    const second = p && p.hp / p.stats.maxHp < 0.85 ? 'heal' : 'gold';
+    return [
+      makeDoor(b.l + (b.r - b.l) * 0.3, y, 'boon'),
+      makeDoor(b.l + (b.r - b.l) * 0.7, y, second),
+    ];
   }
 
-  const p = world.player;
   const hurt = p && p.hp / p.stats.maxHp < 0.45;
 
   let types = [rollReward(), rollReward()];
@@ -378,14 +426,22 @@ export function drawDoors(ctx, time) {
 export function drawRoomIntro(ctx, room, time) {
   if (!room || room.intro <= 0) return;
   const b = arenaBounds();
+  const info = BOSS_INFO[room.bossType] || BOSS_INFO.warden;
   const k = 1 - room.intro / 1.6;
   ctx.globalAlpha = Math.min(1, k * 3) * (room.intro < 0.4 ? room.intro / 0.4 : 1);
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#ff3d5e';
-  ctx.font = '900 46px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillText('THE WARDEN OF ASH', b.l + arena.w / 2, b.t + arena.h / 2 - 10);
+  ctx.fillStyle = info.color;
+  // Long names shrink to fit a phone-width arena.
+  let size = 46;
+  ctx.font = `900 ${size}px "Segoe UI", Roboto, system-ui, sans-serif`;
+  const title = info.title.toUpperCase();
+  while (size > 26 && ctx.measureText(title).width > arena.w - 60) {
+    size -= 2;
+    ctx.font = `900 ${size}px "Segoe UI", Roboto, system-ui, sans-serif`;
+  }
+  ctx.fillText(title, b.l + arena.w / 2, b.t + arena.h / 2 - 10);
   ctx.fillStyle = '#ffd9a0';
   ctx.font = '600 16px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillText('KEEPER OF THE LAST GATE', b.l + arena.w / 2, b.t + arena.h / 2 + 24);
+  ctx.fillText(info.subtitle.toUpperCase(), b.l + arena.w / 2, b.t + arena.h / 2 + 24);
   ctx.globalAlpha = 1;
 }

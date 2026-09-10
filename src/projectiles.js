@@ -12,18 +12,54 @@ import { sfx } from './audio.js';
 
 // --- projectiles -----------------------------------------------------------
 
+// Against enemy shots the player's hurtbox is ~70% of their body. Every
+// bullet-hell game does this: a graze that visibly misses must actually miss,
+// or dense patterns feel like dice rolls rather than skill.
+export const BULLET_HURTBOX = 0.72;
+
+export function hostileProjectileCount() {
+  let n = 0;
+  for (const pr of world.projectiles) if (!pr.friendly) n++;
+  return n;
+}
+
 export function updateProjectiles(dt) {
   const p = world.player;
   const b = arenaBounds();
 
   for (let i = world.projectiles.length - 1; i >= 0; i--) {
     const pr = world.projectiles[i];
+    // Wiped by a boss phase change or death: gone, with no expiry effect.
+    if (pr.cleared) { world.projectiles.splice(i, 1); continue; }
     pr.life -= dt;
     if (pr.life <= 0 || pr.dead) {
       if (pr.onExpire) pr.onExpire(pr);
       fizzle(pr);
       world.projectiles.splice(i, 1);
       continue;
+    }
+
+    // Parked shots hang in the air (harmlessly drawn as "armed") and then
+    // launch. The wait is part of the telegraph, so it never counts as life.
+    if (pr.delay > 0) {
+      pr.delay -= dt;
+      pr.life += dt;
+      if (pr.delay <= 0) {
+        const sp = pr.launchSpeed || Math.hypot(pr.vx, pr.vy);
+        const a = pr.launchAtPlayer && p ? angleTo(pr.x, pr.y, p.x, p.y) : Math.atan2(pr.vy, pr.vx);
+        pr.vx = Math.cos(a) * sp;
+        pr.vy = Math.sin(a) * sp;
+      }
+      continue;
+    }
+
+    if (pr.accel || pr.turn) {
+      let sp = Math.hypot(pr.vx, pr.vy);
+      let a = Math.atan2(pr.vy, pr.vx);
+      if (pr.accel) sp = clamp(sp + pr.accel * dt, pr.minSpeed, pr.maxSpeed);
+      if (pr.turn) a += pr.turn * dt;
+      pr.vx = Math.cos(a) * sp;
+      pr.vy = Math.sin(a) * sp;
     }
 
     const age = pr.maxLife - pr.life;
@@ -63,7 +99,7 @@ export function updateProjectiles(dt) {
     pr.y += pr.vy * dt;
     pr.rot += (pr.spin || 0) * dt;
 
-    if (pr.shape !== 'arrow') {
+    if (pr.shape !== 'arrow' && pr.trailEvery < 5) {
       pr.trailTimer -= dt;
       if (pr.trailTimer <= 0) {
         pr.trailTimer = pr.trailEvery;
@@ -116,6 +152,8 @@ export function updateProjectiles(dt) {
           }
         }
       } else if (!pr.boomerang) {
+        // A boulder bursts on the wall it hits, not only at the end of its throw.
+        if (pr.onExpire) pr.onExpire(pr);
         fizzle(pr);
         world.projectiles.splice(i, 1);
         continue;
@@ -146,7 +184,7 @@ export function updateProjectiles(dt) {
         continue;
       }
     } else if (p && !p.dead) {
-      if (dist(pr.x, pr.y, p.x, p.y) < pr.r + p.r) {
+      if (dist(pr.x, pr.y, p.x, p.y) < pr.r + p.r * BULLET_HURTBOX) {
         // Shield bashes deflect shots inside a frontal cone.
         if (p.blockTime > 0 && Math.abs(angleDiff(p.blockAngle, angleTo(p.x, p.y, pr.x, pr.y))) < 1.1) {
           const sp = Math.hypot(pr.vx, pr.vy);
@@ -180,19 +218,115 @@ function lerpTo(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
 
 function fizzle(pr) {
   burst(pr.x, pr.y, {
-    count: 7, color: pr.color, speed: 170, size: 3, life: 0.26, drag: 5, shape: 'spark',
+    count: pr.quiet ? 2 : 7, color: pr.color, speed: 170, size: 3, life: 0.26, drag: 5, shape: 'spark',
   });
+}
+
+// Round bullets are pre-rendered once per colour and size and blitted, which
+// is far cheaper on a phone than three alpha-blended arcs per bullet — and a
+// boss pattern can put 150 of them on screen.
+const SPRITE_RES = 2;
+const spriteCache = new Map();
+
+function bulletSprite(shape, color, r) {
+  const key = `${shape}|${color}|${r}`;
+  let s = spriteCache.get(key);
+  if (s) return s;
+  const pad = shape === 'bubble' ? 1.5 : 1.95;
+  const size = Math.ceil((r * pad * 2 + 4) * SPRITE_RES);
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.scale(SPRITE_RES, SPRITE_RES);
+  const m = size / SPRITE_RES / 2;
+  g.translate(m, m);
+  if (shape === 'bubble') {
+    g.globalAlpha = 0.22;
+    g.fillStyle = color;
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+    g.globalAlpha = 1;
+    g.strokeStyle = '#0b0712';
+    g.lineWidth = 4;
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+    g.strokeStyle = color;
+    g.lineWidth = 2.4;
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.arc(-r * 0.35, -r * 0.35, r * 0.22, 0, TAU); g.fill();
+  } else {
+    // orb / mud: soft halo, dark rim for contrast on any floor, bright core.
+    g.globalAlpha = 0.26;
+    g.fillStyle = color;
+    g.beginPath(); g.arc(0, 0, r * 1.85, 0, TAU); g.fill();
+    g.globalAlpha = 1;
+    g.fillStyle = '#0b0712';
+    g.beginPath(); g.arc(0, 0, r + 1.5, 0, TAU); g.fill();
+    g.fillStyle = color;
+    g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+    g.fillStyle = shape === 'mud' ? 'rgba(255,255,220,0.55)' : 'rgba(255,255,255,0.85)';
+    g.beginPath(); g.arc(0, 0, r * 0.42, 0, TAU); g.fill();
+  }
+  s = { canvas: c, half: size / SPRITE_RES / 2 };
+  spriteCache.set(key, s);
+  return s;
 }
 
 export function drawProjectiles(ctx) {
   for (const pr of world.projectiles) {
+    if (pr.cleared) continue;
+    // Parked shots blink so an armed mine never looks like decoration.
+    const parked = pr.delay > 0;
+    if (!pr.friendly && (pr.shape === 'orb' || pr.shape === 'bubble' || pr.shape === 'mud')) {
+      const s = bulletSprite(pr.shape, pr.color, pr.r);
+      if (parked) ctx.globalAlpha = 0.55 + Math.sin(world.runTime * 30) * 0.3;
+      ctx.drawImage(s.canvas, pr.x - s.half, pr.y - s.half, s.half * 2, s.half * 2);
+      ctx.globalAlpha = 1;
+      continue;
+    }
     ctx.save();
+    if (parked) ctx.globalAlpha = 0.55 + Math.sin(world.runTime * 30) * 0.3;
     ctx.translate(pr.x, pr.y);
-    const a = pr.shape === 'arrow' || pr.shape === 'spear' ? Math.atan2(pr.vy, pr.vx) : pr.rot;
+    const byVelocity = pr.shape === 'arrow' || pr.shape === 'spear' || pr.shape === 'feather';
+    const a = byVelocity ? Math.atan2(pr.vy, pr.vx) : pr.rot;
     ctx.rotate(a);
     ctx.fillStyle = pr.color;
 
     switch (pr.shape) {
+      case 'feather': {
+        // A leaf blade with a dark outline and a bright spine.
+        const L = pr.r * 2.4, W = pr.r * 0.9;
+        ctx.fillStyle = '#0b0712';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, L + 1.5, W + 1.5, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = pr.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, L, W, 0, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(-L * 0.9, 0);
+        ctx.lineTo(L * 0.8, 0);
+        ctx.stroke();
+        ctx.fillStyle = pr.eye || '#ffd45e';
+        ctx.beginPath();
+        ctx.arc(L * 0.35, 0, W * 0.55, 0, TAU);
+        ctx.fill();
+        break;
+      }
+      case 'rock': {
+        ctx.fillStyle = '#0b0712';
+        polygon(ctx, 0, 0, pr.r + 2, 5, 0.3);
+        ctx.fill();
+        ctx.fillStyle = pr.color;
+        polygon(ctx, 0, 0, pr.r, 5, 0.3);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        polygon(ctx, -pr.r * 0.2, -pr.r * 0.2, pr.r * 0.45, 5, 0.9);
+        ctx.fill();
+        break;
+      }
       case 'arrow': {
         ctx.globalAlpha = 0.35;
         ctx.fillRect(-pr.r * 4.5, -pr.r * 0.32, pr.r * 4.5, pr.r * 0.64);
