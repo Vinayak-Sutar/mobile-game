@@ -10,7 +10,12 @@ let compressor = null;
 let musicBus = null;
 // Music plays only inside a run and goes silent whenever the page is hidden,
 // so it can default on without droning at you from a menu or a background tab.
-export const audio = { muted: false, music: true, ready: false, suspended: false };
+// Two separate questions, deliberately kept apart:
+//   music   — has the player switched music on? (a setting)
+//   active  — does the game want music *right now*? (in a run, not paused)
+// Music plays only when both are true and the page is visible. Conflating
+// them is what once let the track start on the title screen.
+export const audio = { muted: false, music: true, active: false, ready: false, suspended: false };
 
 export function initAudio() {
   if (ctx) {
@@ -297,24 +302,35 @@ function scheduler() {
   }
 }
 
-export function startMusic() {
-  if (!ctx || schedTimer || !audio.music || audio.suspended) return;
-  stepIndex = 0;
-  nextNoteTime = ctx.currentTime + 0.06;
-  schedTimer = setInterval(scheduler, TICK_MS);
-  scheduler();
+/** The one place that decides whether the scheduler runs. */
+function refreshMusic() {
+  const want = !!ctx && audio.music && audio.active && !audio.suspended;
+  if (want && !schedTimer) {
+    stepIndex = 0;
+    nextNoteTime = ctx.currentTime + 0.06;
+    schedTimer = setInterval(scheduler, TICK_MS);
+    scheduler();
+  } else if (!want && schedTimer) {
+    clearInterval(schedTimer);
+    schedTimer = null;
+  }
 }
 
-export function stopMusic() {
-  if (schedTimer) { clearInterval(schedTimer); schedTimer = null; }
+/** Game state says whether music belongs here. Cheap enough to call per frame. */
+export function setMusicActive(on) {
+  audio.active = !!on;
+  refreshMusic();
 }
 
+/** The player's setting. Never starts playback by itself. */
 export function setMusicEnabled(on) {
   audio.music = !!on;
-  if (audio.music) startMusic();
-  else stopMusic();
+  refreshMusic();
   return audio.music;
 }
+
+export function startMusic() { setMusicActive(true); }
+export function stopMusic() { setMusicActive(false); }
 
 /**
  * Mobile browsers — iOS Safari especially — only let an AudioContext start
@@ -333,8 +349,8 @@ export function unlockAudio() {
  * and the game is still thumping at you from a window you can't see.
  */
 export function suspendAudio() {
-  stopMusic();
   audio.suspended = true;
+  refreshMusic();
   if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
 }
 
@@ -342,7 +358,9 @@ export function resumeAudio() {
   audio.suspended = false;
   if (!ctx) return;
   if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-  if (audio.music) startMusic();
+  // Only resumes the music if the game still wants it — returning to a tab
+  // that's sitting on the title screen must stay quiet.
+  refreshMusic();
 }
 
 /** Debug helpers: is the music loop actually ticking, and is the context live? */

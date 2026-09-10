@@ -5,7 +5,7 @@ import { world, view, arena, arenaBounds, resetWorld, clearEntities } from './st
 import { clamp, TAU } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
-  setMusicEnabled, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
+  setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
 } from './audio.js';
 import { fx, updateFx, drawFxBelow, drawFxAbove, clearFx, flash } from './fx.js';
 import { input, initInput, updateInput, endFrameInput, layoutControls, resetInput, controls } from './input.js';
@@ -139,7 +139,6 @@ function startRun(weapon) {
 
   state = 'playing';
   hideOverlay();
-  startMusic();
 }
 
 function advanceRoom() {
@@ -182,7 +181,6 @@ function handleDoor(door) {
 }
 
 function onDeath() {
-  stopMusic();
   const p = world.player;
   bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
   state = 'dead';
@@ -190,7 +188,6 @@ function onDeath() {
 }
 
 function onVictory() {
-  stopMusic();
   bankRun({ gold: world.gold, depth: BOSS_DEPTH, kills: world.kills, won: true });
   state = 'victory';
   flash(0.4, '#ffd9a0');
@@ -282,6 +279,13 @@ function tick(dt) {
   }
 
   updateUi(dt);
+
+  // Single rule for when music plays: during a run, including the boon pick
+  // between rooms, and nowhere else — not on menus, not while paused, and it
+  // cuts the instant you die so the death sting lands on silence. Evaluated
+  // every tick rather than at each state change, so no transition can forget it.
+  setMusicActive(state === 'playing' || state === 'boon');
+
   endFrameInput();
 }
 
@@ -412,7 +416,6 @@ function dualSenseRow() {
 }
 
 function showTitle() {
-  stopMusic();
   state = 'title';
   showOverlay(`
     <div class="panel">
