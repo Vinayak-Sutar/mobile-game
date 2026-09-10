@@ -11,7 +11,7 @@ python serve.py
 ```
 
 The server prints two URLs. Open the **phone** one on any device on the same
-Wi-Fi. Portrait and landscape both work. Use the address the server prints
+Wi-Fi. The game plays in landscape. Use the address the server prints
 each time — a PC's LAN IP changes whenever it joins a different network:
 
 ```
@@ -73,21 +73,29 @@ itch.io as an HTML5 project with "play in browser" ticked.
 (top-right). Aiming is automatic: attacks snap to the nearest enemy within
 range, so you only ever steer.
 
-**Orientation.** Hold the phone either way. Portrait gets a tall arena with the
-controls in a thumb band along the bottom, clear of the fight; landscape keeps
-the wide arena with controls overlaid. The two arenas have near-identical area,
-so pacing carries over. Pressing **Begin Run** on a phone goes fullscreen and
-locks to whichever way you're holding it, so a tilt mid-fight can't reshape the
-room under you.
+**Orientation.** Landscape only. The menus work with the phone upright, but
+pressing **Begin Run** goes fullscreen and locks landscape — on Android the
+screen turns for you. Where that lock isn't available (every iPhone browser),
+a *turn your phone sideways* prompt holds the run until you do. Tilting upright
+mid-fight shows the same prompt and pauses the game, so it can't cost you a
+run.
 
 **Keyboard** — `WASD` move, mouse aims, click or `J` attack, `Space` dash,
 `K` special, `G` grenade, `M` mute, `Esc` pause.
 
 **Audio.** Music plays during runs only, and follows the fight: a calm pad
 and arpeggio between waves, the full kit in combat, and a harder variation
-once the Warden is up. It's on by default; toggle it from the pause menu —
-on touch, that's the **II** button in the top-right corner. All audio is
-suspended whenever the page is hidden, so a backgrounded tab is silent.
+once the Warden is up. It's on by default. **Music volume** is a slider (with
+big `−`/`+` buttons for thumbs and gamepads) on the title screen and in the
+pause menu — on touch, pause is the **II** button top-right. Each change plays
+a short phrase so you can hear the level, since the track itself is stopped
+while paused. All audio is suspended whenever the page is hidden.
+
+Measured at the final output, the default music level is about 9–12 dB louder
+than the first version (roughly twice as loud to the ear), and full volume
+about 13 dB. A limiter is the last stage of the mix: without it, full music
+volume plus a busy fight peaked at +2 dBFS and clipped; with it the loudest
+measured moment is −0.3 dBFS.
 
 The melody sits in the 290–600 Hz range and the bass is a filtered sawtooth,
 because a phone speaker can't reproduce much below ~250 Hz. The first version
@@ -143,9 +151,9 @@ deeper. Chamber 8 is the boss. Gold is banked as *darkness* whether you win or
 die, and spends in the **Mirror of Night** on permanent upgrades — so a losing
 run still moves you forward.
 
-- **4 weapons.** Blade (3-hit combo → spin), Spear (piercing thrusts, thrown
-  spear), Shield (bashes that deflect projectiles, ricocheting throw), Bow
-  (hold to charge a piercing shot, volley special).
+- **4 weapons.** Bow — the default, listed first — (hold to charge a piercing
+  shot, volley special), Blade (3-hit combo → spin), Spear (piercing thrusts,
+  thrown spear), Shield (bashes that deflect projectiles, ricocheting throw).
 - **7 enemy types + a 3-phase boss.** Wretch (lunges), Slinger (kites and
   shoots), Brute (telegraphed slam), Charger (line charge, stuns on wall
   impact), Bomber (suicide blast), Splitter (splits on death), Spitter
@@ -377,7 +385,7 @@ eCPM. Worth it while iteration speed still matters more than revenue.
 The page exposes `window.ashfall` for driving the sim without rAF:
 
 ```js
-ashfall.startRun(ashfall.WEAPONS[0]);   // 0 blade, 1 spear, 2 shield, 3 bow
+ashfall.startRun(ashfall.WEAPONS[0]);   // 0 bow, 1 blade, 2 spear, 3 shield
 ashfall.spawn('brute');                 // any enemy type, or 'warden'
 ashfall.run(300);                       // advance 300 fixed steps
 ashfall.world.player.stats.damageMult = 10;

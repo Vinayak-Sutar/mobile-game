@@ -1,5 +1,5 @@
 // Four weapons, each defined as data: a light-attack combo chain plus a
-// special on a cooldown. `performStep` turns one step of that data into
+// special on a cooldown. Order is menu order; the first is the default. `performStep` turns one step of that data into
 // hitboxes, projectiles and feedback.
 
 import { TAU } from './util.js';
@@ -8,6 +8,23 @@ import { slash, shake, burst, ring } from './fx.js';
 import { sfx } from './audio.js';
 
 export const WEAPONS = [
+  {
+    id: 'bow',
+    name: 'Heart-Seeker',
+    glyph: '➳',
+    color: '#b98cff',
+    tagline: 'Hold to charge a piercing shot. Fragile up close.',
+    comboWindow: 0,
+    charge: { time: 0.5, minDamage: 12, maxDamage: 40, minSpeed: 760, maxSpeed: 1180 },
+    combo: [
+      { kind: 'arrow', windup: 0.05, active: 0, recover: 0.2, damage: 12, knockback: 90, lunge: 0 },
+    ],
+    special: {
+      kind: 'spread', windup: 0.12, recover: 0.3, damage: 15, cooldown: 4.8,
+      count: 7, spread: 0.95, speed: 820, knockback: 110,
+    },
+    specialName: 'Arrow Volley',
+  },
   {
     id: 'blade',
     name: 'Stygian Blade',
@@ -61,23 +78,6 @@ export const WEAPONS = [
       speed: 700, bounces: 5, knockback: 260,
     },
     specialName: 'Bull Rush',
-  },
-  {
-    id: 'bow',
-    name: 'Heart-Seeker',
-    glyph: '➳',
-    color: '#b98cff',
-    tagline: 'Hold to charge a piercing shot. Fragile up close.',
-    comboWindow: 0,
-    charge: { time: 0.5, minDamage: 12, maxDamage: 40, minSpeed: 760, maxSpeed: 1180 },
-    combo: [
-      { kind: 'arrow', windup: 0.05, active: 0, recover: 0.2, damage: 12, knockback: 90, lunge: 0 },
-    ],
-    special: {
-      kind: 'spread', windup: 0.12, recover: 0.3, damage: 15, cooldown: 4.8,
-      count: 7, spread: 0.95, speed: 820, knockback: 110,
-    },
-    specialName: 'Arrow Volley',
   },
 ];
 

@@ -57,20 +57,19 @@ export async function toggleFullscreen() {
 }
 
 /**
- * Lock to whichever way the phone is held when the run starts. Both layouts
- * work, but rotating mid-fight would reshape the arena under the player.
+ * Gameplay is landscape-only. On Android this turns the screen for the player
+ * the moment fullscreen is granted; the lock is only honoured in fullscreen.
  */
 async function lockOrientation() {
   const so = screen.orientation;
   if (!so || !so.lock) return;
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   try {
-    const type = so.type && so.type.startsWith('portrait') ? 'portrait' : 'landscape';
-    await so.lock(type);
+    await so.lock('landscape');
     screenState.orientationLocked = true;
   } catch {
-    // Desktop Chrome and every iOS browser reject this. Harmless: both
-    // orientations are playable, so an unlocked rotate just re-lays-out.
+    // Desktop Chrome and every iOS browser reject this. The rotate prompt in
+    // game.js covers those.
   }
 }
 

@@ -11,6 +11,7 @@ const DEFAULTS = {
   wins: 0,
   muted: false,
   musicOn: true,
+  musicVolume: 0.7,
   biome: 'ember',
 };
 

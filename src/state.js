@@ -26,7 +26,6 @@ export const view = {
   cw: 0, ch: 0,      // css pixels
   scale: 1,
   dpr: 1,
-  portrait: false,
 };
 
 // The playable floor, inset from the view so the HUD has breathing room.

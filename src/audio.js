@@ -15,7 +15,20 @@ let musicBus = null;
 //   active  — does the game want music *right now*? (in a run, not paused)
 // Music plays only when both are true and the page is visible. Conflating
 // them is what once let the track start on the title screen.
-export const audio = { muted: false, music: true, active: false, ready: false, suspended: false };
+export const audio = {
+  muted: false, music: true, active: false, ready: false, suspended: false,
+  musicVolume: 0.7,   // the player's slider, 0..1
+};
+
+// The slider maps onto the music bus through a curve, because loudness is
+// heard logarithmically: a linear slider would do nothing across its top
+// half. The old fixed bus gain was 0.6; the default now lands around 1.36,
+// and full volume brings the melody up level with the combat effects.
+const MUSIC_MAX_GAIN = 2.4;
+function musicGain(v) { return Math.pow(clamp(v, 0, 1), 1.6) * MUSIC_MAX_GAIN; }
+
+let makeup = null;
+let outTap = null;
 
 export function initAudio() {
   if (ctx) {
@@ -35,14 +48,32 @@ export function initAudio() {
   compressor.ratio.value = 4;
   compressor.attack.value = 0.004;
   compressor.release.value = 0.2;
-  compressor.connect(ctx.destination);
+  // Make-up gain after the compressor. Without it the compressor only ever
+  // turns things down, which on a phone speaker left the whole mix quiet.
+  makeup = ctx.createGain();
+  makeup.gain.value = 1.5;
+
+  // Limiter as the very last stage. Measured without it, full music volume
+  // plus a busy fight peaked at +2 dBFS — audible clipping. A hard, fast
+  // compressor this close to 0 dB acts as a ceiling nothing can cross.
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.threshold.value = -2.5;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.08;
+
+  // A meter on the final output, for checking levels from the console.
+  outTap = ctx.createAnalyser();
+  outTap.fftSize = 2048;
+  compressor.connect(makeup).connect(limiter).connect(outTap).connect(ctx.destination);
 
   master = ctx.createGain();
   master.gain.value = 0.5;
   master.connect(compressor);
 
   musicBus = ctx.createGain();
-  musicBus.gain.value = 0.6;
+  musicBus.gain.value = musicGain(audio.musicVolume);
   musicBus.connect(master);
 
   // One second of white noise, reused for every percussive sound.
@@ -327,6 +358,43 @@ export function setMusicEnabled(on) {
   audio.music = !!on;
   refreshMusic();
   return audio.music;
+}
+
+export function setMusicVolume(v) {
+  audio.musicVolume = clamp(v, 0, 1);
+  if (musicBus) musicBus.gain.setTargetAtTime(musicGain(audio.musicVolume), ctx.currentTime, 0.03);
+  return audio.musicVolume;
+}
+
+/**
+ * Play a short phrase through the music bus so a volume change can be heard.
+ * The slider lives on the pause screen, where the track itself is stopped.
+ */
+let lastPreview = -1;
+export function previewMusic() {
+  if (!ctx || audio.muted || schedTimer) return;   // live track already audible
+  if (ctx.currentTime - lastPreview < 0.45) return;
+  lastPreview = ctx.currentTime;
+  if (ctx.state !== 'running') ctx.resume().catch(() => {});
+  const chord = PROGRESSION[0];
+  const t0 = ctx.currentTime + 0.02;
+  for (const m of chord.pad) {
+    tone({ freq: midi(m + 12), type: 'triangle', dur: 0.95, vol: 0.04, attack: 0.08, at: t0, out: musicBus });
+  }
+  chord.arp.forEach((m, i) => {
+    tone({ freq: midi(m), type: 'triangle', dur: STEP * 1.6, vol: 0.065, at: t0 + i * STEP * 2, out: musicBus });
+  });
+}
+
+/** Peak and RMS of the final output, in dBFS, over the analyser's window. */
+export function outputLevel() {
+  if (!outTap) return null;
+  const buf = new Float32Array(outTap.fftSize);
+  outTap.getFloatTimeDomainData(buf);
+  let peak = 0, sum = 0;
+  for (const v of buf) { const a = Math.abs(v); if (a > peak) peak = a; sum += v * v; }
+  const db = (x) => (x > 0 ? 20 * Math.log10(x) : -Infinity);
+  return { peakDb: db(peak), rmsDb: db(Math.sqrt(sum / buf.length)) };
 }
 
 export function startMusic() { setMusicActive(true); }

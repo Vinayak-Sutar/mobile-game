@@ -52,15 +52,6 @@ let mouseSeen = false;
 
 export function layoutControls() {
   const { w, h } = view;
-  if (view.portrait) {
-    // Bottom-right cluster inside the reserved thumb band.
-    controls.attack.x = w - 96;   controls.attack.y = h - 122;
-    controls.dash.x = w - 202;    controls.dash.y = h - 92;
-    controls.special.x = w - 118; controls.special.y = h - 232;
-    controls.grenade.x = w - 218; controls.grenade.y = h - 196;
-    controls.pause.x = w - 32;    controls.pause.y = 32;
-    return;
-  }
   controls.attack.x = w - 104;
   controls.attack.y = h - 100;
   controls.dash.x = w - 212;

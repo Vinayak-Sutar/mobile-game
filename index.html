@@ -111,8 +111,26 @@
   }
   .card.padfocus{transform:translateY(-3px)}
 
-  /* Narrow (portrait phone) screens: two cards per row instead of one tall
-     column, and a touch less padding everywhere. */
+  .volrow{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .vollabel{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+  .volbtn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:transparent;
+          color:var(--ink);font-size:22px;line-height:1;cursor:pointer;font-family:inherit}
+  .volbtn:active{transform:scale(.92)}
+  .volval{min-width:44px;text-align:left;font-weight:700;color:var(--gold);font-size:14px}
+  #musicvol{width:min(220px,46vw);accent-color:#ff9a4d;touch-action:manipulation}
+
+  /* Upright-phone fallback where the landscape lock isn't available. */
+  #rotate{
+    position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;background:var(--bg);text-align:center;padding:30px;
+    font-size:15px;letter-spacing:.04em;
+  }
+  #rotate.on{display:flex}
+  #rotate .ph{width:52px;height:88px;border:3px solid var(--ink);border-radius:9px;animation:tilt 1.6s ease-in-out infinite}
+  @keyframes tilt{0%,40%{transform:rotate(0)}70%,100%{transform:rotate(-90deg)}}
+
+  /* Narrow (upright phone) screens: menus stay usable before a run starts,
+     two cards per row instead of one tall column. */
   @media (max-width: 560px){
     #overlay{padding:12px 10px}
     .card{flex:1 1 140px;min-height:112px;padding:11px}
@@ -125,6 +143,7 @@
 <body>
   <canvas id="game"></canvas>
   <div id="overlay"></div>
+  <div id="rotate"><div class="ph"></div><div>Turn your phone sideways to play</div></div>
   <script type="module" src="./src/game.js"></script>
 </body>
 </html>

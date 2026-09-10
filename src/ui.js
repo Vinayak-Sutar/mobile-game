@@ -46,8 +46,7 @@ export function drawHud(ctx, time) {
   ctx.textBaseline = 'middle';
 
   // --- health -------------------------------------------------------------
-  // Narrower in portrait so the chamber pips in the middle stay clear.
-  const x = 26, y = 28, w = view.portrait ? 210 : 288, h = 22;
+  const x = 26, y = 28, w = 288, h = 22;
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   roundRect(ctx, x - 3, y - 3, w + 6, h + 6, 6);
   ctx.fill();
@@ -133,7 +132,7 @@ export function drawHud(ctx, time) {
       ctx.textAlign = 'left';
     }
     bx += 21;
-    if (bx > (view.portrait ? 236 : 320)) { bx = x; by += 21; }
+    if (bx > 320) { bx = x; by += 21; }
   }
 
   // --- chamber + gold -----------------------------------------------------
@@ -182,9 +181,7 @@ export function drawHud(ctx, time) {
   const boss = bossInRoom();
   if (boss && !boss.spawning) {
     const bw = Math.min(660, view.w - 220), bh = 15;
-    // Portrait stacks the boon rows under the health bar, so the boss bar
-    // drops below them rather than across them.
-    const bxx = view.w / 2 - bw / 2, byy = view.portrait ? 116 : 62;
+    const bxx = view.w / 2 - bw / 2, byy = 62;
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     roundRect(ctx, bxx - 3, byy - 3, bw + 6, bh + 6, 5);
     ctx.fill();
@@ -293,13 +290,13 @@ export function drawControls(ctx, time) {
     ctx.globalAlpha = 0.1;
     ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.arc(view.portrait ? 130 : 140, view.h - (view.portrait ? 150 : 132), 56, 0, TAU);
+    ctx.arc(140, view.h - 132, 56, 0, TAU);
     ctx.fill();
     ctx.globalAlpha = 0.28;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
     ctx.font = `700 11px ${FONT}`;
-    ctx.fillText('MOVE', view.portrait ? 130 : 140, view.h - (view.portrait ? 150 : 132));
+    ctx.fillText('MOVE', 140, view.h - 132);
     ctx.globalAlpha = 1;
   }
 

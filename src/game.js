@@ -6,6 +6,7 @@ import { clamp, TAU } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
+  setMusicVolume, previewMusic, outputLevel,
 } from './audio.js';
 import { fx, updateFx, drawFxBelow, drawFxAbove, clearFx, flash } from './fx.js';
 import { input, initInput, updateInput, endFrameInput, layoutControls, resetInput, controls } from './input.js';
@@ -41,6 +42,7 @@ import {
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
+const rotateEl = document.getElementById('rotate');
 
 const STEP = 1 / 60;
 let accumulator = 0;
@@ -48,6 +50,9 @@ let last = performance.now();
 let state = 'title';        // title | mirror | weapon | playing | boon | dead | victory | paused
 let deathTimer = 0;
 let audioStarted = false;
+// A weapon picked while the phone was still upright; the run starts once
+// it's been turned sideways.
+let pendingWeapon = null;
 
 // --- setup -----------------------------------------------------------------
 
@@ -62,21 +67,9 @@ function resize() {
   // is deliberately small: the whole room is always on screen, so a taller
   // logical viewport just shrinks every entity into an unreadable dot on a
   // phone.
-  const portrait = ch > cw * 1.02;
-  let ww, wh;
-  if (portrait) {
-    // Portrait mirrors the landscape rule on the other axis: a fixed logical
-    // width, height following the screen. Entities come out the same size on
-    // screen whichever way the phone is held.
-    ww = 640; wh = 640 / aspect;
-    if (wh > 1500) { wh = 1500; ww = 1500 * aspect; }
-    if (wh < 900) { wh = 900; ww = 900 * aspect; }
-  } else {
-    ww = 600 * aspect; wh = 600;
-    if (ww < 820) { ww = 820; wh = 820 / aspect; }
-    if (ww > 1320) { ww = 1320; wh = 1320 / aspect; }
-  }
-  view.portrait = portrait;
+  let ww = 600 * aspect, wh = 600;
+  if (ww < 820) { ww = 820; wh = 820 / aspect; }
+  if (ww > 1320) { ww = 1320; wh = 1320 / aspect; }
 
   view.w = Math.round(ww);
   view.h = Math.round(wh);
@@ -90,12 +83,7 @@ function resize() {
   canvas.style.width = cw + 'px';
   canvas.style.height = ch + 'px';
 
-  // In portrait the bottom band is the thumb zone: controls live there rather
-  // than over the fight. The arena comes out tall and narrow, but its area is
-  // within ~10% of the landscape one, so pacing and balance carry over.
-  const mx = portrait ? 24 : 38;
-  const top = portrait ? 150 : 74;
-  const bottom = portrait ? 286 : 38;
+  const mx = 38, top = 74, bottom = 38;
   arena.x = mx;
   arena.y = top;
   arena.w = view.w - mx * 2;
@@ -103,6 +91,33 @@ function resize() {
 
   layoutControls();
   clampObstacles();
+  checkOrientation();
+}
+
+/** A phone held upright. Gameplay is landscape-only. */
+function isPortraitTouch() {
+  return isTouchDevice() && window.innerHeight > window.innerWidth;
+}
+
+function inRun() {
+  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying';
+}
+
+/**
+ * Starting a run goes fullscreen and locks landscape, which on Android turns
+ * the screen for you. Where the lock isn't available — every iPhone browser —
+ * this prompt is the fallback: the run waits (or pauses) until the phone is
+ * turned. Menus stay usable upright; only the fight needs landscape.
+ */
+function checkOrientation() {
+  const upright = isPortraitTouch();
+  rotateEl.classList.toggle('on', upright && (!!pendingWeapon || inRun()));
+  if (!upright && pendingWeapon) {
+    const w = pendingWeapon;
+    pendingWeapon = null;
+    startRun(w);
+  }
+  if (upright && state === 'playing') showPause();
 }
 
 function clampObstacles() {
@@ -391,6 +406,33 @@ function fullscreenRow() {
   </button></div>`;
 }
 
+function musicVolumeRow() {
+  const pct = Math.round(audio.musicVolume * 100);
+  // Big +/- buttons as well as the slider: easy to hit on a phone, and the
+  // only way to adjust it from a gamepad, since menu navigation drives buttons.
+  return `
+    <div class="volrow">
+      <span class="vollabel">Music volume</span>
+      <button class="volbtn" data-act="vol-down" aria-label="Music quieter">−</button>
+      <input type="range" id="musicvol" min="0" max="100" step="5" value="${pct}" aria-label="Music volume">
+      <button class="volbtn" data-act="vol-up" aria-label="Music louder">+</button>
+      <span class="volval" id="musicvolval">${pct}%</span>
+    </div>`;
+}
+
+function applyMusicVolume(v) {
+  ensureAudio();
+  setMusicVolume(v);
+  save.musicVolume = audio.musicVolume;
+  writeSave();
+  previewMusic();
+  const pct = Math.round(audio.musicVolume * 100);
+  const slider = document.getElementById('musicvol');
+  const label = document.getElementById('musicvolval');
+  if (slider) slider.value = String(pct);
+  if (label) label.textContent = `${pct}%`;
+}
+
 /** A phone or tablet, judged by the device rather than by recent input. */
 function isTouchDevice() {
   return window.matchMedia('(pointer: coarse)').matches;
@@ -431,6 +473,7 @@ function showTitle() {
       </div>
       ${fullscreenRow()}
       ${statBlock()}
+      ${musicVolumeRow()}
       ${dualSenseRow()}
       <div class="keys">
         <b>Touch</b> — left half drags to move · <kbd>ATK</kbd> attack · <kbd>DASH</kbd> dash ·
@@ -674,12 +717,17 @@ function showPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="abandon">Abandon Run</button>
       </div>
+      ${musicVolumeRow()}
       ${fullscreenRow()}
       ${dualSenseRow()}
     </div>`);
 }
 
 // --- overlay interaction ---------------------------------------------------
+
+document.getElementById('overlay').addEventListener('input', (ev) => {
+  if (ev.target && ev.target.id === 'musicvol') applyMusicVolume(Number(ev.target.value) / 100);
+});
 
 document.getElementById('overlay').addEventListener('click', (ev) => {
   const el = ev.target.closest('[data-act]');
@@ -695,6 +743,8 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'title': showTitle(); break;
     case 'mirror': showMirror(); break;
     case 'padcheck': showPadCheck(); break;
+    case 'vol-down': applyMusicVolume(audio.musicVolume - 0.1); break;
+    case 'vol-up': applyMusicVolume(audio.musicVolume + 0.1); break;
     case 'fullscreen': toggleFullscreen().then(() => showTitle()); break;
     case 'weapon': showWeaponSelect(); break;
     case 'biome': {
@@ -711,6 +761,13 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     }
     case 'pick': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
+      // The landscape lock resolves a moment after fullscreen, and never on
+      // iOS. If the phone is still upright, hold the run until it's turned.
+      if (isPortraitTouch()) {
+        pendingWeapon = WEAPONS[idx];
+        checkOrientation();
+        break;
+      }
       startRun(WEAPONS[idx]);
       break;
     }
@@ -773,6 +830,7 @@ function ensureAudio() {
   audioStarted = true;
   initAudio();
   if (save.muted) toggleMute();
+  setMusicVolume(typeof save.musicVolume === 'number' ? save.musicVolume : 0.7);
   setMusicEnabled(save.musicOn !== false);
 }
 
@@ -813,6 +871,7 @@ window.ashfall = {
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,
+  outputLevel, setMusicVolume, audio,
   toggleFullscreen, screenState,
   PLAYER_SKELETON, PLAYER_CLIPS, resolvePose, drawSkeleton, ctx,
   run(steps = 60) {
