@@ -11,11 +11,12 @@ python serve.py
 ```
 
 The server prints two URLs. Open the **phone** one on any device on the same
-Wi-Fi. Portrait and landscape both work:
+Wi-Fi. Portrait and landscape both work. Use the address the server prints
+each time — a PC's LAN IP changes whenever it joins a different network:
 
 ```
   local     http://localhost:8000
-  phone     http://192.168.221.236:8000
+  phone     http://<this-PC's-LAN-IP>:8000
 ```
 
 If the phone can't connect, Windows Firewall is almost certainly blocking the
@@ -118,7 +119,7 @@ and the link button cannot appear. Three ways round it, best first:
 
 1. Play on `http://localhost:8000` on the PC the controller is plugged into.
 2. Tell Chrome to trust the LAN origin: open `chrome://flags/#unsafely-treat-insecure-origin-as-secure`,
-   paste `http://192.168.221.236:8000`, set the dropdown to **Enabled**, relaunch.
+   paste your `http://<LAN-IP>:8000` address, set the dropdown to **Enabled**, relaunch.
 3. `python serve.py --https` — serves on :8443 with a self-signed certificate.
    The browser warns once; click **Advanced → Proceed**.
 
