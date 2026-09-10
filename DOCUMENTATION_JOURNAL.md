@@ -4,8 +4,8 @@
 > understand the entire project without the conversation history that produced
 > it. Written to be read top to bottom once, then used as a reference.
 >
-> **Last updated:** 2026-09-10, with the boss-battles update (15-chamber run,
-> four creature bosses, hazards, Boss Trials). If code and this document
+> **Last updated:** 2026-09-10, after 3 lives and the Version 1 / Version 2
+> split (and the boss-battles update before it). If code and this document
 > disagree, **the code wins** — then fix this document.
 
 ---
@@ -21,7 +21,13 @@
   `serve.py`, `build.mjs`, `sw.js`, `manifest.json`. Entry point `src/game.js`.
 - **Run:** 15 chambers. Chambers 3/6/9/12 are four creature bosses (turtle,
   crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
-  of Ash. Bosses follow written "hard but fair" rules (§5.14).
+  of Ash. Bosses follow written "hard but fair" rules (§5.14). **3 lives** per
+  run.
+- **Two versions ship side by side.** The root (`index.html`, `src/`) is
+  **Version 2**. `v1/` is **Version 1**: a frozen copy of the 8-chamber game
+  from commit `c12c2d1`, plus 3 lives, its own save and its own service-worker
+  cache. A switch on each title screen links the two (§5.15). Unless told
+  otherwise, "the game" means Version 2.
 - **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
   printed LAN URL on a phone on the same Wi-Fi. Landscape only.
 - **Repo:** `https://github.com/Vinayak-Sutar/mobile-game` (branch `main`).
@@ -52,6 +58,8 @@
 | Biomes are cosmetic | No gameplay differences between the 4 biomes. | Balance was measured against fixed numbers; biome choice must not undo it. |
 | Push to GitHub after changes | Owner asked for the first push to test via Pages; fixes have been pushed to `main` since. | Owner tests on the Pages URL. |
 | **Boss every third chamber** | Two fights then a guardian; creature bosses shuffled per run, Warden always last at 15. | Owner: "after every two chambers", bosses inspired by gorilla, crocodile, peacock, turtle. |
+| **3 lives** | Both versions. Dying with a spare life revives in place at full HP. | Owner: "Give three lives to the player." |
+| **Keep Version 1 playable** | The pre-boss game lives on in `v1/` as a separate copy, switchable from the title screen. | Owner wanted the 15-chamber game as "Version 2" and the previous one as "Version 1", "as two different things". |
 | **Bullet patterns: rare, hard, fair** | One dense barrage per boss on a long cooldown; always a way through; always followed by an EXPOSED punish window. | Owner loves weaving through projectiles but "don't make it appear every time… people should be able to avoid those projectiles, and then get an opening to punish". |
 
 ---
@@ -126,6 +134,15 @@ Each of these was a real bug. Violating one reintroduces it.
 20. **Boss modules don't import `enemies.js`.** `bosses.js` gets `spawnEnemy`
     via `bindBossSpawner()` and shared movement from `ai.js`; `enemies.js`
     merges `BOSS_DEFS` into `ENEMY_DEFS`. This keeps the graph acyclic.
+21. **`v1/` is a separate, frozen codebase.** Nothing is shared with `src/`, so a
+    fix in Version 2 does not reach Version 1. Change `v1/` only when the owner
+    asks for something in Version 1, and then check both. It must keep its own
+    save key (`ashfall.classic.save`) and cache prefix (`ashfall-classic-`),
+    or the two versions overwrite each other's progress and offline caches.
+22. **Menus must centre with `margin:auto`, not flex `align-items:center`.**
+    Flex centring pushed the top of a tall panel above the viewport, out of
+    scroll reach. On a 390 px-tall landscape phone the title screen's heading
+    was invisible. Fixed in both versions.
 
 ---
 
@@ -134,7 +151,9 @@ Each of these was a real bug. Violating one reintroduces it.
 ```
 index.html          Shell: canvas#game, div#overlay (DOM menus), div#rotate, all CSS
 manifest.json       PWA manifest (display fullscreen, orientation landscape)
-sw.js               Service worker, network-first cache "ashfall-v1"
+sw.js               Service worker, network-first cache "ashfall-main-N" (only deletes its own prefix)
+v1/                 VERSION 1 — frozen 8-chamber game (index.html, src/, sw.js, manifest.json, icon.svg)
+                    from c12c2d1 + 3 lives + version switch + own save key + own cache prefix
 icon.svg            App icon
 serve.py            Dev server (LAN, no-cache, --https, asset-save endpoint)
 build.mjs           Inlines an esbuild bundle into a single standalone HTML file
@@ -572,7 +591,33 @@ only the boss's own tell (croc ripple).
 Warden), creature bosses at slot 1. No darkness banked, no run counted;
 `world.trial` holds the type. Debug: `ashfall.trial('gorilla', weaponIdx)`.
 
-### 5.15 DualSense (`dualsense.js`) — optional, unverified
+### 5.15 Lives and the two versions
+
+**Lives** (both versions): `START_LIVES = 3` in `player.js`, `p.lives` on the
+player. On death the normal `dying` state plays the collapse (1.15 s). Then,
+if `p.lives > 1`, `revivePlayer()` in `game.js` runs instead of `onDeath()`:
+lives −1, full HP, 2.5 s invulnerability, enemy fire cleared (`clearBullets()`
+in V2, which also clears hazards; a direct splice in V1), enemies within 280 u
+pushed back (mass-scaled), a green shockwave, and a "BACK ON YOUR FEET · N
+lives left" toast. The death sting still plays on each death, and music drops
+out during `dying` and resumes after (music rule, §2 rule 3). The HUD draws hearts
+(`drawLives` in `ui.js`): beside the health bar when `view.w ≥ 1000`
+(landscape phones), in the dash/grenade row on narrower screens (a 4:3 window
+would collide with the chamber tracker). The last heart beats. Boss Trials
+also get 3 lives. Verified: 3 → 2 → 1 → "Slain" in both versions.
+
+**Versions:** the root is Version 2; `./v1/` is Version 1. Each title screen
+shows a `.versions` row (`versionRow()` in each `game.js`) with the current
+version highlighted; the other button (`data-act="version"`, `data-href`)
+navigates to `./v1/` or `../`. Differences in `v1/` from commit `c12c2d1`,
+and nothing else: 3 lives (player.js, game.js, ui.js), the version row +
+CSS, the `margin:auto` menu fix, save key `ashfall.classic.save` (seeded once
+from the shared `ashfall.save.v1` on first launch), SW cache prefix
+`ashfall-classic-`, and a manifest named "Ashfall — Version 1". Verified: all
+4 weapons clear V1's 8 chambers + Warden, saves stay separate, and switching
+works in both directions.
+
+### 5.16 DualSense (`dualsense.js`) — optional, unverified
 
 WebHID output reports: USB report `0x02` (47-byte payload); Bluetooth report
 `0x31` with a flag byte, the same payload, and a CRC32. Lightbar follows the
@@ -856,7 +901,13 @@ music only during runs → `0fb271c` bow first, landscape-only, music volume.
     tracker with boss markers. Fixed during testing: gorilla fur was
     dark-on-dark against the floor (brightened); croc snap and gorilla leap
     locked too late to walk out (now 40%); `restTime` was written but unused
-    (now folded into `idle()`).
+    (now folded into `idle()`). Commit `e8f73d3`.
+18. **3 lives + Version 1 / Version 2.** Owner asked for three lives, and for the
+    pre-boss game to stay playable as "Version 1" beside the 15-chamber
+    "Version 2", as separate things with 3 lives in both. Built `v1/` from
+    `c12c2d1`, the revive system, hearts HUD and version switch. Found and
+    fixed a pre-existing bug on the way: tall menus were clipped at the top on
+    landscape phones (flex centring), which hid the title and the new switch.
 
 ---
 

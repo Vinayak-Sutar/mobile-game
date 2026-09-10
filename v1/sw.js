@@ -3,12 +3,10 @@
 // Bump CACHE when shipping: the old cache is dropped on activate, so players
 // are never stuck on a stale build.
 //
-// Version 1 (./v1/) has its own worker and its own cache prefix. Each worker
-// only ever deletes caches with its own prefix, so the two versions can't
-// wipe each other's offline copy.
-const PREFIX = 'ashfall-main-';
-const CACHE = `${PREFIX}2`;
-const LEGACY = ['ashfall-v1'];   // this worker's cache name before versions split
+// Version 1 has its own cache prefix and only ever deletes its own caches, so
+// it can't wipe Version 2's offline copy (and vice versa).
+const PREFIX = 'ashfall-classic-';
+const CACHE = `${PREFIX}1`;
 
 const SHELL = [
   './',
@@ -31,7 +29,7 @@ self.addEventListener('activate', (ev) => {
   ev.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(keys
-        .filter((k) => k !== CACHE && (k.startsWith(PREFIX) || LEGACY.includes(k)))
+        .filter((k) => k !== CACHE && k.startsWith(PREFIX))
         .map((k) => caches.delete(k))))
       .then(() => self.clients.claim()),
   );

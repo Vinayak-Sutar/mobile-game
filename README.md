@@ -153,6 +153,12 @@ always the Warden of Ash. Gold is banked as *darkness* whether you win or die,
 and spends in the **Mirror of Night** on permanent upgrades — so a losing run
 still moves you forward.
 
+- **3 lives.** Fall with a life to spare and you get back up where you fell,
+  at full health, with a moment of invulnerability. Hearts next to the health
+  bar show what's left.
+- **Two versions.** The title screen switches between **Version 2** (this
+  one: 15 chambers, five bosses) and **Version 1** (the original eight-chamber
+  game with one boss, kept as-is in `v1/` with its own save, plus 3 lives).
 - **4 weapons.** Bow — the default, listed first — (hold to charge a piercing
   shot, volley special), Blade (3-hit combo → spin), Spear (piercing thrusts,
   thrown spear), Shield (bashes that deflect projectiles, ricocheting throw).

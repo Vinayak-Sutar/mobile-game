@@ -6,8 +6,7 @@ import { TAU, clamp, lerp, roundRect, polygon } from './util.js';
 import { input, controls } from './input.js';
 import { GODS, boonById } from './boons.js';
 import { bossInRoom } from './enemies.js';
-import { FINAL_DEPTH, isBossDepth } from './rooms.js';
-import { BOSS_INFO } from './bosses.js';
+import { BOSS_DEPTH } from './rooms.js';
 import { audio } from './audio.js';
 import { GRENADE } from './grenade.js';
 import { resetMenuFocus } from './gamepad.js';
@@ -149,24 +148,18 @@ export function drawHud(ctx, time) {
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = `700 11px ${FONT}`;
   const loopTag = world.loop > 0 ? `  ·  LOOP ${world.loop + 1}` : '';
-  const label = world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
-  ctx.fillText(label, cx, 26);
+  ctx.fillText(`CHAMBER ${world.depth} / ${BOSS_DEPTH}${loopTag}`, cx, 26);
 
-  // Depth pips: bars for fights, diamonds for guardians, a crown-triangle for
-  // the Warden.
-  const pipW = 10, gap = 4;
-  const total = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
+  // Depth pips
+  const pipW = 12, gap = 5;
+  const total = BOSS_DEPTH * pipW + (BOSS_DEPTH - 1) * gap;
   let ppx = cx - total / 2;
-  for (let i = 1; i <= FINAL_DEPTH && !world.trial; i++) {
+  for (let i = 1; i <= BOSS_DEPTH; i++) {
     const done = i < world.depth;
     const here = i === world.depth;
     ctx.fillStyle = here ? '#ffd45e' : done ? 'rgba(255,212,94,0.45)' : 'rgba(255,255,255,0.14)';
-    if (i === FINAL_DEPTH) {
-      polygon(ctx, ppx + pipW / 2, 44, 7.5, 3, -Math.PI / 2);
-      ctx.fill();
-    } else if (isBossDepth(i)) {
-      if (!done && !here) ctx.fillStyle = 'rgba(255,120,120,0.4)';
-      polygon(ctx, ppx + pipW / 2, 43.5, 5.5, 4, 0);
+    if (i === BOSS_DEPTH) {
+      polygon(ctx, ppx + pipW / 2, 44, 7, 3, -Math.PI / 2);
       ctx.fill();
     } else {
       roundRect(ctx, ppx, 41, pipW, 5, 2.5);
@@ -199,14 +192,13 @@ export function drawHud(ctx, time) {
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     roundRect(ctx, bxx - 3, byy - 3, bw + 6, bh + 6, 5);
     ctx.fill();
-    const info = BOSS_INFO[boss.type] || BOSS_INFO.warden;
-    ctx.fillStyle = boss.exposed > 0 ? '#ffe27a' : info.color;
+    ctx.fillStyle = '#ff3d5e';
     roundRect(ctx, bxx, byy, bw * clamp(boss.hp / boss.maxHp, 0, 1), bh, 3);
     ctx.fill();
     // Phase thresholds
     ctx.strokeStyle = 'rgba(0,0,0,0.6)';
     ctx.lineWidth = 2;
-    for (const t of boss.phases || []) {
+    for (const t of [0.3, 0.62]) {
       ctx.beginPath();
       ctx.moveTo(bxx + bw * t, byy);
       ctx.lineTo(bxx + bw * t, byy + bh);
@@ -217,10 +209,9 @@ export function drawHud(ctx, time) {
     roundRect(ctx, bxx, byy, bw, bh, 3);
     ctx.stroke();
     ctx.textAlign = 'center';
-    ctx.fillStyle = boss.exposed > 0 ? '#ffe27a' : '#ffd9a0';
+    ctx.fillStyle = '#ffd9a0';
     ctx.font = `800 12px ${FONT}`;
-    const tag = boss.exposed > 0 ? '  ·  EXPOSED' : '';
-    ctx.fillText(boss.title.toUpperCase() + tag, view.w / 2, byy + bh + 13);
+    ctx.fillText(boss.title.toUpperCase(), view.w / 2, byy + bh + 13);
   }
 
   // --- weapon / special (desktop readout) ---------------------------------
