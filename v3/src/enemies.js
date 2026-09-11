@@ -8,6 +8,16 @@ import { spawnProjectile } from './spawn.js';
 import { damagePlayer, explode } from './combat.js';
 import { burst, ring, shake, flash as screenFlash, parryCue } from './fx.js';
 import { initPoise } from './poise.js';
+import { drawEnemyElements, hasStatus } from './elements.js';
+
+/** A status tints the body: burning orange, frozen ice-white, poisoned green. */
+function statusTint(e) {
+  if (hasStatus(e, 'frozen')) return '#d8f4ff';
+  if (hasStatus(e, 'burning')) return '#ff8a3d';
+  if (hasStatus(e, 'poisoned')) return '#9be34a';
+  if (hasStatus(e, 'shocked') && Math.sin(world.runTime * 40) > 0) return '#e9d8ff';
+  return e.color;
+}
 import { sfx } from './audio.js';
 import { createEnemyAnimator, updateEnemyAnim, drawEnemyRig } from './enemy-rigs.js';
 import {
@@ -803,9 +813,10 @@ export function drawEnemies(ctx) {
     ctx.fill();
     ctx.globalAlpha = 1;
 
-    e.tint = e.flash > 0 ? '#ffffff' : (e.burn ? '#ff8a3d' : e.color);
+    e.tint = e.flash > 0 ? '#ffffff' : statusTint(e);
     if (!drawEnemyRig(e, ctx)) e.def.draw(e, ctx);
     if (e.boss || e.def.extras) drawBossExtras(e, ctx);
+    drawEnemyElements(ctx, e, world.runTime);
 
     if (e.elite && !e.boss) {
       ctx.strokeStyle = 'rgba(255,200,97,0.85)';

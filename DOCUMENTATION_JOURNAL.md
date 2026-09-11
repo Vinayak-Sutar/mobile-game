@@ -1139,6 +1139,76 @@ V3 toolbox.
   EXPOSED; a full 15-chamber run on all 4 weapons has 0 errors; the lives
   death path works.
 
+### 13.2 Milestone 3 — elements, statuses, surfaces, reactions, cancels (done)
+
+- **`elements.js`**: `ELEMENTS` (fire, frost, water, storm, wind, earth, toxic,
+  gravity, arcane), `REACTIONS` (codex name, colour, riddle hint,
+  description), and **`ELEMENT_RULES`**, the single rules matrix: element ×
+  status or aura → reaction, first match wins. A new interaction = one row
+  (plus a case in `react()` if it's a new outcome).
+- **Entry points:**
+  - `hitElement(e, el, ctx)` → `{ mult }` for the triggering hit (0 = absorbed).
+    `dealDamage(…, { element })` calls it; a heavy hit on a frozen foe uses the
+    `physical` rule (Shatter).
+  - `elementArea(el, x, y, r, opts)` hits enemies and transforms surfaces.
+  - `elementOnPlayer(el)` is for enemy elements on the player.
+  - `applyStatus` sets a status with no reaction check (boons, debug).
+  - `combat.js` hands in `dealDamage` / `damagePlayer` via `bindCombat()`
+    (rule 20 style: no import cycle).
+- **Statuses** (`e.status[name] = { t, … }`, player too):
+  - Burning (dps), Chilled (stacks; 3 = Frozen 2.2 s; bosses get Frostbite
+    instead: 38 posture and a slow), Wet, Shocked (0.25 s micro-stun on first
+    application), Poisoned (dps), Brittle (+30% taken), Extinguished (+25%
+    taken, aura gone, −30% damage), Grounded (storm halved).
+  - Ticks live in `updateElements()`. Cinder Trail now applies Burning through
+    this, so it can Melt or be doused.
+- **Reactions:** Electrocute (×1.5, chains to every wet foe within 240, stuns,
+  electrifies puddles), Freeze, Shatter (×2.5), Melt (×2), Steam (the fire is
+  wasted; leaves a steam cloud), Detonate (explosion), Overload (knockback
+  blast), Superconduct (Brittle), Firestorm (spreads Burning, fire patches
+  downwind), Spread (poison), Bog (mud). **Cancels:** Extinguish, Ground,
+  Dilute, Disperse, Absorb (an aura heals from its own element).
+- **Enemy buffs** (used by Milestone 7 affixes; rules live here):
+  - `e.aura`: an element ring; the enemy is immune to that element.
+  - `e.ward`: a shield HP pool; Storm or a parry pops it.
+  - `e.armor`: −60% damage until a heavy hit, Shatter or Superconduct.
+  - `e.regen`: heals over time, but not while poisoned.
+  - Hasted: removed by frost.
+- **`surfaces.js`** (`world.surfaces`, cap 24, same-type overlaps merge):
+  water, ice, fire, toxic (cloud), oil, electrified (reverts to water), steam
+  (cloud), mud.
+  - `elementOnArea` transforms them: storm → electrified, frost → ice, fire
+    on water → steam, fire on oil → Inferno, fire on toxic → Gas Blast, fire
+    on ice → water, water on fire → steam, water/wind clear toxic, wind blows
+    fire downwind, earth → mud.
+  - Every 0.5 s a surface applies its element to whoever stands in it.
+    Mud/oil slow.
+  - Floor surfaces draw right after the floor; clouds draw above entities.
+- **Friendly-fire rule:** player-made surfaces and reactions never affect the
+  player; enemy-made ones do (`owner: 'enemy'`). Enemy surfaces *do* affect
+  enemies — lure them in.
+- **Discovery:** the first time any reaction happens → `discover(key)` stores
+  it in `save.codex.reactions`, gives +5 darkness, and shows a "NEW REACTION"
+  toast with its description.
+- **Player damage over time:** `damagePlayer(…, { dot: true })` — small,
+  ignores hit invulnerability, no flash, shake or knockback, still logged and
+  still lethal.
+- **Debug:** `ashfall.element(e, 'storm')`, `ashfall.area('frost', x, y, r)`,
+  `ashfall.surface('oil', x, y, r, owner)`, `ashfall.applyStatus(e, 'wet', 5)`.
+- **Verified:**
+  - Electrocute 30 dmg on a 20 hit, chains 14 to a wet neighbour and stuns
+    it; a far enemy is untouched.
+  - Wet → frost = Frozen; a heavy hit shatters it for 50. Burning → frost =
+    Melt 40. Three frost stacks freeze. Fire on wet leaves steam.
+  - Poisoned → fire detonates for 40 on a neighbour. Chilled → storm =
+    Brittle (26 on a 20 hit).
+  - A fire aura absorbs fire; water strips it (Extinguished, damage 17 → 12,
+    +25% taken).
+  - Earth grounds a shocked foe (storm then 10 on 20).
+  - Puddle + storm = electrified (18 damage over ~1 s to an enemy standing in
+    it); puddle + frost = ice; oil + fire = Inferno (34).
+  - The player's own fire does 0 to them; enemy fire burns.
+
 ## 12. Glossary
 
 | Term | Meaning |

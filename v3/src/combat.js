@@ -9,6 +9,9 @@ import { TAU, rand, randInt, dist, dist2, angleTo, chance } from './util.js';
 import { addPoise } from './poise.js';
 import { isParrying, perfectParry } from './parry.js';
 import { haptic } from './haptics.js';
+import {
+  bindCombat, hitElement, damageTakenMult, absorbWard, armorMult, hasStatus, applyStatus,
+} from './elements.js';
 
 // Focus (the spell resource) earned per point of damage dealt: roughly one pip
 // per ~300 damage, i.e. every several seconds of real fighting.
@@ -40,7 +43,8 @@ export function enemiesInRadius(x, y, radius, exclude = null) {
 /**
  * Damage an enemy.
  * opts: { crit, noCrit, raw, knockback, dir, source, chained, silent,
- *         heavy (posture ×3, breaks guards), poise (explicit posture damage) }
+ *         heavy (posture ×3, breaks guards, shatters frozen foes),
+ *         poise (explicit posture damage), element (see elements.js) }
  */
 export function dealDamage(e, amount, opts = {}) {
   if (!e || e.dead || e.hp <= 0 || e.spawning || e.invuln) return 0;
@@ -68,6 +72,25 @@ export function dealDamage(e, amount, opts = {}) {
   }
   const exposed = e.exposed > 0;
   if (exposed) dmg *= EXPOSED_MULT;
+
+  // Elements: reactions scale this hit (Melt ×2, Shatter ×2.5, Absorbed ×0…).
+  // A heavy physical hit on a frozen foe shatters it even with no element.
+  let reacted = false;
+  if (opts.element || (opts.heavy && hasStatus(e, 'frozen'))) {
+    const r = hitElement(e, opts.element || 'physical', {
+      heavy: !!opts.heavy, damage: amount, owner: opts.owner || 'player', dir: opts.dir,
+    });
+    if (r.mult === 0) return 0;          // the aura drank it
+    reacted = r.mult !== 1;
+    dmg *= r.mult;
+  }
+  dmg *= damageTakenMult(e) * armorMult(e, !!opts.heavy || reacted);
+  dmg = absorbWard(e, dmg);
+  if (dmg <= 0) {
+    burst(e.x, e.y, { count: 5, color: '#8ef0ff', speed: 160, size: 3, life: 0.25, drag: 6, shape: 'spark' });
+    sfx.block();
+    return 0;
+  }
   dmg = Math.max(1, Math.round(dmg));
 
   // Posture: normal hits chip it, heavy hits and ripostes crack it.
@@ -120,9 +143,9 @@ export function dealDamage(e, amount, opts = {}) {
   if (st && !opts.chained) {
     if (st.lifesteal > 0 && p && p.hp > 0) healPlayer(dmg * st.lifesteal, false);
 
-    if (st.burn > 0) {
-      e.burn = { dps: st.burn, time: 3 };
-    }
+    // Cinder Trail: burning, through the element system (so it can Melt,
+    // Detonate or be doused like any other fire).
+    if (st.burn > 0) applyStatus(e, 'burning', 3, { dps: st.burn });
     if (st.slowOnHit > 0) {
       e.slow = { mult: 1 - st.slowOnHit, time: 2 };
     }
@@ -263,6 +286,7 @@ export function healPlayer(amount, showText = true) {
 export function damagePlayer(amount, sx = null, sy = null, source = 'unknown', opts = {}) {
   const p = world.player;
   if (!p || p.hp <= 0) return false;
+  if (opts.dot) return dotPlayer(p, amount, source);
   if (opts.parryable && isParrying(p)) {
     perfectParry(p, opts.attacker || null, sx ?? p.x, sy ?? p.y, 'melee');
     return false;
@@ -312,26 +336,39 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown', o
   return true;
 }
 
+/**
+ * Damage over time on the player (burning, poison, electrified water): small,
+ * ignores hit invulnerability, and skips the flash / shake / knockback of a real
+ * hit. Still logged by source and still able to kill.
+ */
+function dotPlayer(p, amount, source) {
+  const dmg = Math.max(1, Math.round(amount * (1 - p.stats.damageReduction)));
+  p.hp -= dmg;
+  world.damageLog[source] = (world.damageLog[source] || 0) + dmg;
+  p.lastHitBy = source;
+  damageText(p.x, p.y - p.r - 6, `-${dmg}`, { color: '#ff9a7a', size: 14 });
+  if (p.hp <= 0) {
+    p.hp = 0;
+    p.dead = true;
+    burst(p.x, p.y, { count: 46, color: '#ff5e6e', speed: 420, size: 6, life: 0.9, drag: 3, shape: 'shard' });
+    shake(1);
+    hitstop(0.4);
+    sfx.death();
+  }
+  return true;
+}
+
 // Burn / slow ticking, run once per frame over all enemies.
 export function updateStatuses(dt) {
   for (const e of world.enemies) {
     if (e.dead) continue;
-    if (e.burn && e.burn.time > 0) {
-      e.burn.time -= dt;
-      e.burnTick = (e.burnTick || 0) + dt;
-      if (e.burnTick >= 0.4) {
-        e.burnTick = 0;
-        dealDamage(e, e.burn.dps * 0.4, { raw: true, chained: true, noCrit: true, silent: true });
-        burst(e.x, e.y - e.r * 0.3, {
-          count: 3, color: '#ff8a3d', speed: 46, size: 3.5, life: 0.42,
-          dir: -Math.PI / 2, spread: 1.1, drag: 1.6, gravity: -60,
-        });
-      }
-      if (e.burn.time <= 0) e.burn = null;
-    }
+    // Burning / poison / chill now tick in elements.js (updateElements).
     if (e.slow && e.slow.time > 0) {
       e.slow.time -= dt;
       if (e.slow.time <= 0) e.slow = null;
     }
   }
 }
+
+// elements.js resolves reactions that deal damage; hand it the entry points.
+bindCombat({ dealDamage, damagePlayer });

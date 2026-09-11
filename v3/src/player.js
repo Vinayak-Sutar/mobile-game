@@ -12,7 +12,8 @@ import { burst, ring, trail, shake, slash } from './fx.js';
 import { sfx } from './audio.js';
 import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform } from './rigs.js';
 import { updateGrenade, GRENADE } from './grenade.js';
-import { canParry, startParry, updateParry, isParrying, parryRecovering, drawParry } from './parry.js';
+import { canParry, startParry, updateParry, isParrying, drawParry } from './parry.js';
+import { playerSpeedMult } from './elements.js';
 
 // Input buffer: a press made slightly too early (mid-swing, mid-dash) is
 // remembered this long and fires the moment it's allowed.
@@ -211,6 +212,7 @@ export function updatePlayer(p, dt) {
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= 0.55;
     if (p.parry && !p.parry.success) speed *= 0.4;
+    speed *= playerSpeedMult(p);
 
     const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;

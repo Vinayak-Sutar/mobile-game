@@ -16,6 +16,10 @@ import { createPlayer, updatePlayer, drawPlayer, bufferInput } from './player.js
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
 import { updateStatuses, healPlayer } from './combat.js';
 import { updatePoise } from './poise.js';
+import {
+  updateElements, setDiscoverHook, hitElement, elementArea, applyStatus, drawPlayerElements, REACTIONS,
+} from './elements.js';
+import { spawnSurface, drawSurfaces, drawClouds } from './surfaces.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
@@ -338,6 +342,7 @@ function tick(dt) {
       updateEnemies(dt);
       updateStatuses(dt);
       updatePoise(dt);
+      updateElements(dt);
       updateHitboxes(dt);
       updateGrenades(dt);
       updateProjectiles(dt);
@@ -409,12 +414,15 @@ function render() {
     drawAmbient(ctx, world.biome);
     drawFxBelow(ctx);
     drawObstacles(ctx);
+    drawSurfaces(ctx, world.runTime);
     drawDoors(ctx, world.runTime);
     drawHazardsBelow(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
     drawPickups(ctx);
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);
+    if (world.player) drawPlayerElements(ctx, world.player);
+    drawClouds(ctx, world.runTime);
     drawProjectiles(ctx);
     drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
@@ -1009,6 +1017,12 @@ for (const type of ['touchend', 'pointerup', 'click', 'keydown']) {
 }
 window.addEventListener('keydown', ensureAudio, { once: true });
 
+// First time a reaction happens: a banner naming it, and a codex entry.
+setDiscoverHook((key, info) => {
+  showToast('NEW REACTION', `${info.name} — ${info.desc}`, 2.8);
+  sfx.boon();
+});
+
 // --- boot ------------------------------------------------------------------
 
 loadSave();
@@ -1035,6 +1049,11 @@ window.ashfall = {
   set state(s) { state = s; },
   tick, render, startRun, advanceRoom, showTitle,
   trial: (type, weaponIdx = 0) => startTrial(WEAPONS[weaponIdx], type),
+  // Elements: hit an enemy with an element, hit an area, place a surface.
+  element: (e, el, ctx = {}) => hitElement(e, el, { damage: 10, owner: 'player', ...ctx }),
+  area: (el, x, y, r, opts) => elementArea(el, x, y, r, opts),
+  surface: (type, x, y, r, owner) => spawnSurface(type, x, y, r, owner),
+  applyStatus, REACTIONS,
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,
