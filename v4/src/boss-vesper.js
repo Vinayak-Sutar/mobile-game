@@ -8,20 +8,24 @@
 // health) she tosses her hat, draws a second gun (twelve shots), the sky turns
 // to dusk and three new moves appear.
 //
-// Cheese-proofing (each strategy has an answer):
-//   hugging her        → Spur Kick, the Coach Gun blast, a Quick-Draw Roll away;
-//                        a burst of damage in idle makes her roll out.
-//   kiting at range    → Lasso (yanks you in, then the Coach Gun), Ricochets,
-//                        Coin trick-shots, Dynamite.
-//   hiding behind cover→ crates BREAK; Ricochets and coins shoot around them,
-//                        Dynamite lobs over them.
-//   spamming dash      → High Noon's third bell and the Dance reward timing,
-//                        not panic.
+// EVERY move is gunplay (the owner's rule for her): revolvers, a sawed-off,
+// a Winchester, a flare gun, trick shots and gunsmoke.
 //
-// Moves: Quick Draw, Fan the Hammer, Ricochet, Dynamite, Quick-Draw Roll,
-// Lasso (+ point-blank Coach Gun), Coach Gun, Spur Kick, Coin Toss, High Noon
-// (signature), Deadeye (phase-1 barrage), Reload (forced) — and in phase 2:
-// Smoke & Mirrors (roulette), Dance (shots at your feet), Sundown (the
+// Cheese-proofing (each strategy has an answer):
+//   hugging her        → Pistol Whip (then a point-blank shot), the Coach Gun,
+//                        a Quick-Draw Roll away; a burst of damage in idle
+//                        makes her roll out.
+//   kiting at range    → the Winchester (rifle rounds that punch through
+//                        crates), Ricochets, Coin trick-shots, Flare Gun.
+//   hiding behind cover→ crates BREAK; Ricochets and coins shoot around them,
+//                        flares land on them, rifle rounds go through them.
+//   circling on autopilot → she LEADS her aimed shots; High Noon's line turns
+//                        faster than you can circle, so dash on the bell.
+//
+// Moves: Quick Draw, Fan the Hammer, Ricochet, Flare Gun, Quick-Draw Roll,
+// Winchester, Coach Gun, Pistol Whip, Coin Shot, High Noon (signature),
+// Deadeye (phase-1 barrage), Reload (forced) — and in phase 2: Gunsmoke
+// (hidden shots from all around), Dance (shots at your feet), Sundown (the
 // twin-gun barrage). Every move keeps the fairness rules in boss-kit.js.
 // ============================================================================
 
@@ -32,7 +36,6 @@ import { damagePlayer } from './combat.js';
 import { burst, ring, shake, flash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { spawnHazard } from './hazards.js';
-import { input } from './input.js';
 import { breakCrate } from './projectiles.js';
 
 const PI = Math.PI;
@@ -40,8 +43,9 @@ const BRASS = '#ffd27a';
 const GOLD = '#ffb35e';
 const DUSK = '#ff5e6e';
 const SMOKE = '#d8d0c8';
-const ROPE = '#c9a36b';
 const WHITE_HOT = '#fff3c0';
+const RICO_SPEED = 400;
+const RIFLE_SPEED = 780;   // the planner and the shot must use the same speed
 
 // --- small helpers ------------------------------------------------------------
 
@@ -149,7 +153,7 @@ function planRicochet(e, p, bounces, mirror = 0) {
   for (let k = 0; k < 40; k++) {
     const a = (k / 40) * TAU;
     const sx = e.x + Math.cos(a) * (e.r + 8), sy = e.y + Math.sin(a) * (e.r + 8);
-    const pts = simulate(sx, sy, a, 360, 5, bounces, 4);
+    const pts = simulate(sx, sy, a, RICO_SPEED, 5, bounces, 4);
     if (pts.length < 3) continue;
     if (pathMiss([pts[0], pts[1]], p.x, p.y, false) < 110) continue;   // a bank shot, not a straight one
     let miss = pathMiss(pts, p.x, p.y);
@@ -158,7 +162,7 @@ function planRicochet(e, p, bounces, mirror = 0) {
   }
   if (!bestPts) {
     const sx = e.x + Math.cos(bestA) * (e.r + 8), sy = e.y + Math.sin(bestA) * (e.r + 8);
-    bestPts = simulate(sx, sy, bestA, 360, 5, bounces, 4);
+    bestPts = simulate(sx, sy, bestA, RICO_SPEED, 5, bounces, 4);
   }
   return { a: bestA, pts: bestPts };
 }
@@ -169,7 +173,7 @@ function planRicochet(e, p, bounces, mirror = 0) {
  * shot goes, so changing direction or dashing still beats it — only running
  * in a straight line on autopilot doesn't.
  */
-function leadAngle(e, p, fromX, fromY, speed, k = 0.8, extra = 0) {
+function leadAngle(e, p, fromX, fromY, speed, k = 0.9, extra = 0) {
   const t = dist(fromX, fromY, p.x, p.y) / speed + extra;
   return angleTo(fromX, fromY, p.x + (e.pvx || 0) * t * k, p.y + (e.pvy || 0) * t * k);
 }
@@ -202,7 +206,7 @@ function reload(e) {
   e.reloadPending = true;
   sfx.click();
   say(e, ['Reload.', 'Hold still.', 'Six for six.', 'Click.'][(Math.random() * 4) | 0]);
-  expose(e, p2(e) ? 1.1 : 1.5);
+  expose(e, p2(e) ? 0.8 : 1.1);
 }
 
 function crate(fx, fy) {
@@ -216,7 +220,7 @@ export const VESPER = {
   phases: [0.5],
   phaseTime: 3.4,
   roarPitch: 1.3,
-  opening: { highnoon: 9, deadeye: 18, lasso: 5, fan: 2, coin: 3, roulette: 99, dance: 99, sundown: 99 },
+  opening: { highnoon: 7, deadeye: 15, rifle: 4, fan: 2, coin: 3, roulette: 99, dance: 99, sundown: 99 },
 
   /** A sun-bleached square: four crates for cover (they break). */
   arena() {
@@ -232,7 +236,7 @@ export const VESPER = {
     e.paths = [];
     e.coins = [];
     e.tracers = [];
-    e.lasso = null;
+    e.rifle = false;
     e.smoke = null;
     e.dusk = 0;
     e.noon = 0;
@@ -311,13 +315,12 @@ export const VESPER = {
 
   choose(e, p, d) {
     if (e.ammo <= 0) return [['reload', 1]];
-    const pool = [['quickdraw', 3], ['ricochet', 2], ['coin', 1.4], ['dynamite', 1.4], ['highnoon', 3.5]];
-    if (e.ammo >= 3) pool.push(['fan', 2.4]);
-    if (d < 210) pool.push(['coach', 3.2], ['roll', 1.5]);
-    if (e.hug > 0.45 && d < 100) pool.push(['kick', 10]);
-    if (e.far > 1.5) pool.push(['lasso', 7], ['ricochet', 2], ['coin', 2]);
-    else if (d > 300) pool.push(['lasso', 1.4]);
-    if (e.cover > 0.9) pool.push(['dynamite', 5], ['coin', 4], ['ricochet', 3]);
+    const pool = [['quickdraw', 3.5], ['ricochet', 2], ['coin', 1.6], ['flare', 1.4], ['highnoon', 4], ['rifle', 1.2]];
+    if (e.ammo >= 3) pool.push(['fan', 2.6]);
+    if (d < 210) pool.push(['coach', 3.4], ['roll', 1.5]);
+    if (e.hug > 0.4 && d < 100) pool.push(['whip', 10]);
+    if (e.far > 1.3) pool.push(['rifle', 7], ['ricochet', 2], ['coin', 2]);
+    if (e.cover > 0.8) pool.push(['flare', 5], ['coin', 4], ['ricochet', 3], ['rifle', 3]);
     if (!p2(e)) pool.push(['deadeye', 4]);
     else pool.push(['sundown', 4.5], ['roulette', 2.6], ['dance', 2.4]);
     return pool;
@@ -326,7 +329,7 @@ export const VESPER = {
   // --- phase 2: Sundown -----------------------------------------------------------
   onPhase(e) {
     e.lines = []; e.paths = []; e.coins = []; e.tracers = [];
-    e.lasso = null; e.smoke = null; e.hidden = false;
+    e.rifle = false; e.smoke = null; e.hidden = false;
     e.noonTarget = 0;
     e.phaseMarks = {};
   },
@@ -356,7 +359,7 @@ export const VESPER = {
     e.cool.sundown = 6;
     e.cool.roulette = 3;
     e.cool.dance = 1.5;
-    e.cool.highnoon = 12;
+    e.cool.highnoon = 9;
     // Fresh cover drops in for the second act, so the square is never bare.
     if (world.room) {
       const crates = world.room.obstacles.filter((o) => o.crate).length;
@@ -382,24 +385,24 @@ export const VESPER = {
       start(e, p) {
         e.aim = angleTo(e.x, e.y, p.x, p.y);
         e.qd = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5 });
-        e.shots2 = p2(e) ? 1 : 0;
-        sub(e, 'aim', tell(e, 0.6));
+        e.shots2 = p2(e) ? 2 : 1;            // a double tap; a triple at dusk
+        sub(e, 'aim', tell(e, 0.52));
       },
       update(e, dt, p) {
         const l = e.qd;
         l.x = e.x; l.y = e.y;
-        if (e.t > 0.18) { turnToward(e, leadAngle(e, p, e.x, e.y, 620, 0.8, e.t), 5 * dt); e.aim = e.face; }
+        if (e.t > 0.18) { turnToward(e, leadAngle(e, p, e.x, e.y, 700, 0.9, e.t), 5 * dt); e.aim = e.face; }
         else if (!l.locked) { l.locked = true; l.w = 2.5; l.color = WHITE_HOT; }
         l.a = e.aim;
         if (e.t <= 0) {
-          fire(e, e.aim, 620, { dmg: 0.55 });
+          fire(e, e.aim, 700, { dmg: 0.6 });
           l.t = 0;
           if (e.shots2 > 0 && e.ammo > 0) {
             e.shots2--;
-            e.aim = angleTo(e.x, e.y, p.x, p.y);
+            e.aim = leadAngle(e, p, e.x, e.y, 700);
             e.qd = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5 });
-            sub(e, 'aim', 0.34);
-          } else idle(e, 0.34);
+            sub(e, 'aim', 0.32);
+          } else idle(e, 0.28);
         }
       },
     },
@@ -412,9 +415,9 @@ export const VESPER = {
         e.aim = leadAngle(e, p, e.x, e.y, 320, 0.5, 0.62);
         e.fanN = e.ammo;
         e.fanK = 0;
-        spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: e.aim, arc: 1.25, r: 520, delay: tell(e, 0.62), color: GOLD, owner: e });
+        spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: e.aim, arc: 1.25, r: 520, delay: tell(e, 0.52), color: GOLD, owner: e });
         sfx.telegraph();
-        sub(e, 'wind', tell(e, 0.62));
+        sub(e, 'wind', tell(e, 0.52));
       },
       update(e, dt) {
         if (e.sub === 'wind') {
@@ -426,8 +429,8 @@ export const VESPER = {
         const perGun = e.guns > 1 ? Math.ceil(e.fanN / 2) : e.fanN;
         const k = e.fanK;
         const f = perGun > 1 ? k / (perGun - 1) : 0.5;
-        fire(e, e.aim - arc / 2 + arc * f, 320, { dmg: 0.45, quiet: k % 2 === 1 });
-        if (e.guns > 1 && e.ammo > 0) fire(e, e.aim + arc / 2 - arc * f, 320, { dmg: 0.45, quiet: true });
+        fire(e, e.aim - arc / 2 + arc * f, 360, { dmg: 0.5, quiet: k % 2 === 1 });
+        if (e.guns > 1 && e.ammo > 0) fire(e, e.aim + arc / 2 - arc * f, 360, { dmg: 0.5, quiet: true });
         e.fanK++;
         e.t = 0.08;
         if (e.fanK >= perGun || e.ammo <= 0) { e.ammo = 0; idle(e, 0.3); }
@@ -452,45 +455,45 @@ export const VESPER = {
       update(e) {
         if (e.t > 0) return;
         const bounces = p2(e) ? 3 : 2;
-        for (const r of e.rico) fire(e, r.a, 360, { x: r.x0, y: r.y0, dmg: 0.5, life: 4, extra: { bounces } });
+        for (const r of e.rico) fire(e, r.a, RICO_SPEED, { x: r.x0, y: r.y0, dmg: 0.6, life: 4, extra: { bounces } });
         e.pathT = 0.35;
         idle(e, 0.4);
       },
     },
 
-    // 4. Dynamite: a lit bundle lobbed at you (a marked landing). It smashes
-    //    crates. Phase 2: two bundles (one where you're heading) that burst
-    //    into shrapnel.
-    dynamite: {
-      cooldown: 7,
+    // 4. Flare Gun: a flare fired high, landing where you're heading — the
+    //    landing is marked. It bursts in a blast that smashes crates: her
+    //    answer to cover. Phase 2: two flares (one on you, one ahead of you),
+    //    each bursting into shrapnel.
+    flare: {
+      cooldown: 6,
       start(e, p) {
         e.face = angleTo(e.x, e.y, p.x, p.y);
         sfx.telegraph();
-        sub(e, 'light', tell(e, 0.5));
+        sub(e, 'raise', tell(e, 0.42));
       },
       update(e, dt, p) {
         if (Math.random() < dt * 40) {
-          burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r - 8, { count: 1, color: '#ffd45e', speed: 90, size: 2.5, life: 0.25, drag: 3, shape: 'spark' });
+          burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r - 10, { count: 1, color: '#ff5e3d', speed: 90, size: 2.5, life: 0.25, drag: 3, shape: 'spark' });
         }
         if (e.t > 0) return;
-        const targets = [[p.x, p.y]];
-        if (p2(e)) {
-          const lead = 0.9 * 268;
-          targets.push([p.x + (input.move.x || 0) * lead, p.y + (input.move.y || 0) * lead]);
-        }
+        const vx = e.pvx || 0, vy = e.pvy || 0;
+        const targets = p2(e) ? [[p.x, p.y], [p.x + vx * 1.1, p.y + vy * 1.1]] : [[p.x + vx * 0.7, p.y + vy * 0.7]];
         for (const [tx0, ty0] of targets) {
           const [tx, ty] = inArena(tx0, ty0, 40);
           spawnHazard({
-            kind: 'lob', x0: e.x, y0: e.y - e.r * 0.3, x1: tx, y1: ty, flight: 1.05,
-            r: 82, damage: Math.round(e.damage * 0.75), color: '#ff7a3d', source: e.type, owner: e,
-            height: 170, shellR: 8,
-            shards: p2(e) ? { n: 8, speed: 190, color: BRASS, r: 6 } : null, shardShape: 'orb',
+            kind: 'lob', x0: e.x, y0: e.y - e.r * 0.3, x1: tx, y1: ty, flight: 0.9,
+            r: 86, damage: Math.round(e.damage * 0.8), color: '#ff5e3d', source: e.type, owner: e,
+            height: 230, shellR: 7,
+            shards: p2(e) ? { n: 8, speed: 210, color: BRASS, r: 6 } : null, shardShape: 'orb',
             shardDamage: Math.round(e.damage * 0.35),
             onDetonate: (h) => smashCrates(h.x, h.y, h.r),
           });
         }
-        sfx.swing(1);
-        idle(e, 0.42);
+        // The flare pistol: a pop and a red streak straight up.
+        burst(e.x, e.y - e.r, { count: 10, color: '#ff5e3d', speed: 320, size: 3, life: 0.35, dir: -PI / 2, spread: 0.3, drag: 3, shape: 'spark' });
+        sfx.gunshot();
+        idle(e, 0.3);
       },
     },
 
@@ -504,7 +507,7 @@ export const VESPER = {
         const test = (s) => freeAt(e.x + Math.cos(a + s * PI / 2) * 200, e.y + Math.sin(a + s * PI / 2) * 200, 30);
         if (!test(side)) side = -side;
         e.rollA = a + side * PI / 2 + (dist(e.x, e.y, p.x, p.y) < 160 ? -side * 0.5 : 0);
-        e.rollShots = p2(e) ? 2 : 1;
+        e.rollShots = p2(e) ? 3 : 2;
         burst(e.x, e.y + e.r * 0.6, { count: 8, color: '#c9b08a', speed: 120, size: 4, life: 0.4, drag: 3 });
         sub(e, 'tuck', 0.16);
       },
@@ -527,10 +530,10 @@ export const VESPER = {
         // snap: a short line that locks, then the shot.
         const l = e.qd;
         l.x = e.x; l.y = e.y;
-        if (e.t > 0.14) { turnToward(e, leadAngle(e, p, e.x, e.y, 600, 0.7, e.t), 5 * dt); e.aim = e.face; } else { l.locked = true; l.color = WHITE_HOT; l.w = 2.5; }
+        if (e.t > 0.14) { turnToward(e, leadAngle(e, p, e.x, e.y, 680, 0.8, e.t), 5 * dt); e.aim = e.face; } else { l.locked = true; l.color = WHITE_HOT; l.w = 2.5; }
         l.a = e.aim;
         if (e.t <= 0) {
-          fire(e, e.aim, 600, { dmg: 0.5 });
+          fire(e, e.aim, 680, { dmg: 0.6 });
           l.t = 0;
           e.rollShots--;
           if (e.rollShots > 0 && e.ammo > 0) {
@@ -542,81 +545,41 @@ export const VESPER = {
       },
     },
 
-    // 6. Lasso: she whirls a rope (unparryable), throws it along a line; if it
-    //    catches you, you're yanked in — DASH to break free — and she meets you
-    //    with the Coach Gun. Crates snag the rope (and splinter).
-    lasso: {
-      cooldown: 9,
+    // 6. Winchester: keep your distance and she shoulders a long rifle.
+    //    Lever-action: three rounds (four at dusk), each with its own
+    //    tracking line that locks, then a heavy round that punches straight
+    //    THROUGH crates. The lines ignore cover, as the rounds do.
+    rifle: {
+      cooldown: 8,
       start(e, p) {
-        e.aim = angleTo(e.x, e.y, p.x, p.y);
-        e.lasso = { state: 'spin', x: e.x, y: e.y, spin: 0 };
-        e.lassoLine = addLine(e, { a: e.aim, t: 9, T: 9, w: 1, color: ROPE, cover: true, dash: [4, 8] });
-        say(e, 'Come here.');
-        sfx.telegraph();
-        sub(e, 'spin', tell(e, 0.85));
+        e.rifle = true;
+        e.rifleShots = p2(e) ? 4 : 3;
+        say(e, 'Too far, partner.');
+        sfx.click();
+        e.aim = leadAngle(e, p, e.x, e.y, RIFLE_SPEED, 0.9, 0.6);
+        e.rl = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5, color: DUSK, cover: false, alpha: 0.6 });
+        sub(e, 'aim', tell(e, 0.62));
       },
       update(e, dt, p) {
-        const L = e.lasso;
-        if (!L) { idle(e, 0.3); return; }
-        L.spin += dt * 14;
-        if (e.sub === 'spin') {
-          if (e.t > 0.22) { turnToward(e, angleTo(e.x, e.y, p.x, p.y), 3.5 * dt); e.aim = e.face; }
-          else { e.lassoLine.locked = true; e.lassoLine.color = WHITE_HOT; }
-          e.lassoLine.x = e.x; e.lassoLine.y = e.y; e.lassoLine.a = e.aim;
-          L.x = e.x + Math.cos(L.spin) * 22; L.y = e.y - 26 + Math.sin(L.spin) * 10;
-          if (e.t <= 0) {
-            e.lassoLine.t = 0;
-            L.state = 'fly'; L.x = e.x; L.y = e.y; L.d = 0;
-            sfx.swing(1.2);
-            sub(e, 'fly', 0.7);
-          }
+        const l = e.rl;
+        l.x = e.x; l.y = e.y;
+        if (e.sub === 'aim') {
+          if (e.t > 0.16) { turnToward(e, leadAngle(e, p, e.x, e.y, RIFLE_SPEED, 0.9, e.t), 4.5 * dt); e.aim = e.face; }
+          else if (!l.locked) { l.locked = true; l.color = WHITE_HOT; l.w = 2.5; }
+          l.a = e.aim;
+          if (e.t > 0) return;
+          fire(e, e.aim, RIFLE_SPEED, { dmg: 0.75, r: 6, free: true, color: WHITE_HOT, life: 1.8, off: e.r + 22, extra: { pierceCover: true } });
+          shake(0.22);
+          l.t = 0;
+          e.rifleShots--;
+          if (e.rifleShots > 0) { sub(e, 'lever', p2(e) ? 0.14 : 0.2); sfx.click(); }
+          else { e.rifle = false; idle(e, 0.34); }
           return;
         }
-        if (e.sub === 'fly') {
-          L.d += 880 * dt;
-          L.x = e.x + Math.cos(e.aim) * L.d;
-          L.y = e.y + Math.sin(e.aim) * L.d;
-          // Snagged on a crate or a wall.
-          const snag = world.room && world.room.obstacles.find((o) => L.x > o.x && L.x < o.x + o.w && L.y > o.y && L.y < o.y + o.h);
-          if (snag || !freeAt(L.x, L.y, 4) || L.d > 560) {
-            if (snag && snag.crate) { snag.hp -= 3; snag.hitAt = world.runTime; if (snag.hp <= 0) breakCrate(snag); }
-            L.state = 'reel';
-            sub(e, 'reel', 0.55);
-            return;
-          }
-          if (!p.dashing && dist(L.x, L.y, p.x, p.y) < 30 + p.r * 0.6) {
-            L.state = 'pull';
-            damageText(p.x, p.y - p.r - 18, 'LASSOED — DASH!', { color: ROPE, size: 15 });
-            sfx.block();
-            sub(e, 'pull', 0.75);
-          }
-          return;
-        }
-        if (e.sub === 'pull') {
-          // Dash to snap the rope.
-          if (input.dashPressed || p.dashing) {
-            damageText(p.x, p.y - p.r - 18, 'BROKE FREE', { color: '#9fffcf', size: 15 });
-            burst(p.x, p.y, { count: 10, color: ROPE, speed: 200, size: 3, life: 0.3, drag: 4 });
-            e.lasso = null;
-            sub(e, 'stagger', 0.7);
-            return;
-          }
-          const a = angleTo(p.x, p.y, e.x, e.y);
-          const d = dist(p.x, p.y, e.x, e.y);
-          const step = Math.min(640 * dt, Math.max(0, d - (e.r + p.r + 26)));
-          p.x += Math.cos(a) * step;
-          p.y += Math.sin(a) * step;
-          L.x = p.x; L.y = p.y;
-          if (step <= 0.5 || e.t <= 0) {
-            e.lasso = null;
-            // Point-blank Coach Gun: the cone shows, dash out of it.
-            startMove(e, p, 'coach');
-          }
-          return;
-        }
-        if (e.sub === 'reel' || e.sub === 'stagger') {
-          if (L) { L.x = lerp(L.x, e.x, 1 - Math.exp(-8 * dt)); L.y = lerp(L.y, e.y, 1 - Math.exp(-8 * dt)); }
-          if (e.t <= 0) { e.lasso = null; idle(e, 0.3); }
+        if (e.sub === 'lever' && e.t <= 0) {
+          e.aim = leadAngle(e, p, e.x, e.y, RIFLE_SPEED, 0.9, 0.42);
+          e.rl = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5, color: DUSK, cover: false, alpha: 0.6 });
+          sub(e, 'aim', tell(e, 0.42));
         }
       },
     },
@@ -628,14 +591,14 @@ export const VESPER = {
       start(e, p) {
         e.aim = angleTo(e.x, e.y, p.x, p.y);
         e.face = e.aim;
-        spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: e.aim, arc: 1.0, r: 270, delay: tell(e, 0.5), color: DUSK, owner: e });
+        spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: e.aim, arc: 1.0, r: 280, delay: tell(e, 0.42), color: DUSK, owner: e });
         sfx.telegraph();
-        sub(e, 'brace', tell(e, 0.5));
+        sub(e, 'brace', tell(e, 0.42));
       },
       update(e) {
         if (e.t > 0) return;
-        for (let k = 0; k < 9; k++) {
-          fire(e, e.aim - 0.5 + (k / 8) * 1.0 + rand(-0.03, 0.03), 470, { dmg: 0.34, life: 0.55, r: 5, free: true, quiet: k > 0, color: '#ffe0b0' });
+        for (let k = 0; k < 11; k++) {
+          fire(e, e.aim - 0.5 + (k / 10) * 1.0 + rand(-0.03, 0.03), 500, { dmg: 0.4, life: 0.56, r: 5, free: true, quiet: k > 0, color: '#ffe0b0' });
         }
         sfx.explode();
         shake(0.3);
@@ -645,27 +608,50 @@ export const VESPER = {
       },
     },
 
-    // 8. Spur Kick: stand on her toes for too long and she boots you away.
-    //    Phase 2: straight into a Quick Draw.
-    kick: {
-      cooldown: 2.5,
+    // 8. Pistol Whip: crowd her and she clubs you away with the gun butt,
+    //    then shoots you while you're still reeling (the line shows first).
+    //    Phase 2: two shots.
+    whip: {
+      cooldown: 2.4,
       start(e, p) {
         e.face = angleTo(e.x, e.y, p.x, p.y);
-        sub(e, 'wind', 0.3);
+        sub(e, 'wind', 0.26);
       },
       update(e, dt, p) {
-        if (e.t > 0) return;
-        const d = dist(e.x, e.y, p.x, p.y);
-        if (d < e.r + p.r + 36 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 1.3) {
-          if (damagePlayer(Math.round(e.damage * 0.55), e.x, e.y, e.type)) {
-            p.vx = (p.vx || 0) + Math.cos(e.face) * 240;
-            p.vy = (p.vy || 0) + Math.sin(e.face) * 240;
+        if (e.sub === 'wind') {
+          if (e.t > 0) return;
+          const d = dist(e.x, e.y, p.x, p.y);
+          if (d < e.r + p.r + 38 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 1.3) {
+            if (damagePlayer(Math.round(e.damage * 0.55), e.x, e.y, e.type)) {
+              p.vx = (p.vx || 0) + Math.cos(e.face) * 300;
+              p.vy = (p.vy || 0) + Math.sin(e.face) * 300;
+            }
           }
+          burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r, { count: 12, color: BRASS, speed: 240, size: 3, life: 0.3, drag: 4, shape: 'spark' });
+          sfx.hit(1);
+          e.whipShots = p2(e) ? 2 : 1;
+          if (e.ammo > 0) {
+            e.aim = leadAngle(e, p, e.x, e.y, 700, 0.6, 0.3);
+            e.qd = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5 });
+            sub(e, 'snap', 0.3);
+          } else idle(e, 0.3);
+          return;
         }
-        burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r, { count: 10, color: '#c9b08a', speed: 220, size: 4, life: 0.3, drag: 4 });
-        sfx.hit(1);
-        if (p2(e) && e.ammo > 0) startMove(e, p, 'quickdraw');
-        else idle(e, 0.4);
+        const l = e.qd;
+        l.x = e.x; l.y = e.y;
+        if (e.t > 0.14) { turnToward(e, leadAngle(e, p, e.x, e.y, 700, 0.6, e.t), 5 * dt); e.aim = e.face; }
+        else { l.locked = true; l.color = WHITE_HOT; l.w = 2.5; }
+        l.a = e.aim;
+        if (e.t <= 0) {
+          fire(e, e.aim, 700, { dmg: 0.55 });
+          l.t = 0;
+          e.whipShots--;
+          if (e.whipShots > 0 && e.ammo > 0) {
+            e.aim = leadAngle(e, p, e.x, e.y, 700, 0.6, 0.26);
+            e.qd = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5 });
+            sub(e, 'snap', 0.26);
+          } else idle(e, 0.3);
+        }
       },
     },
 
@@ -676,7 +662,7 @@ export const VESPER = {
       cooldown: 8,
       start(e, p) {
         e.coins = [];
-        const n = p2(e) ? 3 : 1;
+        const n = p2(e) ? 3 : 2;
         const base = angleTo(p.x, p.y, e.x, e.y) + (Math.random() < 0.5 ? 1 : -1) * rand(1.3, 1.9);
         for (let k = 0; k < n; k++) {
           let placed = null;
@@ -716,14 +702,14 @@ export const VESPER = {
           e.coinK++;
           if (e.coinK < e.coins.length) { e.t = 0.14; return; }
           // The last coin aims at you: the line is locked, then the shot.
-          e.coinA = leadAngle(e, p, c.x, c.y, 560, 0.6, 0.42);
+          e.coinA = leadAngle(e, p, c.x, c.y, 640, 0.7, 0.42);
           e.coinLine = addLine(e, { x: c.x, y: c.y, a: e.coinA, t: 0.42, T: 0.42, w: 2, color: WHITE_HOT, locked: true });
           sub(e, 'last', 0.42);
           return;
         }
         if (e.sub === 'last' && e.t <= 0) {
           const c = e.coinFrom;
-          fire(e, e.coinA, 560, { x: c.x, y: c.y, off: 6, dmg: 0.55, free: true });
+          fire(e, e.coinA, 640, { x: c.x, y: c.y, off: 6, dmg: 0.6, free: true });
           e.coins = [];
           idle(e, 0.34);
         }
@@ -737,7 +723,7 @@ export const VESPER = {
     highnoon: {
       cooldown: 22,
       start(e, p) {
-        e.cool.highnoon = p2(e) ? 15 : 22;
+        e.cool.highnoon = p2(e) ? 11 : 16;
         e.noonTarget = 1;
         e.tolls = 0;
         e.hnShots = p2(e) ? 2 : 1;
@@ -751,7 +737,8 @@ export const VESPER = {
         const l = e.hnLine;
         if (e.sub === 'toll') {
           const lockIn = e.tolls >= 2 && e.t < 0.3;
-          if (!lockIn) turnToward(e, angleTo(e.x, e.y, p.x, p.y), (p2(e) ? 1.9 : 1.5) * dt);
+          // Faster than you can circle her: dash on the third bell, or get behind a crate.
+          if (!lockIn) turnToward(e, angleTo(e.x, e.y, p.x, p.y), (p2(e) ? 2.4 : 1.9) * dt);
           else if (!l.locked) { l.locked = true; l.color = WHITE_HOT; l.w = 4; sfx.click(); }
           e.aim = e.face;
           l.x = e.x; l.y = e.y; l.a = e.aim;
@@ -759,7 +746,7 @@ export const VESPER = {
           if (e.tolls < 2) { toll(e); sub(e, 'toll', 0.9); return; }
           // The last bell: BANG.
           toll(e);
-          fire(e, e.aim, 950, { dmg: 1.5, r: 8, color: WHITE_HOT, life: 1.6, extra: { crateDmg: 99 } });
+          fire(e, e.aim, 950, { dmg: 1.7, r: 8, color: WHITE_HOT, life: 1.6, extra: { crateDmg: 99 } });
           shake(0.45);
           flash(0.18, WHITE_HOT);
           e.hnShots--;
@@ -773,7 +760,7 @@ export const VESPER = {
           }
           e.noonTarget = 0;
           say(e, 'Too slow.');
-          expose(e, 1.6);
+          expose(e, 1.2);
         }
       },
     },
@@ -801,7 +788,7 @@ export const VESPER = {
           if (e.sub === 'drop') {
             shake(0.3);
             e.reloadPending = true;
-            expose(e, 2.2);
+            expose(e, 1.8);
             return;
           }
           e.face = PI / 2;
@@ -810,13 +797,13 @@ export const VESPER = {
         }
         if (e.sub === 'glint') {
           if (e.t > 0) return;
-          const n = 7, spread = 1.75;
+          const n = 8, spread = 1.75;
           const shift = (e.volley % 2 ? 0.5 : 0) * (spread / (n - 1));
           for (let k = 0; k < n; k++) {
-            fire(e, PI / 2 - spread / 2 + (k / (n - 1)) * spread + shift, 215, { dmg: 0.45, free: true, quiet: k > 0, shape: 'orb', r: 7, life: 4 });
+            fire(e, PI / 2 - spread / 2 + (k / (n - 1)) * spread + shift, 235, { dmg: 0.5, free: true, quiet: k > 0, shape: 'orb', r: 7, life: 4 });
           }
           e.volley++;
-          if (e.volley >= 5) {
+          if (e.volley >= 6) {
             // Drop back down — the landing spot is marked.
             let tx = p.x, ty = p.y;
             for (let i = 0; i < 12; i++) {
@@ -826,7 +813,7 @@ export const VESPER = {
             e.jump = { x0: e.x, y0: e.y, x1: tx, y1: ty };
             spawnHazard({ kind: 'blast', x: tx, y: ty, r: 72, delay: 0.7, damage: Math.round(e.damage * 0.5), color: GOLD, source: e.type, owner: e });
             sub(e, 'drop', 0.7);
-          } else sub(e, 'glint', 0.62);
+          } else sub(e, 'glint', 0.55);
         }
       },
     },
@@ -839,25 +826,33 @@ export const VESPER = {
 
     // --- phase 2 ------------------------------------------------------------------
 
-    // 13. Smoke & Mirrors: a smoke bomb, and she's gone. Six shots come from
-    //     six places around you, each one's line drawn first. She steps out of
-    //     the last one's smoke, and has to reload.
+    // 13. Gunsmoke: she empties both guns into the dirt and vanishes in the
+    //     smoke. Eight shots come from eight places around you, each one's
+    //     line drawn first. She steps out of the last one's smoke, and has to
+    //     reload.
     roulette: {
       cooldown: 14,
       start(e) {
-        say(e, 'Now you see me.');
-        sub(e, 'bomb', 0.45);
+        say(e, 'Gunsmoke.');
+        e.face = PI / 2;
+        sub(e, 'bomb', 0.5);
       },
       update(e, dt, p) {
         const R = e.rou;
         if (e.sub === 'bomb') {
           if (e.t > 0) return;
-          e.smoke = { x: e.x, y: e.y, t: 4.5 };
+          // Both guns into the dirt: a burst of gunfire and a wall of smoke.
+          for (let k = 0; k < 6; k++) {
+            const a = rand(0, TAU);
+            burst(e.x + Math.cos(a) * 30, e.y + Math.sin(a) * 30, { count: 4, color: WHITE_HOT, speed: 220, size: 3, life: 0.2, drag: 5, shape: 'spark' });
+          }
+          e.smoke = { x: e.x, y: e.y, t: 5 };
           burst(e.x, e.y, { count: 30, color: SMOKE, speed: 240, size: 9, life: 0.9, drag: 3 });
-          sfx.thud();
+          sfx.gunshot();
+          sfx.explode();
           e.hidden = true;
           e.invuln = true;
-          e.rou = { k: 0, n: 6, next: 0.25, base: rand(0, TAU), pending: [] };
+          e.rou = { k: 0, n: 8, next: 0.25, base: rand(0, TAU), pending: [] };
           sub(e, 'shots', 99);
           return;
         }
@@ -870,18 +865,18 @@ export const VESPER = {
             if (freeAt(x, y, 20) && dist(x, y, p.x, p.y) > 200) pt = { x, y };
           }
           if (!pt) { const [x, y] = inArena(p.x + 300, p.y, 44); pt = { x, y }; }
-          const a = leadAngle(e, p, pt.x, pt.y, 540, 0.5, 0.62);
+          const a = leadAngle(e, p, pt.x, pt.y, 600, 0.55, 0.62);
           const line = addLine(e, { x: pt.x, y: pt.y, a, t: 0.62, T: 0.62, w: 2, color: DUSK, locked: true });
           R.pending.push({ ...pt, a, t: 0.62, line });
           burst(pt.x, pt.y, { count: 8, color: SMOKE, speed: 90, size: 6, life: 0.5, drag: 3 });
           R.k++;
-          R.next = 0.4;
+          R.next = 0.34;
         }
         for (const s of R.pending) {
           s.t -= dt;
           if (s.t <= 0 && !s.done) {
             s.done = true;
-            fire(e, s.a, 540, { x: s.x, y: s.y, off: 8, dmg: 0.5 });
+            fire(e, s.a, 600, { x: s.x, y: s.y, off: 8, dmg: 0.6, free: true });
             R.last = s;
           }
         }
@@ -911,14 +906,14 @@ export const VESPER = {
       },
       update(e, dt, p) {
         if (e.t > 0) return;
-        if (e.danceK >= 3) { e.ammo = 0; idle(e, 0.4); return; }
+        if (e.danceK >= 4) { e.ammo = 0; idle(e, 0.34); return; }
         const a = rand(0, PI);
         const n = 7, gap = 46;
         for (let k = 0; k < n; k++) {
           const off = (k - (n - 1) / 2) * gap;
           const [x, y] = inArena(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, 24);
           spawnHazard({
-            kind: 'blast', x, y, r: 30, delay: 0.55 + k * 0.07, damage: Math.round(e.damage * 0.45),
+            kind: 'blast', x, y, r: 30, delay: 0.5 + k * 0.065, damage: Math.round(e.damage * 0.45),
             color: GOLD, source: e.type, owner: e, quiet: true,
             onDetonate: k % 2 ? null : () => sfx.gunshot(),
           });
@@ -926,7 +921,7 @@ export const VESPER = {
         e.face = angleTo(e.x, e.y, p.x, p.y);
         e.recoil = 0.12;
         e.danceK++;
-        e.t = 0.95;
+        e.t = 0.85;
       },
     },
 
@@ -955,7 +950,7 @@ export const VESPER = {
           }
           return;
         }
-        if (e.sub === 'twirl') { if (e.t <= 0) sub(e, 'spin', 3.4); return; }
+        if (e.sub === 'twirl') { if (e.t <= 0) sub(e, 'spin', 4.0); return; }
         e.spinT += dt;
         e.face = e.spinA + e.spinT * 1.15;
         // Spirals turn at 1.15 rad/s, a volley every 0.16 s: between two
@@ -965,14 +960,14 @@ export const VESPER = {
           e.volleyT = 0.16;
           const w = 1.15 * e.spinT;
           for (const [base, dir, color] of [[e.spinA, 1, BRASS], [e.spinA + PI, 1, BRASS], [e.spinA + PI / 2, -1, DUSK], [e.spinA - PI / 2, -1, DUSK]]) {
-            fire(e, base + dir * w, 185, { dmg: 0.4, free: true, quiet: true, shape: 'orb', r: 7, color, life: 6 });
+            fire(e, base + dir * w, 200, { dmg: 0.45, free: true, quiet: true, shape: 'orb', r: 7, color, life: 6 });
           }
           if (Math.random() < 0.3) sfx.gunshot();
         }
         if (e.t <= 0) {
           e.reloadPending = true;
           say(e, 'Reload.');
-          expose(e, 2.4);
+          expose(e, 2.0);
         }
       },
     },
@@ -1042,8 +1037,21 @@ export const VESPER = {
       ctx.fillRect(6, -2, 16, 4);                   // barrel
       ctx.restore();
     };
-    gun(1);
-    if (e.guns > 1) gun(-1);
+    if (e.rifle) {
+      // The Winchester, shouldered: a long barrel with a brass receiver.
+      ctx.save();
+      ctx.translate(r * 0.3 - kick, r * 0.2);
+      ctx.fillStyle = '#6b4a2a';
+      ctx.fillRect(-14, -3.5, 16, 7);               // stock
+      ctx.fillStyle = BRASS;
+      ctx.fillRect(2, -4, 9, 8);                    // receiver
+      ctx.fillStyle = '#4a4a56';
+      ctx.fillRect(11, -2, 34, 4);                  // barrel
+      ctx.restore();
+    } else {
+      gun(1);
+      if (e.guns > 1) gun(-1);
+    }
 
     // Head: the wide hat — or, after Sundown, silver hair and burning eyes.
     if (e.hat) {
@@ -1079,7 +1087,7 @@ export const VESPER = {
     ctx.restore();
   },
 
-  /** Telegraphs and props: sight lines, ricochet paths, coins, the lasso, smoke, the cylinder. */
+  /** Telegraphs and props: sight lines, ricochet paths, coins, gunsmoke, the cylinder. */
   drawExtras(e, ctx, t) {
     // Smoke first: she hides in it.
     if (e.smoke) {
@@ -1152,15 +1160,6 @@ export const VESPER = {
       ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
     }
     ctx.globalAlpha = 1;
-
-    // The lasso: a whirling loop, then a rope to wherever the loop is.
-    if (e.lasso) {
-      const L = e.lasso;
-      ctx.strokeStyle = ROPE;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(L.x, L.y); ctx.stroke();
-      ctx.beginPath(); ctx.ellipse(L.x, L.y, 16, L.state === 'spin' ? 8 : 14, L.spin || 0, 0, TAU); ctx.stroke();
-    }
 
     if (e.hidden) return;
 

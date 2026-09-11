@@ -1681,6 +1681,54 @@ The regular enemies wait their turn.
     split is safe).
   - Full runs on all 4 weapons: 0 errors, Vesper drawn in every run.
 
+### 14.3 Vesper, round 2 — all gunplay, and harder (done)
+
+The owner's feedback after playing her: "not challenging enough", and
+"every move should be about guns".
+
+- **Four moves replaced with gun moves:**
+  - Dynamite → **Flare Gun**: a flare fired high, landing where you're
+    heading (marked, 0.9 s flight). The blast smashes crates. In phase 2
+    there are two flares, one on you and one ahead, and they burst into
+    shrapnel.
+  - Lasso → **Winchester**: shown when you keep your distance. A shouldered
+    rifle fires 3 lever-action rounds (4 in phase 2), each with a tracking
+    line that locks. The rounds fly at 780 u/s and **punch through crates**
+    (`pr.pierceCover`, new in `projectiles.js`: the crate breaks and the
+    round flies on). Their lines ignore cover to match.
+  - Spur Kick → **Pistol Whip**: a gun-butt knockback, then a point-blank
+    shot while you reel (two shots in phase 2).
+  - Smoke bomb → **Gunsmoke**: she empties both guns into the dirt and
+    vanishes in the smoke. Eight hidden shots come, up from six.
+- **Harder:**
+  - HP 1150 → 1400.
+  - Quick Draw is a double tap (a triple in phase 2) at 700 u/s.
+  - The Fan is faster (360 u/s, a 0.52 s tell); Ricochets fly at 400 u/s
+    (`RICO_SPEED`, shared by the planner and the shot).
+  - Two coins in phase 1; Coach Gun fires 11 pellets with a 0.42 s tell.
+  - Reloads are shorter (1.1 s, 0.8 s in phase 2). High Noon comes every
+    16/11 s, and its line turns at 1.9/2.4 rad/s, faster than you can
+    circle at duelling range, so you must dash on the third bell or use
+    cover.
+  - Deadeye fires 6 volleys of 8; Dance has 4 lines; Sundown lasts 4 s at
+    200 u/s (same gaps); the lead factor is 0.9; rests are shorter.
+- **Measured** (damage per minute, phase 1 / phase 2; the round-1 numbers
+  are before the arrow):
+
+  | Player bot | Phase 1 | Phase 2 |
+  | --- | --- | --- |
+  | Standing still | 201 → 304 | 258 → 348 |
+  | Circling on autopilot | 54 → 138 | 114 → 197 |
+  | Human-like (0.25 s reactions) | 30 → 126 | 77 → 100 |
+  | Expert (reads locked lines, dashes) | 0 → 0 | 8 → 23 |
+
+  She now sits among the tougher guardians (§6.1), and a player who reads
+  her lines still avoids nearly everything.
+- **Verified:** every move in both phases runs to completion with no
+  errors. A rifle round broke a crate and still hit the player behind it.
+  A fight to the death took 56 s with no errors. A full run was a victory
+  with Vesper at slot 2.
+
 ## 12. Glossary
 
 | Term | Meaning |

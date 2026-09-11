@@ -122,6 +122,8 @@ export function updateProjectiles(dt) {
         if (circleRect(pr.x, pr.y, pr.r, o)) {
           // Breakable cover (crates) chips with every hit; big shots smash it.
           if (o.crate && !o.broken) {
+            // A rifle round goes straight through: the crate splinters, the round flies on.
+            if (pr.pierceCover) { breakCrate(o); continue; }
             o.hp -= pr.crateDmg || 1;
             o.hitAt = world.runTime;
             if (o.hp <= 0) breakCrate(o);

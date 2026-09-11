@@ -1108,7 +1108,7 @@ function bossDef(spec, stats) {
 
 export const BOSS_DEFS = {
   vesper: bossDef(VESPER, {
-    r: 26, hp: 1150, speed: 150, mass: 20, color: '#ffb35e', damageBase: 16,
+    r: 26, hp: 1400, speed: 160, mass: 20, color: '#ffb35e', damageBase: 17,
     title: 'Deadeye Vesper', subtitle: 'The Last Bullet',
   }),
   turtle: bossDef(TURTLE, {
