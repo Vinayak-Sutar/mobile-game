@@ -101,6 +101,9 @@ test them.
   big melee strike.
 
 ### 3. The Twin Wardens: Solaris the Lancer & Grumm the Hammer — duo fight
+> **Built in Version 4** (`v4/src/boss-wardens.js`, journal §14.5): two bosses with combos
+> (Spear Toss, Pincer, Crater Storm, Judgment), friendly fire, and a phase 2 that depends on
+> kill order (Thunder Grumm or Titan Solaris). The notes below are the original design.
 *Inspired by Ornstein & Smough.*
 - **Arena:** a vast cathedral with pillars (destructible by Grumm).
 - **Solaris** — fast, thin, a lightning lance (Storm). Dashes across the arena, pokes,

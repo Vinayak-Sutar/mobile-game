@@ -193,7 +193,30 @@ export function drawHud(ctx, time) {
   ctx.fillText(audio.muted ? 'MUTED (M)' : '', view.w - 30, 54);
 
   // --- boss bar -----------------------------------------------------------
-  const boss = bossInRoom();
+  // Two bosses at once (the Twin Wardens): two bars side by side.
+  const bosses = world.enemies.filter((e) => e.boss && !e.dead && !e.spawning);
+  if (bosses.length >= 2) {
+    const total = Math.min(660, view.w - 220), gap = 18;
+    const bw = (total - gap) / 2, bh = 13, byy = 62;
+    bosses.slice(0, 2).forEach((b, i) => {
+      const bxx = view.w / 2 - total / 2 + i * (bw + gap);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      roundRect(ctx, bxx - 3, byy - 3, bw + 6, bh + 6, 5);
+      ctx.fill();
+      ctx.fillStyle = b.exposed > 0 ? '#ffe27a' : b.color;
+      roundRect(ctx, bxx, byy, bw * clamp(b.hp / b.maxHp, 0, 1), bh, 3);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,220,180,0.5)';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, bxx, byy, bw, bh, 3);
+      ctx.stroke();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = b.exposed > 0 ? '#ffe27a' : '#ffd9a0';
+      ctx.font = `800 11px ${FONT}`;
+      ctx.fillText(b.title.toUpperCase() + (b.exposed > 0 ? ' · EXPOSED' : ''), bxx + bw / 2, byy + bh + 12);
+    });
+  }
+  const boss = bosses.length >= 2 ? null : bossInRoom();
   if (boss && !boss.spawning) {
     const bw = Math.min(660, view.w - 220), bh = 15;
     const bxx = view.w / 2 - bw / 2, byy = 62;

@@ -1812,6 +1812,79 @@ Every move is a snake move.
   - Full runs with her in the pool: victories, no errors.
   - Checked at the phone's 844×390 size.
 
+### 14.5 Step 4 — the Twin Wardens, Solaris & Grumm (done)
+
+The third boss from IDEAS.md (inspired by Ornstein & Smough): two bosses in
+one fight, with a phase 2 that depends on kill order. `boss-wardens.js`
+exports two specs, `SOLARIS` and `GRUMM`.
+
+- **Setup:** the room spawns `solaris` (the pool entry; `BOSS_INFO` calls it
+  "The Twin Wardens"). His `init` spawns `grumm` beside him with the same
+  scale and tier, and links them with `e.partner`. No `summoner` link, so
+  the first to die doesn't take the other with them.
+- **UI:** two boss bars side by side while two bosses are alive (`ui.js`
+  lists every live boss).
+- **Arena:** a cathedral nave with marble tiles, a crimson runner, a sun
+  sigil and stained-glass light. There are 4 **stone pillars**: crate
+  obstacles with `stone: true` and 30 HP. Bullets chip them; Grumm's
+  charge, slams and boulders smash them. `drawPillar` is in `rooms.js`.
+- **Solaris** (780 HP at slot 0, r 22, fast):
+  - Moves: Lance Thrust, Triple Thrust, Sky Dive (a marked landing,
+    untouchable while high), Lightning Spear (a lane to the wall, then a
+    spear that bursts into sparks), Chain Arc (marked strikes around you),
+    Lance Sweep (anti-hug) and Retreat.
+- **Grumm** (1050 HP, r 40, slow):
+  - Moves: Hammer Slam (a red tell, then the impact), Triple Slam
+    (stepping), Belly Slam (a jump onto you and two bounces, all marked),
+    Bull Charge (smashes pillars; hitting a wall stuns him, EXPOSED 1.4 s),
+    Boulder Toss (a lob with rock shards), Quake (two gapped rings) and
+    Hammer Sweep (anti-hug).
+- **Combos** (Solaris leads; Grumm is put in a `combo` action the combo
+  drives):
+  - **Spear Toss:** Grumm throws Solaris down a lane that runs to the far
+    wall.
+  - **Pincer:** a charge and a thrust on the same line from opposite
+    sides.
+  - **Crater Storm:** Grumm's crater, then Solaris's spear sends 3
+    lightning rings out of it.
+  - **Judgment**, the barrage: Solaris rises, lightning columns strike
+    alternating strips of the nave (7 strips, waves every 1.1 s, columns
+    72% of a strip), and Grumm pounds every 2 s with wide-gapped rings.
+    Then both are EXPOSED 2.2 s.
+- **Pacing:** while one twin is mid-attack, the other mostly waits
+  (`pace`), so they alternate and only overlap sometimes.
+- **Friendly fire:** their strikes and impacts hurt each other (3–5% of
+  the partner's max HP, shown as "FRIENDLY FIRE!"). Verified: Grumm's slam
+  on Solaris took 51 (5%).
+- **Phase 2 by kill order:** when a partner dies the survivor's `phases`
+  becomes `[2]`, which trips the kit's phase change. The survivor absorbs
+  the fallen twin's power: their energy streams across, the survivor heals
+  +55% of max HP, and a banner appears.
+  - **Thunder Grumm** (Solaris died first): faster. His slam adds a
+    lightning ring. New moves: Thunderclap, Storm Charge (lightning falls
+    along his trail), Lance Hurl (the fallen brother's lance), and
+    **Tempest**, the barrage: 4 slow spinning beams plus strikes.
+  - **Titan Solaris** (Grumm died first): r 22 → 34. New moves: Titan Leap
+    (the landing, then two rings of rock spikes), Earthsplitter (a line of
+    spikes), Titan Spin, and **Seismic Judgment** (columns alternating
+    with lines of spikes).
+- **Tuning from the bots:**
+  - Judgment's waves came every 0.85 s, which left <0.7 s to cross a
+    strip. Now 1.1 s, with narrower columns.
+  - Grumm's phase-1 slam no longer rolls a ring (rings from two bosses
+    stacked up).
+- **Measured** (60 s samples, noisy): standing still ~530/min against the
+  pair. The human-like bot takes ~120–250 (pair), ~93–150 (Thunder) and
+  ~100–160 (Titan). The expert takes ~52–76 in every act. Two bosses are
+  busier than one; nothing unfair stands out.
+- **Verified:**
+  - Every move of both twins, all 4 combos, and both phase-2 variants with
+    their new moves run with no errors.
+  - Killing both clears the room and opens the doors.
+  - 3 full runs with the Wardens as the first guardian, plus 3 more:
+    victories, no errors.
+  - Checked at the phone's 844×390 size.
+
 ## 12. Glossary
 
 | Term | Meaning |

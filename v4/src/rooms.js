@@ -383,6 +383,7 @@ export function drawFloor(ctx, time) {
  */
 function drawCrate(ctx, o) {
   const k = clamp(o.hp / (o.maxHp || 1), 0, 1);
+  if (o.stone) { drawPillar(ctx, o, k); return; }
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   roundRect(ctx, o.x + 4, o.y + 8, o.w, o.h, 4);
   ctx.fill();
@@ -408,6 +409,34 @@ function drawCrate(ctx, o) {
     ctx.beginPath();
     ctx.moveTo(o.x + o.w * 0.2, o.y + o.h * 0.1); ctx.lineTo(o.x + o.w * 0.35, o.y + o.h * 0.45); ctx.lineTo(o.x + o.w * 0.25, o.y + o.h * 0.7);
     if (k < 0.4) { ctx.moveTo(o.x + o.w * 0.8, o.y + o.h * 0.2); ctx.lineTo(o.x + o.w * 0.6, o.y + o.h * 0.55); ctx.lineTo(o.x + o.w * 0.75, o.y + o.h * 0.9); }
+    ctx.stroke();
+  }
+}
+
+/** A cathedral pillar: fluted stone that cracks, then crumbles (Twin Wardens). */
+function drawPillar(ctx, o, k) {
+  const cx = o.x + o.w / 2, cy = o.y + o.h / 2, r = o.w / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(cx + 4, cy + 9, r, r * 0.9, 0, 0, TAU); ctx.fill();
+  const hit = world.runTime - (o.hitAt ?? -9) < 0.08;
+  ctx.fillStyle = hit ? '#ffffff' : '#8a8494';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#b4aec0';
+  ctx.beginPath(); ctx.arc(cx - 2, cy - 3, r * 0.82, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(40,36,52,0.55)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * TAU;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * r * 0.35, cy + Math.sin(a) * r * 0.35); ctx.lineTo(cx + Math.cos(a) * r * 0.8, cy + Math.sin(a) * r * 0.8); ctx.stroke();
+  }
+  ctx.strokeStyle = '#2a2634';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
+  if (k < 0.66) {
+    ctx.strokeStyle = '#1a1622';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(cx - r * 0.6, cy - r * 0.2); ctx.lineTo(cx - r * 0.1, cy + r * 0.1); ctx.lineTo(cx + r * 0.2, cy - r * 0.5);
+    if (k < 0.33) { ctx.moveTo(cx - r * 0.1, cy + r * 0.1); ctx.lineTo(cx + r * 0.3, cy + r * 0.7); }
     ctx.stroke();
   }
 }

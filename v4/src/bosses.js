@@ -36,6 +36,7 @@ import {
 export { bindBossSpawner, clearBullets, clearHostiles } from './boss-kit.js';
 import { VESPER } from './boss-vesper.js';
 import { NAGA } from './boss-naga.js';
+import { SOLARIS, GRUMM } from './boss-wardens.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1108,6 +1109,15 @@ function bossDef(spec, stats) {
 }
 
 export const BOSS_DEFS = {
+  // The Twin Wardens: the room spawns Solaris, who brings Grumm (boss-wardens.js).
+  solaris: bossDef(SOLARIS, {
+    r: 22, hp: 780, speed: 190, mass: 16, color: '#ffd45e', damageBase: 16,
+    title: 'Solaris the Lancer', subtitle: 'The Twin Wardens',
+  }),
+  grumm: bossDef(GRUMM, {
+    r: 40, hp: 1050, speed: 78, mass: 60, color: '#9a98aa', damageBase: 19,
+    title: 'Grumm the Hammer', subtitle: 'The Twin Wardens',
+  }),
   naga: bossDef(NAGA, {
     r: 26, hp: 1500, speed: 150, mass: 40, color: '#2f8f6a', damageBase: 17,
     title: 'Nagaraja', subtitle: 'The Coil Beneath',
@@ -1210,7 +1220,7 @@ export const BOSS_DEFS = {
 
 /** Boss roster: shuffled into slots 1-4 each run; the Warden is always last. */
 // The guardian pool: four of these guard chambers 3, 6, 9 and 12, shuffled per run.
-export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga'];
+export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris'];
 
 export const BOSS_INFO = {
   turtle: { title: BOSS_DEFS.turtle.title, subtitle: BOSS_DEFS.turtle.subtitle, color: '#6fdca0', animal: 'Turtle' },
@@ -1219,5 +1229,7 @@ export const BOSS_INFO = {
   peacock: { title: BOSS_DEFS.peacock.title, subtitle: BOSS_DEFS.peacock.subtitle, color: '#6fb8ff', animal: 'Peacock' },
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
+  solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  grumm: { title: BOSS_DEFS.grumm.title, subtitle: 'The Twin Wardens', color: '#9a98aa', animal: 'Duo' },
   warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Final' },
 };
