@@ -25,6 +25,9 @@ export function spawnProjectile(o) {
     maxSpeed: 900,
     turn: 0,              // rad/s: bends the path (curving spiral arms)
     quiet: false,         // tiny fizzle, for patterns that fire hundreds
+    heavy: undefined,     // enemy shot too big to break with a swing (parry or dodge it)
+    breaker: false,       // friendly shot that destroys light enemy bullets it touches
+    heavyHit: false,      // friendly shot that counts as a heavy hit (posture, shatter)
     spin: 0,
     rot: 0,
     trailEvery: 0.03,
@@ -37,6 +40,8 @@ export function spawnProjectile(o) {
     ...o,
   };
   p.maxLife = p.life;
+  // Anything big enough to see as a boulder or a fat glob is heavy.
+  if (p.heavy === undefined) p.heavy = !p.friendly && p.r >= 14;
   world.projectiles.push(p);
   return p;
 }

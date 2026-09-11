@@ -1066,6 +1066,79 @@ Version 2 split, menu-clipping fix.
 
 ---
 
+## 13. Version 3 (`v3/`) — spells, elements, parry (in progress)
+
+The owner asked for a "many bosses" direction (Wukong-style) and, first, deeper
+combat tools that future bosses can be designed around. The approved plan is in
+nine milestones; each ships to `…/mobile-game/v3/` when done. All new work
+happens in `v3/`; Version 2 (root) and Version 1 (`v1/`) are untouched apart
+from the three-button version switcher. Boss, spell, enemy, weapon and trap
+ideas for later live in **`IDEAS.md`** (repo root), each written against the
+V3 toolbox.
+
+**V3 plumbing:** copied from V2 at `16a3020`. Save key `ashfall.v3.save`
+(seeded once from `ashfall.save.v1`), SW cache prefix `ashfall-v3-`, manifest
+"Ashfall — Version 3". Import modules in the console relative to the page
+(`./src/…`).
+
+### 13.1 Milestone 2 — parry, posture, projectile counters (done)
+
+- **Input** (`input.js`, `gamepad.js`): new roles `parry` and `cast`. Touch:
+  a PARRY button (✧) at `(w-222, h-54)` r34; CAST (✺) at `(w-46, h-200)`,
+  hidden until spells exist (`controls.cast.enabled`). Keyboard: Shift or L =
+  parry (Shift no longer triggers the special), C = cast, 1–4 pick a spell,
+  mouse wheel cycles. Pad: **L1 parry, R1 cast**, dash is Cross only.
+- **Input buffer** (`player.js`): attack/special/dash/parry presses are kept
+  0.15 s (`p.buffer`). `bufferInput()` runs from `tick()` *before* the hitstop
+  check. Before this, a press made during any impact freeze was dropped, which
+  ate every riposte.
+- **Parry** (`parry.js`): press → a perfect window (0.18 s default) → on a whiff,
+  0.22 s recovery (no attacks, 40% move speed; dash cancels it), and a 0.55 s
+  cooldown from the press. On success: the window stays open 0.08 s more for
+  simultaneous hits, the cooldown drops to 0.1 s (so flurries can be
+  parried one by one), attacks are unlocked immediately, +1 Focus, a clang,
+  hitstop and haptics. Riposte (1.2 s): the next direct hit is a forced crit
+  × the weapon's `riposteMult`, plus heavy posture damage.
+  - **What's parryable:** anything passed to `damagePlayer(…, { parryable:
+    true, attacker })` — body contact (`contactDamage` in `ai.js`), the
+    turtle bite, croc snap, gorilla clap — and every projectile (reflected in
+    `projectiles.js` via `sendBack`, even boulders, which then hit as heavy).
+    Blasts, lobs, shockrings, beams and slams are not.
+  - **Weapon styles** (`weapons.js` `parry: {}`): bow window 0.16 +
+    counter-shot on melee parries; blade riposte ×2.6; spear counter-thrust
+    (a heavy rect hitbox); shield window 0.26 and reflects ×2.6.
+- **Parry cues** (`fx.parryCue`): a white four-point glint when a parryable
+  wind-up has 0.16 s left (`cueWhite(e)`, once per step via `e.cued`), a red ⚠
+  at the start of unparryable wind-ups (`cueRed`). Added to wretch, slinger,
+  charger, spitter (white), brute and bomber (red), the Warden (charge white,
+  slam red), and every creature-boss move.
+- **Posture** (`poise.js`): `initPoise` gives regular enemies `30 + r×1.6`
+  (×1.6 for elites) and bosses `130 + tier×20`. Normal hits add 35% of their
+  damage, heavy hits 100%, explosions 60%, a melee parry 60% of a regular bar
+  (34 for bosses), a riposte ×3 + 20. It drains after 2 s without hits. A full
+  bar = BROKEN: regular enemies `stunT` 1.5 s (their wind-up is cancelled);
+  bosses `onPoiseBreak` → EXPOSED 2.4 s (not while roaring, underground or
+  airborne); the Warden → its stun for 2.2 s. The HUD shows a gold bar under
+  the boss HP bar, and a thin one under hurt regular enemies.
+- **Breaking bullets:** friendly melee hitboxes cut enemy bullets they touch
+  (`updateHitboxes`). Charged arrows (>50%), the thrown spear and the thrown
+  shield are `breaker`s. `heavy` shots (r ≥ 14, e.g. boulders) can't be
+  broken, only parried or dodged. Each break +0.1 Focus and a "tink".
+- **Heavy hits:** the 3rd hit of the blade/spear/shield combos, the melee
+  specials, full-charge arrows, the spear counter and returned boulders.
+- **Focus** is live already (3 pips on the HUD): +1 per damage/300, +1 per
+  perfect parry, +0.1 per bullet broken, +0.03/s trickle. Spells arrive in
+  Milestone 4.
+- **Haptics** (`haptics.js`): `navigator.vibrate` on parry, hurt, posture
+  break and boss kill (rate-limited; Android only).
+- **Verified** (at `/v3/`): a timed parry reflects a slinger bullet with no
+  damage and +1 Focus; an early press takes the hit; a blast can't be
+  parried; a parried wretch lunge stuns it; ripostes land (blade 44 = 17 ×
+  2.6, shield 40); a blade swing breaks 5/5 light bullets but not a boulder;
+  a charged arrow shoots down 3/3 bullets; 5 heavy hits break a boss into
+  EXPOSED; a full 15-chamber run on all 4 weapons has 0 errors; the lives
+  death path works.
+
 ## 12. Glossary
 
 | Term | Meaning |

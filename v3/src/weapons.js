@@ -24,6 +24,8 @@ export const WEAPONS = [
       count: 7, spread: 0.95, speed: 820, knockback: 110,
     },
     specialName: 'Arrow Volley',
+    // Tight window, but a parried melee attacker eats an arrow back.
+    parry: { window: 0.16, counter: 'shot' },
   },
   {
     id: 'blade',
@@ -35,13 +37,15 @@ export const WEAPONS = [
     combo: [
       { kind: 'arc', windup: 0.055, active: 0.085, recover: 0.115, arc: 2.0, radius: 116, damage: 17, knockback: 180, lunge: 150 },
       { kind: 'arc', windup: 0.05, active: 0.085, recover: 0.125, arc: 2.2, radius: 120, damage: 19, knockback: 195, lunge: 140 },
-      { kind: 'arc', windup: 0.10, active: 0.13, recover: 0.24, arc: TAU, radius: 142, damage: 32, knockback: 430, lunge: 60, spin: true },
+      { kind: 'arc', windup: 0.10, active: 0.13, recover: 0.24, arc: TAU, radius: 142, damage: 32, knockback: 430, lunge: 60, spin: true, heavy: true },
     ],
     special: {
       kind: 'arc', windup: 0.15, active: 0.16, recover: 0.28, arc: TAU, radius: 176,
-      damage: 44, knockback: 560, cooldown: 4.5, spin: true, lunge: 0,
+      damage: 44, knockback: 560, cooldown: 4.5, spin: true, lunge: 0, heavy: true,
     },
     specialName: 'Rending Spin',
+    // The duelist's weapon: the riposte after a parry hits hardest.
+    parry: { window: 0.18, riposteMult: 2.6 },
   },
   {
     id: 'spear',
@@ -53,13 +57,15 @@ export const WEAPONS = [
     combo: [
       { kind: 'rect', windup: 0.07, active: 0.09, recover: 0.14, len: 186, wid: 44, damage: 21, knockback: 210, lunge: 120 },
       { kind: 'rect', windup: 0.06, active: 0.09, recover: 0.15, len: 196, wid: 44, damage: 23, knockback: 220, lunge: 130 },
-      { kind: 'rect', windup: 0.12, active: 0.14, recover: 0.26, len: 250, wid: 56, damage: 38, knockback: 400, lunge: 460 },
+      { kind: 'rect', windup: 0.12, active: 0.14, recover: 0.26, len: 250, wid: 56, damage: 38, knockback: 400, lunge: 460, heavy: true },
     ],
     special: {
       kind: 'boomerang', windup: 0.11, recover: 0.24, damage: 34, cooldown: 3.6,
       speed: 820, knockback: 240,
     },
     specialName: 'Hurled Spear',
+    // A parry answers with an instant counter-thrust down the line.
+    parry: { window: 0.18, counter: 'thrust' },
   },
   {
     id: 'shield',
@@ -71,13 +77,15 @@ export const WEAPONS = [
     combo: [
       { kind: 'arc', windup: 0.07, active: 0.11, recover: 0.14, arc: 1.7, radius: 96, damage: 20, knockback: 380, lunge: 120, block: true },
       { kind: 'arc', windup: 0.07, active: 0.12, recover: 0.16, arc: 1.8, radius: 100, damage: 23, knockback: 430, lunge: 130, block: true },
-      { kind: 'arc', windup: 0.13, active: 0.15, recover: 0.28, arc: 2.4, radius: 128, damage: 36, knockback: 700, lunge: 260, block: true },
+      { kind: 'arc', windup: 0.13, active: 0.15, recover: 0.28, arc: 2.4, radius: 128, damage: 36, knockback: 700, lunge: 260, block: true, heavy: true },
     ],
     special: {
       kind: 'bounce', windup: 0.12, recover: 0.26, damage: 30, cooldown: 4.2,
       speed: 700, bounces: 5, knockback: 260,
     },
     specialName: 'Bull Rush',
+    // The widest window, and shots come back hardest.
+    parry: { window: 0.26, reflectMult: 2.6 },
   },
 ];
 
@@ -100,6 +108,7 @@ export function performStep(p, step, angle, power = 1) {
         damage: step.damage, knockback: step.knockback,
         life: step.active, friendly: true,
         follow: step.spin ? p : null,
+        heavy: !!step.heavy,
       });
       slash(p.x, p.y, angle, Math.min(step.arc, TAU) * 0.92, step.radius, color,
         step.active + 0.12, step.spin ? 24 : 15);
@@ -119,6 +128,7 @@ export function performStep(p, step, angle, power = 1) {
         len: step.len, wid: step.wid,
         damage: step.damage, knockback: step.knockback,
         life: step.active, friendly: true, follow: p,
+        heavy: !!step.heavy,
       });
       // A thin, fast arc reads as a thrust when the sweep is narrow.
       slash(p.x, p.y, angle, 0.5, step.len * 0.82, color, step.active + 0.12, step.wid * 0.5);
@@ -146,6 +156,8 @@ export function performStep(p, step, angle, power = 1) {
           friendly: true, color, shape: 'arrow', rot: a,
           pierce: (power > 0.85 ? 2 : power > 0.5 ? 1 : 0) + (p.stats.pierceBonus | 0),
           life: 1.6,
+          breaker: power > 0.5,
+          heavyHit: power > 0.85,
         });
       }
       burst(p.x + Math.cos(angle) * 24, p.y + Math.sin(angle) * 24, {
@@ -180,7 +192,7 @@ export function performStep(p, step, angle, power = 1) {
         vx: Math.cos(angle) * step.speed, vy: Math.sin(angle) * step.speed,
         r: 15, damage: step.damage, knockback: step.knockback,
         friendly: true, color, shape: 'spear', rot: angle,
-        pierce: 99, life: 1.5, boomerang: true, spin: 16, owner: p,
+        pierce: 99, life: 1.5, boomerang: true, spin: 16, owner: p, breaker: true,
       });
       sfx.swing(1.3);
       shake(0.14);
@@ -193,7 +205,7 @@ export function performStep(p, step, angle, power = 1) {
         vx: Math.cos(angle) * step.speed, vy: Math.sin(angle) * step.speed,
         r: 17, damage: step.damage, knockback: step.knockback,
         friendly: true, color, shape: 'shield', rot: angle,
-        pierce: 99, life: 3.4, bounces: step.bounces, spin: 14, owner: p,
+        pierce: 99, life: 3.4, bounces: step.bounces, spin: 14, owner: p, breaker: true,
         retarget: true,
       });
       sfx.block();

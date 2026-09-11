@@ -245,6 +245,15 @@ export const sfx = {
     tone({ freq: 988, type: 'triangle', dur: 0.12, vol: 0.14 });
     tone({ freq: 1319, type: 'triangle', dur: 0.2, vol: 0.14, delay: 0.08 });
   },
+  parry() {
+    // A bright metallic clang: the most satisfying sound in the game.
+    tone({ freq: 1900, freq2: 1100, type: 'square', dur: 0.09, vol: 0.16 });
+    tone({ freq: 2850, freq2: 2400, type: 'triangle', dur: 0.32, vol: 0.12, delay: 0.01 });
+    noise({ dur: 0.14, vol: 0.28, freq: 6000, freq2: 2200, type: 'bandpass', q: 3 });
+  },
+  tink() {
+    tone({ freq: 2400, freq2: 1700, type: 'sine', dur: 0.06, vol: 0.07 });
+  },
   roar(pitch = 1) {
     tone({ freq: 120 * pitch, freq2: 320 * pitch, type: 'sawtooth', dur: 0.9, vol: 0.28, filter: { freq: 1800 } });
     noise({ dur: 0.9, vol: 0.26, freq: 900 * pitch, freq2: 260, type: 'bandpass', q: 0.7 });

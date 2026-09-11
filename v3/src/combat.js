@@ -5,7 +5,14 @@ import { world } from './state.js';
 import { fx, burst, ring, shake, hitstop, damageText, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { spawnProjectile, spawnPickup } from './spawn.js';
-import { TAU, rand, randInt, dist, dist2, angleTo, chance, clamp } from './util.js';
+import { TAU, rand, randInt, dist, dist2, angleTo, chance } from './util.js';
+import { addPoise } from './poise.js';
+import { isParrying, perfectParry } from './parry.js';
+import { haptic } from './haptics.js';
+
+// Focus (the spell resource) earned per point of damage dealt: roughly one pip
+// per ~300 damage, i.e. every several seconds of real fighting.
+export const FOCUS_PER_DAMAGE = 1 / 300;
 
 // A boss left open after its big pattern takes extra damage. The window is
 // the reward for dodging everything that came before it.
@@ -32,7 +39,8 @@ export function enemiesInRadius(x, y, radius, exclude = null) {
 
 /**
  * Damage an enemy.
- * opts: { crit, noCrit, raw, knockback, dir, source, chained, silent }
+ * opts: { crit, noCrit, raw, knockback, dir, source, chained, silent,
+ *         heavy (posture ×3, breaks guards), poise (explicit posture damage) }
  */
 export function dealDamage(e, amount, opts = {}) {
   if (!e || e.dead || e.hp <= 0 || e.spawning || e.invuln) return 0;
@@ -42,14 +50,35 @@ export function dealDamage(e, amount, opts = {}) {
   let dmg = amount;
   let crit = !!opts.crit;
 
+  // Riposte: the first direct hit after a perfect parry is a guaranteed,
+  // bigger crit with heavy posture damage.
+  const direct = opts.source === 'melee' || opts.source === 'projectile';
+  const riposte = direct && p && p.riposteT > 0;
+  if (riposte) {
+    p.riposteT = 0;
+    crit = true;
+  }
+
   if (!opts.raw && st) {
     dmg *= st.damageMult;
     if (!opts.noCrit && !crit && Math.random() < st.critChance) crit = true;
-    if (crit) dmg *= st.critMult;
+    if (crit) dmg *= riposte ? Math.max(st.critMult, p.riposteMult || 2) : st.critMult;
+  } else if (riposte) {
+    dmg *= p.riposteMult || 2;
   }
   const exposed = e.exposed > 0;
   if (exposed) dmg *= EXPOSED_MULT;
   dmg = Math.max(1, Math.round(dmg));
+
+  // Posture: normal hits chip it, heavy hits and ripostes crack it.
+  const poiseDmg = opts.poise ?? (opts.chained || opts.silent ? 0 : dmg * (opts.heavy ? 1 : 0.35));
+  addPoise(e, riposte ? poiseDmg * 3 + 20 : poiseDmg);
+  if (riposte) damageText(e.x, e.y - e.r - 22, 'RIPOSTE', { color: '#ffe27a', size: 16 });
+
+  // Hitting things fills Focus, the spell resource.
+  if (p && p.focusMax && !opts.chained) {
+    p.focus = Math.min(p.focusMax, (p.focus || 0) + dmg * FOCUS_PER_DAMAGE);
+  }
 
   e.hp -= dmg;
   e.flash = Math.max(e.flash || 0, crit ? 0.18 : 0.11);
@@ -168,7 +197,7 @@ export function killEnemy(e, opts = {}) {
   shake(e.boss ? 0.9 : 0.16);
   hitstop(e.boss ? 0.3 : 0.05);
 
-  if (e.boss) { sfx.bossDown(); flash(0.5, '#ffd9a0'); }
+  if (e.boss) { sfx.bossDown(); flash(0.5, '#ffd9a0'); haptic([70, 40, 90]); }
   else sfx.hit(1.2);
 
   // Gold drop, scattered so collecting it pulls the player around the arena.
@@ -202,7 +231,7 @@ export function explode(x, y, radius, damage, exclude, color = '#ff9a4d', hitsPl
   for (const e of enemiesInRadius(x, y, radius, exclude)) {
     dealDamage(e, damage, {
       raw: true, silent: false, knockback: 260,
-      dir: angleTo(x, y, e.x, e.y), chained: true, noCrit: true,
+      dir: angleTo(x, y, e.x, e.y), chained: true, noCrit: true, poise: damage * 0.6,
     });
   }
   if (hitsPlayer) {
@@ -225,9 +254,19 @@ export function healPlayer(amount, showText = true) {
   p.healFrac = (p.healFrac || 0) + gained;
 }
 
-export function damagePlayer(amount, sx = null, sy = null, source = 'unknown') {
+/**
+ * Damage the player. opts: { parryable, attacker } — only direct melee and
+ * contact hits pass `parryable`; ground attacks (blasts, rings, beams) never
+ * do. Projectiles are parried in projectiles.js, where the shot can be sent
+ * back.
+ */
+export function damagePlayer(amount, sx = null, sy = null, source = 'unknown', opts = {}) {
   const p = world.player;
   if (!p || p.hp <= 0) return false;
+  if (opts.parryable && isParrying(p)) {
+    perfectParry(p, opts.attacker || null, sx ?? p.x, sy ?? p.y, 'melee');
+    return false;
+  }
   if (p.invuln > 0 || p.dashing) return false;
 
   const st = p.stats;
@@ -260,6 +299,7 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown') {
   hitstop(0.1);
   fx.vignette = 1;
   sfx.hurt();
+  haptic(55);
 
   if (p.hp <= 0) {
     p.hp = 0;

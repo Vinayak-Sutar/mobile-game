@@ -34,6 +34,8 @@ export const pad = {
   special: false, specialPressed: false,
   dash: false, dashPressed: false,
   grenade: false, grenadePressed: false,
+  parry: false, parryPressed: false,
+  cast: false, castPressed: false,
   aimPush: 0,
   pausePressed: false,
   mutePressed: false,
@@ -71,7 +73,7 @@ export function initGamepad({ pause, mute } = {}) {
 function clearPad() {
   pad.move.x = pad.move.y = 0;
   pad.aimActive = false;
-  pad.attack = pad.special = pad.dash = pad.grenade = false;
+  pad.attack = pad.special = pad.dash = pad.grenade = pad.parry = pad.cast = false;
   prev = [];
 }
 
@@ -119,6 +121,7 @@ function pressed(gp, i) {
 export function pollGamepad(overlayOpen) {
   pad.attackPressed = pad.specialPressed = pad.dashPressed = false;
   pad.grenadePressed = false;
+  pad.parryPressed = pad.castPressed = false;
   pad.pausePressed = pad.mutePressed = false;
   pad.confirmPressed = pad.backPressed = false;
 
@@ -160,13 +163,18 @@ export function pollGamepad(overlayOpen) {
 
   pad.attack = held(gp, BTN.R2) || held(gp, BTN.SQUARE);
   pad.special = held(gp, BTN.L2) || held(gp, BTN.TRIANGLE);
-  pad.dash = held(gp, BTN.R1) || held(gp, BTN.L1) || held(gp, BTN.CROSS);
+  pad.dash = held(gp, BTN.CROSS);
   pad.grenade = held(gp, BTN.CIRCLE);
+  // Version 3: L1 parries, R1 casts (hold R1 + right stick for the spell wheel).
+  pad.parry = held(gp, BTN.L1);
+  pad.cast = held(gp, BTN.R1);
 
   pad.attackPressed = pressed(gp, BTN.R2) || pressed(gp, BTN.SQUARE);
   pad.specialPressed = pressed(gp, BTN.L2) || pressed(gp, BTN.TRIANGLE);
-  pad.dashPressed = pressed(gp, BTN.R1) || pressed(gp, BTN.L1) || pressed(gp, BTN.CROSS);
+  pad.dashPressed = pressed(gp, BTN.CROSS);
   pad.grenadePressed = pressed(gp, BTN.CIRCLE);
+  pad.parryPressed = pressed(gp, BTN.L1);
+  pad.castPressed = pressed(gp, BTN.R1);
   pad.pausePressed = pressed(gp, BTN.OPTIONS);
   pad.mutePressed = pressed(gp, BTN.CREATE);
   pad.confirmPressed = pressed(gp, BTN.CROSS);
@@ -179,8 +187,9 @@ export function pollGamepad(overlayOpen) {
     // In a menu the sticks drive focus, not the character.
     navigateMenu(gp);
     pad.move.x = pad.move.y = 0;
-    pad.attack = pad.special = pad.dash = pad.grenade = false;
+    pad.attack = pad.special = pad.dash = pad.grenade = pad.parry = pad.cast = false;
     pad.attackPressed = pad.specialPressed = pad.dashPressed = pad.grenadePressed = false;
+    pad.parryPressed = pad.castPressed = false;
   } else {
     focusIndex = 0;
     if (pad.pausePressed && onPause) onPause();

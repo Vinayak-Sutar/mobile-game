@@ -42,13 +42,20 @@ export function collideWorld(e) {
   return bumped;
 }
 
+/**
+ * Body contact (lunges, charges, rolls, spins). Always a direct hit, so it's
+ * parryable: a perfect parry shoves the attacker off and sets touchCd so the
+ * same body can't immediately hit again.
+ */
 export function contactDamage(e, dt, amount, cooldown = 0.7) {
   const p = player();
   if (!p || p.dead) return;
   e.touchCd = Math.max(0, (e.touchCd || 0) - dt);
   if (e.touchCd > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r) {
-    if (damagePlayer(amount, e.x, e.y, e.type)) e.touchCd = cooldown;
+    const src = e.summoner ? e.summoner.type : e.type;
+    if (damagePlayer(amount, e.x, e.y, src, { parryable: true, attacker: e })) e.touchCd = cooldown;
+    else if (p.parry && p.parry.success) e.touchCd = cooldown;
   }
 }
 

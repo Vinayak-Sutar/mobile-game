@@ -7,8 +7,9 @@ import {
   circleRect, circleArc, circleOrientedRect,
 } from './util.js';
 import { dealDamage, damagePlayer, healPlayer, nearestEnemy } from './combat.js';
-import { burst, ring, trail, damageText, shake } from './fx.js';
+import { burst, trail, damageText, shake } from './fx.js';
 import { sfx } from './audio.js';
+import { isParrying, perfectParry, parryStyle, reflectAngle } from './parry.js';
 
 // --- projectiles -----------------------------------------------------------
 
@@ -174,6 +175,7 @@ export function updateProjectiles(dt) {
           knockback: pr.knockback,
           dir: Math.atan2(pr.vy, pr.vx),
           source: 'projectile',
+          heavy: !!pr.heavyHit,
         });
         if (pr.pierce > 0) pr.pierce--;
         else { consumed = true; break; }
@@ -183,23 +185,23 @@ export function updateProjectiles(dt) {
         world.projectiles.splice(i, 1);
         continue;
       }
+      // Charged arrows, thrown spears and shields shoot enemy bullets down.
+      if (pr.breaker) breakBulletsNear(pr.x, pr.y, pr.r + 4, p);
     } else if (p && !p.dead) {
       if (dist(pr.x, pr.y, p.x, p.y) < pr.r + p.r * BULLET_HURTBOX) {
+        // A perfect parry sends any shot — even a boulder — back at its owner.
+        if (isParrying(p)) {
+          const st = parryStyle(p);
+          perfectParry(p, null, pr.x, pr.y, 'projectile');
+          sendBack(pr, reflectAngle(pr, p, nearestEnemy), st.reflectMult, '#ffe27a');
+          continue;
+        }
         // Shield bashes deflect shots inside a frontal cone.
         if (p.blockTime > 0 && Math.abs(angleDiff(p.blockAngle, angleTo(p.x, p.y, pr.x, pr.y))) < 1.1) {
-          const sp = Math.hypot(pr.vx, pr.vy);
           const t = nearestEnemy(pr.x, pr.y, 900);
-          const a = t ? angleTo(pr.x, pr.y, t.x, t.y) : p.blockAngle;
-          pr.vx = Math.cos(a) * sp * 1.35;
-          pr.vy = Math.sin(a) * sp * 1.35;
-          pr.friendly = true;
-          pr.color = '#ffd45e';
-          pr.damage *= 2;
-          pr.hits = null;
-          pr.life = Math.max(pr.life, 1.6);
+          sendBack(pr, t ? angleTo(pr.x, pr.y, t.x, t.y) : p.blockAngle, 2, '#ffd45e');
           sfx.block();
           damageText(p.x, p.y - p.r - 14, 'BLOCK', { color: '#ffd45e', size: 15 });
-          burst(pr.x, pr.y, { count: 12, color: '#ffd45e', speed: 280, size: 3.5, life: 0.3, drag: 5, shape: 'spark' });
           shake(0.2);
           continue;
         }
@@ -215,6 +217,56 @@ export function updateProjectiles(dt) {
 }
 
 function lerpTo(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
+
+/** Turn an enemy shot into a friendly one flying at angle `a`. */
+function sendBack(pr, a, mult, color) {
+  const sp = Math.max(320, Math.hypot(pr.vx, pr.vy)) * 1.35;
+  pr.vx = Math.cos(a) * sp;
+  pr.vy = Math.sin(a) * sp;
+  pr.friendly = true;
+  pr.color = color;
+  pr.damage *= mult;
+  pr.hits = null;
+  pr.delay = 0;
+  pr.accel = 0;
+  pr.turn = 0;
+  pr.homing = 0;
+  pr.onExpire = null;          // a parried boulder doesn't burst on you
+  pr.life = Math.max(pr.life, 1.6);
+  pr.heavyHit = pr.heavy;      // a returned boulder hits like a hammer
+  burst(pr.x, pr.y, { count: 12, color, speed: 280, size: 3.5, life: 0.3, drag: 5, shape: 'spark' });
+}
+
+let breakSfxAt = 0;
+
+/**
+ * Destroy light enemy bullets inside a circle (thrown weapons, charged arrows).
+ * Heavy shots (boulders) shrug it off; those have to be parried or dodged.
+ */
+export function breakBulletsNear(x, y, r, p) {
+  for (const pr of world.projectiles) {
+    if (pr.friendly || pr.cleared || pr.heavy) continue;
+    if (dist(x, y, pr.x, pr.y) > r + pr.r) continue;
+    breakBullet(pr, p);
+  }
+}
+
+/** Remove one enemy bullet with a satisfying pop, and pay out a little Focus. */
+export function breakBullet(pr, p) {
+  pr.cleared = true;
+  burst(pr.x, pr.y, { count: 5, color: pr.color, speed: 200, size: 2.6, life: 0.22, drag: 6, shape: 'spark' });
+  if (p && p.focusMax) p.focus = Math.min(p.focusMax, (p.focus || 0) + 0.1);
+  if (p) p.bulletsBroken = (p.bulletsBroken || 0) + 1;
+  const now = world.runTime;
+  if (now - breakSfxAt > 0.06) { breakSfxAt = now; sfx.tink(); }
+}
+
+/** Does a melee hitbox overlap this bullet? Same shapes as enemy hits. */
+function hitboxTouches(h, pr) {
+  if (h.shape === 'arc') return circleArc(pr.x, pr.y, pr.r, h.x, h.y, h.angle, h.arc, h.radius);
+  if (h.shape === 'rect') return circleOrientedRect(pr.x, pr.y, pr.r, h.x, h.y, h.angle, h.len, h.wid);
+  return dist(h.x, h.y, pr.x, pr.y) < h.radius + pr.r;
+}
 
 function fizzle(pr) {
   burst(pr.x, pr.y, {
@@ -398,6 +450,14 @@ export function updateHitboxes(dt) {
       h.y = h.follow.y + Math.sin(h.angle) * h.offset;
     }
 
+    // Melee swings cut light enemy bullets out of the air.
+    if (h.friendly && h.breaks !== false) {
+      for (const pr of world.projectiles) {
+        if (pr.friendly || pr.cleared || pr.heavy) continue;
+        if (hitboxTouches(h, pr)) breakBullet(pr, world.player);
+      }
+    }
+
     for (const e of world.enemies) {
       if (e.dead || e.spawning || e.invuln) continue;
       if (h.hits.has(e)) continue;
@@ -416,6 +476,7 @@ export function updateHitboxes(dt) {
         knockback: h.knockback,
         dir: angleTo(h.x, h.y, e.x, e.y),
         source: 'melee',
+        heavy: !!h.heavy,
       });
       if (h.onHit) h.onHit(e, h);
     }

@@ -12,9 +12,10 @@ import {
   fx, updateFx, drawFxBelow, drawFxAbove, clearFx, flash, ring as ringFx, burst as burstFx,
 } from './fx.js';
 import { input, initInput, updateInput, endFrameInput, layoutControls, resetInput, controls } from './input.js';
-import { createPlayer, updatePlayer, drawPlayer } from './player.js';
+import { createPlayer, updatePlayer, drawPlayer, bufferInput } from './player.js';
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
 import { updateStatuses, healPlayer } from './combat.js';
+import { updatePoise } from './poise.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
@@ -324,6 +325,8 @@ function tick(dt) {
   }
 
   if (state === 'playing') {
+    // Presses are buffered before the hitstop check so a freeze can't eat them.
+    bufferInput(world.player, dt);
     if (fx.hitstop > 0) {
       // Freeze the simulation but keep the feedback layer crawling, so the
       // screen shake still lands during the freeze.
@@ -334,6 +337,7 @@ function tick(dt) {
       updatePlayer(world.player, dt);
       updateEnemies(dt);
       updateStatuses(dt);
+      updatePoise(dt);
       updateHitboxes(dt);
       updateGrenades(dt);
       updateProjectiles(dt);
@@ -579,12 +583,12 @@ function showTitle() {
       ${dualSenseRow()}
       <div class="keys">
         <b>Touch</b> — left half drags to move · <kbd>ATK</kbd> attack · <kbd>DASH</kbd> dash ·
-        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim)<br>
+        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim) · <kbd>✧</kbd> parry<br>
         <b>Keyboard</b> — <kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>click</kbd>/<kbd>J</kbd> attack ·
-        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim) ·
+        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim) · <kbd>Shift</kbd>/<kbd>L</kbd> parry ·
         <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
         <b>Controller</b> — <kbd>L stick</kbd> move · <kbd>R stick</kbd> aim · <kbd>R2</kbd> attack ·
-        <kbd>L2</kbd> special · <kbd>R1</kbd>/<kbd>✕</kbd> dash · <kbd>○</kbd> grenade (hold + R stick) ·
+        <kbd>L2</kbd> special · <kbd>✕</kbd> dash · <kbd>L1</kbd> parry · <kbd>○</kbd> grenade (hold + R stick) ·
         <kbd>Options</kbd> pause
       </div>
     </div>`);

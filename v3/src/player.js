@@ -12,6 +12,13 @@ import { burst, ring, trail, shake, slash } from './fx.js';
 import { sfx } from './audio.js';
 import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform } from './rigs.js';
 import { updateGrenade, GRENADE } from './grenade.js';
+import { canParry, startParry, updateParry, isParrying, parryRecovering, drawParry } from './parry.js';
+
+// Input buffer: a press made slightly too early (mid-swing, mid-dash) is
+// remembered this long and fires the moment it's allowed.
+const BUFFER = 0.15;
+// Focus (spell resource) trickles back slowly on its own.
+const FOCUS_TRICKLE = 0.03;
 
 const DASH_TIME = 0.17;
 const DASH_SPEED = 920;
@@ -50,6 +57,14 @@ export function createPlayer(weapon, meta = {}) {
     hp: stats.maxHp,
     lives: START_LIVES,
     weapon,
+    // Version 3 combat state.
+    focus: 1,
+    focusMax: 3,
+    parry: null,        // { phase: 'window' | 'recover', t, success }
+    parryCd: 0,
+    riposteT: 0,
+    riposteMult: 2,
+    buffer: { attack: 0, special: 0, dash: 0, parry: 0 },
     boons: {},
     boonOrder: [],
     face: -Math.PI / 2,
@@ -101,6 +116,19 @@ function aimAngle(p) {
   return p.face;
 }
 
+/**
+ * Record button presses into the input buffer. Called every tick from
+ * game.js *before* the hitstop check: a press made during an impact freeze
+ * (a parry, a crit) used to be thrown away, which ate ripostes.
+ */
+export function bufferInput(p, dt) {
+  if (!p || !p.buffer) return;
+  const buf = p.buffer;
+  for (const k of ['attack', 'special', 'dash', 'parry']) {
+    buf[k] = input[`${k}Pressed`] ? BUFFER : Math.max(0, buf[k] - dt);
+  }
+}
+
 export function updatePlayer(p, dt) {
   if (p.dead) {
     // Still drive the animator so the collapse plays out.
@@ -127,8 +155,23 @@ export function updatePlayer(p, dt) {
 
   p.aimAngle = aimAngle(p);
 
+  const buf = p.buffer;
+
+  // --- focus + parry ------------------------------------------------------
+  p.focus = Math.min(p.focusMax, p.focus + FOCUS_TRICKLE * dt);
+  updateParry(p, dt);
+  if (buf.parry > 0 && canParry(p)) {
+    buf.parry = 0;
+    startParry(p);
+  }
+
   // --- dash ---------------------------------------------------------------
-  if (input.dashPressed && !p.dashing && p.dashStock > 0) startDash(p);
+  // Dashing cancels a whiffed parry's recovery, but not the window itself.
+  if (buf.dash > 0 && !p.dashing && p.dashStock > 0 && !isParrying(p)) {
+    buf.dash = 0;
+    p.parry = null;
+    startDash(p);
+  }
 
   if (p.dashing) {
     p.dashT -= dt;
@@ -167,6 +210,7 @@ export function updatePlayer(p, dt) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= 0.55;
+    if (p.parry && !p.parry.success) speed *= 0.4;
 
     const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;
@@ -231,6 +275,16 @@ function stepDuration(p, step, key) {
 
 function updateAttack(p, dt) {
   const w = p.weapon;
+  const buf = p.buffer;
+
+  // A parry (window or whiff recovery) locks out attacks — but a successful
+  // one doesn't: the riposte should come out the instant you press attack.
+  if (p.parry && !p.parry.success) {
+    p.charging = false;
+    p.charge = 0;
+    p.chargeReady = false;
+    return;
+  }
 
   // --- charged weapons ---
   if (w.charge) {
@@ -259,12 +313,14 @@ function updateAttack(p, dt) {
         beginAttack(p, w.combo[0], 0, false, power);
       }
     }
-  } else if (input.attackPressed && !p.attack) {
+  } else if (buf.attack > 0 && !p.attack) {
+    buf.attack = 0;
     const idx = p.comboTimer > 0 ? p.comboIndex % w.combo.length : 0;
     beginAttack(p, w.combo[idx], idx, false, 1);
   }
 
-  if (input.specialPressed && !p.attack && p.specialCd <= 0) {
+  if (buf.special > 0 && !p.attack && p.specialCd <= 0) {
+    buf.special = 0;
     p.charging = false;
     p.charge = 0;
     beginAttack(p, w.special, -1, true, 1);
@@ -335,6 +391,17 @@ export function drawPlayer(p, ctx) {
   const world = drawPlayerRig(p, ctx, { bob });
 
   if (!p.dead) drawWeapon(p, ctx, world, bob);
+  if (!p.dead) drawParry(ctx, p, performance.now() / 1000);
+
+  // Riposte ready: the weapon hand glints until the next hit lands.
+  if (!p.dead && p.riposteT > 0) {
+    ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 50) * 0.3;
+    ctx.fillStyle = '#ffe27a';
+    ctx.beginPath();
+    ctx.arc(p.x + Math.cos(p.aimAngle) * (p.r + 6), p.y + Math.sin(p.aimAngle) * (p.r + 6), 4, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
 
   // Charge indicator
   if (p.charging && p.charge > 0.04) {

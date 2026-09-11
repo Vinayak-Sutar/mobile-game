@@ -118,9 +118,13 @@ export function drawHud(ctx, time) {
   }
   if (!livesBeside) drawLives(ctx, p, px + 12, py + 3, time, 0.72);
 
+  // --- focus: the spell resource, three pips that fill smoothly -----------
+  const fy = py + 17;
+  drawFocus(ctx, p, x, fy, time);
+
   // --- boons --------------------------------------------------------------
   let bx = x;
-  let by = py + 20;   // both advance: icons wrap onto a second row
+  let by = fy + 13;   // both advance: icons wrap onto a second row
   for (const id of p.boonOrder) {
     const boon = boonById(id);
     if (!boon) continue;
@@ -216,11 +220,19 @@ export function drawHud(ctx, time) {
     ctx.lineWidth = 1.5;
     roundRect(ctx, bxx, byy, bw, bh, 3);
     ctx.stroke();
+    // Posture: a gold bar under the health bar; full = BROKEN (EXPOSED).
+    if (boss.poiseMax) {
+      const k = clamp((boss.poise || 0) / boss.poiseMax, 0, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(bxx + bw * 0.2, byy + bh + 3, bw * 0.6, 5);
+      ctx.fillStyle = k > 0.75 ? '#fff3c0' : '#ffe27a';
+      ctx.fillRect(bxx + bw * 0.2, byy + bh + 3, bw * 0.6 * k, 5);
+    }
     ctx.textAlign = 'center';
     ctx.fillStyle = boss.exposed > 0 ? '#ffe27a' : '#ffd9a0';
     ctx.font = `800 12px ${FONT}`;
     const tag = boss.exposed > 0 ? '  ·  EXPOSED' : '';
-    ctx.fillText(boss.title.toUpperCase() + tag, view.w / 2, byy + bh + 13);
+    ctx.fillText(boss.title.toUpperCase() + tag, view.w / 2, byy + bh + 19);
   }
 
   // --- weapon / special (desktop readout) ---------------------------------
@@ -239,6 +251,35 @@ export function drawHud(ctx, time) {
   }
 
   drawToast(ctx);
+}
+
+const FOCUS_COLOR = '#8ef0ff';
+
+/** Three diamonds; the one being earned fills from the bottom. */
+function drawFocus(ctx, p, x, cy, time) {
+  const max = p.focusMax || 3;
+  const f = p.focus || 0;
+  for (let i = 0; i < max; i++) {
+    const cx = x + 7 + i * 20;
+    const fill = clamp(f - i, 0, 1);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    polygon(ctx, cx, cy, 7, 4, 0);
+    ctx.fill();
+    if (fill >= 1) {
+      ctx.fillStyle = FOCUS_COLOR;
+      polygon(ctx, cx, cy, 7 + (Math.sin(time * 4 + i) > 0.9 ? 1 : 0), 4, 0);
+      ctx.fill();
+    } else if (fill > 0) {
+      ctx.save();
+      polygon(ctx, cx, cy, 7, 4, 0);
+      ctx.clip();
+      ctx.fillStyle = FOCUS_COLOR;
+      ctx.globalAlpha = 0.7;
+      ctx.fillRect(cx - 7, cy + 7 - 14 * fill, 14, 14 * fill);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
+  }
 }
 
 const START_LIVES_SHOWN = 3;
@@ -359,6 +400,12 @@ export function drawControls(ctx, time) {
   button(ctx, controls.grenade, '#ff9a4d',
     p ? (p.grenadeStock > 0 ? 1 : 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1)) : 1,
     '◉', p ? `${p.grenadeStock}` : '');
+  // Parry: the glyph is the same four-point star as the white parry glint.
+  button(ctx, controls.parry, '#ffe27a',
+    p ? (p.parry ? 0.02 : 1 - clamp((p.parryCd || 0) / 0.55, 0, 1)) : 1, '✧');
+  if (controls.cast.enabled) {
+    button(ctx, controls.cast, FOCUS_COLOR, p ? clamp((p.focus || 0), 0, 1) : 1, '✺');
+  }
 }
 
 function button(ctx, btn, color, fill, glyph, badge = '') {

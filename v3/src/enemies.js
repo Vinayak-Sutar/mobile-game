@@ -6,7 +6,8 @@ import { world } from './state.js';
 import { TAU, clamp, rand, dist, angleTo, polygon, lerp } from './util.js';
 import { spawnProjectile } from './spawn.js';
 import { damagePlayer, explode } from './combat.js';
-import { burst, ring, shake, flash as screenFlash } from './fx.js';
+import { burst, ring, shake, flash as screenFlash, parryCue } from './fx.js';
+import { initPoise } from './poise.js';
 import { sfx } from './audio.js';
 import { createEnemyAnimator, updateEnemyAnim, drawEnemyRig } from './enemy-rigs.js';
 import {
@@ -33,6 +34,14 @@ function separate(e, dt) {
   }
 }
 
+/**
+ * Parry cue, once per wind-up: a white glint when `e.t` falls to 0.16 s for a
+ * parryable attack. Reset `e.cued` whenever a wind-up starts.
+ */
+function cueWhite(e) {
+  if (!e.cued && e.t <= 0.16) { e.cued = true; parryCue(e, 'white'); }
+}
+
 // --- enemy definitions -----------------------------------------------------
 
 export const ENEMY_DEFS = {
@@ -46,11 +55,12 @@ export const ENEMY_DEFS = {
 
       if (e.state === 'chase') {
         stepToward(e, p.x, p.y, e.speed, dt);
-        if (d < 145 && e.cd <= 0) { e.state = 'windup'; e.t = 0.34; e.aim = angleTo(e.x, e.y, p.x, p.y); }
+        if (d < 145 && e.cd <= 0) { e.state = 'windup'; e.t = 0.34; e.cued = false; e.aim = angleTo(e.x, e.y, p.x, p.y); }
       } else if (e.state === 'windup') {
         e.t -= dt;
         e.aim = lerp(e.aim, angleTo(e.x, e.y, p.x, p.y), 1 - Math.pow(0.001, dt));
         stepAway(e, p.x, p.y, 40, dt);
+        cueWhite(e);
         if (e.t <= 0) {
           e.state = 'lunge'; e.t = 0.26;
           sfx.swing(0.7);
@@ -100,9 +110,10 @@ export const ENEMY_DEFS = {
       strafe(e, p.x, p.y, e.speed * 0.55, dt, e.sign);
       if (Math.random() < dt * 0.4) e.sign *= -1;
 
-      if (e.state === 'chase' && e.cd <= 0 && d < 460) { e.state = 'aim'; e.t = 0.42; }
+      if (e.state === 'chase' && e.cd <= 0 && d < 460) { e.state = 'aim'; e.t = 0.42; e.cued = false; }
       else if (e.state === 'aim') {
         e.t -= dt;
+        cueWhite(e);
         if (e.t <= 0) { e.state = 'fire'; e.t = 0; e.shots = 3; }
       } else if (e.state === 'fire') {
         e.t -= dt;
@@ -158,7 +169,7 @@ export const ENEMY_DEFS = {
 
       if (e.state === 'chase') {
         stepToward(e, p.x, p.y, e.speed, dt);
-        if (d < 140 && e.cd <= 0) { e.state = 'wind'; e.t = 0.78; sfx.telegraph(); }
+        if (d < 140 && e.cd <= 0) { e.state = 'wind'; e.t = 0.78; sfx.telegraph(); parryCue(e, 'red'); }
       } else if (e.state === 'wind') {
         e.t -= dt;
         stepToward(e, p.x, p.y, 22, dt);
@@ -207,11 +218,12 @@ export const ENEMY_DEFS = {
 
       if (e.state === 'chase') {
         stepToward(e, p.x, p.y, e.speed, dt);
-        if (d < 520 && d > 90 && e.cd <= 0) { e.state = 'aim'; e.t = 0.62; sfx.telegraph(); }
+        if (d < 520 && d > 90 && e.cd <= 0) { e.state = 'aim'; e.t = 0.62; e.cued = false; sfx.telegraph(); }
       } else if (e.state === 'aim') {
         e.t -= dt;
         e.aim = angleTo(e.x, e.y, p.x, p.y);
         e.face = e.aim;
+        cueWhite(e);
         // Draw the charge lane as a stream of sparks so it is unmissable.
         if (Math.random() < dt * 60) {
           const t = Math.random();
@@ -279,7 +291,7 @@ export const ENEMY_DEFS = {
       const d = dist(e.x, e.y, p.x, p.y);
       if (e.state === 'chase') {
         stepToward(e, p.x, p.y, e.speed, dt);
-        if (d < 78) { e.state = 'fuse'; e.t = 0.82; sfx.telegraph(); }
+        if (d < 78) { e.state = 'fuse'; e.t = 0.82; sfx.telegraph(); parryCue(e, 'red'); }
       } else if (e.state === 'fuse') {
         e.t -= dt;
         stepToward(e, p.x, p.y, e.speed * 0.5, dt);
@@ -365,9 +377,10 @@ export const ENEMY_DEFS = {
     update(e, dt) {
       e.cd -= dt;
       e.spin = (e.spin || 0) + dt * 0.7;
-      if (e.state === 'chase' && e.cd <= 0) { e.state = 'wind'; e.t = 0.5; sfx.telegraph(); }
+      if (e.state === 'chase' && e.cd <= 0) { e.state = 'wind'; e.t = 0.5; e.cued = false; sfx.telegraph(); }
       else if (e.state === 'wind') {
         e.t -= dt;
+        cueWhite(e);
         if (e.t <= 0) {
           e.state = 'chase';
           e.cd = 2.4;
@@ -420,6 +433,13 @@ export const ENEMY_DEFS = {
       e.title = 'The Warden of Ash';
       // A boss's death wipes its bullets: the win should land on a clean screen.
       e.onDeath = (self) => clearHostiles(self);
+      // Posture broken: it staggers, EXPOSED, unless mid-roar.
+      e.onPoiseBreak = (self) => {
+        if (self.action === 'phase') return;
+        self.action = 'stun';
+        self.t = 2.2;
+        self.exposed = 2.2;
+      };
     },
     update(e, dt) {
       const p = player();
@@ -498,6 +518,7 @@ export const ENEMY_DEFS = {
         case 'aim': {
           e.aim = angleTo(e.x, e.y, p.x, p.y);
           e.face = e.aim;
+          cueWhite(e);
           if (Math.random() < dt * 70) {
             const t = Math.random();
             burst(e.x + Math.cos(e.aim) * 800 * t, e.y + Math.sin(e.aim) * 800 * t, {
@@ -517,7 +538,7 @@ export const ENEMY_DEFS = {
             sfx.explode();
             burst(e.x, e.y, { count: 24, color: '#ffd45e', speed: 400, size: 5, life: 0.5, drag: 4, shape: 'spark' });
             e.chargesLeft = (e.chargesLeft || 0) - 1;
-            if (e.chargesLeft > 0) { e.action = 'aim'; e.t = 0.4; }
+            if (e.chargesLeft > 0) { e.action = 'aim'; e.t = 0.4; e.cued = false; }
             else { e.action = 'stun'; e.t = 1.15; e.exposed = 1.15; }
           }
           break;
@@ -617,9 +638,9 @@ function chooseWardenAction(e, p) {
   const action = pool[(Math.random() * pool.length) | 0];
   e.action = action;
   switch (action) {
-    case 'slam': e.t = e.phase >= 3 ? 0.62 : 0.8; sfx.telegraph(); break;
+    case 'slam': e.t = e.phase >= 3 ? 0.62 : 0.8; sfx.telegraph(); parryCue(e, 'red'); break;
     case 'volley': e.volleys = e.phase >= 2 ? 3 : 2; e.t = 0.25; break;
-    case 'aim': e.t = 0.7; e.chargesLeft = e.phase >= 3 ? 2 : 1; sfx.telegraph(); break;
+    case 'aim': e.t = 0.7; e.cued = false; e.chargesLeft = e.phase >= 3 ? 2 : 1; sfx.telegraph(); break;
     case 'summon': e.t = 0.5; break;
     case 'spiral': e.t = 2.4; break;
   }
@@ -675,6 +696,7 @@ export function spawnEnemy(type, x, y, opts = {}) {
   e.anim = createEnemyAnimator(type);
 
   if (def.init) def.init(e);
+  initPoise(e);
   world.enemies.push(e);
   if (!e.spawning) sfx.spawn();
   return e;
@@ -726,7 +748,13 @@ export function updateEnemies(dt) {
     const slowMul = e.slow ? e.slow.mult : 1;
     const savedSpeed = e.speed;
     e.speed *= slowMul;
-    e.def.update(e, dt);
+    if ((e.stunT || 0) > 0 && !e.boss) {
+      // Stunned: whatever it was winding up is cancelled.
+      e.stunT -= dt;
+      if (e.state !== 'chase') { e.state = 'chase'; e.t = 0; e.cd = Math.max(e.cd || 0, 0.4); }
+    } else {
+      e.def.update(e, dt);
+    }
     e.speed = savedSpeed;
 
     separate(e, dt);
@@ -795,6 +823,25 @@ export function drawEnemies(ctx) {
       ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
       ctx.fillStyle = e.elite ? '#ffc861' : '#ff5e6e';
       ctx.fillRect(x, y, w * clamp(e.hp / e.maxHp, 0, 1), h);
+    }
+    // Posture: a thin gold bar that fills toward a stagger.
+    if (!e.boss && e.poise > 0) {
+      const w = e.r * 2.2;
+      const x = e.x - w / 2, y = e.y - e.r - 6;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(x - 1, y - 1, w + 2, 4);
+      ctx.fillStyle = '#ffe27a';
+      ctx.fillRect(x, y, w * clamp(e.poise / e.poiseMax, 0, 1), 2);
+    }
+    // Stunned: little stars circling the head.
+    if (!e.boss && (e.stunT || 0) > 0) {
+      for (let k = 0; k < 3; k++) {
+        const a = world.runTime * 5 + (k / 3) * TAU;
+        ctx.fillStyle = '#ffe27a';
+        ctx.beginPath();
+        ctx.arc(e.x + Math.cos(a) * e.r * 0.8, e.y - e.r - 4 + Math.sin(a) * 4, 2.6, 0, TAU);
+        ctx.fill();
+      }
     }
   }
 }

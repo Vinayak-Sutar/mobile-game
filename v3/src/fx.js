@@ -12,6 +12,7 @@ export const fx = {
   slashes: [],
   texts: [],
   trails: [],
+  cues: [],        // parry cues: white glint = parryable, red ⚠ = unparryable
   trauma: 0,       // 0..1, shake magnitude is trauma^2 so small hits stay subtle
   shakeX: 0,
   shakeY: 0,
@@ -77,6 +78,17 @@ export function damageText(x, y, text, opts = {}) {
   });
 }
 
+/**
+ * The fairness tell for parry. 'white': a glint ~0.15 s before a parryable
+ * hit lands. 'red': a ⚠ at the start of an unparryable wind-up (dash instead).
+ * Follows the entity while it lasts.
+ */
+export function parryCue(ent, kind = 'white') {
+  if (!ent) return;
+  const life = kind === 'white' ? 0.24 : 0.55;
+  fx.cues.push({ ent, kind, life, maxLife: life });
+}
+
 export function trail(x, y, opts = {}) {
   const { color = '#fff', radius = 14, life = 0.28 } = opts;
   fx.trails.push({ x, y, color, radius, life, maxLife: life });
@@ -117,6 +129,11 @@ export function updateFx(dt) {
     const t = fx.trails[i];
     t.life -= dt;
     if (t.life <= 0) fx.trails.splice(i, 1);
+  }
+  for (let i = fx.cues.length - 1; i >= 0; i--) {
+    const c = fx.cues[i];
+    c.life -= dt;
+    if (c.life <= 0 || c.ent.dead) fx.cues.splice(i, 1);
   }
   for (let i = fx.texts.length - 1; i >= 0; i--) {
     const t = fx.texts[i];
@@ -219,6 +236,8 @@ export function drawFxAbove(ctx) {
   }
   ctx.globalAlpha = 1;
 
+  drawCues(ctx);
+
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   for (const t of fx.texts) {
@@ -236,7 +255,53 @@ export function drawFxAbove(ctx) {
   ctx.globalAlpha = 1;
 }
 
+function drawCues(ctx) {
+  for (const c of fx.cues) {
+    const e = c.ent;
+    const k = c.life / c.maxLife;
+    const x = e.x, y = e.y - (e.z || 0);
+    if (c.kind === 'white') {
+      // A four-point star glint that blooms and fades: "parry this now".
+      const s = (e.r * 0.9 + 10) * (0.6 + (1 - k) * 0.7);
+      const gx = x - e.r * 0.35, gy = y - e.r * 0.55;
+      ctx.globalAlpha = Math.min(1, k * 2.2);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(gx, gy - s);
+      ctx.lineTo(gx + s * 0.16, gy - s * 0.16);
+      ctx.lineTo(gx + s, gy);
+      ctx.lineTo(gx + s * 0.16, gy + s * 0.16);
+      ctx.lineTo(gx, gy + s);
+      ctx.lineTo(gx - s * 0.16, gy + s * 0.16);
+      ctx.lineTo(gx - s, gy);
+      ctx.lineTo(gx - s * 0.16, gy - s * 0.16);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = Math.min(1, k * 2.2) * 0.4;
+      ctx.beginPath();
+      ctx.arc(gx, gy, s * 0.45, 0, TAU);
+      ctx.fill();
+    } else {
+      // Red warning triangle above the head: "can't parry — dash".
+      const r = 11;
+      const gy = y - e.r - 22 - (1 - k) * 4;
+      ctx.globalAlpha = Math.min(1, k * 3);
+      ctx.fillStyle = '#0b0712';
+      polygon(ctx, x, gy, r + 3, 3, -Math.PI / 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff3d4a';
+      polygon(ctx, x, gy, r, 3, -Math.PI / 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x - 1.5, gy - 5, 3, 6);
+      ctx.fillRect(x - 1.5, gy + 3, 3, 2.5);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 export function clearFx() {
+  fx.cues.length = 0;
   fx.particles.length = 0;
   fx.rings.length = 0;
   fx.slashes.length = 0;

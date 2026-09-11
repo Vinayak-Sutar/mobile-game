@@ -21,7 +21,7 @@ import { world, arenaBounds } from './state.js';
 import { TAU, clamp, rand, dist, angleTo, angleDiff, circleArc, lerp, resolveCircleRect } from './util.js';
 import { spawnProjectile } from './spawn.js';
 import { damagePlayer } from './combat.js';
-import { burst, ring, shake, flash, damageText } from './fx.js';
+import { burst, ring, shake, flash, damageText, parryCue } from './fx.js';
 import { sfx } from './audio.js';
 import { player, strafe, collideWorld, contactDamage } from './ai.js';
 import { spawnHazard, clearHazards } from './hazards.js';
@@ -165,6 +165,7 @@ const tm = (e) => 1 + (e.tier || 0) * 0.04;
 
 function act(e, name, t = 0) {
   e.action = name;
+  e.cued = false;
   e.sub = null;
   e.t = t;
   e.at = 0;
@@ -174,6 +175,7 @@ function act(e, name, t = 0) {
 }
 
 function sub(e, name, t) {
+  e.cued = false;
   e.sub = name;
   e.t = t;
   e.st = 0;
@@ -186,6 +188,14 @@ function idle(e, t) {
   const k = Math.max(0.45, [1, 0.8, 0.65][Math.min(3, e.phase || 1) - 1] - (e.tier || 0) * 0.04);
   act(e, 'idle', t * k);
 }
+
+/** White parry glint, once, when the current step has 0.16 s left. */
+function cueWhite(e) {
+  if (!e.cued && e.t <= 0.16) { e.cued = true; parryCue(e, 'white'); }
+}
+
+/** Red ⚠ at the start of an unparryable step (dash, don't parry). */
+function cueRed(e) { e.cued = true; parryCue(e, 'red'); }
 
 /** The punish window: the boss stops, takes extra damage, and says so. */
 function expose(e, t) {
@@ -212,6 +222,12 @@ function bossInit(e, S) {
   e.z = 0;
   act(e, 'idle', 1.2);
   e.onDeath = (self) => clearHostiles(self);
+  // Posture broken (parries, heavy hits): the boss staggers, EXPOSED — unless
+  // it's roaring, underground or in the air.
+  e.onPoiseBreak = (self) => {
+    if (self.action === 'phase' || self.hidden || (self.z || 0) > 0) return;
+    expose(self, 2.4);
+  };
 }
 
 function chooseMove(e, p, S) {
@@ -367,11 +383,12 @@ const TURTLE = {
         if (e.sub === 'wind') {
           if (e.st < e.clipTime * 0.5) turnToward(e, angleTo(e.x, e.y, p.x, p.y), 4 * dt);
           if (e.cone) e.cone.angle = e.face;
+          cueWhite(e);
           if (e.t <= 0) {
             sub(e, 'snap', 0.3);
             sfx.swing(1.2);
             if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.face, 1.3, 150)) {
-              damagePlayer(e.damage, e.x, e.y, e.type);
+              damagePlayer(e.damage, e.x, e.y, e.type, { parryable: true, attacker: e });
             }
             burst(e.x + Math.cos(e.face) * e.r * 1.3, e.y + Math.sin(e.face) * e.r * 1.3, {
               count: 8, color: SHELL, speed: 200, size: 3.5, life: 0.3, dir: e.face, spread: 1.2, drag: 5,
@@ -389,6 +406,7 @@ const TURTLE = {
       start(e) {
         sub(e, 'wind', e.phase >= 2 ? 0.72 : 0.85);
         sfx.telegraph();
+        cueRed(e);
         e.rings = e.phase >= 2 ? 2 : 1;
         spawnHazard({
           kind: 'blast', x: e.x, y: e.y, r: 125, delay: e.t, damage: Math.round(e.damage * 1.1),
@@ -429,6 +447,7 @@ const TURTLE = {
         e.spinA = (e.spinA || 0) + dt * (e.sub === 'wind' ? 3 + e.st * 16 : 24);
         if (e.sub === 'wind') {
           if (e.st < e.clipTime * 0.75) e.aim = angleTo(e.x, e.y, p.x, p.y);
+          cueWhite(e);
           if (e.t <= 0) {
             const sp = (e.phase >= 2 ? 600 : 520) * tm(e);
             e.mx = Math.cos(e.aim) * sp;
@@ -463,6 +482,7 @@ const TURTLE = {
       start(e) {
         sub(e, 'wind', 0.6);
         sfx.telegraph();
+        cueRed(e);
         e.volleys = e.phase >= 2 ? 4 : 3;
       },
       update(e, dt, p) {
@@ -593,6 +613,7 @@ const CROC = {
           // time than walking out of the cone takes (0.22 s vs ~0.28 s).
           if (e.st < e.clipTime * 0.4) turnToward(e, angleTo(e.x, e.y, p.x, p.y), 5 * dt);
           if (e.cone) e.cone.angle = e.face;
+          cueWhite(e);
           if (e.t <= 0) {
             sub(e, 'bite', 0.16);
             e.snapX = e.x; e.snapY = e.y; e.snapA = e.face; e.snapHit = false;
@@ -603,7 +624,7 @@ const CROC = {
           if (!e.snapHit && e.st >= 0.1) {
             e.snapHit = true;
             if (circleArc(p.x, p.y, p.r * 0.6, e.snapX, e.snapY, e.snapA, 1.0, 215)) {
-              damagePlayer(Math.round(e.damage * 1.1), e.x, e.y, e.type);
+              damagePlayer(Math.round(e.damage * 1.1), e.x, e.y, e.type, { parryable: true, attacker: e });
             }
             sfx.hit(1.2);
             burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r, {
@@ -626,6 +647,7 @@ const CROC = {
       start(e) {
         sub(e, 'wind', e.phase >= 2 ? 0.5 : 0.6);
         sfx.telegraph();
+        cueRed(e);
         spawnHazard({
           kind: 'blast', x: e.x, y: e.y, r: 190, delay: e.t, damage: Math.round(e.damage * 0.9),
           color: MIRE, owner: e, follow: e, source: e.type, quiet: true,
@@ -653,6 +675,7 @@ const CROC = {
       update(e, dt, p) {
         if (e.sub === 'wind') {
           if (e.st < e.clipTime * 0.7) { e.aim = angleTo(e.x, e.y, p.x, p.y); e.face = e.aim; }
+          cueWhite(e);
           if (e.t <= 0) { sub(e, 'go', 1.5); e.dropD = 0; e.rollA = 0; sfx.dash(); sfx.splash(); }
           return;
         }
@@ -800,7 +823,7 @@ const DUST = '#ffb35e', ROCKC = '#c9b8a0', ROCKB = '#d9c7a8';
 
 function gorillaRage(e) { return e.enraged ? 1.25 : 1; }
 
-function gorillaCrouch(e, t) { sub(e, 'crouch', t); sfx.telegraph(); }
+function gorillaCrouch(e, t) { sub(e, 'crouch', t); sfx.telegraph(); cueRed(e); }
 
 function gorillaTakeoff(e, p) {
   e.leaps--;
@@ -937,6 +960,7 @@ const GORILLA = {
       update(e, dt, p) {
         turnToward(e, angleTo(e.x, e.y, p.x, p.y), 4 * dt);
         if (e.sub === 'lift') {
+          cueWhite(e);
           if (e.t <= 0) { gorillaThrow(e, p); e.throws--; sub(e, 'throw', 0.4); }
         } else if (e.t <= 0) {
           if (e.throws > 0) { sub(e, 'lift', 0.5); sfx.telegraph(); }
@@ -957,6 +981,7 @@ const GORILLA = {
       update(e, dt, p) {
         if (e.sub === 'wind') {
           if (e.st < e.clipTime * 0.7) { e.aim = angleTo(e.x, e.y, p.x, p.y); e.face = e.aim; }
+          cueWhite(e);
           if (e.t <= 0) { sub(e, 'go', 1.3); e.crackD = 0; sfx.dash(); }
           return;
         }
@@ -997,10 +1022,11 @@ const GORILLA = {
         if (e.sub === 'wind') {
           if (e.st < e.clipTime * 0.5) turnToward(e, angleTo(e.x, e.y, p.x, p.y), 5 * dt);
           if (e.cone) e.cone.angle = e.face;
+          cueWhite(e);
           if (e.t <= 0) {
             sub(e, 'clap', 0.35);
             if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.face, 1.8, 180)) {
-              damagePlayer(Math.round(e.damage * 1.05), e.x, e.y, e.type);
+              damagePlayer(Math.round(e.damage * 1.05), e.x, e.y, e.type, { parryable: true, attacker: e });
             }
             shake(0.5);
             sfx.explode();
@@ -1023,6 +1049,7 @@ const GORILLA = {
       start(e) {
         sub(e, 'wind', 0.9);
         sfx.roar(0.8);
+        cueRed(e);
         e.pounds = [10, 12, 14][e.phase - 1];
         e.poundK = 0;
         e.poundOff = rand(0, TAU);
@@ -1051,6 +1078,7 @@ function moveDir(e, a, speed, dt) {
 }
 
 function swoopWind(e, p, t) {
+  e.cued = false;
   const a = angleTo(e.x, e.y, p.x, p.y);
   let [tx, ty] = inArena(p.x + Math.cos(a) * 220, p.y + Math.sin(a) * 220, 60);
   if (dist(e.x, e.y, tx, ty) < 200) {
@@ -1103,6 +1131,7 @@ const PEACOCK = {
       },
       update(e, dt, p) {
         e.face = angleTo(e.x, e.y, p.x, p.y);
+        if (e.volleys > 0) cueWhite(e);
         if (e.t > 0) return;
         if (e.volleys <= 0) { idle(e, 0.45); return; }
         e.volleys--;
@@ -1125,6 +1154,7 @@ const PEACOCK = {
       },
       update(e, dt, p) {
         if (e.sub === 'wind') {
+          cueWhite(e);
           if (e.t <= 0) { sub(e, 'go', 1.4); e.dropD = 0; sfx.dash(); }
         } else if (e.sub === 'go') {
           const sp = 820;
@@ -1237,6 +1267,7 @@ const PEACOCK = {
       start(e, p) {
         sub(e, 'wind', 1.0);
         sfx.chime();
+        cueRed(e);
         const n = e.phase >= 3 ? 3 : 2;
         const pa = angleTo(e.x, e.y, p.x, p.y);
         const dir = Math.random() < 0.5 ? 1 : -1;
