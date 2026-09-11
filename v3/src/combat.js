@@ -18,6 +18,9 @@ import {
 export const FOCUS_PER_DAMAGE = 1 / 300;
 
 let aegisHook = null;
+let trapKillFn = null;
+/** game.js registers the trap-kill notifier (traps.js), avoiding a cycle. */
+export function setTrapKillFn(fn) { trapKillFn = fn; }
 /** spells.js registers the Aegis absorb handler (avoids an import cycle). */
 export function setAegisHook(fn) { aegisHook = fn; }
 
@@ -248,9 +251,11 @@ export function killEnemy(e, opts = {}) {
   }
 
   if (e.onDeath) e.onDeath(e);
+  if (opts.trap && trapKillFn) trapKillFn(e);
 }
 
 export function explode(x, y, radius, damage, exclude, color = '#ff9a4d', hitsPlayer = false, source = 'explosion') {
+  world.blastLog.push({ x, y, r: radius, element: 'fire' });
   ring(x, y, { r0: 8, r1: radius, color, life: 0.34, width: 7 });
   ring(x, y, { r0: 4, r1: radius * 0.6, color: '#fff3d0', life: 0.2, width: 4 });
   burst(x, y, { count: 22, color, speed: 420, size: 5.5, life: 0.5, drag: 4, shape: 'shard' });
@@ -303,7 +308,9 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown', o
   if (p.aegis && aegisHook && aegisHook(p)) return false;
 
   const st = p.stats;
-  let dmg = Math.max(1, Math.round(amount * (1 - st.damageReduction)));
+  // Pact of Glass (a shrine curse): +25% damage taken.
+  const glass = world.curses && world.curses.some((c) => c.id === 'glass') ? 1.25 : 1;
+  let dmg = Math.max(1, Math.round(amount * glass * (1 - st.damageReduction)));
 
   // Retribution boon: taking a hit detonates a shockwave around the player.
   if (st.retribution > 0) {

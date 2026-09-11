@@ -26,7 +26,7 @@ import {
 import { ELEMENTS } from './elements.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
-  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
+  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro, openRoom,
   FINAL_DEPTH, BOSS_EVERY, effDepth,
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
@@ -34,6 +34,9 @@ import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE, GRENADE_TYPES } from './grenade.js';
 import { setParryHook } from './parry.js';
+import { updateTraps, drawTrapsBelow, drawTrapsAbove, onTrapKill, setTrapKillHook } from './traps.js';
+import { SPECIAL_ROOMS, randomCurse, CHAMBERS } from './chambers.js';
+import { setTrapKillFn } from './combat.js';
 import { dealDamage } from './combat.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
 import { biomeThumbnail } from './texture.js';
@@ -118,7 +121,7 @@ function isPortraitTouch() {
 }
 
 function inRun() {
-  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying';
+  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying' || state === 'shrine';
 }
 
 /**
@@ -202,18 +205,46 @@ function startTrial(weapon, bossType) {
   showToast('BOSS TRIAL', BOSS_INFO[bossType].animal === 'Final' ? 'The final guardian' : BOSS_INFO[bossType].animal);
 }
 
-function advanceRoom() {
+function advanceRoom(special = null, template = null) {
   world.depth++;
+  // Shrine pacts count down one chamber at a time.
+  for (const c of world.curses) c.rooms--;
+  world.curses = world.curses.filter((c) => c.rooms > 0);
   clearEntities();
   clearFx();
-  const room = generateRoom(world.depth, world.loop);
+  const room = generateRoom(world.depth, world.loop, { special, template });
+  if (special) world.lastSpecial = special;
   startRoom(room);
   initAmbient(world.biome || getBiome());
   if (room.final) showToast('THE LAST GATE', 'Something is waiting.');
   else if (room.type === 'boss') showToast(`CHAMBER ${world.depth}`, 'A guardian bars the way.');
-  else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : '');
+  else if (special) showToast(SPECIAL_ROOMS[special].label.toUpperCase(), SPECIAL_ROOMS[special].desc);
+  else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : (room.template || ''));
   state = 'playing';
   hideOverlay();
+  // Game time, not setTimeout: a pause or a backgrounded app must not skip the
+  // prompt (the shrine's doors only open once it has been answered).
+  if (special === 'shrine') room.shrineT = 0.6;
+}
+
+// --- shrine (special chamber): a pact for a rare boon -------------------------
+
+let shrineCurse = null;
+let shrineBoonPending = false;
+
+function showShrine() {
+  state = 'shrine';
+  shrineCurse = randomCurse();
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">a shrine hums in the dark</div>
+      <h2>${shrineCurse.name}</h2>
+      <p class="sub">${shrineCurse.desc}<br>Accept, and choose a <b style="color:#c07bff">rare boon</b> now.</p>
+      <div class="row">
+        <button class="btn" data-act="shrine-accept">Accept the pact</button>
+        <button class="btn ghost" data-act="shrine-decline">Walk away</button>
+      </div>
+    </div>`);
 }
 
 /** The weapon was picked: a normal run, or the Boss Trial chosen before it. */
@@ -235,6 +266,10 @@ function handleDoor(door) {
   if (door.reward === 'exit') {
     if (world.trial) showTrialEnd(true);
     else onVictory();
+    return;
+  }
+  if (SPECIAL_ROOMS[door.reward]) {
+    advanceRoom(door.reward);
     return;
   }
   if (door.reward === 'boon') {
@@ -358,11 +393,13 @@ function tick(dt) {
       updateHitboxes(sdt);
       updateGrenades(sdt);
       updateSpellZones(sdt);
+      updateTraps(sdt);
       updateProjectiles(sdt);
       updateHazards(sdt);
       updatePickups(sdt);
       updateRoom(sdt);
       updateFx(sdt);
+      if (world.room.shrineT > 0 && (world.room.shrineT -= dt) <= 0) showShrine();
 
       // Music follows the fight: calm between waves, full kit in combat,
       // a harder variation once the Warden is up.
@@ -405,7 +442,7 @@ function tick(dt) {
   // between rooms, and nowhere else — not on menus, not while paused, and it
   // cuts the instant you die so the death sting lands on silence. Evaluated
   // every tick rather than at each state change, so no transition can forget it.
-  setMusicActive(state === 'playing' || state === 'boon');
+  setMusicActive(state === 'playing' || state === 'boon' || state === 'shrine');
 
   endFrameInput();
 }
@@ -417,7 +454,7 @@ function render() {
   ctx.fillStyle = '#08060d';
   ctx.fillRect(0, 0, view.w, view.h);
 
-  const inRun = state === 'playing' || state === 'dying' || state === 'boon' || state === 'paused';
+  const inRun = state === 'playing' || state === 'dying' || state === 'boon' || state === 'paused' || state === 'shrine';
 
   ctx.save();
   ctx.translate(fx.shakeX, fx.shakeY);
@@ -428,10 +465,12 @@ function render() {
     drawFxBelow(ctx);
     drawObstacles(ctx);
     drawSurfaces(ctx, world.runTime);
+    drawTrapsBelow(ctx, world.runTime);
     drawSpellZones(ctx, world.runTime);
     drawDoors(ctx, world.runTime);
     drawHazardsBelow(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
+    drawTrapsAbove(ctx, world.runTime);
     drawPickups(ctx);
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);
@@ -718,6 +757,14 @@ function grenadeCards() {
     </div>`).join('');
 }
 
+// Trap kills: a pop-up (combat → traps), a run tally and a codex count.
+setTrapKillFn(onTrapKill);
+setTrapKillHook(() => {
+  if (world.player) world.player.trapKills = (world.player.trapKills || 0) + 1;
+  if (!save.codex) save.codex = { reactions: {} };
+  save.codex.trapKills = (save.codex.trapKills || 0) + 1;
+});
+
 // Parry boons that need combat: Thunder Parry (lightning to the nearest foes)
 // and Glacial Parry (chill the attacker).
 setParryHook((p, attacker) => {
@@ -746,7 +793,9 @@ let pendingBoons = [];
 function showBoonSelect() {
   state = 'boon';
   const p = world.player;
-  pendingBoons = offerBoons(p, 3);
+  // A beaten trial or an accepted pact offers rare-weighted boons.
+  pendingBoons = offerBoons(p, 3, { rare: world.nextBoonRare || shrineBoonPending });
+  world.nextBoonRare = false;
   sfx.boon();
 
   const cards = pendingBoons.map((b, i) => {
@@ -1066,7 +1115,29 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'boon': {
       applyBoon(world.player, pendingBoons[idx]);
       sfx.boon();
-      advanceRoom();
+      if (shrineBoonPending) {
+        // The shrine's gift: stay in the shrine room; its doors open now.
+        shrineBoonPending = false;
+        state = 'playing';
+        hideOverlay();
+        resetInput();
+        openRoom(world.room);
+      } else {
+        advanceRoom();
+      }
+      break;
+    }
+    case 'shrine-accept': {
+      world.curses.push({ id: shrineCurse.id, name: shrineCurse.name, rooms: 3 });
+      shrineBoonPending = true;
+      showBoonSelect();
+      break;
+    }
+    case 'shrine-decline': {
+      state = 'playing';
+      hideOverlay();
+      resetInput();
+      openRoom(world.room);
       break;
     }
     case 'buy': {
@@ -1175,6 +1246,10 @@ window.ashfall = {
   loadout: (ids) => { save.loadout = ids; if (world.player) { world.player.spells = validLoadout(ids); controls.cast.enabled = true; } },
   cast: (id) => tryCast(world.player, id),
   grenadeType: (id) => { save.grenadeType = id; if (world.player) world.player.grenadeType = id; },
+  // Jump to a chamber layout or special room (from the current depth).
+  chamber: (id) => { world.depth--; advanceRoom(null, id); },
+  special: (kind) => { world.depth--; advanceRoom(kind); },
+  CHAMBERS,
   spellState,
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,

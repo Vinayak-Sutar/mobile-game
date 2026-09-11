@@ -76,7 +76,8 @@ export function elementOnArea(el, x, y, r, owner = 'player', dir = 0) {
     if (dist(s.x, s.y, x, y) > s.r + r) continue;
     switch (el) {
       case 'storm':
-        if (s.type === 'water') { turn(s, 'electrified', 6); events.push(ev('electrify', s)); }
+        // Your lightning in a channel is yours: it won't shock you.
+        if (s.type === 'water') { turn(s, 'electrified', 6, owner); events.push(ev('electrify', s)); }
         break;
       case 'frost':
         if (s.type === 'water' || s.type === 'electrified') { turn(s, 'ice', 10); events.push(ev('freezeWater', s)); }
@@ -84,7 +85,7 @@ export function elementOnArea(el, x, y, r, owner = 'player', dir = 0) {
         break;
       case 'fire':
         if (s.type === 'water' || s.type === 'electrified') { turn(s, 'steam', 4); events.push(ev('boil', s)); }
-        else if (s.type === 'oil') { turn(s, 'fire', 7); s.r = Math.min(MAX_R, s.r * 1.3); events.push(ev('inferno', s)); }
+        else if (s.type === 'oil') { turn(s, 'fire', 7, owner); s.r = Math.min(MAX_R, s.r * 1.3); events.push(ev('inferno', s)); }
         else if (s.type === 'toxic') { world.surfaces.splice(i, 1); events.push(ev('gasBlast', s)); }
         else if (s.type === 'ice') { turn(s, 'water', 8); events.push(ev('thawIce', s)); }
         break;
@@ -113,10 +114,11 @@ export function elementOnArea(el, x, y, r, owner = 'player', dir = 0) {
   return events;
 }
 
-function turn(s, type, life) {
+function turn(s, type, life, owner = null) {
   s.type = type;
   s.t = life;
   s.maxT = life;
+  if (owner) s.owner = owner;
 }
 
 function ev(name, s) { return { name, x: s.x, y: s.y, r: s.r, owner: s.owner }; }

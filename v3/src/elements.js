@@ -534,6 +534,7 @@ export function playerSpeedMult(p) {
  */
 export function elementArea(el, x, y, r, opts = {}) {
   const owner = opts.owner || 'player';
+  world.blastLog.push({ x, y, r, element: el });
   const events = elementOnArea(el, x, y, r, owner, opts.dir || 0);
   for (const ev of events) resolveAreaEvent(ev);
   const hit = [];

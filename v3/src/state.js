@@ -11,6 +11,10 @@ export const world = {
   surfaces: [],     // puddles, ice, fire, clouds, oil, mud (surfaces.js)
   spellZones: [],   // lasting spells: rain, sigil, spore pod, singularity (spells.js)
   realDt: 1 / 60,   // the unscaled tick length (the spell wheel slows the sim)
+  blastLog: [],     // this tick's explosions/areas, so traps (barrels) can react
+  curses: [],       // shrine pacts: [{ id, rooms }] (chambers.js CURSES)
+  lastSpecial: null,
+  nextBoonRare: false,
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
@@ -50,6 +54,10 @@ export function resetWorld() {
   world.hazards.length = 0;
   world.surfaces.length = 0;
   world.spellZones.length = 0;
+  world.blastLog.length = 0;
+  world.curses = [];
+  world.lastSpecial = null;
+  world.nextBoonRare = false;
   world.room = null;
   world.depth = 1;
   world.loop = 0;

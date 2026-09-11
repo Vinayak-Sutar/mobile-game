@@ -191,6 +191,20 @@ export function updateProjectiles(dt) {
       // Charged arrows, thrown spears and shields shoot enemy bullets down.
       if (pr.breaker) breakBulletsNear(pr.x, pr.y, pr.r + 4, p);
     } else if (p && !p.dead) {
+      // Trap arrows are neutral: they hit enemies in their path as well.
+      if (pr.trap) {
+        let hitE = null;
+        for (const e of world.enemies) {
+          if (e.dead || e.spawning || e.hidden) continue;
+          if (dist(pr.x, pr.y, e.x, e.y) < pr.r + e.r) { hitE = e; break; }
+        }
+        if (hitE) {
+          dealDamage(hitE, pr.trapDamage || 20, { raw: true, noCrit: true, trap: true, source: 'trap:arrow', knockback: 140, dir: Math.atan2(pr.vy, pr.vx) });
+          fizzle(pr);
+          world.projectiles.splice(i, 1);
+          continue;
+        }
+      }
       if (dist(pr.x, pr.y, p.x, p.y) < pr.r + p.r * BULLET_HURTBOX) {
         // A perfect parry sends any shot — even a boulder — back at its owner.
         if (isParrying(p)) {

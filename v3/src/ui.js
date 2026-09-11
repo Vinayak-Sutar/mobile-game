@@ -160,6 +160,22 @@ export function drawHud(ctx, time) {
   const label = world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
   ctx.fillText(label, cx, 26);
 
+  // Trial clock, and any shrine pacts still running (under the pips).
+  const room = world.room;
+  let infoY = 60;
+  if (room && room.special === 'trial' && !room.cleared) {
+    const t = Math.max(0, room.trialT);
+    ctx.fillStyle = t <= 0 ? '#ff5e6e' : t < 10 ? '#ffb35e' : '#ffe27a';
+    ctx.font = `900 14px ${FONT}`;
+    ctx.fillText(t > 0 ? `TRIAL ${Math.ceil(t)}s` : 'TRIAL FAILED', cx, infoY);
+    infoY += 16;
+  }
+  if (world.curses && world.curses.length && !bossInRoom()) {
+    ctx.fillStyle = '#c07bff';
+    ctx.font = `700 10px ${FONT}`;
+    ctx.fillText(world.curses.map((c) => `${c.name} · ${c.rooms}`).join('   '), cx, infoY);
+  }
+
   // Depth pips: bars for fights, diamonds for guardians, a crown-triangle for
   // the Warden.
   const pipW = 10, gap = 4;

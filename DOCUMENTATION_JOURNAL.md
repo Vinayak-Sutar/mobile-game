@@ -145,6 +145,11 @@ Each of these was a real bug. Violating one reintroduces it.
     Flex centring pushed the top of a tall panel above the viewport, out of
     scroll reach. On a 390 px-tall landscape phone the title screen's heading
     was invisible. Fixed in both versions.
+23. **Game-flow timers run on game time, never `setTimeout`.** A timeout that
+    checks `state === 'playing'` is skipped for good if the player pauses or
+    the phone backgrounds the app in that moment. The V3 shrine prompt did
+    exactly that and left the player locked in the room. Count a field down
+    in `tick()` instead (e.g. `room.shrineT`).
 
 ---
 
@@ -1323,6 +1328,87 @@ V3 toolbox.
   - Tidecaller ×3: 10/20 hits wet. Meltdown: Melt = 56 on a 20 hit (×2.8).
     Deep Well: max Focus 4. Still Mind: parry window 0.234 s. Thunder Parry
     hits a second foe for 16.
+
+### 13.5 Milestone 6 — traps, chamber layouts, special chambers (done)
+
+- **`traps.js`**: `TRAPS` is a registry. Each entry is `{ init(t), update(t,
+  dt), draw(ctx, t, time), hittable?, onHit?(t, element) }`, and a trap
+  lives on `room.traps`, so it goes when the room goes. Every trap hurts
+  enemies as well as the player, warns before it fires, and talks to the
+  element system. Player damage is small (`PLAYER_TRAP_DAMAGE`); enemy
+  damage is large.
+  - **Spikes:** stepping on the plate arms it (red flashing ring); after
+    0.5 s spikes hit whoever is still on it (player 12, enemies 34 heavy).
+  - **Vent:** a wall vent; 0.8 s of glow, then a 1 s fire jet (6 per 0.25 s
+    to the player, 9 fire to enemies). It ignites oil and gas along the jet.
+    A puddle or Downpour over it douses it (blue ring).
+  - **Saw:** a blade that runs a drawn rail (13 to the player, 30 + knockback
+    to enemies).
+  - **Turret:** a faint dashed line across the room. Anything crossing it
+    makes it glint for 0.35 s, then it fires an arrow down the line. The
+    arrows are parryable, and they hit enemies (`pr.trap`, 26 damage).
+  - **Barrel** (hittable): a 120 blast of 40, plus fire. The oil variant
+    spills a slick first and only explodes if fire hits it.
+  - **Pylon** (hittable): a storm ring r130 for 18, chaining to pylons in
+    reach and electrifying puddles.
+  - **Chasm:** an enemy thrown in faster than 180 u/s (Gale, heavy hits,
+    Singularity) dies with "FELL"; walkers are pushed back out. A player who
+    falls loses 10% max HP and is put back at the edge.
+  - **Channel:** a permanent enemy-owned puddle strip (storm bait, both
+    ways).
+  - Also: **toxic vents**, **wind** bands (push bodies and bullets),
+    **urns** (hittable: gold, a heal or +0.6 Focus), and the fountain and
+    altar used by special rooms.
+  - Hittable traps are hit by melee hitboxes, friendly projectiles, blasts
+    (`world.blastLog`) and fire surfaces.
+  - A trap kill → "TRAP KILL", `p.trapKills` and `save.codex.trapKills`
+    (via `setTrapKillFn` / `setTrapKillHook`, so no import cycle).
+  - The **Trapmaster** boon (Gaia, rare): traps deal +50% to enemies and
+    never hurt the player.
+- **`chambers.js`**: `CHAMBERS` holds hand-made layouts in arena fractions
+  (so they fit every screen size):
+  - Pillared Hall (from depth 1), Hall of Pylons (2), Bridge over the Chasm
+    (2), Flooded Vault (3), Furnace Corridor (4), Poison Garden (4),
+    Crossroads (5), The Grinder (7), Windswept Ledge (7).
+  - `pickChamber(depth)` gives none at depth 1 and a classic random room 25%
+    of the time.
+  - `realise()` turns fractions into world units; turrets and vents snap to
+    walls.
+  - `pathClear()` (a 20-unit grid flood fill, obstacles and pits count as
+    walls) checks that the start can reach every door. A layout that fails
+    loses its pits.
+  - Enemies spawn clear of traps (`spawnPoint`).
+- **Special chambers** (`SPECIAL_ROOMS`): from depth 2, 32% of the time door 2
+  becomes a special door (never a repeat of the last one, never before a
+  boss).
+  - **Trial:** a timer of 32 + 3 per difficulty step. Clear it in time for two
+    boon doors, and the next boon offer is rare-weighted.
+  - **Shrine:** a pact menu, one of three curses for 3 chambers: Haste (enemies
+    +30% speed), Glass (+25% damage taken) or Embers (every enemy
+    Fire-touched). Accept it for a rare boon choice and the doors open; walk
+    away and they open anyway. Running curses show under the chamber label.
+  - **Fountain:** heals 50% and fills Focus, once.
+  - **Treasure:** 8 urns and a barrel.
+  - **Gauntlet:** saws, vents and spikes between you and 14 gold.
+  - The rooms with no fight open their doors at once (except the shrine,
+    which waits for the pact answer).
+- **Debug:** `ashfall.chamber('bridge')`, `ashfall.special('shrine')`,
+  `ashfall.CHAMBERS`.
+- **Bug fixed during testing:** the shrine prompt was a 600 ms `setTimeout`.
+  A pause in that window meant it never opened, so the doors never opened
+  (rule 23).
+- **Verified:**
+  - All 9 layouts generate and every door is reachable.
+  - Spikes 34 on an enemy; a barrel hit by fire explodes (40 to a brute
+    beside it); a turret arrow hits an enemy for 26; rain douses a vent.
+  - A knocked enemy falls into the chasm; a walking one doesn't; the player
+    loses exactly 10% and ends outside the pit.
+  - The fountain restores and fills Focus; the treasure room has 8 urns; the
+    gauntlet has 7 traps and 14 gold; the trial timer starts at 39 at depth 4.
+  - The shrine gives a curse (3 chambers), a boon screen, then open doors.
+  - A trap kill is counted.
+  - Full 15-chamber runs on all 4 weapons taking the first door and again
+    taking the last (special) door: 0 errors, all victories.
 
 ## 12. Glossary
 

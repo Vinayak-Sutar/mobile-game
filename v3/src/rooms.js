@@ -5,6 +5,11 @@ import { world, arena, arenaBounds } from './state.js';
 import { TAU, rand, randInt, pick, chance, clamp, dist, roundRect, polygon } from './util.js';
 import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
 import { CREATURE_BOSSES, BOSS_INFO } from './bosses.js';
+import { pickChamber, chamberById, realise, pathClear, SPECIAL_ROOMS, rollSpecial, specialLayout } from './chambers.js';
+import { buildTraps } from './traps.js';
+import { spawnSurface } from './surfaces.js';
+import { applyStatus } from './elements.js';
+import { spawnPickup } from './spawn.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
@@ -60,8 +65,59 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     doorsOpen: false,
     intro: isBoss ? 1.6 : 0,
     hue: (world.biome || getBiome()).floor.hue,
+    traps: [],
+    pendingSurfaces: [],
   };
+
+  // Version 3: hand-authored layouts with traps, and special chambers.
+  if (!isBoss) {
+    if (opts.special) buildSpecial(room, opts.special);
+    else {
+      const tpl = opts.template ? chamberById(opts.template) : pickChamber(depth);
+      if (tpl) applyTemplate(room, tpl);
+    }
+  }
   return room;
+}
+
+function doorPoints() {
+  const b = arenaBounds();
+  return [
+    { x: b.l + (b.r - b.l) * 0.3, y: b.t + 24 },
+    { x: b.l + (b.r - b.l) * 0.7, y: b.t + 24 },
+  ];
+}
+
+function startPoint() { return { x: arena.x + arena.w / 2, y: arena.y + arena.h * 0.72 }; }
+
+function applyTemplate(room, tpl) {
+  const r = realise(tpl);
+  let traps = r.traps;
+  // Never wall the player off from the doors: drop the pits if they would.
+  if (!pathClear(r.obstacles, traps, startPoint(), doorPoints())) traps = traps.filter((t) => t.kind !== 'chasm');
+  room.obstacles = r.obstacles;
+  room.traps = buildTraps(traps);
+  room.pendingSurfaces = r.surfaces;
+  room.template = tpl.name;
+}
+
+function buildSpecial(room, kind) {
+  room.special = kind;
+  if (kind === 'trial') {
+    room.trialT = 32 + room.eff * 3;
+    room.trialMax = room.trialT;
+    return;                      // a normal fight, against the clock
+  }
+  const lay = specialLayout(kind);
+  const r = realise(lay);
+  room.obstacles = r.obstacles;
+  room.traps = buildTraps(r.traps);
+  const b = arenaBounds();
+  if (lay.fountain) room.traps.push(...buildTraps([{ kind: 'fountain', x: b.l + arena.w * lay.fountain.x, y: b.t + arena.h * lay.fountain.y }]));
+  if (lay.altar) room.traps.push(...buildTraps([{ kind: 'altar', x: b.l + arena.w * lay.altar.x, y: b.t + arena.h * lay.altar.y }]));
+  room.waves = [];
+  room.type = 'special';
+  room.template = SPECIAL_ROOMS[kind].label;
 }
 
 function makeObstacles(depth) {
@@ -137,6 +193,13 @@ export function startRoom(room) {
     p.vx = p.vy = 0;
     p.invuln = Math.max(p.invuln, 0.8);
   }
+  for (const sf of room.pendingSurfaces || []) spawnSurface(sf.type, sf.x, sf.y, sf.r, 'enemy', sf.life || 9999);
+  room.pendingSurfaces = [];
+  if (room.special === 'gauntlet') {
+    // The prize waits at the top, by the doors.
+    const b = arenaBounds();
+    for (let k = 0; k < 14; k++) spawnPickup({ x: b.l + arena.w * rand(0.3, 0.7), y: b.t + 40, vx: 0, vy: 0, type: 'gold', value: 3, life: 60 });
+  }
   if (room.type === 'boss') sfx.bossRoar();
   else sfx.door();
 }
@@ -149,6 +212,8 @@ function spawnPoint(minFromPlayer = 250) {
     const y = rand(b.t + 50, b.b - 50);
     if (p && dist(x, y, p.x, p.y) < minFromPlayer) continue;
     if (world.room.obstacles.some((o) => pointInRect(x, y, o, 34))) continue;
+    // Keep spawns off pits and away from traps.
+    if ((world.room.traps || []).some((t) => (t.w !== undefined ? pointInRect(x, y, t, 30) : dist(x, y, t.x, t.y) < 55))) continue;
     return { x, y };
   }
   return { x: b.l + rand(60, b.r - b.l - 60), y: b.t + 60 };
@@ -198,7 +263,12 @@ export function updateRoom(dt) {
 
   const alive = world.enemies.filter((e) => !e.dead).length;
 
-  if (!room.cleared && room.type !== 'boss') {
+  // Trial: the clock runs while the fight does.
+  if (room.special === 'trial' && !room.cleared && room.trialT > 0) room.trialT -= dt;
+
+  if (room.type === 'special') {
+    if (!room.cleared && room.special !== 'shrine') clearRoom(room);
+  } else if (!room.cleared && room.type !== 'boss') {
     if (alive === 0) {
       room.waveDelay -= dt;
       if (room.waveDelay <= 0) {
@@ -236,12 +306,26 @@ function spawnWave(room, wave) {
   for (const slot of wave) {
     for (let i = 0; i < slot.count; i++) {
       const pt = spawnPoint(slot.type === 'spitter' ? 300 : 250);
-      spawnEnemy(slot.type, pt.x, pt.y, {
+      const e = spawnEnemy(slot.type, pt.x, pt.y, {
         scale: enemyScale(room.eff, room.loop),
         elite: !!slot.elite && i === 0,
       });
+      applyCurses(e);
     }
   }
+}
+
+/** Shrine pacts: hasted enemies, or fire-touched ones. */
+function applyCurses(e) {
+  for (const c of world.curses || []) {
+    if (c.id === 'haste') { applyStatus(e, 'hasted', 999); e.speed *= 1.3; }
+    if (c.id === 'embers' && !e.boss) e.aura = 'fire';
+  }
+}
+
+/** Open the doors (used by the shrine after its choice). */
+export function openRoom(room) {
+  if (!room.cleared) clearRoom(room);
 }
 
 function clearRoom(room) {
@@ -259,6 +343,7 @@ const REWARD_STYLES = {
   boon: { color: '#c07bff', glyph: '✦', label: 'Boon' },
   heal: { color: '#7dff9c', glyph: '✚', label: 'Health' },
   gold: { color: '#ffc861', glyph: '◈', label: 'Gold' },
+  ...Object.fromEntries(Object.entries(SPECIAL_ROOMS).map(([k, v]) => [k, { color: v.color, glyph: v.glyph, label: v.label }])),
 };
 
 function makeDoors(room) {
@@ -282,6 +367,16 @@ function makeDoors(room) {
   let types = [rollReward(), rollReward()];
   if (hurt) types[0] = 'heal';
   if (types[0] === types[1] && types[0] !== 'boon') types[1] = 'boon';
+
+  // A trial beaten in time pays two boon doors with rare-weighted offers.
+  if (room.special === 'trial' && room.trialT > 0) {
+    types = ['boon', 'boon'];
+    world.nextBoonRare = true;
+  } else if (!isBossDepth(room.depth + 1) && room.depth + 1 < FINAL_DEPTH && !world.trial) {
+    // Sometimes the second door leads somewhere special instead.
+    const sp = rollSpecial(room.depth, world.lastSpecial);
+    if (sp) types[1] = sp;
+  }
 
   return [
     makeDoor(b.l + (b.r - b.l) * 0.3, y, types[0]),

@@ -171,6 +171,11 @@ export const BOONS = [
     desc: () => 'Aegis absorbs 1 more hit.',
     apply: (s) => { s.aegisBonus = (s.aegisBonus || 0) + 1; },
   },
+  {
+    id: 'trapmaster', god: 'gaia', name: 'Trapmaster', max: 1, rare: true,
+    desc: () => 'Traps deal +50% damage to foes and never hurt you.',
+    apply: (s) => { s.trapmaster = 1; },
+  },
   // --- Nyx ---
   {
     id: 'riposte', god: 'nyx', name: 'Killing Riposte', max: 3,
@@ -194,14 +199,14 @@ export function boonById(id) {
 }
 
 /** Pick `count` distinct boons the player can still take. */
-export function offerBoons(player, count = 3) {
+export function offerBoons(player, count = 3, opts = {}) {
   const eligible = BOONS.filter((b) => (player.boons[b.id] || 0) < b.max);
   // Slightly favour boons the player already owns so builds converge instead
   // of ending up as a flat spread of one-offs.
   const weighted = [];
   for (const b of eligible) {
     const owned = player.boons[b.id] || 0;
-    let w = b.rare ? 2 : 4;
+    let w = b.rare ? (opts.rare ? 8 : 2) : (opts.rare ? 1 : 4);
     if (owned > 0) w += 2;
     for (let i = 0; i < w; i++) weighted.push(b);
   }
