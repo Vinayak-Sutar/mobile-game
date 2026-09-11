@@ -247,12 +247,20 @@ export function drawHud(ctx, time) {
 const PAD_FACE = ['✕', '○', '□', '△'];
 
 /**
- * The four spell slots, a row along the bottom. On touch they are the cast
- * buttons (input.js hit-tests the same spots); elsewhere they show the key.
+ * The four spell slots. On touch they are the cast buttons in the right-hand
+ * cluster (input.js hit-tests the same spots); with keyboard or pad they are
+ * a row along the bottom centre, labelled with the key.
  */
+const rowSlots = [0, 1, 2, 3].map(() => ({ x: 0, y: 0, r: 30, label: '', pressed: false }));
+
 function drawSpellRow(ctx, p) {
   for (let i = 0; i < SPELL_SLOTS; i++) {
-    const btn = controls[`spell${i}`];
+    let btn = controls[`spell${i}`];
+    if (!input.touchMode) {
+      btn = rowSlots[i];
+      btn.x = view.w / 2 - 111 + i * 74;
+      btn.y = view.h - 46;
+    }
     const sp = spellById(p.spells[i]);
     if (!sp) {
       // Locked: an empty socket until a Spell door fills it.

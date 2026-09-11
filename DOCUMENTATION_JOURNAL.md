@@ -1550,9 +1550,15 @@ only this added. V3 stays playable but is no longer the main line of work.
   - A new spell with 4 equipped → "Replace which spell?" (or "Keep my
     spells"). A dropped spell keeps its level if found again (`p.spellLv`).
 - **Casting:**
-  - The row of 4 slots sits at the bottom centre (`controls.spell0-3`, r30,
-    74 apart, y = h−46) and is drawn in every mode: on touch the slots are
-    the buttons, elsewhere they show the key or pad button.
+  - **Touch:** the 4 spell buttons arc up the right edge above SPEC, under
+    the right thumb with the other action buttons (the owner asked for this
+    after the first phone test; they started as a bottom row). Positions
+    are in `layoutControls` (`controls.spell0-3`, r30, offsets from the
+    bottom-right corner). Taps go to the nearest button relative to its size
+    (`pickButton`), so SPEC never loses a tap to a spell.
+  - **Keyboard and pad:** the same slots are drawn as a row along the
+    bottom centre, labelled with the key or pad button (`drawSpellRow` in
+    `ui.js`).
   - Each slot shows the glyph when ready, the seconds left while
     recharging, and level pips above; an empty slot is a faint socket.
   - Keyboard: 1–4. Pad: hold **R1** + ✕ ○ □ △. Dash on the pad is now ✕ or

@@ -71,13 +71,17 @@ export function layoutControls() {
   controls.special.y = h - 224;
   controls.grenade.x = w - 232;
   controls.grenade.y = h - 256;
-  // Spells: a row centred along the bottom, clear of the stick and the
-  // attack cluster. The cancel zone sits far up-right of BOMB, where a
-  // normal aiming drag never reaches.
-  for (let i = 0; i < 4; i++) {
-    controls[`spell${i}`].x = w / 2 - 111 + i * 74;
-    controls[`spell${i}`].y = h - 46;
-  }
+  // Touch spells: an arc up the right edge above SPEC, under the right thumb
+  // with the other action buttons (the owner's call). Offsets are from the
+  // bottom-right corner, so the cluster is the same on every screen; checked
+  // at the phone's 1298x600 view with no overlaps. (Keyboard and pad show
+  // the spells as a row along the bottom instead: ui.js.)
+  // The cancel zone sits far up-right of BOMB, where a normal aiming drag
+  // never reaches.
+  controls.spell0.x = w - 44;  controls.spell0.y = h - 214;
+  controls.spell1.x = w - 52;  controls.spell1.y = h - 292;
+  controls.spell2.x = w - 120; controls.spell2.y = h - 322;
+  controls.spell3.x = w - 190; controls.spell3.y = h - 336;
   controls.gcancel.x = w - 150;
   controls.gcancel.y = 118;
   controls.pause.x = w - 32;
@@ -96,6 +100,23 @@ function hitButton(btn, wx, wy, pad = 14) {
   return dist(wx, wy, btn.x, btn.y) <= btn.r + pad;
 }
 
+// The action buttons, tested nearest-first (relative to size) so the tight
+// right-hand cluster never lets a neighbour steal a tap.
+const TOUCH_BUTTONS = ['attack', 'dash', 'special', 'grenade', 'spell0', 'spell1', 'spell2', 'spell3'];
+
+function pickButton(wx, wy) {
+  let best = null, bestK = Infinity;
+  for (const name of TOUCH_BUTTONS) {
+    const b = controls[name];
+    const pad = name.startsWith('spell') ? 8 : 14;
+    const d = dist(wx, wy, b.x, b.y);
+    if (d > b.r + pad) continue;
+    const k = d / b.r;
+    if (k < bestK) { bestK = k; best = name; }
+  }
+  return best;
+}
+
 export function initInput(canvas) {
   canvasEl = canvas;
   layoutControls();
@@ -112,23 +133,15 @@ export function initInput(canvas) {
       // Checked first and with a tight margin: it sits in a corner, and a
       // stray pause mid-fight is worse than a missed one.
       if (hitButton(controls.pause, x, y, 6)) { input.pausePressed = true; return; }
-      if (hitButton(controls.attack, x, y)) return assign(ev.pointerId, 'attack');
-      if (hitButton(controls.dash, x, y)) return assign(ev.pointerId, 'dash');
-      if (hitButton(controls.special, x, y)) return assign(ev.pointerId, 'special');
-      // Spell slots: the nearest of the row, if the tap is on one.
-      let slot = -1, best = Infinity;
-      for (let i = 0; i < 4; i++) {
-        const b = controls[`spell${i}`];
-        const d = dist(x, y, b.x, b.y);
-        if (d <= b.r + 8 && d < best) { best = d; slot = i; }
-      }
-      if (slot >= 0) {
-        input.spellCast = slot;
-        controls[`spell${slot}`].pressed = true;
-        pointers.set(ev.pointerId, `spell${slot}`);
+      const btn = pickButton(x, y);
+      if (btn === 'attack' || btn === 'dash' || btn === 'special') return assign(ev.pointerId, btn);
+      if (btn && btn.startsWith('spell')) {
+        input.spellCast = Number(btn.slice(5));
+        controls[btn].pressed = true;
+        pointers.set(ev.pointerId, btn);
         return;
       }
-      if (hitButton(controls.grenade, x, y)) {
+      if (btn === 'grenade') {
         // The grenade button doubles as a mini-stick: drag from it to aim.
         grenadeDrag = { id: ev.pointerId, ox: x, oy: y };
         input.grenadeVec.x = 0;
