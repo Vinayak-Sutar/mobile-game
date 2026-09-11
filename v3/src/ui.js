@@ -11,7 +11,7 @@ import { BOSS_INFO } from './bosses.js';
 import { audio } from './audio.js';
 import { GRENADE, grenadeType } from './grenade.js';
 import { resetMenuFocus } from './gamepad.js';
-import { spellById } from './spells.js';
+import { spellById, spellColor, cooldownLeft, cooldownFrac, SPELL_SLOTS } from './spells.js';
 import { ELEMENTS } from './elements.js';
 
 const FONT = '"Segoe UI", Roboto, system-ui, sans-serif';
@@ -119,12 +119,19 @@ export function drawHud(ctx, time) {
     }
     px += 14;
   }
+  // The grenade type, by name (on touch the TYPE button shows it).
+  if (!input.touchMode) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = gcol;
+    ctx.font = `800 10px ${FONT}`;
+    ctx.fillText(`${grenadeType(p).name.toUpperCase()} ${input.padMode ? '[L1]' : '[R]'}`, px + 4, py + 3.5);
+    px += 110;
+  }
   if (!livesBeside) drawLives(ctx, p, px + 12, py + 3, time, 0.72);
 
-  // --- focus: the spell resource, three pips that fill smoothly -----------
-  const fy = py + 17;
-  drawFocus(ctx, p, x, fy, time);
-  drawSpellSlots(ctx, p, x + 70, fy);
+  // --- spells: four slots with cooldown sweeps (on touch, the buttons) -----
+  const fy = py + 19;
+  drawSpellBar(ctx, p, x, fy);
 
   // --- boons --------------------------------------------------------------
   let bx = x;
@@ -273,64 +280,47 @@ export function drawHud(ctx, time) {
   drawToast(ctx);
 }
 
-const FOCUS_COLOR = '#8ef0ff';
+/** Slot labels for keyboard and controller (hold R1 + a face button). */
+const PAD_FACE = ['✕', '○', '□', '△'];
 
-/** Three diamonds; the one being earned fills from the bottom. */
-function drawFocus(ctx, p, x, cy, time) {
-  const max = p.focusMax || 3;
-  const f = p.focus || 0;
-  for (let i = 0; i < max; i++) {
-    const cx = x + 7 + i * 20;
-    const fill = clamp(f - i, 0, 1);
-    ctx.fillStyle = 'rgba(255,255,255,0.14)';
-    polygon(ctx, cx, cy, 7, 4, 0);
-    ctx.fill();
-    if (fill >= 1) {
-      ctx.fillStyle = FOCUS_COLOR;
-      polygon(ctx, cx, cy, 7 + (Math.sin(time * 4 + i) > 0.9 ? 1 : 0), 4, 0);
-      ctx.fill();
-    } else if (fill > 0) {
-      ctx.save();
-      polygon(ctx, cx, cy, 7, 4, 0);
-      ctx.clip();
-      ctx.fillStyle = FOCUS_COLOR;
-      ctx.globalAlpha = 0.7;
-      ctx.fillRect(cx - 7, cy + 7 - 14 * fill, 14, 14 * fill);
-      ctx.restore();
-      ctx.globalAlpha = 1;
-    }
-  }
-}
-
-/** The three equipped spells after the Focus pips; the selected one is ringed. */
-function drawSpellSlots(ctx, p, x, cy) {
-  if (!p.spells || !p.spells.length) return;
+/** Four spell slots with cooldown sweeps; the imbued element after them. */
+function drawSpellBar(ctx, p, x, cy) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  for (let i = 0; i < p.spells.length; i++) {
-    const sp = spellById(p.spells[i]);
-    if (!sp) continue;
-    const cx = x + i * 22;
-    const c = ELEMENTS[sp.element] ? ELEMENTS[sp.element].color : '#fff';
-    const sel = i === p.spellIdx;
-    ctx.globalAlpha = (p.focus || 0) >= sp.cost ? 1 : 0.4;
-    ctx.fillStyle = sel ? c : 'rgba(0,0,0,0.5)';
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, TAU);
-    ctx.fill();
-    ctx.strokeStyle = c;
-    ctx.lineWidth = sel ? 2.5 : 1.5;
-    ctx.stroke();
-    ctx.fillStyle = sel ? '#0b0712' : c;
-    ctx.font = `900 11px ${FONT}`;
-    ctx.fillText(sp.glyph, cx, cy + 0.5);
-  }
-  ctx.globalAlpha = 1;
-  if (!input.touchMode) {
+  const showSlots = !input.touchMode;
+  if (showSlots) {
+    for (let i = 0; i < SPELL_SLOTS; i++) {
+      const sp = spellById(p.spells[i]);
+      const cx = x + 10 + i * 30;
+      const c = spellColor(sp);
+      const frac = sp ? cooldownFrac(p, sp.id) : 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath(); ctx.arc(cx, cy, 11, 0, TAU); ctx.fill();
+      if (sp) {
+        ctx.strokeStyle = c;
+        ctx.globalAlpha = frac >= 1 ? 1 : 0.35;
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, 11, 0, TAU); ctx.stroke();
+        if (frac < 1) {
+          ctx.globalAlpha = 1;
+          ctx.lineWidth = 2.5;
+          ctx.beginPath(); ctx.arc(cx, cy, 11, -Math.PI / 2, -Math.PI / 2 + frac * TAU); ctx.stroke();
+        }
+        ctx.globalAlpha = frac >= 1 ? 1 : 0.5;
+        ctx.fillStyle = c;
+        ctx.font = `900 11px ${FONT}`;
+        ctx.fillText(sp.glyph, cx, cy + 0.5);
+      }
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `800 8px ${FONT}`;
+      ctx.fillText(input.padMode ? PAD_FACE[i] : String(i + 1), cx + 10, cy + 10);
+      ctx.globalAlpha = 1;
+    }
     ctx.textAlign = 'left';
     ctx.fillStyle = 'rgba(255,255,255,0.45)';
     ctx.font = `700 10px ${FONT}`;
-    ctx.fillText('[C] cast · [1-3] pick', x + p.spells.length * 22 + 2, cy + 1);
+    ctx.fillText(input.padMode ? 'hold R1 + face button' : '[1-4] cast · [B] spellbook', x + SPELL_SLOTS * 30 + 6, cy + 1);
   }
   // Imbued weapon: its element, and the seconds left.
   if (p.imbue) {
@@ -338,7 +328,7 @@ function drawSpellSlots(ctx, p, x, cy) {
     ctx.textAlign = 'left';
     ctx.fillStyle = c;
     ctx.font = `800 10px ${FONT}`;
-    ctx.fillText(`${ELEMENTS[p.imbue.el].name.toUpperCase()} WEAPON ${p.imbue.t.toFixed(1)}s`, x + p.spells.length * 22 + (input.touchMode ? 4 : 120), cy + 1);
+    ctx.fillText(`${ELEMENTS[p.imbue.el].name.toUpperCase()} WEAPON ${p.imbue.t.toFixed(1)}s`, showSlots ? x + SPELL_SLOTS * 30 + 150 : x, cy + 1);
   }
 }
 
@@ -460,14 +450,62 @@ export function drawControls(ctx, time) {
   button(ctx, controls.grenade, p ? grenadeType(p).color : '#ff9a4d',
     p ? (p.grenadeStock > 0 ? 1 : 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1)) : 1,
     '◉', p ? `${p.grenadeStock}` : '');
-  // Parry: the glyph is the same four-point star as the white parry glint.
-  button(ctx, controls.parry, '#ffe27a',
-    p ? (p.parry ? 0.02 : 1 - clamp((p.parryCd || 0) / 0.55, 0, 1)) : 1, '✧');
-  if (controls.cast.enabled && p && p.spells && p.spells.length) {
-    const sp = spellById(p.spells[p.spellIdx]);
-    const c = sp && ELEMENTS[sp.element] ? ELEMENTS[sp.element].color : FOCUS_COLOR;
-    const afford = sp ? clamp((p.focus || 0) / sp.cost, 0, 1) : 1;
-    button(ctx, controls.cast, c, afford, sp ? sp.glyph : '✺', sp ? `${sp.cost}` : '');
+  if (!p) return;
+
+  // Grenade type: tap to step through them.
+  const gt = grenadeType(p);
+  controls.gswap.label = gt.name.split(' ')[0].toUpperCase();
+  button(ctx, controls.gswap, gt.color, 1, '⟳');
+
+  // The four spells: glyph when ready, seconds left while recharging.
+  for (let i = 0; i < SPELL_SLOTS; i++) drawSpellButton(ctx, controls[`spell${i}`], p, p.spells[i]);
+
+  // Spellbook: a little open book.
+  const bk = controls.book;
+  ctx.globalAlpha = bk.pressed ? 0.34 : 0.18;
+  ctx.fillStyle = '#c9b8ff';
+  ctx.beginPath(); ctx.arc(bk.x, bk.y, bk.r, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 0.85;
+  ctx.strokeStyle = '#c9b8ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(bk.x, bk.y, bk.r, 0, TAU); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bk.x, bk.y - 6); ctx.lineTo(bk.x - 10, bk.y - 9); ctx.lineTo(bk.x - 10, bk.y + 7); ctx.lineTo(bk.x, bk.y + 10);
+  ctx.lineTo(bk.x + 10, bk.y + 7); ctx.lineTo(bk.x + 10, bk.y - 9); ctx.closePath();
+  ctx.moveTo(bk.x, bk.y - 6); ctx.lineTo(bk.x, bk.y + 10);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+/** One spell button: sweep while recharging, a flash if tapped too early. */
+function drawSpellButton(ctx, btn, p, id) {
+  const sp = spellById(id);
+  if (!sp) {
+    // Empty slot: tapping it opens the Spellbook.
+    ctx.globalAlpha = 0.25;
+    ctx.strokeStyle = '#ffffff';
+    ctx.setLineDash([4, 5]);
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `900 18px ${FONT}`;
+    ctx.fillText('+', btn.x, btn.y);
+    ctx.globalAlpha = 1;
+    return;
+  }
+  const c = spellColor(sp);
+  const frac = cooldownFrac(p, sp.id);
+  btn.label = sp.short || '';
+  button(ctx, btn, c, frac, frac >= 1 ? sp.glyph : String(Math.ceil(cooldownLeft(p, sp.id))));
+  if (p.spellDenied && p.spellDenied.id === sp.id) {
+    ctx.globalAlpha = p.spellDenied.t / 0.3;
+    ctx.strokeStyle = '#ff5e6e';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.r + 4, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 }
 

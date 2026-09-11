@@ -16,8 +16,9 @@ const DEFAULTS = {
   musicOn: true,
   musicVolume: 0.7,
   biome: 'ember',
-  // Version 3: the spell loadout (3 of SPELLS) and grenade type.
-  loadout: ['downpour', 'storm', 'gale'],
+  // Version 3: the four spells a run starts with (swap any time in the
+  // Spellbook) and the last grenade type used.
+  loadout: ['fireball', 'storm', 'gale', 'downpour'],
   grenadeType: 'frag',
   codex: { reactions: {} },
 };

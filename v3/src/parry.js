@@ -13,7 +13,7 @@
 // of shots can be parried one by one.
 
 import { TAU, angleTo, clamp } from './util.js';
-import { burst, ring, damageText, hitstop, shake } from './fx.js';
+import { burst, ring, damageText, hitstop, shake, setParryCues } from './fx.js';
 import { sfx } from './audio.js';
 import { haptic } from './haptics.js';
 import { addPoise } from './poise.js';
@@ -45,8 +45,14 @@ let parryHook = null;
 /** game.js registers extra effects for a perfect parry (boons that need combat). */
 export function setParryHook(fn) { parryHook = fn; }
 
+// Parry is switched OFF for now (the owner's call, 2026-09-11: it needs enemies
+// designed around it). The code stays so it can come back: with this false
+// there is no PARRY button or key, no parry glints and no parry boons.
+export const PARRY_ENABLED = false;
+setParryCues(PARRY_ENABLED);
+
 export function canParry(p) {
-  if (!p || p.dead || p.dashing || p.parry || p.parryCd > 0) return false;
+  if (!PARRY_ENABLED || !p || p.dead || p.dashing || p.parry || p.parryCd > 0) return false;
   // Committed swings can't be cancelled into a parry; recovery can (like dash).
   return !p.attack || p.attack.phase === 'recover';
 }
@@ -77,7 +83,7 @@ export function updateParry(p, dt) {
 }
 
 export function isParrying(p) {
-  return !!(p && !p.dead && p.parry && p.parry.phase === 'window');
+  return !!(PARRY_ENABLED && p && !p.dead && p.parry && p.parry.phase === 'window');
 }
 
 /** While recovering from a whiffed parry the player can't act. */
@@ -94,7 +100,6 @@ export function perfectParry(p, attacker, sx, sy, kind) {
   p.parry.success = true;
   p.parry.t = Math.max(p.parry.t, PARRY.grace);
   p.parryCd = PARRY.chainCooldown;
-  p.focus = Math.min(p.focusMax || 3, (p.focus || 0) + 1);
   p.riposteT = PARRY.riposteTime;
   p.riposteMult = st.riposteMult;
   p.parries = (p.parries || 0) + 1;

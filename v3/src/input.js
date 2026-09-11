@@ -13,13 +13,12 @@ export const input = {
   special: false, specialPressed: false,
   dash: false, dashPressed: false,
   grenade: false, grenadePressed: false,
-  parry: false, parryPressed: false,
-  cast: false, castPressed: false,
-  // Spell selection: a direct pick (0-based slot) or a step through the slots.
-  spellPick: null,
-  spellCycle: 0,
-  // Drag / stick vector while CAST is held, for the spell wheel.
-  castVec: { x: 0, y: 0 },
+  parry: false, parryPressed: false,     // parry is switched off (parry.js); never set
+  // One-frame edges: cast the spell in slot 0-3, step the grenade type, open
+  // the Spellbook.
+  spellCast: null,
+  grenadeCycle: 0,
+  bookPressed: false,
   // How a held throw is aimed. `grenadeVec` is a direction plus how far it
   // is pushed (stick or drag); `grenadeAbs` is an absolute point (mouse).
   grenadeVec: { x: 0, y: 0 },
@@ -34,8 +33,8 @@ export const input = {
 // gamepad button release can't be undone by a stale keyboard flag, and vice
 // versa.
 const srcHeld = {
-  key: { attack: false, special: false, dash: false, grenade: false, parry: false, cast: false },
-  touch: { attack: false, special: false, dash: false, grenade: false, parry: false, cast: false },
+  key: { attack: false, special: false, dash: false, grenade: false },
+  touch: { attack: false, special: false, dash: false, grenade: false },
 };
 
 export const controls = {
@@ -44,17 +43,23 @@ export const controls = {
   dash: { x: 0, y: 0, r: 40, label: 'DASH', pressed: false },
   special: { x: 0, y: 0, r: 38, label: 'SPEC', pressed: false },
   grenade: { x: 0, y: 0, r: 36, label: 'BOMB', pressed: false },
-  parry: { x: 0, y: 0, r: 34, label: 'PARRY', pressed: false },
-  cast: { x: 0, y: 0, r: 36, label: 'CAST', pressed: false, enabled: false },
+  // Four spell buttons (one per equipped slot), the grenade-type selector and
+  // the Spellbook.
+  spell0: { x: 0, y: 0, r: 30, label: '', pressed: false },
+  spell1: { x: 0, y: 0, r: 30, label: '', pressed: false },
+  spell2: { x: 0, y: 0, r: 30, label: '', pressed: false },
+  spell3: { x: 0, y: 0, r: 30, label: '', pressed: false },
+  gswap: { x: 0, y: 0, r: 22, label: 'TYPE', pressed: false },
+  book: { x: 0, y: 0, r: 21, label: '', pressed: false },
   pause: { x: 0, y: 0, r: 20, label: '', pressed: false },
 };
+
+// Touch buttons, tested nearest-first so neighbours never steal a tap.
+const TOUCH_BUTTONS = ['attack', 'dash', 'special', 'grenade', 'spell0', 'spell1', 'spell2', 'spell3', 'gswap', 'book'];
 
 // Drag distance, in world units, that pushes a throw out to full range.
 const GRENADE_DRAG = 78;
 let grenadeDrag = null;
-let castDrag = null;
-// Drag distance that fully points the spell wheel.
-const CAST_DRAG = 60;
 
 const keys = new Set();
 const pointers = new Map();     // pointerId -> role
@@ -72,12 +77,15 @@ export function layoutControls() {
   controls.special.y = h - 224;
   controls.grenade.x = w - 232;
   controls.grenade.y = h - 256;
-  // Parry sits just left of and below ATK, where the thumb rolls to it;
-  // CAST sits above-right, next to SPEC.
-  controls.parry.x = w - 222;
-  controls.parry.y = h - 54;
-  controls.cast.x = w - 46;
-  controls.cast.y = h - 200;
+  // The four spells arc up the right edge above SPEC, where the thumb rolls to
+  // them; the grenade-type selector sits beside BOMB, the book above slot 2.
+  // Laid out for the phone's 1298x600 view: no two buttons overlap.
+  controls.spell0.x = w - 44;  controls.spell0.y = h - 214;
+  controls.spell1.x = w - 52;  controls.spell1.y = h - 292;
+  controls.spell2.x = w - 120; controls.spell2.y = h - 322;
+  controls.spell3.x = w - 190; controls.spell3.y = h - 336;
+  controls.gswap.x = w - 300;  controls.gswap.y = h - 300;
+  controls.book.x = w - 44;    controls.book.y = h - 372;
   controls.pause.x = w - 32;
   controls.pause.y = 32;
 }
@@ -92,6 +100,20 @@ function toWorld(clientX, clientY) {
 
 function hitButton(btn, wx, wy, pad = 14) {
   return dist(wx, wy, btn.x, btn.y) <= btn.r + pad;
+}
+
+/** The touch button under a tap: the closest one (relative to its size) in reach. */
+function pickButton(wx, wy) {
+  let best = null, bestK = Infinity;
+  for (const name of TOUCH_BUTTONS) {
+    const b = controls[name];
+    const pad = name.startsWith('spell') || name === 'gswap' || name === 'book' ? 8 : 14;
+    const d = dist(wx, wy, b.x, b.y);
+    if (d > b.r + pad) continue;
+    const k = d / b.r;
+    if (k < bestK) { bestK = k; best = name; }
+  }
+  return best;
 }
 
 export function initInput(canvas) {
@@ -110,18 +132,17 @@ export function initInput(canvas) {
       // Checked first and with a tight margin: it sits in a corner, and a
       // stray pause mid-fight is worse than a missed one.
       if (hitButton(controls.pause, x, y, 6)) { input.pausePressed = true; return; }
-      if (hitButton(controls.attack, x, y)) return assign(ev.pointerId, 'attack');
-      if (hitButton(controls.dash, x, y)) return assign(ev.pointerId, 'dash');
-      if (hitButton(controls.special, x, y)) return assign(ev.pointerId, 'special');
-      if (hitButton(controls.parry, x, y, 10)) return assign(ev.pointerId, 'parry');
-      if (controls.cast.enabled && hitButton(controls.cast, x, y, 10)) {
-        // CAST doubles as a mini-stick for the spell wheel, like BOMB.
-        castDrag = { id: ev.pointerId, ox: x, oy: y };
-        input.castVec.x = 0;
-        input.castVec.y = 0;
-        return assign(ev.pointerId, 'cast');
+      const btn = pickButton(x, y);
+      if (btn === 'attack' || btn === 'dash' || btn === 'special') return assign(ev.pointerId, btn);
+      if (btn && btn.startsWith('spell')) {
+        input.spellCast = Number(btn.slice(5));
+        controls[btn].pressed = true;
+        pointers.set(ev.pointerId, btn);
+        return;
       }
-      if (hitButton(controls.grenade, x, y)) {
+      if (btn === 'gswap') { input.grenadeCycle = 1; controls.gswap.pressed = true; pointers.set(ev.pointerId, btn); return; }
+      if (btn === 'book') { input.bookPressed = true; controls.book.pressed = true; pointers.set(ev.pointerId, btn); return; }
+      if (btn === 'grenade') {
         // The grenade button doubles as a mini-stick: drag from it to aim.
         grenadeDrag = { id: ev.pointerId, ox: x, oy: y };
         input.grenadeVec.x = 0;
@@ -166,13 +187,6 @@ export function initInput(canvas) {
     if (role === 'stick') {
       controls.stick.x = x;
       controls.stick.y = y;
-    } else if (role === 'cast' && castDrag && castDrag.id === ev.pointerId) {
-      const dx = x - castDrag.ox;
-      const dy = y - castDrag.oy;
-      const m = Math.hypot(dx, dy);
-      const k = Math.min(1, m / CAST_DRAG);
-      input.castVec.x = m > 0.001 ? (dx / m) * k : 0;
-      input.castVec.y = m > 0.001 ? (dy / m) * k : 0;
     } else if (role === 'grenade' && grenadeDrag && grenadeDrag.id === ev.pointerId) {
       const dx = x - grenadeDrag.ox;
       const dy = y - grenadeDrag.oy;
@@ -197,7 +211,6 @@ export function initInput(canvas) {
         input.grenadeVec.x = 0;
         input.grenadeVec.y = 0;
       }
-      if (role === 'cast') castDrag = null;
     }
     pointers.delete(ev.pointerId);
   };
@@ -207,9 +220,9 @@ export function initInput(canvas) {
     if (ev.pointerType === 'touch') release(ev);
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-  // Mouse wheel steps through the equipped spells.
+  // Mouse wheel steps through the grenade types.
   canvas.addEventListener('wheel', (ev) => {
-    input.spellCycle = ev.deltaY > 0 ? 1 : -1;
+    input.grenadeCycle = ev.deltaY > 0 ? 1 : -1;
     ev.preventDefault();
   }, { passive: false });
 
@@ -222,21 +235,19 @@ export function initInput(canvas) {
     if (k === ' ' || k === 'shift') ev.preventDefault();
     if (k === ' ') press('dash', 'key');
     if (k === 'j' || k === 'e') press('attack', 'key');
-    if (k === 'k' || k === 'q') press('special', 'key');
+    if (k === 'k' || k === 'q' || k === 'shift') press('special', 'key');
     if (k === 'g') press('grenade', 'key');
-    if (k === 'shift' || k === 'l') press('parry', 'key');
-    if (k === 'c') press('cast', 'key');
-    if (k >= '1' && k <= '4') input.spellPick = Number(k) - 1;
+    if (k >= '1' && k <= '4') input.spellCast = Number(k) - 1;
+    if (k === 'r') input.grenadeCycle = 1;
+    if (k === 'b') input.bookPressed = true;
   });
   window.addEventListener('keyup', (ev) => {
     const k = ev.key.toLowerCase();
     keys.delete(k);
     if (k === ' ') unpress('dash', 'key');
     if (k === 'j' || k === 'e') unpress('attack', 'key');
-    if (k === 'k' || k === 'q') unpress('special', 'key');
+    if (k === 'k' || k === 'q' || k === 'shift') unpress('special', 'key');
     if (k === 'g') unpress('grenade', 'key');
-    if (k === 'shift' || k === 'l') unpress('parry', 'key');
-    if (k === 'c') unpress('cast', 'key');
   });
   window.addEventListener('blur', () => {
     keys.clear();
@@ -259,8 +270,6 @@ function press(role, source) {
   if (role === 'special') input.specialPressed = true;
   if (role === 'dash') input.dashPressed = true;
   if (role === 'grenade') input.grenadePressed = true;
-  if (role === 'parry') input.parryPressed = true;
-  if (role === 'cast') input.castPressed = true;
 }
 
 function unpress(role, source) {
@@ -305,22 +314,6 @@ export function updateInput(playerPos) {
   input.special = srcHeld.key.special || srcHeld.touch.special || (padOn && pad.special);
   input.dash = srcHeld.key.dash || srcHeld.touch.dash || (padOn && pad.dash);
   input.grenade = srcHeld.key.grenade || srcHeld.touch.grenade || (padOn && pad.grenade);
-  input.parry = srcHeld.key.parry || srcHeld.touch.parry || (padOn && pad.parry);
-  input.cast = srcHeld.key.cast || srcHeld.touch.cast || (padOn && pad.cast);
-  // Spell wheel direction: the pad's right stick while R1 is held, else the
-  // touch drag (set in pointermove), else the mouse relative to the player.
-  if (padOn && pad.cast && pad.aimActive) {
-    input.castVec.x = pad.aim.x * pad.aimPush;
-    input.castVec.y = pad.aim.y * pad.aimPush;
-  } else if (!castDrag && !input.touchMode && mouseSeen && playerPos && input.cast) {
-    const dx = mouseWorld.x - playerPos.x, dy = mouseWorld.y - playerPos.y;
-    const m = Math.hypot(dx, dy);
-    input.castVec.x = m > 20 ? dx / m : 0;
-    input.castVec.y = m > 20 ? dy / m : 0;
-  } else if (!castDrag && !input.cast) {
-    input.castVec.x = 0;
-    input.castVec.y = 0;
-  }
 
   // Aim source, in priority order: pad stick, touch drag, mouse.
   if (padOn && pad.grenade && pad.aimActive) {
@@ -340,8 +333,8 @@ export function updateInput(playerPos) {
     if (pad.specialPressed) { input.specialPressed = true; pad.specialPressed = false; }
     if (pad.dashPressed) { input.dashPressed = true; pad.dashPressed = false; }
     if (pad.grenadePressed) { input.grenadePressed = true; pad.grenadePressed = false; }
-    if (pad.parryPressed) { input.parryPressed = true; pad.parryPressed = false; }
-    if (pad.castPressed) { input.castPressed = true; pad.castPressed = false; }
+    if (pad.spellPressed !== null) { input.spellCast = pad.spellPressed; pad.spellPressed = null; }
+    if (pad.grenadeCyclePressed) { input.grenadeCycle = 1; pad.grenadeCyclePressed = false; }
   }
 
   if (padOn && (padMoving || pad.attack || pad.special || pad.dash || pad.aimActive)) {
@@ -372,12 +365,10 @@ export function updateInput(playerPos) {
 
 function clearHeld() {
   for (const src of Object.values(srcHeld)) {
-    src.attack = src.special = src.dash = src.grenade = src.parry = src.cast = false;
+    src.attack = src.special = src.dash = src.grenade = false;
   }
-  input.attack = input.special = input.dash = input.grenade = input.parry = input.cast = false;
+  input.attack = input.special = input.dash = input.grenade = input.parry = false;
   grenadeDrag = null;
-  castDrag = null;
-  input.castVec.x = input.castVec.y = 0;
   input.grenadeVec.x = 0;
   input.grenadeVec.y = 0;
 }
@@ -389,9 +380,9 @@ export function endFrameInput() {
   input.dashPressed = false;
   input.grenadePressed = false;
   input.parryPressed = false;
-  input.castPressed = false;
-  input.spellPick = null;
-  input.spellCycle = 0;
+  input.spellCast = null;
+  input.grenadeCycle = 0;
+  input.bookPressed = false;
   input.pausePressed = false;
   input.anyPressed = false;
 }

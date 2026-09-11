@@ -190,7 +190,7 @@ export function pathClear(obstacles, traps, start, targets) {
 export const SPECIAL_ROOMS = {
   trial:    { label: 'Trial',    color: '#ff9a4d', glyph: '⏱', desc: 'Clear it against the clock for a rare boon.' },
   shrine:   { label: 'Shrine',   color: '#c07bff', glyph: '☥', desc: 'Accept a curse for a rare boon.' },
-  fountain: { label: 'Fountain', color: '#7dff9c', glyph: '⛲', desc: 'Rest: heal and refill Focus.' },
+  fountain: { label: 'Fountain', color: '#7dff9c', glyph: '⛲', desc: 'Rest: heal and refresh your spells.' },
   treasure: { label: 'Treasure', color: '#ffc861', glyph: '⚱', desc: 'Urns full of loot.' },
   gauntlet: { label: 'Gauntlet', color: '#e6e0f2', glyph: '⚙', desc: 'Survive the traps to the gold.' },
 };
@@ -209,7 +209,7 @@ export function specialLayout(kind) {
       return { obstacles: [pillar(0.2, 0.3), pillar(0.75, 0.3)], traps: [{ kind: 'urn', x: 0.1, y: 0.7 }], fountain: { x: 0.5, y: 0.42 } };
     case 'treasure': {
       const traps = [];
-      for (let k = 0; k < 8; k++) traps.push({ kind: 'urn', x: 0.15 + (k % 4) * 0.23, y: k < 4 ? 0.3 : 0.62, loot: k % 3 === 0 ? 'focus' : 'gold' });
+      for (let k = 0; k < 8; k++) traps.push({ kind: 'urn', x: 0.15 + (k % 4) * 0.23, y: k < 4 ? 0.3 : 0.62, loot: k % 3 === 0 ? 'spells' : 'gold' });
       traps.push({ kind: 'barrel', x: 0.5, y: 0.46 });
       return { obstacles: [], traps };
     }

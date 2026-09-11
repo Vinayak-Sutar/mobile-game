@@ -20,8 +20,6 @@ import { breakBulletsNear } from './projectiles.js';
 // Input buffer: a press made slightly too early (mid-swing, mid-dash) is
 // remembered this long and fires the moment it's allowed.
 const BUFFER = 0.15;
-// Focus (spell resource) trickles back slowly on its own.
-const FOCUS_TRICKLE = 0.03;
 
 const DASH_TIME = 0.17;
 const DASH_SPEED = 920;
@@ -61,16 +59,14 @@ export function createPlayer(weapon, meta = {}) {
     lives: START_LIVES,
     weapon,
     // Version 3 combat state.
-    focus: 1,
-    focusMax: 3,
     parry: null,        // { phase: 'window' | 'recover', t, success }
     parryCd: 0,
     riposteT: 0,
     riposteMult: 2,
     buffer: { attack: 0, special: 0, dash: 0, parry: 0 },
-    spells: [],         // spell ids, the loadout (spells.js)
-    spellIdx: 0,
-    spellCd: 0,
+    spells: [],         // four equipped spell ids (null = empty slot), spells.js
+    spellCds: {},       // spell id -> seconds until ready
+    spellGcd: 0,
     imbue: null,        // { el, t } — weapon carries an element after a spell
     aegis: null,        // { hits, t }
     channel: null,      // Dragon's Breath
@@ -167,8 +163,7 @@ export function updatePlayer(p, dt) {
 
   const buf = p.buffer;
 
-  // --- focus + parry ------------------------------------------------------
-  p.focus = Math.min(p.focusMax, p.focus + FOCUS_TRICKLE * dt);
+  // --- parry (switched off for now: PARRY_ENABLED in parry.js) ------------
   updateParry(p, dt);
   if (buf.parry > 0 && canParry(p)) {
     buf.parry = 0;

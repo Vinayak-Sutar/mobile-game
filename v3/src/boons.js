@@ -3,6 +3,7 @@
 
 import { shuffle, chance } from './util.js';
 import { healPlayer } from './combat.js';
+import { PARRY_ENABLED } from './parry.js';
 
 export const GODS = {
   pyros:  { name: 'Pyros',  color: '#ff7a3d', glyph: '🔥', domain: 'Flame' },
@@ -110,7 +111,7 @@ export const BOONS = [
     apply: (s) => { s.retribution += s.retribution === 0 ? 40 : 25; },
   },
 
-  // ======== Version 3: elements, reactions, parry, spells, focus ========
+  // ======== Version 3: elements, reactions, spells (parry boons are `needs: 'parry'`) ========
   // --- Pyros ---
   {
     id: 'kindling', god: 'pyros', name: 'Kindling', max: 3,
@@ -129,7 +130,7 @@ export const BOONS = [
     apply: (s) => { s.electroBonus = (s.electroBonus || 0) + 0.4; },
   },
   {
-    id: 'stormparry', god: 'astra', name: 'Thunder Parry', max: 3, rare: true,
+    id: 'stormparry', god: 'astra', name: 'Thunder Parry', max: 3, rare: true, needs: 'parry',
     desc: (lv) => `A perfect parry strikes the ${lv + 2} nearest foes with lightning.`,
     apply: (s) => { s.parryStorm = (s.parryStorm || 1) + 1; },
   },
@@ -145,14 +146,14 @@ export const BOONS = [
     apply: (s) => { s.frozenBonus = (s.frozenBonus || 0) + 0.4; },
   },
   {
-    id: 'glacialparry', god: 'thalassa', name: 'Glacial Parry', max: 2,
+    id: 'glacialparry', god: 'thalassa', name: 'Glacial Parry', max: 2, needs: 'parry',
     desc: () => 'A perfect parry chills the attacker (and freezes it if it was Wet).',
     apply: (s) => { s.parryFrost = 1; },
   },
   {
-    id: 'deepwell', god: 'thalassa', name: 'Deep Well', max: 2, rare: true,
-    desc: () => '+1 maximum Focus.',
-    apply: (s, lv, p) => { if (p) { p.focusMax += 1; p.focus += 1; } },
+    id: 'deepwell', god: 'thalassa', name: 'Deep Well', max: 3,
+    desc: () => 'Spell cooldowns are 15% shorter.',
+    apply: (s) => { s.spellCdr = (s.spellCdr || 0) + 0.15; },
   },
   // --- Zephyr ---
   {
@@ -178,19 +179,19 @@ export const BOONS = [
   },
   // --- Nyx ---
   {
-    id: 'riposte', god: 'nyx', name: 'Killing Riposte', max: 3,
+    id: 'riposte', god: 'nyx', name: 'Killing Riposte', max: 3, needs: 'parry',
     desc: () => 'Ripostes after a parry hit 60% harder.',
     apply: (s) => { s.riposteBonus = (s.riposteBonus || 0) + 0.6; },
   },
   {
-    id: 'stillmind', god: 'nyx', name: 'Still Mind', max: 2, rare: true,
+    id: 'stillmind', god: 'nyx', name: 'Still Mind', max: 2, rare: true, needs: 'parry',
     desc: () => 'The parry window is 30% longer.',
     apply: (s) => { s.parryWindow = (s.parryWindow || 0) + 0.3; },
   },
   {
     id: 'arcaneflow', god: 'nyx', name: 'Arcane Flow', max: 3,
-    desc: () => 'Earn Focus 40% faster.',
-    apply: (s) => { s.focusGain = (s.focusGain || 0) + 0.4; },
+    desc: (lv) => `Every hit you land takes ${((lv + 1) * 0.1).toFixed(1)} s off your spell cooldowns.`,
+    apply: (s) => { s.flow = (s.flow || 0) + 0.1; },
   },
 ];
 
@@ -200,7 +201,7 @@ export function boonById(id) {
 
 /** Pick `count` distinct boons the player can still take. */
 export function offerBoons(player, count = 3, opts = {}) {
-  const eligible = BOONS.filter((b) => (player.boons[b.id] || 0) < b.max);
+  const eligible = BOONS.filter((b) => (player.boons[b.id] || 0) < b.max && (b.needs !== 'parry' || PARRY_ENABLED));
   // Slightly favour boons the player already owns so builds converge instead
   // of ending up as a flat spread of one-offs.
   const weighted = [];

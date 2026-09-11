@@ -21,7 +21,7 @@ import {
 } from './elements.js';
 import { spawnSurface, drawSurfaces, drawClouds } from './surfaces.js';
 import {
-  SPELLS, spellById, spellState, updateSpellZones, drawSpellZones, drawPlayerSpells, drawSpellWheel, tryCast,
+  SPELLS, SPELL_SLOTS, spellById, spellColor, equipSpell, cooldownLeft, updateSpellZones, drawSpellZones, drawPlayerSpells, tryCast,
 } from './spells.js';
 import { ELEMENTS } from './elements.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
@@ -32,7 +32,7 @@ import {
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
 import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
-import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE, GRENADE_TYPES } from './grenade.js';
+import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE, GRENADE_TYPES, cycleGrenade } from './grenade.js';
 import { setParryHook } from './parry.js';
 import { updateTraps, drawTrapsBelow, drawTrapsAbove, onTrapKill, setTrapKillHook } from './traps.js';
 import { SPECIAL_ROOMS, randomCurse, CHAMBERS } from './chambers.js';
@@ -121,7 +121,7 @@ function isPortraitTouch() {
 }
 
 function inRun() {
-  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying' || state === 'shrine';
+  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying' || state === 'shrine' || state === 'spellbook';
 }
 
 /**
@@ -166,9 +166,8 @@ function startRun(weapon) {
   initAmbient(world.biome);
 
   world.player = createPlayer(weapon, metaBonuses());
-  world.player.spells = validLoadout(save.loadout);
+  world.player.spells = fullLoadout(save.loadout);
   world.player.grenadeType = GRENADE_TYPES[save.grenadeType] ? save.grenadeType : 'frag';
-  controls.cast.enabled = world.player.spells.length > 0;
   world.depth = 1;
   world.loop = 0;
   // A different order of guardians every run; the Warden always closes it.
@@ -371,6 +370,17 @@ function tick(dt) {
     input.pausePressed = false;
     showPause();
   }
+  // The Spellbook (book button, B): swap equipped spells, the game paused.
+  // Tapping an empty spell slot opens it on that slot.
+  if (state === 'playing' && world.player) {
+    const p = world.player;
+    if (input.spellCast !== null && !p.spells[input.spellCast]) showSpellbook(input.spellCast);
+    else if (input.bookPressed) showSpellbook();
+  }
+  if (state === 'playing' && input.grenadeCycle && world.player) {
+    cycleGrenade(world.player, input.grenadeCycle);
+    save.grenadeType = world.player.grenadeType;
+  }
 
   if (state === 'playing') {
     // Presses are buffered before the hitstop check so a freeze can't eat them.
@@ -382,8 +392,7 @@ function tick(dt) {
       fx.hitstop -= dt;
       updateFx(dt * 0.18);
     } else {
-      // While the spell wheel is open the world runs at 20% speed.
-      const sdt = spellState.wheel ? dt * 0.2 : dt;
+      const sdt = dt;
       world.runTime += sdt;
       updatePlayer(world.player, sdt);
       updateEnemies(sdt);
@@ -442,7 +451,7 @@ function tick(dt) {
   // between rooms, and nowhere else — not on menus, not while paused, and it
   // cuts the instant you die so the death sting lands on silence. Evaluated
   // every tick rather than at each state change, so no transition can forget it.
-  setMusicActive(state === 'playing' || state === 'boon' || state === 'shrine');
+  setMusicActive(state === 'playing' || state === 'boon' || state === 'shrine' || state === 'spellbook');
 
   endFrameInput();
 }
@@ -454,7 +463,7 @@ function render() {
   ctx.fillStyle = '#08060d';
   ctx.fillRect(0, 0, view.w, view.h);
 
-  const inRun = state === 'playing' || state === 'dying' || state === 'boon' || state === 'paused' || state === 'shrine';
+  const inRun = state === 'playing' || state === 'dying' || state === 'boon' || state === 'paused' || state === 'shrine' || state === 'spellbook';
 
   ctx.save();
   ctx.translate(fx.shakeX, fx.shakeY);
@@ -491,7 +500,6 @@ function render() {
   if (inRun) {
     drawHud(ctx, world.runTime);
     if (state === 'playing') drawControls(ctx, world.runTime);
-    if (state === 'playing') drawSpellWheel(ctx, world.player);
     drawLowHealthVignette();
   }
 
@@ -595,7 +603,7 @@ function versionRow() {
     <div class="versions">
       <button class="ver" data-act="version" data-href="../v1/">Version 1<small>8 chambers · 1 boss</small></button>
       <button class="ver" data-act="version" data-href="../">Version 2<small>15 chambers · 5 bosses</small></button>
-      <button class="ver on" data-act="version-here" aria-current="true">Version 3<small>spells · parry · elements</small></button>
+      <button class="ver on" data-act="version-here" aria-current="true">Version 3<small>spells · elements · traps</small></button>
     </div>`;
 }
 
@@ -646,12 +654,15 @@ function showTitle() {
       ${dualSenseRow()}
       <div class="keys">
         <b>Touch</b> — left half drags to move · <kbd>ATK</kbd> attack · <kbd>DASH</kbd> dash ·
-        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim) · <kbd>✧</kbd> parry<br>
+        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim) · <kbd>⟳</kbd> grenade type ·
+        four spell buttons · <kbd>📖</kbd> spellbook<br>
         <b>Keyboard</b> — <kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>click</kbd>/<kbd>J</kbd> attack ·
-        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim) · <kbd>Shift</kbd>/<kbd>L</kbd> parry ·
+        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim) · <kbd>R</kbd>/<kbd>wheel</kbd> grenade type · <kbd>1</kbd>–<kbd>4</kbd> spells ·
+        <kbd>B</kbd> spellbook ·
         <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
         <b>Controller</b> — <kbd>L stick</kbd> move · <kbd>R stick</kbd> aim · <kbd>R2</kbd> attack ·
-        <kbd>L2</kbd> special · <kbd>✕</kbd> dash · <kbd>L1</kbd> parry · <kbd>○</kbd> grenade (hold + R stick) ·
+        <kbd>L2</kbd> special · <kbd>✕</kbd> dash · <kbd>○</kbd> grenade (hold + R stick) · <kbd>L1</kbd> grenade type ·
+        hold <kbd>R1</kbd> + <kbd>✕○□△</kbd> spells ·
         <kbd>Options</kbd> pause
       </div>
     </div>`);
@@ -706,13 +717,20 @@ function showWeaponSelect() {
 
 // --- spell loadout (Version 3) -------------------------------------------------
 
-const LOADOUT_SIZE = 3;
+const LOADOUT_SIZE = SPELL_SLOTS;
 let chosenWeapon = null;
 
 /** The saved loadout, cleaned of unknown ids (a renamed spell can't break a save). */
 function validLoadout(list) {
   const ids = (Array.isArray(list) ? list : []).filter((id) => spellById(id));
   return [...new Set(ids)].slice(0, LOADOUT_SIZE);
+}
+
+/** Exactly four slots for a run; empty ones are null (tap one to fill it). */
+function fullLoadout(list) {
+  const ids = validLoadout(list);
+  while (ids.length < SPELL_SLOTS) ids.push(null);
+  return ids;
 }
 
 function showLoadout() {
@@ -726,19 +744,18 @@ function showLoadout() {
            style="border-color:${c}${on ? 'ee' : '44'}">
         <div class="glyph" style="color:${c}">${sp.glyph}</div>
         <div class="name" style="color:${c}">${sp.name}</div>
-        <div class="tag">${ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : ''} · ${sp.cost} focus</div>
+        <div class="tag">${ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : ''} · ${sp.cd}s cooldown</div>
         <div class="desc">${sp.desc}</div>
       </div>`;
   }).join('');
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">${chosenWeapon ? chosenWeapon.name : ''} · choose three spells</div>
+      <div class="eyebrow">${chosenWeapon ? chosenWeapon.name : ''} · choose four spells to start with</div>
       <h2>Spell Loadout <span style="opacity:.6;font-size:.6em">${chosen.length}/${LOADOUT_SIZE}</span></h2>
-      <p class="sub">Tap CAST to cast the selected spell; hold it to open the wheel (time slows).
+      <p class="sub">Every spell has its own cooldown. You can swap any of them during the run from the
+      Spellbook (the book button, or B). Every grenade type is yours too: switch with TYPE (R, the mouse wheel, L1).
       Elements combine: rain then lightning, frost on the wet, fire on poison… try things.</p>
       <div class="cards">${cards}</div>
-      <h2 style="margin-top:18px;font-size:22px">Grenade</h2>
-      <div class="cards">${grenadeCards()}</div>
       <div class="row">
         <button class="btn" data-act="loadout-go" ${chosen.length ? '' : 'disabled'}>Begin</button>
         <button class="btn ghost" data-act="weapon">Back</button>
@@ -746,15 +763,54 @@ function showLoadout() {
     </div>`);
 }
 
-function grenadeCards() {
-  const cur = GRENADE_TYPES[save.grenadeType] ? save.grenadeType : 'frag';
-  return Object.entries(GRENADE_TYPES).map(([id, g]) => `
-    <div class="card spellcard gcard ${id === cur ? 'picked' : ''}" data-act="grenade-pick" data-g="${id}"
-         style="border-color:${g.color}${id === cur ? 'ee' : '44'}">
-      <div class="glyph" style="color:${g.color}">◉</div>
-      <div class="name" style="color:${g.color}">${g.name}</div>
-      <div class="desc">${g.desc}</div>
-    </div>`).join('');
+
+// --- the Spellbook: swap equipped spells mid-run (the game is paused) -----------
+
+let spellbookSlot = 0;
+
+function showSpellbook(slot = null) {
+  const p = world.player;
+  if (!p) return;
+  state = 'spellbook';
+  if (slot !== null) spellbookSlot = slot;
+  const slots = [];
+  for (let i = 0; i < SPELL_SLOTS; i++) {
+    const sp = spellById(p.spells[i]);
+    const c = sp ? spellColor(sp) : '#ffffff';
+    const on = i === spellbookSlot;
+    slots.push(`
+      <div class="card spellcard sbslot ${on ? 'picked' : ''}" data-act="sb-slot" data-idx="${i}"
+           style="border-color:${c}${on ? 'ee' : '44'}">
+        <div class="tag">SLOT ${i + 1}</div>
+        <div class="glyph" style="color:${c}">${sp ? sp.glyph : '+'}</div>
+        <div class="name" style="color:${c}">${sp ? sp.name : 'Empty'}</div>
+      </div>`);
+  }
+  const cards = SPELLS.map((sp) => {
+    const c = spellColor(sp);
+    const at = p.spells.indexOf(sp.id);
+    const left = cooldownLeft(p, sp.id);
+    const el = ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : '';
+    return `
+      <div class="card spellcard ${at >= 0 ? 'equipped' : ''}" data-act="sb-spell" data-spell="${sp.id}"
+           style="border-color:${c}${at >= 0 ? 'aa' : '44'}">
+        <div class="glyph" style="color:${c}">${sp.glyph}</div>
+        <div class="name" style="color:${c}">${sp.name}</div>
+        <div class="tag">${el} · ${sp.cd}s${at >= 0 ? ` · in slot ${at + 1}` : ''}${left > 0 ? ` · ready in ${Math.ceil(left)}s` : ''}</div>
+        <div class="desc">${sp.desc}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the fight is paused</div>
+      <h2>Spellbook</h2>
+      <p class="sub">Choose a slot, then the spell to put in it. Cooldowns belong to the spell,
+      so swapping never resets one.</p>
+      <div class="cards sbslots">${slots.join('')}</div>
+      <div class="row" style="margin:4px 0 8px"><button class="btn" data-act="sb-done">Back to the fight</button></div>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn" data-act="sb-done">Back to the fight</button></div>
+    </div>`);
 }
 
 // Trap kills: a pop-up (combat → traps), a run tally and a codex count.
@@ -1015,6 +1071,7 @@ function showPause() {
       <h2>Paused</h2>
       <div class="row">
         <button class="btn" data-act="resume">Resume</button>
+        <button class="btn ghost" data-act="spellbook">Spellbook</button>
         <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="abandon">Abandon Run</button>
@@ -1093,12 +1150,24 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       showLoadout();
       break;
     }
-    case 'grenade-pick': {
-      save.grenadeType = el.dataset.g;
-      writeSave();
-      showLoadout();
+    case 'spellbook': showSpellbook(); break;
+    case 'sb-slot': {
+      spellbookSlot = idx;
+      showSpellbook();
       break;
     }
+    case 'sb-spell': {
+      const p = world.player;
+      if (!p) break;
+      equipSpell(p, spellbookSlot, el.dataset.spell);
+      // The next run starts with what you ended up using.
+      save.loadout = p.spells.filter(Boolean);
+      writeSave();
+      spellbookSlot = (spellbookSlot + 1) % SPELL_SLOTS;
+      showSpellbook();
+      break;
+    }
+    case 'sb-done': state = 'playing'; hideOverlay(); resetInput(); break;
     case 'loadout-go': {
       if (!chosenWeapon) { showWeaponSelect(); break; }
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
@@ -1243,14 +1312,14 @@ window.ashfall = {
   area: (el, x, y, r, opts) => elementArea(el, x, y, r, opts),
   surface: (type, x, y, r, owner) => spawnSurface(type, x, y, r, owner),
   applyStatus, REACTIONS,
-  loadout: (ids) => { save.loadout = ids; if (world.player) { world.player.spells = validLoadout(ids); controls.cast.enabled = true; } },
+  loadout: (ids) => { save.loadout = ids; if (world.player) world.player.spells = fullLoadout(ids); },
   cast: (id) => tryCast(world.player, id),
   grenadeType: (id) => { save.grenadeType = id; if (world.player) world.player.grenadeType = id; },
   // Jump to a chamber layout or special room (from the current depth).
   chamber: (id) => { world.depth--; advanceRoom(null, id); },
   special: (kind) => { world.depth--; advanceRoom(kind); },
   CHAMBERS,
-  spellState,
+  spellbook: () => showSpellbook(),
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,

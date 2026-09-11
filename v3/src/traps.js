@@ -397,7 +397,7 @@ export const TRAPS = {
     },
   },
 
-  // Fountain (special chamber): step in once to heal half your health and fill Focus.
+  // Fountain (special chamber): step in once to heal half your health and refresh every spell.
   fountain: {
     init(t) { t.r = 34; t.used = false; },
     update(t) {
@@ -405,7 +405,7 @@ export const TRAPS = {
       if (t.used || !p || p.dead || dist(p.x, p.y, t.x, t.y) > t.r + p.r) return;
       t.used = true;
       p.hp = Math.min(p.stats.maxHp, p.hp + Math.round(p.stats.maxHp * 0.5));
-      if (p.focusMax) p.focus = p.focusMax;
+      if (p.spellCds) for (const id of Object.keys(p.spellCds)) p.spellCds[id] = 0;
       ring(t.x, t.y, { r0: 10, r1: 140, color: '#7dff9c', life: 0.6, width: 8 });
       burst(t.x, t.y, { count: 30, color: '#7dff9c', speed: 260, size: 4, life: 0.6, drag: 3 });
       damageText(p.x, p.y - p.r - 18, 'RESTORED', { color: '#7dff9c', size: 17 });
@@ -444,10 +444,10 @@ export const TRAPS = {
     },
   },
 
-  // Urn: break it for gold, a little health or Focus.
+  // Urn: break it for gold, a little health, or 5 s off your spell cooldowns.
   urn: {
     hittable: true,
-    init(t) { t.r = 13; t.loot = t.loot || (Math.random() < 0.6 ? 'gold' : Math.random() < 0.5 ? 'heal' : 'focus'); },
+    init(t) { t.r = 13; t.loot = t.loot || (Math.random() < 0.6 ? 'gold' : Math.random() < 0.5 ? 'heal' : 'spells'); },
     onHit(t) {
       if (t.dead) return;
       t.dead = true;
@@ -459,7 +459,10 @@ export const TRAPS = {
         spawnPickup({ x: t.x, y: t.y, vx: rand(-60, 60), vy: rand(-60, 60), type: 'heal', value: 8, r: 11 });
       } else {
         const p = world.player;
-        if (p && p.focusMax) { p.focus = Math.min(p.focusMax, (p.focus || 0) + 0.6); damageText(t.x, t.y - 16, '+FOCUS', { color: '#8ef0ff', size: 14 }); }
+        if (p && p.spellCds) {
+          for (const id of Object.keys(p.spellCds)) p.spellCds[id] = Math.max(0, p.spellCds[id] - 5);
+          damageText(t.x, t.y - 16, 'SPELLS −5s', { color: '#8ef0ff', size: 14 });
+        }
       }
     },
     update() {},

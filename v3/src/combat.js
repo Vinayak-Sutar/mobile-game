@@ -13,9 +13,6 @@ import {
   bindCombat, hitElement, damageTakenMult, absorbWard, armorMult, hasStatus, applyStatus,
 } from './elements.js';
 
-// Focus (the spell resource) earned per point of damage dealt: roughly one pip
-// per ~300 damage, i.e. every several seconds of real fighting.
-export const FOCUS_PER_DAMAGE = 1 / 300;
 
 let aegisHook = null;
 let trapKillFn = null;
@@ -105,9 +102,9 @@ export function dealDamage(e, amount, opts = {}) {
   addPoise(e, riposte ? poiseDmg * 3 + 20 : poiseDmg);
   if (riposte) damageText(e.x, e.y - e.r - 22, 'RIPOSTE', { color: '#ffe27a', size: 16 });
 
-  // Hitting things fills Focus, the spell resource.
-  if (p && p.focusMax && !opts.chained) {
-    p.focus = Math.min(p.focusMax, (p.focus || 0) + dmg * FOCUS_PER_DAMAGE * (1 + (st.focusGain || 0)));
+  // Arcane Flow (a boon): every direct hit winds the spell cooldowns down.
+  if (p && st && st.flow && direct && p.spellCds) {
+    for (const id of Object.keys(p.spellCds)) p.spellCds[id] = Math.max(0, p.spellCds[id] - st.flow);
   }
 
   e.hp -= dmg;

@@ -67,7 +67,8 @@ export function updateProjectiles(dt) {
 
     // Homing: hostile shots curve toward the player, friendly ones toward foes.
     if (pr.homing > 0) {
-      const target = pr.friendly ? nearestEnemy(pr.x, pr.y, 520) : p;
+      // A friendly shot may carry its own target (Minor Missiles spread out).
+      const target = pr.friendly ? (pr.target && !pr.target.dead ? pr.target : nearestEnemy(pr.x, pr.y, 520)) : p;
       if (target) {
         const cur = Math.atan2(pr.vy, pr.vx);
         const want = angleTo(pr.x, pr.y, target.x, target.y);
@@ -184,6 +185,7 @@ export function updateProjectiles(dt) {
         else { consumed = true; break; }
       }
       if (consumed) {
+        if (pr.onExpire) pr.onExpire(pr);     // a Fireball bursts on the foe it hits
         fizzle(pr);
         world.projectiles.splice(i, 1);
         continue;
@@ -268,11 +270,10 @@ export function breakBulletsNear(x, y, r, p) {
   }
 }
 
-/** Remove one enemy bullet with a satisfying pop, and pay out a little Focus. */
+/** Remove one enemy bullet with a satisfying pop. */
 export function breakBullet(pr, p) {
   pr.cleared = true;
   burst(pr.x, pr.y, { count: 5, color: pr.color, speed: 200, size: 2.6, life: 0.22, drag: 6, shape: 'spark' });
-  if (p && p.focusMax) p.focus = Math.min(p.focusMax, (p.focus || 0) + 0.1);
   if (p) p.bulletsBroken = (p.bulletsBroken || 0) + 1;
   const now = world.runTime;
   if (now - breakSfxAt > 0.06) { breakSfxAt = now; sfx.tink(); }

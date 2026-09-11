@@ -13,7 +13,7 @@ import { world, arenaBounds } from './state.js';
 import { TAU, clamp, dist, angleTo, rand, normalize } from './util.js';
 import { input } from './input.js';
 import { explode, nearestEnemy } from './combat.js';
-import { burst, ring, shake } from './fx.js';
+import { burst, ring, shake, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { elementArea } from './elements.js';
 import { spawnSurface } from './surfaces.js';
@@ -32,7 +32,8 @@ export const GRENADE = {
 };
 
 /**
- * Version 3 grenade types (one is picked on the loadout screen). Each blast
+ * Version 3 grenade types. All of them are always available and share the
+ * same charges; the TYPE button (R, the mouse wheel, L1) steps through them. Each blast
  * applies its element through elementArea (so reactions happen) and can leave
  * a surface. Frag is the original. To add one: an entry here.
  */
@@ -52,6 +53,17 @@ export const GRENADE_TYPES = {
   oil:   { name: 'Oil Flask',   color: '#9a7cd8', element: null,    damage: 14, radius: 125, surface: 'oil', surfaceR: 130,
            desc: 'A wide oil slick that slows. Any fire turns it into an Inferno.' },
 };
+
+/** Step to the next (or previous) grenade type, with a label over the player. */
+export function cycleGrenade(p, step = 1) {
+  if (!p) return;
+  const ids = Object.keys(GRENADE_TYPES);
+  const i = Math.max(0, ids.indexOf(p.grenadeType || 'frag'));
+  p.grenadeType = ids[(i + step + ids.length * 4) % ids.length];
+  const t = GRENADE_TYPES[p.grenadeType];
+  damageText(p.x, p.y - p.r - 22, t.name.toUpperCase(), { color: t.color, size: 15 });
+  sfx.ui();
+}
 
 export function grenadeType(p) {
   return GRENADE_TYPES[(p && p.grenadeType) || 'frag'] || GRENADE_TYPES.frag;

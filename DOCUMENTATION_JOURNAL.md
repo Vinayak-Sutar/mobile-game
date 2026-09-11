@@ -1088,6 +1088,12 @@ V3 toolbox.
 
 ### 13.1 Milestone 2 — parry, posture, projectile counters (done)
 
+> **Parry is switched off since 13.6** (`PARRY_ENABLED = false` in
+> `parry.js`): the owner found it didn't work well without enemies built
+> for it. The code below is intact; flipping the flag brings back the
+> button, the keys, the glints and the parry boons. Posture, bullet
+> breaking and the input buffer are unaffected.
+
 - **Input** (`input.js`, `gamepad.js`): new roles `parry` and `cast`. Touch:
   a PARRY button (✧) at `(w-222, h-54)` r34; CAST (✺) at `(w-46, h-200)`,
   hidden until spells exist (`controls.cast.enabled`). Keyboard: Shift or L =
@@ -1409,6 +1415,78 @@ V3 toolbox.
   - A trap kill is counted.
   - Full 15-chamber runs on all 4 weapons taking the first door and again
     taking the last (special) door: 0 errors, all victories.
+
+### 13.6 Spell rework after the owner's phone test (done)
+
+The owner tested M2–M6 and asked for: no parry, per-spell cooldowns, more
+spells equipped, any grenade at any time, spells in the style of Avowed.
+Their answers: cooldowns only (Focus removed), 4 slots with every spell
+swappable mid-run, grenades sharing one set of charges, and new spells in
+this same round.
+
+- **Parry off:** `PARRY_ENABLED = false` in `parry.js` (see the note in
+  13.1). `canParry`/`isParrying` return false, `setParryCues(false)` makes
+  every `parryCue()` a no-op, and boons marked `needs: 'parry'` (Thunder
+  Parry, Glacial Parry, Killing Riposte, Still Mind) are never offered.
+  Shift is the special again.
+- **Focus removed.** Every spell has its own cooldown (`cd` in `SPELLS`,
+  6–24 s; `p.spellCds[id]`). It belongs to the spell, so swapping slots
+  never resets it. A 0.3 s global cooldown between casts. Tapping a spell
+  that is recharging flashes a red ring.
+  - Deep Well is now −15% spell cooldowns (max 3; capped at −60% in
+    total). Arcane Flow is now: each direct hit takes 0.1 s per level off
+    every cooldown.
+  - Fountains refresh all spells; urn "spells" loot takes 5 s off.
+- **Four slots, any spell:** `SPELL_SLOTS = 4`, and `p.spells` always has 4
+  entries (`null` = empty). The loadout screen picks the starting four
+  (`save.loadout`, default Fireball, Stormcall, Gale, Downpour).
+  - The **Spellbook** (state `'spellbook'`, the game paused) opens from
+    the book button, **B**, the pause menu, or by tapping an empty slot.
+    Tap a slot, then a spell; `equipSpell()` swaps if that spell is in
+    another slot. The final set is saved as the next run's loadout.
+  - The spell wheel and its slow motion are gone.
+- **Casting** (Avowed's grimoire layout):
+  - Touch: four spell buttons arc up the right edge above SPEC (r30,
+    positions in `layoutControls`, checked at the phone's 1298×600 view).
+    Each shows the glyph when ready and the seconds left while recharging.
+  - Keyboard: 1–4.
+  - Pad: hold **R1** and press ✕ ○ □ △ for slots 1–4; while R1 is held
+    those buttons do not dash, attack, throw or special.
+  - Touch taps pick the nearest button relative to its size
+    (`pickButton`), so the tight cluster never steals taps.
+- **New spells** (Avowed-inspired):
+  - **Fireball** (8 s): bursts on the first foe or wall, a 105 blast for 30
+    (heavy) and lingering flames. Friendly projectiles now run `onExpire`
+    when they hit a foe.
+  - **Minor Missiles** (7 s): five homing missiles, each assigned a
+    different nearby foe (`pr.target`, new in the homing code).
+  - **Corrosive Siphon** (12 s): a 1.6 s channelled beam into the nearest
+    foe; it poisons, and heals you for half the damage dealt.
+  - **Meteor Shower** (24 s): 7 meteors over 2.5 s in r150, each marked
+    0.7 s ahead; 26 heavy fire and a fire patch each.
+  - Every spell has a `short` label for its button.
+- **Grenades:** all 7 types are always available and share the charges.
+  `cycleGrenade()`: the TYPE button (⟳, beside BOMB), **R** or the mouse
+  wheel, **L1** on a pad. The last type used is remembered
+  (`save.grenadeType`). The grenade picker is gone from the loadout screen.
+- **Desktop HUD:** four slot icons with cooldown sweeps and key or face
+  labels, and the grenade type name next to its pips.
+- **Verified:**
+  - Casting through the input path: Fireball 48 on its target plus
+    flames; Missiles hit 3 foes (33/32/11); Siphon dealt 47 and healed
+    20.5; Meteor dealt 103. A second tap while recharging is refused.
+  - 300 boon offers contain no parry boons, and no cues are spawned.
+  - Touch taps (synthetic touch pointer events; `setPointerCapture` has to
+    be stubbed for synthetic events): a spell button casts, TYPE cycles,
+    an empty slot opens the Spellbook on that slot. Assigning and swapping
+    work, and the cooldown survives the swap.
+  - Full 15-chamber runs on all 4 weapons with 4 different loadouts
+    (together all 14 spells, 44–64 casts per run) and all 7 grenade types:
+    0 errors, all victories.
+  - Bot quirk: a bot that re-picks its door every tick oscillates between
+    two doors forever. Pick once per room.
+- **Not in this round:** the new enemies (`bestiary.js`, `affixes.js`)
+  are drafted but not wired in or committed. They wait for the owner's go.
 
 ## 12. Glossary
 

@@ -34,8 +34,8 @@ export const pad = {
   special: false, specialPressed: false,
   dash: false, dashPressed: false,
   grenade: false, grenadePressed: false,
-  parry: false, parryPressed: false,
-  cast: false, castPressed: false,
+  spellPressed: null,          // slot 0-3 cast this frame (R1 + a face button)
+  grenadeCyclePressed: false,  // L1
   aimPush: 0,
   pausePressed: false,
   mutePressed: false,
@@ -73,7 +73,7 @@ export function initGamepad({ pause, mute } = {}) {
 function clearPad() {
   pad.move.x = pad.move.y = 0;
   pad.aimActive = false;
-  pad.attack = pad.special = pad.dash = pad.grenade = pad.parry = pad.cast = false;
+  pad.attack = pad.special = pad.dash = pad.grenade = false;
   prev = [];
 }
 
@@ -121,7 +121,6 @@ function pressed(gp, i) {
 export function pollGamepad(overlayOpen) {
   pad.attackPressed = pad.specialPressed = pad.dashPressed = false;
   pad.grenadePressed = false;
-  pad.parryPressed = pad.castPressed = false;
   pad.pausePressed = pad.mutePressed = false;
   pad.confirmPressed = pad.backPressed = false;
 
@@ -161,20 +160,25 @@ export function pollGamepad(overlayOpen) {
     }
   }
 
-  pad.attack = held(gp, BTN.R2) || held(gp, BTN.SQUARE);
-  pad.special = held(gp, BTN.L2) || held(gp, BTN.TRIANGLE);
-  pad.dash = held(gp, BTN.CROSS);
-  pad.grenade = held(gp, BTN.CIRCLE);
-  // Version 3: L1 parries, R1 casts (hold R1 + right stick for the spell wheel).
-  pad.parry = held(gp, BTN.L1);
-  pad.cast = held(gp, BTN.R1);
+  // Version 3, Avowed's grimoire layout: hold R1 and the face buttons cast
+  // the four spells (✕ ○ □ △ = slots 1-4) instead of their usual actions.
+  // L1 steps through the grenade types.
+  const grimoire = held(gp, BTN.R1);
+  pad.attack = held(gp, BTN.R2) || (!grimoire && held(gp, BTN.SQUARE));
+  pad.special = held(gp, BTN.L2) || (!grimoire && held(gp, BTN.TRIANGLE));
+  pad.dash = !grimoire && held(gp, BTN.CROSS);
+  pad.grenade = !grimoire && held(gp, BTN.CIRCLE);
 
-  pad.attackPressed = pressed(gp, BTN.R2) || pressed(gp, BTN.SQUARE);
-  pad.specialPressed = pressed(gp, BTN.L2) || pressed(gp, BTN.TRIANGLE);
-  pad.dashPressed = pressed(gp, BTN.CROSS);
-  pad.grenadePressed = pressed(gp, BTN.CIRCLE);
-  pad.parryPressed = pressed(gp, BTN.L1);
-  pad.castPressed = pressed(gp, BTN.R1);
+  pad.attackPressed = pressed(gp, BTN.R2) || (!grimoire && pressed(gp, BTN.SQUARE));
+  pad.specialPressed = pressed(gp, BTN.L2) || (!grimoire && pressed(gp, BTN.TRIANGLE));
+  pad.dashPressed = !grimoire && pressed(gp, BTN.CROSS);
+  pad.grenadePressed = !grimoire && pressed(gp, BTN.CIRCLE);
+  if (grimoire) {
+    const face = [BTN.CROSS, BTN.CIRCLE, BTN.SQUARE, BTN.TRIANGLE];
+    for (let i = 0; i < face.length; i++) if (pressed(gp, face[i])) pad.spellPressed = i;
+  }
+  pad.grimoire = grimoire;
+  if (pressed(gp, BTN.L1)) pad.grenadeCyclePressed = true;
   pad.pausePressed = pressed(gp, BTN.OPTIONS);
   pad.mutePressed = pressed(gp, BTN.CREATE);
   pad.confirmPressed = pressed(gp, BTN.CROSS);
@@ -187,9 +191,10 @@ export function pollGamepad(overlayOpen) {
     // In a menu the sticks drive focus, not the character.
     navigateMenu(gp);
     pad.move.x = pad.move.y = 0;
-    pad.attack = pad.special = pad.dash = pad.grenade = pad.parry = pad.cast = false;
+    pad.attack = pad.special = pad.dash = pad.grenade = false;
     pad.attackPressed = pad.specialPressed = pad.dashPressed = pad.grenadePressed = false;
-    pad.parryPressed = pad.castPressed = false;
+    pad.spellPressed = null;
+    pad.grenadeCyclePressed = false;
   } else {
     focusIndex = 0;
     if (pad.pausePressed && onPause) onPause();

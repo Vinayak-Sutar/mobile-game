@@ -83,8 +83,12 @@ export function damageText(x, y, text, opts = {}) {
  * hit lands. 'red': a ⚠ at the start of an unparryable wind-up (dash instead).
  * Follows the entity while it lasts.
  */
+let cuesOn = true;
+/** parry.js turns the cues off while parry is disabled. */
+export function setParryCues(on) { cuesOn = !!on; }
+
 export function parryCue(ent, kind = 'white') {
-  if (!ent) return;
+  if (!ent || !cuesOn) return;
   const life = kind === 'white' ? 0.24 : 0.55;
   fx.cues.push({ ent, kind, life, maxLife: life });
 }
