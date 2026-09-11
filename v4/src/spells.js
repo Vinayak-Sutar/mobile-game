@@ -11,7 +11,8 @@
 //   wind      → knockback;  earth → a wall;  poison → drains health to you
 //   arcane / void → no status, just what the spell does
 //
-// Each spell has its own cooldown. Casting: touch = the four buttons in the
+// Each spell has its own cooldown (doubled after the first phone test, at
+// the owner's request: spells are strong, so they should be rarer). Casting: touch = the four buttons in the
 // bottom row; keyboard = 1-4; controller = hold R1 and press ✕ ○ □ △.
 //
 // To add a spell: one entry in SPELLS
@@ -74,7 +75,7 @@ export function stun(e, time = 0.35) {
 
 export const SPELLS = [
   {
-    id: 'fireball', name: 'Fireball', short: 'FIREBALL', element: 'fire', cd: 8, glyph: '☄', aim: 'cone',
+    id: 'fireball', name: 'Fireball', short: 'FIREBALL', element: 'fire', cd: 16, glyph: '☄', aim: 'cone',
     desc: 'Hurl a ball of fire that bursts on the first foe or wall it hits, burning everything in the blast.',
     up: '+30% damage, bigger blast',
     cast(p, aim, target, lv) {
@@ -89,13 +90,13 @@ export const SPELLS = [
     },
   },
   {
-    id: 'breath', name: "Dragon's Breath", short: 'BREATH', element: 'fire', cd: 9, glyph: '♨', aim: 'cone',
+    id: 'breath', name: "Dragon's Breath", short: 'BREATH', element: 'fire', cd: 18, glyph: '♨', aim: 'cone',
     desc: 'Channel a cone of fire for a second. Everything caught burns, and small bullets burn away.',
     up: '+30% damage, a longer channel',
     cast(p, aim, target, lv) { p.channel = { id: 'breath', t: 1.0 + 0.2 * (lv - 1), tick: 0, lv }; sfx.whirr(); },
   },
   {
-    id: 'meteor', name: 'Meteor Shower', short: 'METEOR', element: 'fire', cd: 24, glyph: '✹', aim: 'place',
+    id: 'meteor', name: 'Meteor Shower', short: 'METEOR', element: 'fire', cd: 48, glyph: '✹', aim: 'place',
     desc: 'Call down meteors over an area. Each impact is marked on the floor first, hits hard and burns.',
     up: '+2 meteors, +30% damage',
     cast(p, aim, target, lv) {
@@ -105,7 +106,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'nova', name: 'Frost Nova', short: 'NOVA', element: 'ice', cd: 9, glyph: '❄', aim: 'self',
+    id: 'nova', name: 'Frost Nova', short: 'NOVA', element: 'ice', cd: 18, glyph: '❄', aim: 'self',
     desc: 'A ring of frost bursts out from you, pushing foes back and slowing them to half speed.',
     up: '+30% damage, a wider ring, a longer slow',
     cast(p, aim, target, lv) {
@@ -121,7 +122,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'shards', name: 'Ice Shards', short: 'SHARDS', element: 'ice', cd: 6, glyph: '✧', aim: 'cone',
+    id: 'shards', name: 'Ice Shards', short: 'SHARDS', element: 'ice', cd: 12, glyph: '✧', aim: 'cone',
     desc: 'Fire a spread of ice shards that pierce through foes, slowing each one they hit.',
     up: '+2 shards, +30% damage',
     cast(p, aim, target, lv) {
@@ -139,7 +140,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'lightning', name: 'Chain Lightning', short: 'CHAIN', element: 'lightning', cd: 7, glyph: 'ϟ', aim: 'target',
+    id: 'lightning', name: 'Chain Lightning', short: 'CHAIN', element: 'lightning', cd: 14, glyph: 'ϟ', aim: 'target',
     desc: 'Lightning strikes the nearest foe and leaps between enemies, stunning each for a moment.',
     up: '+1 leap, +30% damage',
     cast(p, aim, target, lv) {
@@ -160,7 +161,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'missiles', name: 'Minor Missiles', short: 'MISSILES', element: 'arcane', cd: 7, glyph: '✦', aim: 'self',
+    id: 'missiles', name: 'Minor Missiles', short: 'MISSILES', element: 'arcane', cd: 14, glyph: '✦', aim: 'self',
     desc: 'Arcane missiles fan out and seek your foes, spreading across different targets when they can.',
     up: '+1 missile, +30% damage',
     cast(p, aim, target, lv) {
@@ -182,7 +183,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'gale', name: 'Gale', short: 'GALE', element: 'wind', cd: 6, glyph: '༄', aim: 'cone',
+    id: 'gale', name: 'Gale', short: 'GALE', element: 'wind', cd: 12, glyph: '༄', aim: 'cone',
     desc: 'A blast of wind hurls foes back (slamming them into walls), interrupts their attacks and blows enemy bullets away.',
     up: '+30% damage, a wider blast',
     cast(p, aim, target, lv) {
@@ -211,13 +212,13 @@ export const SPELLS = [
     },
   },
   {
-    id: 'siphon', name: 'Corrosive Siphon', short: 'SIPHON', element: 'poison', cd: 12, glyph: '⚕', aim: 'self',
+    id: 'siphon', name: 'Corrosive Siphon', short: 'SIPHON', element: 'poison', cd: 24, glyph: '⚕', aim: 'self',
     desc: 'Channel a draining beam into the nearest foe for 1.6 s. It heals you for half the damage it deals.',
     up: '+30% damage and healing',
     cast(p, aim, target, lv) { p.channel = { id: 'siphon', t: 1.6, tick: 0, target: null, healed: 0, lv }; sfx.whirr(); },
   },
   {
-    id: 'aegis', name: 'Aegis', short: 'AEGIS', element: 'arcane', cd: 16, glyph: '◎', aim: 'self',
+    id: 'aegis', name: 'Aegis', short: 'AEGIS', element: 'arcane', cd: 32, glyph: '◎', aim: 'self',
     desc: 'A shield that absorbs the next 2 hits, then bursts outward, knocking foes back and destroying nearby bullets.',
     up: '+1 hit absorbed (level 3), a stronger burst',
     cast(p, aim, target, lv) {
@@ -227,7 +228,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'sigil', name: 'Sigil of Stillness', short: 'SIGIL', element: 'arcane', cd: 16, glyph: '⌬', aim: 'place',
+    id: 'sigil', name: 'Sigil of Stillness', short: 'SIGIL', element: 'arcane', cd: 32, glyph: '⌬', aim: 'place',
     desc: 'A glyph on the floor for 7 s: foes inside move at half speed, and enemy bullets crossing it crawl at a quarter.',
     up: 'Lasts 2 s longer, a bigger glyph',
     cast(p, aim, target, lv) {
@@ -238,7 +239,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'singularity', name: 'Singularity', short: 'VOID', element: 'void', cd: 18, glyph: '◉', aim: 'place',
+    id: 'singularity', name: 'Singularity', short: 'VOID', element: 'void', cd: 36, glyph: '◉', aim: 'place',
     desc: 'A black hole for 2.5 s: pulls foes and enemy bullets in (bullets are swallowed), then implodes.',
     up: '+30% implosion damage, a stronger pull',
     cast(p, aim, target, lv) {
@@ -247,7 +248,7 @@ export const SPELLS = [
     },
   },
   {
-    id: 'bulwark', name: 'Earthen Bulwark', short: 'WALL', element: 'earth', cd: 10, glyph: '▥', aim: 'cone',
+    id: 'bulwark', name: 'Earthen Bulwark', short: 'WALL', element: 'earth', cd: 20, glyph: '▥', aim: 'cone',
     desc: 'Raise a stone wall in front of you for 5 s. It blocks bullets and bodies, then shatters outward into rock shards.',
     up: 'A longer wall that stands 2 s longer',
     cast(p, aim, target, lv) {

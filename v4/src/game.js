@@ -871,7 +871,7 @@ function showTrials() {
       <div class="eyebrow">practice · nothing is banked</div>
       <h2>Boss Trials</h2>
       <p class="sub">Fight any guardian on its own, with a few boons to start.
-      In a real run they guard chambers 3, 6, 9 and 12 in a random order; the Warden waits at 15.</p>
+      In a real run four of them guard chambers 3, 6, 9 and 12, in a random order; the Warden waits at 15.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
     </div>`);

@@ -5,7 +5,7 @@ import { offerSpells } from './spells.js';
 import { world, arena, arenaBounds } from './state.js';
 import { TAU, rand, randInt, pick, chance, clamp, dist, roundRect, polygon } from './util.js';
 import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
-import { CREATURE_BOSSES, BOSS_INFO } from './bosses.js';
+import { CREATURE_BOSSES, BOSS_INFO, BOSS_DEFS } from './bosses.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
@@ -52,7 +52,7 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     // Boss slot 0-3 for the creatures, 4 for the Warden: drives their scaling.
     bossSlot: isBoss ? (opts.slot ?? Math.min(4, Math.round(depth / BOSS_EVERY) - 1)) : 0,
     final: bossType === 'warden',
-    obstacles: isBoss ? bossObstacles() : makeObstacles(eff),
+    obstacles: isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
     waves: isBoss ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,
     waveDelay: 0.6,
@@ -85,6 +85,16 @@ function makeObstacles(depth) {
     out.push(rect);
   }
   return out;
+}
+
+/** A boss spec may lay out its own arena (Vesper's crates). */
+function bossArena(type) {
+  const spec = BOSS_DEFS[type] && BOSS_DEFS[type].spec;
+  return spec && spec.arena ? spec.arena() : null;
+}
+
+function bossSpec(room) {
+  return room && room.bossType && BOSS_DEFS[room.bossType] ? BOSS_DEFS[room.bossType].spec : null;
 }
 
 function bossObstacles() {
@@ -362,12 +372,51 @@ export function drawFloor(ctx, time) {
   ctx.strokeStyle = biome.accent + '20';
   ctx.lineWidth = 16;
   ctx.strokeRect(b.l - 10, b.t - 10, arena.w + 20, arena.h + 20);
+  // A boss may paint its own arena over the floor (Vesper's sun-baked square).
+  const spec = bossSpec(room);
+  if (spec && spec.drawArena) spec.drawArena(ctx, room, time);
+}
+
+/**
+ * Breakable cover: a wooden crate. Every projectile that hits it chips it
+ * (projectiles.js); big hits (dynamite, High Noon) smash it at once.
+ */
+function drawCrate(ctx, o) {
+  const k = clamp(o.hp / (o.maxHp || 1), 0, 1);
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  roundRect(ctx, o.x + 4, o.y + 8, o.w, o.h, 4);
+  ctx.fill();
+  ctx.fillStyle = world.runTime - (o.hitAt ?? -9) < 0.08 ? '#fff0d0' : '#8a5a32';
+  roundRect(ctx, o.x, o.y, o.w, o.h, 4);
+  ctx.fill();
+  ctx.fillStyle = '#a8703e';
+  roundRect(ctx, o.x + 4, o.y + 4, o.w - 8, o.h * 0.3, 3);
+  ctx.fill();
+  ctx.strokeStyle = '#3a2210';
+  ctx.lineWidth = 3;
+  roundRect(ctx, o.x, o.y, o.w, o.h, 4);
+  ctx.stroke();
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(o.x + 5, o.y + 5); ctx.lineTo(o.x + o.w - 5, o.y + o.h - 5);
+  ctx.moveTo(o.x + o.w - 5, o.y + 5); ctx.lineTo(o.x + 5, o.y + o.h - 5);
+  ctx.stroke();
+  // Cracks as it takes hits.
+  if (k < 0.7) {
+    ctx.strokeStyle = '#1a0e06';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.w * 0.2, o.y + o.h * 0.1); ctx.lineTo(o.x + o.w * 0.35, o.y + o.h * 0.45); ctx.lineTo(o.x + o.w * 0.25, o.y + o.h * 0.7);
+    if (k < 0.4) { ctx.moveTo(o.x + o.w * 0.8, o.y + o.h * 0.2); ctx.lineTo(o.x + o.w * 0.6, o.y + o.h * 0.55); ctx.lineTo(o.x + o.w * 0.75, o.y + o.h * 0.9); }
+    ctx.stroke();
+  }
 }
 
 export function drawObstacles(ctx) {
   const room = world.room;
   if (!room) return;
   for (const o of room.obstacles) {
+    if (o.crate) { drawCrate(ctx, o); continue; }
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     roundRect(ctx, o.x + 4, o.y + 8, o.w, o.h, 8);
     ctx.fill();

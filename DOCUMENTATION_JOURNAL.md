@@ -1587,6 +1587,100 @@ only this added. V3 stays playable but is no longer the main line of work.
     0 errors, all victories, 5–9 Spell doors per run.
   - V2 still runs; all switcher links are correct.
 
+### 14.2 Step 2 — Deadeye Vesper, the boss kit, spell cooldowns ×2 (done)
+
+The owner asked for the IDEAS.md bosses with many moves, a second phase at
+half health with its own transformation, anti-cheese design and an artistic
+feel. **One boss per step**: Vesper went first, as the template for the rest.
+The regular enemies wait their turn.
+
+- **Spell cooldowns doubled** (owner's call): e.g. Fireball 16 s, Meteor
+  48 s.
+- **`boss-kit.js`** (new): the shared boss brain moved out of `bosses.js`.
+  It holds `shot`/`fanShot`/`ringShot`, `act`/`sub`/`idle`/`expose`, `runBoss`
+  with phases, `shockwave`/`lob`/`lane`, and bullet clearing. The four
+  creatures stay in `bosses.js`; each new boss is its own `boss-<name>.js`
+  exporting a spec, registered in `BOSS_DEFS` / `BOSS_INFO` /
+  `CREATURE_BOSSES`.
+  - New optional spec hooks: `init(e)`; `tick(e, dt, p)` every frame;
+    `phaseTime` + `phaseAnim(e, dt, p, k)` for a long animated phase
+    change; `arena()` returns the room's obstacles; `draw` draws the boss
+    itself (no rig needed); `drawExtras(e, ctx, t)` for props and
+    telegraphs; `drawArena(ctx, room, t)` paints the floor.
+- **Guardian pool:** `CREATURE_BOSSES` now holds 5 bosses; 4 are drawn per
+  run for chambers 3/6/9/12. Boss Trials lists all of them.
+- **Breakable crates** (a generic obstacle: `crate: true, hp, maxHp`).
+  Every projectile that hits one chips 1 (`pr.crateDmg` for more, 99 =
+  smash and stop the shot). `breakCrate()` is in `projectiles.js`; they are
+  drawn as wooden crates with cracks.
+- **New projectile shape `'bullet'`:** a brass slug with a smoke streak.
+  **New sounds:** `sfx.gunshot`, `sfx.bell`, `sfx.click`.
+- **Vesper (`boss-vesper.js`):** 1150 HP at slot 0, r 26, 15 moves. The
+  core rhythm: a 6-shot cylinder shown as pips above her; every revolver
+  shot spends one, and an empty gun means a forced **Reload** (EXPOSED
+  1.5 s, the punish).
+  - **Phase 1:** Quick Draw (a tracking line that locks, then a fast shot),
+    Fan the Hammer (the whole cylinder in a fan), Ricochet (a bank shot
+    whose full path is drawn first; the simulation steps the same physics
+    as `projectiles.js`, so the bullet deviates 0 u from the drawing),
+    Dynamite (a lob that smashes crates), Quick-Draw Roll (untouchable,
+    then a snap shot), Lasso (a whirl, a thrown loop; if it catches you,
+    **dash to break free**, else a point-blank Coach Gun), Coach Gun (a
+    close cone of 9 pellets), Spur Kick (only when you hug her), Coin Toss
+    (a trick shot around cover), **High Noon** (the signature below), and
+    Deadeye (the phase-1 barrage: five fanned volleys from the top wall,
+    a marked landing, EXPOSED 2.2 s).
+  - **High Noon:** the floor darkens and the bell tolls three times. Her
+    sight line turns at 1.5 rad/s, slower than you can run, and locks
+    0.3 s before the third bell; then a 950 u/s shot. Crates stop it and
+    shatter.
+  - **Phase 2 "Sundown"** at 50%: a 3.4 s transformation. She staggers, the
+    hat flies off (revealing silver hair and red eyes), the square turns to
+    dusk with a setting sun, the bell tolls twice, a second revolver comes
+    out, and "SUNDOWN" appears. She now has 12 shots and fresh crates drop
+    in. New moves: Smoke & Mirrors (hidden; six shots from around you,
+    each line drawn first), Dance (three rippling lines of marked shots at
+    your feet), and **Sundown** (the barrage: four counter-rotating spiral
+    arms at 1.15 rad/s, a volley every 0.16 s, ~40 u gaps). Phase-1 moves
+    get harder: a double tap, crossing fans, two ricochets, three coins,
+    cluster dynamite, a second High Noon shot.
+  - **Anti-cheese** (she reads the player in `tick`):
+    - Hugging her (0.45 s within 110 u) → Spur Kick, the Coach Gun, a Roll.
+    - Kiting (1.5 s beyond 390 u) → the Lasso, Ricochets, Coins.
+    - Hiding behind cover (0.9 s out of sight) → Dynamite, Coins,
+      Ricochets.
+    - A burst of damage (4.5% of max HP) while she's idle → she rolls out.
+    - She **leads her aimed shots** (up to 80% of your velocity); the locked
+      line still shows exactly where the shot goes.
+  - **Art:** she is drawn in `spec.draw` (a poncho diamond, a wide hat with
+    a brass band, a streaming scarf, guns with recoil). `drawArena` adds
+    sand, wagon ruts, a boardwalk, tumbleweeds, the bell on a post, the
+    dusk tint and sun, and the High Noon dark.
+- **Verified:**
+  - All 15 moves run to completion with no errors.
+  - Ricochet deviation 0 u over 150 frames. A dash breaks the lasso.
+    Crates break.
+  - The phase change: hat off, dusk to 1.0, 2 guns, 12 shots, crates
+    refilled 2 → 4.
+  - Cheese bots: the hugger drew Kick ×5, Roll ×3, Coach; the kiter drew
+    Lasso ×2 (each into the Coach Gun), Ricochet, Dynamite; the camper drew
+    Ricochet ×5, Dynamite ×4, Coin ×3.
+  - Damage per minute, phase 1 / phase 2, by player skill:
+
+    | Player bot | Phase 1 | Phase 2 |
+    | --- | --- | --- |
+    | Standing still | 201 | 258 |
+    | Circling on autopilot | 54 | 114 |
+    | Human-like (0.25 s reactions) | 30 | 77 |
+    | Expert (reads lines, dashes) | 0 | 8 |
+
+    Fair (the expert avoids everything), and phase 2 is harder. Her rests
+    were shortened slightly after this measurement. **Needs the owner's
+    playtest for the difficulty.**
+  - All six guardians are fought to death in trials with no errors (the kit
+    split is safe).
+  - Full runs on all 4 weapons: 0 errors, Vesper drawn in every run.
+
 ## 12. Glossary
 
 | Term | Meaning |

@@ -41,6 +41,10 @@ test them.
 ## Bosses
 
 ### 1. Deadeye Vesper, the Last Bullet — gunslinger
+> **Built in Version 4** (`v4/src/boss-vesper.js`, journal §14.2), reworked for V4's tools:
+> no parry or elements, so she's a six-shot rhythm with reloads, a lasso you dash out of,
+> coin trick-shots, breakable crates and a "Sundown" second phase. The notes below are the
+> original design.
 *"Six shots. You get one chance to answer each."*
 - **Arena:** a sun-bleached ghost-town square in the underworld. Wooden crates (cover that
   **breaks** after a few hits), a water trough, a hanging bell, swinging saloon doors on

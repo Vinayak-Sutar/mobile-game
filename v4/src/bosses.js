@@ -26,306 +26,15 @@ import { sfx } from './audio.js';
 import { player, strafe, collideWorld, contactDamage } from './ai.js';
 import { spawnHazard, clearHazards } from './hazards.js';
 
-const BULLET_CAP = 170;
-const PI = Math.PI;
-
-let spawnEnemyFn = null;
-/** enemies.js hands over its factory, so this module needn't import it back. */
-export function bindBossSpawner(fn) { spawnEnemyFn = fn; }
-
-// --- bullets ------------------------------------------------------------------
-
-let liveBullets = 0;
-function countBullets() {
-  let n = 0;
-  for (const pr of world.projectiles) if (!pr.friendly && !pr.cleared) n++;
-  liveBullets = n;
-}
-
-/**
- * Fire one enemy bullet from a boss (or minion). Returns null, silently,
- * once the screen holds BULLET_CAP enemy bullets.
- * o: { x, y, off, r, dmg (x owner damage), color, shape, life, extra }
- */
-function shot(e, a, speed, o = {}) {
-  if (liveBullets >= BULLET_CAP) return null;
-  liveBullets++;
-  const off = o.off ?? e.r * 0.8;
-  const x = (o.x ?? e.x) + Math.cos(a) * off;
-  const y = (o.y ?? e.y) + Math.sin(a) * off;
-  return spawnProjectile({
-    x, y,
-    vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
-    r: o.r ?? 8,
-    damage: Math.max(1, Math.round(e.damage * (o.dmg ?? 0.45))),
-    color: o.color ?? e.color,
-    shape: o.shape ?? 'orb',
-    life: o.life ?? 5,
-    srcType: e.summoner ? e.summoner.type : e.type,
-    quiet: true,
-    trailEvery: 999,
-    knockback: 0,
-    ...(o.extra || {}),
-  });
-}
-
-function ringShot(e, n, speed, offset, o = {}) {
-  for (let k = 0; k < n; k++) {
-    const a = offset + (k / n) * TAU;
-    if (o.gapA !== undefined && Math.abs(angleDiff(o.gapA, a)) < (o.gapW || 0.6) / 2) continue;
-    shot(e, a, speed, o);
-  }
-}
-
-function fanShot(e, n, spread, center, speed, o = {}) {
-  for (let k = 0; k < n; k++) {
-    const a = n === 1 ? center : center + (k / (n - 1) - 0.5) * spread;
-    shot(e, a, speed, o);
-  }
-}
-
-/** Remove every enemy bullet and hazard (phase change, boss death). */
-export function clearBullets() {
-  let shown = 0;
-  for (const pr of world.projectiles) {
-    if (pr.friendly || pr.cleared) continue;
-    // Flagged rather than spliced: this can run from inside the projectile
-    // loop (a boss killed by an arrow), which must not have its array shrink.
-    pr.cleared = true;
-    if (shown++ < 36) {
-      burst(pr.x, pr.y, { count: 2, color: pr.color, speed: 90, size: 3, life: 0.3, drag: 4, shape: 'spark' });
-    }
-  }
-  clearHazards();
-  liveBullets = 0;
-}
-
-/** On a boss's death: its bullets, its hazards and its summons all go. */
-export function clearHostiles(owner) {
-  clearBullets();
-  if (!owner) return;
-  for (const m of world.enemies) {
-    if (m.summoner === owner && !m.dead) {
-      m.dead = true;
-      burst(m.x, m.y, { count: 10, color: m.color, speed: 200, size: 3.5, life: 0.4, drag: 4 });
-    }
-  }
-}
-
-function minionCount(e) {
-  let n = 0;
-  for (const m of world.enemies) if (m.summoner === e && !m.dead) n++;
-  return n;
-}
-
-// --- movement helpers -----------------------------------------------------------
-
-function turnToward(e, a, maxStep) {
-  e.face = (e.face || 0) + clamp(angleDiff(e.face || 0, a), -maxStep, maxStep);
-}
-
-function forward(e, speed, dt, a = e.face) {
-  e.x += Math.cos(a) * speed * dt;
-  e.y += Math.sin(a) * speed * dt;
-}
-
-function inArena(x, y, m) {
-  const b = arenaBounds();
-  return [clamp(x, b.l + m, b.r - m), clamp(y, b.t + m, b.b - m)];
-}
-
-/** Reflect a free-moving boss (vx in e.mx/e.my) off walls and pillars. */
-function bounceWorld(e) {
-  const b = arenaBounds();
-  let hit = false;
-  if (e.x < b.l + e.r) { e.x = b.l + e.r; e.mx = Math.abs(e.mx); hit = true; }
-  if (e.x > b.r - e.r) { e.x = b.r - e.r; e.mx = -Math.abs(e.mx); hit = true; }
-  if (e.y < b.t + e.r) { e.y = b.t + e.r; e.my = Math.abs(e.my); hit = true; }
-  if (e.y > b.b - e.r) { e.y = b.b - e.r; e.my = -Math.abs(e.my); hit = true; }
-  if (world.room) {
-    for (const o of world.room.obstacles) {
-      const px = e.x, py = e.y;
-      if (resolveCircleRect(e, o)) {
-        const nx = e.x - px, ny = e.y - py;
-        const m = Math.hypot(nx, ny) || 1;
-        const ux = nx / m, uy = ny / m;
-        const dot = e.mx * ux + e.my * uy;
-        if (dot < 0) { e.mx -= 2 * dot * ux; e.my -= 2 * dot * uy; }
-        hit = true;
-      }
-    }
-  }
-  return hit;
-}
-
-/** Bullet-speed multiplier: later boss slots fire a touch faster. */
-const tm = (e) => 1 + (e.tier || 0) * 0.04;
-
-// --- the shared boss brain -------------------------------------------------------
-
-function act(e, name, t = 0) {
-  e.action = name;
-  e.sub = null;
-  e.t = t;
-  e.at = 0;
-  e.st = 0;
-  e.clipTime = t;
-  e.animSerial = (e.animSerial || 0) + 1;
-}
-
-function sub(e, name, t) {
-  e.sub = name;
-  e.t = t;
-  e.st = 0;
-  e.clipTime = t;
-  e.animSerial = (e.animSerial || 0) + 1;
-}
-
-/** Back to idle; later phases and later boss slots rest less between moves. */
-function idle(e, t) {
-  const k = Math.max(0.45, [1, 0.8, 0.65][Math.min(3, e.phase || 1) - 1] - (e.tier || 0) * 0.04);
-  act(e, 'idle', t * k);
-}
-
-/** The punish window: the boss stops, takes extra damage, and says so. */
-function expose(e, t) {
-  e.z = 0;
-  e.hidden = false;
-  e.invuln = false;
-  act(e, 'exposed', t);
-  e.exposed = t;
-  sfx.exposed();
-  damageText(e.x, e.y - e.r - 18, 'EXPOSED', { color: '#ffe27a', size: 16 });
-  ring(e.x, e.y, { r0: e.r, r1: e.r * 2.2, color: '#ffe27a', life: 0.4, width: 4 });
-}
-
-function bossInit(e, S) {
-  e.noPush = true;
-  e.phase = 1;
-  e.phases = S.phases;
-  e.cool = { ...(S.opening || {}) };
-  e.lastMove = null;
-  e.sign = Math.random() < 0.5 ? 1 : -1;
-  e.tier = e.tier ?? 0;
-  e.title = e.def.title;
-  e.exposed = 0;
-  e.z = 0;
-  act(e, 'idle', 1.2);
-  e.onDeath = (self) => clearHostiles(self);
-}
-
-function chooseMove(e, p, S) {
-  const d = dist(e.x, e.y, p.x, p.y);
-  let total = 0;
-  const opts = [];
-  for (const [name, w0] of S.choose(e, p, d)) {
-    if (!S.moves[name] || (e.cool[name] || 0) > 0) continue;
-    const w = name === e.lastMove ? w0 * 0.25 : w0;
-    if (w <= 0) continue;
-    opts.push([name, w]);
-    total += w;
-  }
-  if (!opts.length) { idle(e, 0.3); return; }
-  let r = Math.random() * total;
-  let pickName = opts[opts.length - 1][0];
-  for (const [n, w] of opts) { r -= w; if (r <= 0) { pickName = n; break; } }
-  const mv = S.moves[pickName];
-  e.lastMove = pickName;
-  if (mv.cooldown) e.cool[pickName] = mv.cooldown;
-  act(e, pickName, 0);
-  mv.start(e, p);
-}
-
-function runBoss(e, dt, S) {
-  const p = player();
-  if (!p) return;
-  countBullets();
-  e.t -= dt;
-  e.at += dt;
-  e.st += dt;
-  for (const k in e.cool) e.cool[k] -= dt;
-
-  // Phase change: waits for any punish window to finish (the player earned
-  // it), then roars — invulnerable, screen wiped — and comes back meaner.
-  const frac = e.hp / e.maxHp;
-  let want = 1;
-  for (const th of e.phases) if (frac <= th) want++;
-  if (want > e.phase && e.action !== 'phase' && e.action !== 'exposed') {
-    e.phase = want;
-    e.exposed = 0;
-    e.z = 0;
-    e.hidden = false;
-    e.invuln = true;
-    act(e, 'phase', 1.3);
-    clearBullets();
-    sfx.roar(S.roarPitch || 1);
-    flash(0.35, e.color);
-    shake(0.8);
-    if (S.onPhase) S.onPhase(e, want);
-    return;
-  }
-
-  switch (e.action) {
-    case 'phase':
-      if (Math.random() < dt * 30) {
-        burst(e.x, e.y, { count: 2, color: e.color, speed: 380, size: 5, life: 0.5, drag: 2, shape: 'shard' });
-      }
-      if (e.t <= 0) {
-        e.invuln = false;
-        if (S.afterPhase) S.afterPhase(e, p);
-        idle(e, 0.5);
-      }
-      return;
-    case 'exposed':
-      if (Math.random() < dt * 6) {
-        burst(e.x + rand(-e.r, e.r) * 0.6, e.y - e.r * 0.8, {
-          count: 1, color: '#ffe27a', speed: 30, size: 3.5, life: 0.6, gravity: -50, drag: 1,
-        });
-      }
-      if (e.t <= 0) { e.exposed = 0; idle(e, 0.35); }
-      return;
-    case 'idle':
-      S.idle(e, dt, p);
-      if (e.t <= 0) chooseMove(e, p, S);
-      return;
-    default: {
-      const mv = S.moves[e.action];
-      if (mv) mv.update(e, dt, p);
-      else idle(e, 0.3);
-    }
-  }
-}
-
-/**
- * A ground shockwave ring with two gaps either side of the player, so it
- * always asks for a sidestep — or a well-timed dash straight through.
- */
-function shockwave(e, { speed = 240, width = 18, spread = [0.5, 0.95], gapW = 0.8, dmg = 0.7, color, wait = 0 } = {}) {
-  const p = player();
-  const pa = p ? angleTo(e.x, e.y, p.x, p.y) : 0;
-  spawnHazard({
-    kind: 'shockring', x: e.x, y: e.y, r0: e.r * 0.8, speed, width, maxR: 1400,
-    damage: Math.round(e.damage * dmg), color: color || e.color, source: e.type, owner: e,
-    gaps: [{ a: pa + rand(spread[0], spread[1]), w: gapW }, { a: pa - rand(spread[0], spread[1]), w: gapW }],
-    wait,
-  });
-}
-
-function lob(e, tx, ty, o = {}) {
-  spawnHazard({
-    kind: 'lob', x0: e.x, y0: e.y - e.r * 0.3, x1: tx, y1: ty, flight: o.flight || 0.95,
-    r: o.r || 46, damage: Math.round(e.damage * (o.dmg || 0.65)), color: o.color || e.color,
-    source: e.type, owner: e, height: 160, shellR: 9, quiet: true,
-    shards: o.shards || null, shardShape: o.shardShape, shardDamage: o.shardDamage,
-  });
-}
-
-function lane(e, t, len, width, color) {
-  return spawnHazard({
-    kind: 'lane', x: e.x, y: e.y, angle: e.aim, len, width, delay: t, color, owner: e,
-    follow: e, track: (h) => { h.angle = e.aim; },
-  });
-}
+import {
+  PI, act, bindBossSpawner, bossInit, bounceWorld, chooseMove,
+  clearBullets, clearHostiles, countBullets, expose, fanShot, forward,
+  idle, inArena, lane, lob, minionCount, ringShot,
+  runBoss, shockwave, shot, spawnEnemyFn, sub, tm,
+  turnToward,
+} from './boss-kit.js';
+export { bindBossSpawner, clearBullets, clearHostiles } from './boss-kit.js';
+import { VESPER } from './boss-vesper.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1296,6 +1005,10 @@ const PEACOCK = {
 /** Drawn over any boss: the exposed halo, plus each boss's own tells. */
 export function drawBossExtras(e, ctx) {
   const t = world.runTime;
+  // Specs with their own props (aim lines, lassos, coins) draw them here.
+  const spec = e.def && e.def.spec;
+  if (spec && spec.drawExtras) spec.drawExtras(e, ctx, t);
+  if (spec && spec.draw) return;
   if (e.hidden) {
     // A submerged crocodile: a dark shape under the floor and a V of ripples.
     const a = e.face || 0;
@@ -1383,8 +1096,8 @@ function bossDef(spec, stats) {
     cost: 999, minDepth: 99, boss: true, spec, ...stats,
     init(e) { bossInit(e, spec); },
     update(e, dt) { runBoss(e, dt, spec); },
-    // Only used if a rig is missing; every boss has one.
-    draw(e, ctx) {
+    // A spec may draw its boss itself; otherwise this stands in for a missing rig.
+    draw: spec.draw || function draw(e, ctx) {
       ctx.fillStyle = e.tint;
       ctx.beginPath();
       ctx.arc(e.x, e.y, e.r, 0, TAU);
@@ -1394,6 +1107,10 @@ function bossDef(spec, stats) {
 }
 
 export const BOSS_DEFS = {
+  vesper: bossDef(VESPER, {
+    r: 26, hp: 1150, speed: 150, mass: 20, color: '#ffb35e', damageBase: 16,
+    title: 'Deadeye Vesper', subtitle: 'The Last Bullet',
+  }),
   turtle: bossDef(TURTLE, {
     r: 50, hp: 1250, speed: 62, mass: 30, color: '#4fae7c', damageBase: 18,
     title: 'Gravemaw the Shellback', subtitle: 'Ancient of the Drowned Vault',
@@ -1473,12 +1190,14 @@ export const BOSS_DEFS = {
 };
 
 /** Boss roster: shuffled into slots 1-4 each run; the Warden is always last. */
-export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock'];
+// The guardian pool: four of these guard chambers 3, 6, 9 and 12, shuffled per run.
+export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper'];
 
 export const BOSS_INFO = {
   turtle: { title: BOSS_DEFS.turtle.title, subtitle: BOSS_DEFS.turtle.subtitle, color: '#6fdca0', animal: 'Turtle' },
   croc: { title: BOSS_DEFS.croc.title, subtitle: BOSS_DEFS.croc.subtitle, color: '#b5e05a', animal: 'Crocodile' },
   gorilla: { title: BOSS_DEFS.gorilla.title, subtitle: BOSS_DEFS.gorilla.subtitle, color: '#c9bff0', animal: 'Gorilla' },
   peacock: { title: BOSS_DEFS.peacock.title, subtitle: BOSS_DEFS.peacock.subtitle, color: '#6fb8ff', animal: 'Peacock' },
+  vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Final' },
 };

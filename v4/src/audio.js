@@ -229,6 +229,19 @@ export const sfx = {
     noise({ dur: 0.22, vol: 0.3, freq: 700, freq2: 90 });
     tone({ freq: 300, freq2: 90, type: 'triangle', dur: 0.16, vol: 0.18 });
   },
+  // Version 4, Vesper: a revolver crack, a church-bell toll, a cylinder click.
+  gunshot() {
+    noise({ dur: 0.16, vol: 0.28, freq: 1800, freq2: 300, type: 'bandpass', q: 0.8 });
+    tone({ freq: 160, freq2: 60, type: 'triangle', dur: 0.12, vol: 0.18 });
+  },
+  bell() {
+    [220, 440, 660, 880].forEach((f, i) =>
+      tone({ freq: f, type: 'sine', dur: 1.8 - i * 0.3, vol: 0.12 / (i + 1), attack: 0.005 }));
+  },
+  click() {
+    tone({ freq: 2400, type: 'square', dur: 0.025, vol: 0.08 });
+    tone({ freq: 1600, type: 'square', dur: 0.025, vol: 0.06, delay: 0.07 });
+  },
   chime() {
     [784, 988, 1175].forEach((f, i) =>
       tone({ freq: f, type: 'sine', dur: 0.4, vol: 0.09, delay: i * 0.05 }));

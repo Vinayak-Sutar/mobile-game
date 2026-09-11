@@ -120,6 +120,13 @@ export function updateProjectiles(dt) {
     if (world.room) {
       for (const o of world.room.obstacles) {
         if (circleRect(pr.x, pr.y, pr.r, o)) {
+          // Breakable cover (crates) chips with every hit; big shots smash it.
+          if (o.crate && !o.broken) {
+            o.hp -= pr.crateDmg || 1;
+            o.hitAt = world.runTime;
+            if (o.hp <= 0) breakCrate(o);
+            if (pr.crateDmg >= 99) { pr.life = 0; pr.onExpire = null; break; }
+          }
           // Bounce off the shallower axis of penetration.
           const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
           const dx = (pr.x - cx) / (o.w / 2 + pr.r);
@@ -291,7 +298,7 @@ export function drawProjectiles(ctx) {
     ctx.save();
     if (parked) ctx.globalAlpha = 0.55 + Math.sin(world.runTime * 30) * 0.3;
     ctx.translate(pr.x, pr.y);
-    const byVelocity = pr.shape === 'arrow' || pr.shape === 'spear' || pr.shape === 'feather';
+    const byVelocity = pr.shape === 'arrow' || pr.shape === 'spear' || pr.shape === 'feather' || pr.shape === 'bullet';
     const a = byVelocity ? Math.atan2(pr.vy, pr.vx) : pr.rot;
     ctx.rotate(a);
     ctx.fillStyle = pr.color;
@@ -371,6 +378,21 @@ export function drawProjectiles(ctx) {
         ctx.fill();
         break;
       }
+      case 'bullet': {
+        // A hot brass slug with a smoke streak behind it.
+        const len = Math.min(70, Math.hypot(pr.vx, pr.vy) * 0.07);
+        ctx.globalAlpha = 0.35;
+        ctx.fillRect(-len, -pr.r * 0.35, len, pr.r * 0.7);
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, pr.r * 1.5, pr.r * 0.75, 0, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = '#fff6d8';
+        ctx.beginPath();
+        ctx.ellipse(pr.r * 0.5, 0, pr.r * 0.7, pr.r * 0.4, 0, 0, TAU);
+        ctx.fill();
+        break;
+      }
       default: {
         ctx.globalAlpha = 0.28;
         ctx.beginPath();
@@ -388,6 +410,19 @@ export function drawProjectiles(ctx) {
     }
     ctx.restore();
   }
+}
+
+/** A crate gives way: splinters, a thud, and it leaves the room. */
+export function breakCrate(o) {
+  if (o.broken) return;
+  o.broken = true;
+  const room = world.room;
+  if (room) room.obstacles = room.obstacles.filter((q) => q !== o);
+  const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+  burst(cx, cy, { count: 22, color: '#a8703e', speed: 320, size: 5, life: 0.5, drag: 4, shape: 'shard' });
+  burst(cx, cy, { count: 10, color: '#e8c89a', speed: 200, size: 3, life: 0.4, drag: 5 });
+  shake(0.18);
+  sfx.thud();
 }
 
 // --- melee hitboxes --------------------------------------------------------
