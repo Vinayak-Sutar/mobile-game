@@ -9,7 +9,7 @@ import { bossInRoom } from './enemies.js';
 import { FINAL_DEPTH, isBossDepth } from './rooms.js';
 import { BOSS_INFO } from './bosses.js';
 import { audio } from './audio.js';
-import { GRENADE } from './grenade.js';
+import { GRENADE, grenadeType } from './grenade.js';
 import { resetMenuFocus } from './gamepad.js';
 import { spellById } from './spells.js';
 import { ELEMENTS } from './elements.js';
@@ -102,9 +102,10 @@ export function drawHud(ctx, time) {
 
   // --- grenade charges ----------------------------------------------------
   px += 10;
+  const gcol = grenadeType(p).color;
   for (let i = 0; i < GRENADE.maxCharges; i++) {
     const filled = i < p.grenadeStock;
-    ctx.fillStyle = filled ? '#ffd45e' : 'rgba(255,255,255,0.16)';
+    ctx.fillStyle = filled ? gcol : 'rgba(255,255,255,0.16)';
     ctx.beginPath();
     ctx.arc(px + 5, py + 3, 5, 0, TAU);
     ctx.fill();
@@ -440,7 +441,7 @@ export function drawControls(ctx, time) {
     p ? `${p.dashStock}` : '');
   button(ctx, controls.special, '#ffd45e',
     p ? (p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1) : 1, '★');
-  button(ctx, controls.grenade, '#ff9a4d',
+  button(ctx, controls.grenade, p ? grenadeType(p).color : '#ff9a4d',
     p ? (p.grenadeStock > 0 ? 1 : 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1)) : 1,
     '◉', p ? `${p.grenadeStock}` : '');
   // Parry: the glyph is the same four-point star as the white parry glint.

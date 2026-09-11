@@ -15,6 +15,8 @@ import { input } from './input.js';
 import { explode, nearestEnemy } from './combat.js';
 import { burst, ring, shake } from './fx.js';
 import { sfx } from './audio.js';
+import { elementArea } from './elements.js';
+import { spawnSurface } from './surfaces.js';
 
 export const GRENADE = {
   maxCharges: 2,
@@ -28,6 +30,32 @@ export const GRENADE = {
   holdThreshold: 0.16,
   deadzone: 0.18,
 };
+
+/**
+ * Version 3 grenade types (one is picked on the loadout screen). Each blast
+ * applies its element through elementArea (so reactions happen) and can leave
+ * a surface. Frag is the original. To add one: an entry here.
+ */
+export const GRENADE_TYPES = {
+  frag:  { name: 'Frag Bomb',   color: '#ffd45e', element: null,    damage: 60, radius: 115, surface: null,
+           desc: 'The original: a big raw blast.' },
+  fire:  { name: 'Firebomb',    color: '#ff7a3d', element: 'fire',  damage: 38, radius: 110, surface: 'fire', surfaceR: 95,
+           desc: 'Burns everything in the blast and leaves fire on the floor. Ignites oil and gas.' },
+  frost: { name: 'Frost Shell', color: '#9fe2ff', element: 'frost', damage: 30, radius: 125, surface: null, double: true,
+           desc: 'Chills twice (one more chill freezes), freezes the wet and turns puddles to ice.' },
+  shock: { name: 'Shock Orb',   color: '#c58bff', element: 'storm', damage: 36, radius: 120, surface: null,
+           desc: 'A lightning burst: shocks, electrocutes the wet, electrifies puddles.' },
+  tide:  { name: 'Tide Flask',  color: '#4aa8ff', element: 'water', damage: 16, radius: 135, surface: 'water', surfaceR: 125,
+           desc: 'Soaks an area and leaves a puddle. Douses fire. Sets up storm and frost.' },
+  toxic: { name: 'Toxic Jar',   color: '#9be34a', element: 'toxic', damage: 18, radius: 110, surface: 'toxic', surfaceR: 110,
+           desc: 'A poison cloud that lingers. Fire turns it into a gas blast.' },
+  oil:   { name: 'Oil Flask',   color: '#9a7cd8', element: null,    damage: 14, radius: 125, surface: 'oil', surfaceR: 130,
+           desc: 'A wide oil slick that slows. Any fire turns it into an Inferno.' },
+};
+
+export function grenadeType(p) {
+  return GRENADE_TYPES[(p && p.grenadeType) || 'frag'] || GRENADE_TYPES.frag;
+}
 
 // --- aiming ----------------------------------------------------------------
 
@@ -140,8 +168,9 @@ export function throwGrenade(p, tx, ty, track = null) {
     landed: false,
     rot: rand(0, TAU),
     track,
+    kind: p.grenadeType || 'frag',
     // Boons scale the blast, since explode() deals raw damage.
-    damage: GRENADE.damage * p.stats.damageMult,
+    damage: grenadeType(p).damage * p.stats.damageMult,
     dead: false,
   };
   world.grenades.push(g);
@@ -188,14 +217,28 @@ export function updateGrenades(dt) {
       g.fuse -= dt;
       // Blink faster as it counts down.
       if (g.fuse <= 0) {
-        explode(g.x, g.y, GRENADE.radius, g.damage, null, '#ffd45e', false);
-        ring(g.x, g.y, { r0: 10, r1: GRENADE.radius * 1.15, color: '#fff3d0', life: 0.28, width: 5 });
-        shake(0.5);
+        detonate(g);
         world.grenades.splice(i, 1);
         continue;
       }
     }
   }
+}
+
+function detonate(g) {
+  const t = GRENADE_TYPES[g.kind] || GRENADE_TYPES.frag;
+  if (t.element) {
+    elementArea(t.element, g.x, g.y, t.radius, { damage: g.damage, knockback: 240, heavy: true, source: 'grenade' });
+    if (t.double) elementArea(t.element, g.x, g.y, t.radius, {});
+    ring(g.x, g.y, { r0: 8, r1: t.radius, color: t.color, life: 0.34, width: 7 });
+    burst(g.x, g.y, { count: 24, color: t.color, speed: 380, size: 5, life: 0.5, drag: 4, shape: 'shard' });
+    sfx.explode();
+  } else {
+    explode(g.x, g.y, t.radius, g.damage, null, t.color, false);
+  }
+  if (t.surface) spawnSurface(t.surface, g.x, g.y, t.surfaceR || t.radius * 0.8, 'player');
+  ring(g.x, g.y, { r0: 10, r1: t.radius * 1.15, color: '#fff3d0', life: 0.28, width: 5 });
+  shake(0.5);
 }
 
 // --- rendering -------------------------------------------------------------
@@ -204,6 +247,8 @@ export function updateGrenades(dt) {
 export function drawGrenadeAim(ctx, p, time) {
   if (!p || p.dead || !p.grenadeAiming || !p.grenadeTarget) return;
   const t = p.grenadeTarget;
+  const gt = grenadeType(p);
+  const R = gt.radius;
 
   // How far you may throw.
   ctx.strokeStyle = 'rgba(255,212,94,0.16)';
@@ -226,18 +271,21 @@ export function drawGrenadeAim(ctx, p, time) {
 
   // Blast radius, so the throw is a decision and not a guess.
   const pulse = 0.55 + Math.sin(time * 7) * 0.2;
-  ctx.fillStyle = `rgba(255,212,94,${0.10 * pulse})`;
+  ctx.globalAlpha = 0.10 * pulse;
+  ctx.fillStyle = gt.color;
   ctx.beginPath();
-  ctx.arc(t.x, t.y, GRENADE.radius, 0, TAU);
+  ctx.arc(t.x, t.y, R, 0, TAU);
   ctx.fill();
-  ctx.strokeStyle = `rgba(255,212,94,${0.75 * pulse})`;
+  ctx.globalAlpha = 0.75 * pulse;
+  ctx.strokeStyle = gt.color;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
-  ctx.arc(t.x, t.y, GRENADE.radius, 0, TAU);
+  ctx.arc(t.x, t.y, R, 0, TAU);
   ctx.stroke();
+  ctx.globalAlpha = 1;
 
   // Crosshair.
-  ctx.strokeStyle = '#ffd45e';
+  ctx.strokeStyle = gt.color;
   ctx.lineWidth = 2.5;
   ctx.beginPath();
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
@@ -281,6 +329,7 @@ export function drawGrenades(ctx, time) {
     }
 
     const blink = g.landed && Math.sin(g.t * 40) > 0;
+    const gc = (GRENADE_TYPES[g.kind] || GRENADE_TYPES.frag).color;
     ctx.save();
     ctx.translate(g.x, g.y - h);
     ctx.rotate(g.rot);
@@ -288,7 +337,7 @@ export function drawGrenades(ctx, time) {
     ctx.beginPath();
     ctx.ellipse(0, 0, 7.5, 6, 0, 0, TAU);
     ctx.fill();
-    ctx.fillStyle = blink ? '#ffffff' : '#ffd45e';
+    ctx.fillStyle = blink ? '#ffffff' : gc;
     ctx.fillRect(-2, -8.5, 4, 4);
     ctx.restore();
   }

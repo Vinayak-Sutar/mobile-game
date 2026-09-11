@@ -165,7 +165,15 @@ export function damageTakenMult(e) {
   let m = 1;
   if (hasStatus(e, 'brittle')) m *= 1.3;
   if (hasStatus(e, 'extinguished')) m *= 1.25;
+  if (hasStatus(e, 'frozen')) m *= 1 + playerStat('frozenBonus', 0);   // Permafrost
   return m;
+}
+
+/** A player boon stat, with a default when there's no player. */
+function playerStat(name, dflt) {
+  const p = world.player;
+  const v = p && p.stats ? p.stats[name] : undefined;
+  return v === undefined ? dflt : v;
 }
 
 // --- hitting an enemy with an element -----------------------------------------------
@@ -197,9 +205,12 @@ function matchRule(e, el, ctx) {
 /** Base status an element leaves when no reaction happens. */
 function applyBase(e, el, ctx) {
   switch (el) {
-    case 'fire':
-      setStatus(e, 'burning', 3, { dps: Math.max(5, (ctx.damage || 10) * 0.25) });
+    case 'fire': {
+      // Kindling (a boon) makes the player's fire last longer and burn hotter.
+      const k = ctx.owner !== 'enemy' ? playerStat('burnMult', 1) : 1;
+      setStatus(e, 'burning', 3 * k, { dps: Math.max(5, (ctx.damage || 10) * 0.25) * k });
       break;
+    }
     case 'frost': {
       const cur = e.status && e.status.chilled && e.status.chilled.t > 0 ? e.status.chilled.stacks || 0 : 0;
       const stacks = cur + 1;
@@ -266,7 +277,7 @@ function react(key, e, el, ctx) {
       if (e.stunT && !e.boss) e.stunT = Math.min(e.stunT, 0.3);
       if (e.aura === 'fire' || e.aura === 'frost') loseAura(e);
       burst(e.x, e.y, { count: 16, color: '#ffb35e', speed: 260, size: 4, life: 0.4, drag: 4 });
-      return { mult: 2 };
+      return { mult: 2 + playerStat('meltBonus', 0) };
     }
     case 'steam': {
       clearStatus(e, 'wet');
@@ -335,14 +346,15 @@ function react(key, e, el, ctx) {
       clearStatus(e, 'wet');
       if (e.aura === 'water') loseAura(e);
       const hits = [e];
+      const bonus = playerStat('electroBonus', 0);    // Conductor
       for (const o of world.enemies) {
         if (o === e || o.dead || o.spawning || o.hidden) continue;
         if (!hasStatus(o, 'wet') && o.aura !== 'water') continue;
-        if (dist(o.x, o.y, e.x, e.y) > 240) continue;
+        if (dist(o.x, o.y, e.x, e.y) > 240 * (1 + bonus)) continue;
         hits.push(o);
       }
       for (const o of hits) {
-        if (!o.boss) o.stunT = Math.max(o.stunT || 0, 0.8);
+        if (!o.boss) o.stunT = Math.max(o.stunT || 0, 0.8 * (1 + bonus * 1.25));
         addPoise(o, 22);
         if (o !== e) {
           clearStatus(o, 'wet');

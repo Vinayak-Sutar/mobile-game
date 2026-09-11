@@ -32,8 +32,18 @@ export const PARRY = {
 const DEFAULT_STYLE = { window: PARRY.window, riposteMult: 2, reflectMult: 2, counter: null };
 
 export function parryStyle(p) {
-  return { ...DEFAULT_STYLE, ...((p && p.weapon && p.weapon.parry) || {}) };
+  const st = { ...DEFAULT_STYLE, ...((p && p.weapon && p.weapon.parry) || {}) };
+  const s = p && p.stats;
+  if (s) {
+    if (s.parryWindow) st.window *= 1 + s.parryWindow;          // Still Mind
+    if (s.riposteBonus) st.riposteMult += s.riposteBonus;       // Killing Riposte
+  }
+  return st;
 }
+
+let parryHook = null;
+/** game.js registers extra effects for a perfect parry (boons that need combat). */
+export function setParryHook(fn) { parryHook = fn; }
 
 export function canParry(p) {
   if (!p || p.dead || p.dashing || p.parry || p.parryCd > 0) return false;
@@ -107,6 +117,8 @@ export function perfectParry(p, attacker, sx, sy, kind) {
     attacker.vy = (attacker.vy || 0) + Math.sin(a) * 240 / m;
     if (!attacker.boss) attacker.stunT = Math.max(attacker.stunT || 0, 0.55);
   }
+
+  if (parryHook) parryHook(p, attacker, kind);
 
   // Weapon counters: the spear thrusts back, the bow fires back.
   const target = attacker && !attacker.dead ? attacker : null;

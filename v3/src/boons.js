@@ -10,6 +10,8 @@ export const GODS = {
   gaia:   { name: 'Gaia',   color: '#7dff9c', glyph: '🌿', domain: 'Life' },
   zephyr: { name: 'Zephyr', color: '#9fb8ff', glyph: '🌀', domain: 'Wind' },
   nyx:    { name: 'Nyx',    color: '#c07bff', glyph: '🌑', domain: 'Shadow' },
+  // Version 3: a god of water and frost, for the element system.
+  thalassa: { name: 'Thalassa', color: '#6fc7ff', glyph: '🌊', domain: 'Tide & Frost' },
 };
 
 export const BOONS = [
@@ -107,6 +109,84 @@ export const BOONS = [
     desc: (lv) => `Taking damage blasts foes around you for ${40 + lv * 25}.`,
     apply: (s) => { s.retribution += s.retribution === 0 ? 40 : 25; },
   },
+
+  // ======== Version 3: elements, reactions, parry, spells, focus ========
+  // --- Pyros ---
+  {
+    id: 'kindling', god: 'pyros', name: 'Kindling', max: 3,
+    desc: () => 'Your Burning lasts 50% longer and burns 50% hotter.',
+    apply: (s) => { s.burnMult = (s.burnMult || 1) + 0.5; },
+  },
+  {
+    id: 'meltdown', god: 'pyros', name: 'Meltdown', max: 2, rare: true,
+    desc: (lv) => `Melt deals ×${(2.8 + lv * 0.8).toFixed(1)} instead of ×2.`,
+    apply: (s) => { s.meltBonus = (s.meltBonus || 0) + 0.8; },
+  },
+  // --- Astra ---
+  {
+    id: 'conductor', god: 'astra', name: 'Conductor', max: 3,
+    desc: () => 'Electrocute reaches 40% further and stuns 50% longer.',
+    apply: (s) => { s.electroBonus = (s.electroBonus || 0) + 0.4; },
+  },
+  {
+    id: 'stormparry', god: 'astra', name: 'Thunder Parry', max: 3, rare: true,
+    desc: (lv) => `A perfect parry strikes the ${lv + 2} nearest foes with lightning.`,
+    apply: (s) => { s.parryStorm = (s.parryStorm || 1) + 1; },
+  },
+  // --- Thalassa (water & frost) ---
+  {
+    id: 'tidecaller', god: 'thalassa', name: 'Tidecaller', max: 3,
+    desc: (lv) => `${25 + lv * 15}% of your hits leave foes Wet.`,
+    apply: (s) => { s.wetOnHit = Math.min(0.7, (s.wetOnHit || 0) + (s.wetOnHit ? 0.15 : 0.25)); },
+  },
+  {
+    id: 'permafrost', god: 'thalassa', name: 'Permafrost', max: 3, rare: true,
+    desc: () => 'Frozen foes take +40% damage.',
+    apply: (s) => { s.frozenBonus = (s.frozenBonus || 0) + 0.4; },
+  },
+  {
+    id: 'glacialparry', god: 'thalassa', name: 'Glacial Parry', max: 2,
+    desc: () => 'A perfect parry chills the attacker (and freezes it if it was Wet).',
+    apply: (s) => { s.parryFrost = 1; },
+  },
+  {
+    id: 'deepwell', god: 'thalassa', name: 'Deep Well', max: 2, rare: true,
+    desc: () => '+1 maximum Focus.',
+    apply: (s, lv, p) => { if (p) { p.focusMax += 1; p.focus += 1; } },
+  },
+  // --- Zephyr ---
+  {
+    id: 'gustdash', god: 'zephyr', name: 'Deflecting Gust', max: 1,
+    desc: () => 'Dashing blows away light enemy bullets around you.',
+    apply: (s) => { s.dashBreaker = 1; },
+  },
+  {
+    id: 'lingering', god: 'zephyr', name: 'Lingering Charm', max: 3,
+    desc: () => 'Weapon imbues from spells last 2 s longer.',
+    apply: (s) => { s.imbueTime = (s.imbueTime || 0) + 2; },
+  },
+  // --- Gaia ---
+  {
+    id: 'everaegis', god: 'gaia', name: 'Everlasting Aegis', max: 2,
+    desc: () => 'Aegis absorbs 1 more hit.',
+    apply: (s) => { s.aegisBonus = (s.aegisBonus || 0) + 1; },
+  },
+  // --- Nyx ---
+  {
+    id: 'riposte', god: 'nyx', name: 'Killing Riposte', max: 3,
+    desc: () => 'Ripostes after a parry hit 60% harder.',
+    apply: (s) => { s.riposteBonus = (s.riposteBonus || 0) + 0.6; },
+  },
+  {
+    id: 'stillmind', god: 'nyx', name: 'Still Mind', max: 2, rare: true,
+    desc: () => 'The parry window is 30% longer.',
+    apply: (s) => { s.parryWindow = (s.parryWindow || 0) + 0.3; },
+  },
+  {
+    id: 'arcaneflow', god: 'nyx', name: 'Arcane Flow', max: 3,
+    desc: () => 'Earn Focus 40% faster.',
+    apply: (s) => { s.focusGain = (s.focusGain || 0) + 0.4; },
+  },
 ];
 
 export function boonById(id) {
@@ -136,7 +216,7 @@ export function offerBoons(player, count = 3) {
 
 export function applyBoon(player, boon) {
   const level = player.boons[boon.id] || 0;
-  boon.apply(player.stats, level);
+  boon.apply(player.stats, level, player);
   player.boons[boon.id] = level + 1;
   player.boonOrder = player.boonOrder.filter((id) => id !== boon.id);
   player.boonOrder.push(boon.id);

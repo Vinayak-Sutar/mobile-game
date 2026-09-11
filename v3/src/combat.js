@@ -104,7 +104,7 @@ export function dealDamage(e, amount, opts = {}) {
 
   // Hitting things fills Focus, the spell resource.
   if (p && p.focusMax && !opts.chained) {
-    p.focus = Math.min(p.focusMax, (p.focus || 0) + dmg * FOCUS_PER_DAMAGE);
+    p.focus = Math.min(p.focusMax, (p.focus || 0) + dmg * FOCUS_PER_DAMAGE * (1 + (st.focusGain || 0)));
   }
 
   e.hp -= dmg;
@@ -149,7 +149,9 @@ export function dealDamage(e, amount, opts = {}) {
 
     // Cinder Trail: burning, through the element system (so it can Melt,
     // Detonate or be doused like any other fire).
-    if (st.burn > 0) applyStatus(e, 'burning', 3, { dps: st.burn });
+    if (st.burn > 0) applyStatus(e, 'burning', 3 * (st.burnMult || 1), { dps: st.burn * (st.burnMult || 1) });
+    // Tidecaller: some hits leave the foe Wet (combo bait for storm and frost).
+    if (st.wetOnHit > 0 && Math.random() < st.wetOnHit) applyStatus(e, 'wet', 4);
     if (st.slowOnHit > 0) {
       e.slow = { mult: 1 - st.slowOnHit, time: 2 };
     }
@@ -159,7 +161,8 @@ export function dealDamage(e, amount, opts = {}) {
         const t = nearestEnemyExcluding(src.x, src.y, 260, [e, src]);
         if (!t) break;
         lightningArc(src.x, src.y, t.x, t.y);
-        dealDamage(t, dmg * 0.55, { chained: true, raw: true, silent: false, noCrit: true, knockback: 40 });
+        // Arc Chain is storm now: it shocks, and electrocutes the wet.
+        dealDamage(t, dmg * 0.55, { chained: true, raw: true, silent: false, noCrit: true, knockback: 40, element: 'storm' });
         src = t;
       }
     }

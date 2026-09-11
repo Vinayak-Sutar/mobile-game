@@ -15,6 +15,7 @@ import { updateGrenade, GRENADE } from './grenade.js';
 import { canParry, startParry, updateParry, isParrying, drawParry } from './parry.js';
 import { playerSpeedMult } from './elements.js';
 import { updateSpells } from './spells.js';
+import { breakBulletsNear } from './projectiles.js';
 
 // Input buffer: a press made slightly too early (mid-swing, mid-dash) is
 // remembered this long and fires the moment it's allowed.
@@ -99,6 +100,7 @@ export function createPlayer(weapon, meta = {}) {
     blockAngle: 0,
 
     grenadeStock: GRENADE.maxCharges,
+    grenadeType: 'frag',
     grenadeTimer: 0,
     grenadeArmed: false,
     grenadeAiming: false,
@@ -192,6 +194,8 @@ export function updatePlayer(p, dt) {
       p.trailTimer = 0.018;
       trail(p.x, p.y, { color: p.weapon.color, radius: p.r * 1.05, life: 0.26 });
     }
+    // Deflecting Gust (a boon): a dash blows light bullets away.
+    if (p.stats.dashBreaker) breakBulletsNear(p.x, p.y, p.r + 16, p);
     if (p.stats.dashDamage > 0) {
       for (const e of enemiesInRadius(p.x, p.y, 78)) {
         if (p.dashHits.has(e)) continue;

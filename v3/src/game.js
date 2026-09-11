@@ -32,7 +32,9 @@ import {
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
 import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
-import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
+import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE, GRENADE_TYPES } from './grenade.js';
+import { setParryHook } from './parry.js';
+import { dealDamage } from './combat.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
 import { biomeThumbnail } from './texture.js';
 import { offerBoons, applyBoon, describeBoon, GODS } from './boons.js';
@@ -162,6 +164,7 @@ function startRun(weapon) {
 
   world.player = createPlayer(weapon, metaBonuses());
   world.player.spells = validLoadout(save.loadout);
+  world.player.grenadeType = GRENADE_TYPES[save.grenadeType] ? save.grenadeType : 'frag';
   controls.cast.enabled = world.player.spells.length > 0;
   world.depth = 1;
   world.loop = 0;
@@ -695,12 +698,49 @@ function showLoadout() {
       <p class="sub">Tap CAST to cast the selected spell; hold it to open the wheel (time slows).
       Elements combine: rain then lightning, frost on the wet, fire on poison… try things.</p>
       <div class="cards">${cards}</div>
+      <h2 style="margin-top:18px;font-size:22px">Grenade</h2>
+      <div class="cards">${grenadeCards()}</div>
       <div class="row">
         <button class="btn" data-act="loadout-go" ${chosen.length ? '' : 'disabled'}>Begin</button>
         <button class="btn ghost" data-act="weapon">Back</button>
       </div>
     </div>`);
 }
+
+function grenadeCards() {
+  const cur = GRENADE_TYPES[save.grenadeType] ? save.grenadeType : 'frag';
+  return Object.entries(GRENADE_TYPES).map(([id, g]) => `
+    <div class="card spellcard gcard ${id === cur ? 'picked' : ''}" data-act="grenade-pick" data-g="${id}"
+         style="border-color:${g.color}${id === cur ? 'ee' : '44'}">
+      <div class="glyph" style="color:${g.color}">◉</div>
+      <div class="name" style="color:${g.color}">${g.name}</div>
+      <div class="desc">${g.desc}</div>
+    </div>`).join('');
+}
+
+// Parry boons that need combat: Thunder Parry (lightning to the nearest foes)
+// and Glacial Parry (chill the attacker).
+setParryHook((p, attacker) => {
+  const st = p.stats;
+  if (st.parryStorm) {
+    const hit = new Set();
+    for (let k = 0; k < st.parryStorm + 1; k++) {
+      let best = null, bestD = 320;
+      for (const e of world.enemies) {
+        if (e.dead || e.spawning || e.hidden || hit.has(e)) continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (!best) break;
+      hit.add(best);
+      burstFx(best.x, best.y, { count: 10, color: '#e9d8ff', speed: 200, size: 3, life: 0.25, drag: 5, shape: 'spark' });
+      dealDamage(best, 16, { element: 'storm', source: 'spell', noCrit: true });
+    }
+  }
+  if (st.parryFrost && attacker && !attacker.dead) {
+    dealDamage(attacker, 6, { element: 'frost', source: 'spell', noCrit: true });
+  }
+});
 
 let pendingBoons = [];
 function showBoonSelect() {
@@ -1004,6 +1044,12 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       showLoadout();
       break;
     }
+    case 'grenade-pick': {
+      save.grenadeType = el.dataset.g;
+      writeSave();
+      showLoadout();
+      break;
+    }
     case 'loadout-go': {
       if (!chosenWeapon) { showWeaponSelect(); break; }
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
@@ -1128,6 +1174,7 @@ window.ashfall = {
   applyStatus, REACTIONS,
   loadout: (ids) => { save.loadout = ids; if (world.player) { world.player.spells = validLoadout(ids); controls.cast.enabled = true; } },
   cast: (id) => tryCast(world.player, id),
+  grenadeType: (id) => { save.grenadeType = id; if (world.player) world.player.grenadeType = id; },
   spellState,
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,

@@ -253,7 +253,7 @@ export function tryCast(p, idOverride = null) {
   p.casts = (p.casts || 0) + 1;
   // Elemental spells imbue the weapon.
   if (spell.element && spell.element !== 'arcane' && spell.element !== 'gravity') {
-    p.imbue = { el: spell.element, t: IMBUE_TIME };
+    p.imbue = { el: spell.element, t: IMBUE_TIME + (p.stats.imbueTime || 0) };
   }
   ring(p.x, p.y, { r0: 6, r1: 34, color: col(spell.element), life: 0.22, width: 3 });
   return true;

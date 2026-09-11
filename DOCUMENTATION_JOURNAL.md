@@ -1281,6 +1281,49 @@ V3 toolbox.
     screen and stall. Walk to the door until the depth changes (the loop in
     the runs above).
 
+### 13.4 Milestone 5 — elemental grenades, element boons, weapon hooks (done)
+
+- **`GRENADE_TYPES`** (`grenade.js`), picked on the loadout screen
+  (`save.grenadeType`, `p.grenadeType`):
+  - Frag: the original, a raw blast of 60.
+  - Firebomb: fire + a fire patch. Frost Shell: frost applied twice. Shock
+    Orb: storm.
+  - Tide Flask: water + a puddle. Toxic Jar: toxic + a cloud. Oil Flask: a
+    wide oil slick.
+  - Elemental blasts go through `elementArea` (heavy, so they Shatter the
+    frozen). The bomb, reticle, HUD pips and BOMB button take the type's
+    colour.
+- **Boons:** a sixth god, **Thalassa** (tide and frost). New boons use the
+  element, parry, spell and Focus systems:
+  - Kindling (Burning ×1.5 duration and damage) and Meltdown (Melt ×2.8/×3.6).
+  - Conductor (Electrocute +40% reach, +50% stun) and Thunder Parry (a
+    perfect parry strikes the nearest foes with storm).
+  - Tidecaller (25–55% of hits leave foes Wet), Permafrost (Frozen foes take
+    +40%), Glacial Parry (a parry chills the attacker) and Deep Well (+1 max
+    Focus).
+  - Deflecting Gust (dashing breaks light bullets) and Lingering Charm
+    (imbues +2 s).
+  - Everlasting Aegis (+1 absorb).
+  - Killing Riposte (+0.6 riposte multiplier), Still Mind (parry window
+    +30%) and Arcane Flow (Focus +40%).
+  - Arc Chain now deals storm damage (so it electrocutes the wet); Cinder
+    Trail respects Kindling.
+- **Plumbing:** `boon.apply(stats, level, player)` (the third argument is
+  new, for boons that touch the player, like Deep Well). Parry boons run
+  through `setParryHook` (registered in `game.js`, so `parry.js` never
+  imports combat).
+- **Weapon hooks, ready for new weapons:** `element` (innate; every friendly
+  hit carries it unless a spell imbue overrides), step `heavy: true`,
+  thrown/shot `breaker`, and `parry: { window, riposteMult, reflectMult,
+  counter: 'shot' | 'thrust' }`. A new weapon = one `WEAPONS` entry.
+- **Verified:**
+  - Every grenade type on a brute: frag 60; fire 38 + burning + fire patch;
+    frost 30 + chilled; shock 36 + shocked; tide 16 + wet + puddle; toxic 18
+    + poisoned + cloud; oil 14 + slick; oil then a firebomb = Inferno (72).
+  - Tidecaller ×3: 10/20 hits wet. Meltdown: Melt = 56 on a 20 hit (×2.8).
+    Deep Well: max Focus 4. Still Mind: parry window 0.234 s. Thunder Parry
+    hits a second foe for 16.
+
 ## 12. Glossary
 
 | Term | Meaning |
