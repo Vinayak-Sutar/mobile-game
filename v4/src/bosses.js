@@ -37,6 +37,7 @@ export { bindBossSpawner, clearBullets, clearHostiles } from './boss-kit.js';
 import { VESPER } from './boss-vesper.js';
 import { NAGA } from './boss-naga.js';
 import { SOLARIS, GRUMM } from './boss-wardens.js';
+import { ALDRIC } from './boss-aldric.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1136,6 +1137,10 @@ export const BOSS_DEFS = {
     init(e) { e.noPush = true; },
     update() {}, draw() {},
   },
+  aldric: bossDef(ALDRIC, {
+    r: 22, hp: 1300, speed: 150, mass: 24, color: '#c8ccd8', damageBase: 17,
+    title: 'Ser Aldric the Oathbound', subtitle: 'The Last Knight of the Moon',
+  }),
   vesper: bossDef(VESPER, {
     r: 26, hp: 1400, speed: 160, mass: 20, color: '#ffb35e', damageBase: 17,
     title: 'Deadeye Vesper', subtitle: 'The Last Bullet',
@@ -1220,7 +1225,7 @@ export const BOSS_DEFS = {
 
 /** Boss roster: shuffled into slots 1-4 each run; the Warden is always last. */
 // The guardian pool: four of these guard chambers 3, 6, 9 and 12, shuffled per run.
-export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris'];
+export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris', 'aldric'];
 
 export const BOSS_INFO = {
   turtle: { title: BOSS_DEFS.turtle.title, subtitle: BOSS_DEFS.turtle.subtitle, color: '#6fdca0', animal: 'Turtle' },
@@ -1230,6 +1235,7 @@ export const BOSS_INFO = {
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  aldric: { title: BOSS_DEFS.aldric.title, subtitle: BOSS_DEFS.aldric.subtitle, color: '#e8f0ff', animal: 'Knight' },
   grumm: { title: BOSS_DEFS.grumm.title, subtitle: 'The Twin Wardens', color: '#9a98aa', animal: 'Duo' },
   warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Final' },
 };

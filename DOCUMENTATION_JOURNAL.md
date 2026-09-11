@@ -1885,6 +1885,97 @@ exports two specs, `SOLARIS` and `GRUMM`.
     victories, no errors.
   - Checked at the phone's 844×390 size.
 
+### 14.6 Step 5 — Ser Aldric the Oathbound (done)
+
+The fourth boss from IDEAS.md: an honorable knight whose fight changes with
+how you treat him. `boss-aldric.js`, spec `ALDRIC` (1300 HP at slot 0, r 22).
+He's in the guardian pool and the trials ("Knight").
+
+- **The Bow:** he walks out and bows for 2.4 s ("Hold your blade to duel
+  with honor").
+  - Leave him be → **Honor**: pure swordplay.
+  - Hit him mid-bow → **Oathbroken**: black flames and dirty tricks, but he
+    takes ×1.25 damage (`e.vulnerable`).
+  - In an honorable duel he watches `world.grenades`: two warnings, and the
+    third grenade breaks the oath.
+  - The mid-bow check runs in `tick`, before the brain's phase check. If it
+    ran in the move's update, a burst past 50% during the bow would skip it
+    and leave the oath unresolved (a softlock; found in testing).
+- **Guard** (`e.guardFn`, new in `combat.js`): sword crosswise for ~3 s.
+  - Direct hits from his front ±72° are turned away ("GUARDED"); from
+    behind they land. He turns slowly, so circle him.
+  - Blocked damage strains the guard (bar over him). 8% of max HP →
+    **GUARD BROKEN**, EXPOSED 2.2 s.
+  - Three blocks within 1.3 s → a counter-thrust (0.3 s white lane).
+  - Chained damage (grenade blasts, burn ticks) skips `guardFn`.
+- **Sword moves:**
+  - **Thrust:** a lane, then a lunge.
+  - **Overhead Chop:** a red blast in front of him.
+  - **Three Cuts:** left and right arcs (cones), then a thrust.
+  - **Feint:** the chop's red tell, pulled (`h.dead = true`), then a
+    thrust with its own lane.
+  - **Pommel Strike:** anti-hug; a short cone with knockback, then a
+    thrust.
+  - **Dashing Stabs:** anti-kite; 3 lunges, each with a lane.
+  - **Final Oath:** a 2.2 s circle r 255 that follows him, ×2.2 damage,
+    then EXPOSED 2.4 s. Get out, or dash through on the stroke.
+- **Oathbroken tricks:**
+  - **Sand:** a cone; if it catches you, darkness except around you for
+    2.2 s (drawn in `drawExtras`).
+  - **Daggers:** a fan of 3.
+  - **Ghost Squires:** up to 3 pale wretches, which die with him.
+- **Phase 2 at 50%**, a 3.2 s transformation. The banner depends on the
+  oath.
+  - **Oath of the Moon** (honor): a glowing blade.
+    - **Crescent Slash:** 3 walls of 7 moon orbs.
+    - **Moonfall:** a 5-cut combo (sweep, sweep, thrust, spin, overhead),
+      each cut telegraphed.
+    - **Full Moon** barrage: 3 turning arms plus gapped rings, 4.6 s, then
+      EXPOSED.
+  - **The Oath Breaks** (broken): blood-moon light.
+    - **Black Flame:** 3 dashes that leave fire patches (a bite every
+      0.5 s).
+    - **Inferno** barrage: 5 widening rings of marked fire pillars plus a
+      two-armed spiral, then EXPOSED.
+- **The kneel** (honor only). `e.hpFloor = 1` (new in `combat.js`) keeps
+  him alive; at ≤12% (after phase 2) he kneels. A SPARE sigil appears
+  ~230 away, and "STRIKE TO EXECUTE" shows over him.
+  - Hits during the first 0.8 s do nothing.
+  - After that, any hit (`guardFn` sets `e.struck`) → **Execute**: 14 extra
+    gold, and `damageMult ×1.15` for the run ("Oathbreaker's Edge").
+  - Standing in the sigil for 1 s → **Spare**: +1 life and full health.
+  - Either way `killEnemy` clears the room normally. Oathbroken clears
+    `hpFloor`, so he dies like any boss.
+- **Art:** drawn in the spec.
+  - The knight: plate, pauldrons, a great helm with a cross visor, a
+    white plume, a blue cape with a white star, and a longsword. Poses for
+    bow, guard, raise and kneel.
+  - Oathbroken: a charred cape, red visor and black-flame embers.
+  - The arena: a moonlit ring of standing stones (decor only, no
+    obstacles), a ring on the ground, fireflies, and silver or blood-red
+    moonlight.
+- **Measured** (60 s bot samples, damage per minute):
+
+  | Oath and phase | Human bot | Expert bot |
+  | --- | --- | --- |
+  | Honor, phase 1 | 168 | 0 |
+  | Honor, phase 2 | 88 | 55 |
+  | Broken, phase 1 | 118 | 58 |
+  | Broken, phase 2 | 130 | 70 |
+
+  The Three Cuts are what the human bot eats most in phase 1: a learnable
+  pattern. Numbers are in the range of the other bosses.
+- **Verified:**
+  - All 16 moves end cleanly in both oaths and both phases.
+  - Guard: block, counter and break.
+  - Bow → broken; grenade warnings → broken on the third.
+  - A burst past 50% mid-bow → broken.
+  - Kneel: grace, spare (+1 life, full HP), execute (+15%).
+  - Death clears the room.
+  - 4 full runs with Aldric as the first guardian: victories, no errors
+    (one spared him).
+  - Checked at 844×390.
+
 ## 12. Glossary
 
 | Term | Meaning |

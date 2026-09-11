@@ -125,6 +125,10 @@ test them.
   between enemies.
 
 ### 4. Ser Aldric the Oathbound — honorable knight
+> **Built in Version 4** (`v4/src/boss-aldric.js`, journal §14.6). V4 has no parry, so the
+> guard is the duel instead: he blocks from the front, circle him or break the guard.
+> Kept: the bow (honor or Oathbroken), the grenade warnings, Final Oath, a phase 2 per oath,
+> and the kneel. Spare = +1 life; execute = +15% damage. The notes below are the original.
 *"Draw, and let us see which oath is stronger."*
 - **Arena:** a moonlit dueling ring of standing stones; no adds, no traps.
 - **Signature — Honor:** he walks to the centre and **bows**.

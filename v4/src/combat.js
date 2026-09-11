@@ -41,6 +41,13 @@ export function dealDamage(e, amount, opts = {}) {
   // scaled by `proxyMult` (a number or a function of the part). Damage over
   // time and chained blasts don't count, and one sweep or spell that catches
   // several parts at once counts once.
+  // A boss stance that can turn a hit away (Aldric's guard): returns a
+  // damage multiplier, 0 = blocked. Damage over time and blasts go through.
+  if (e.guardFn && !opts.chained) {
+    const k = e.guardFn(e, opts, amount);
+    if (k <= 0) return 0;
+    amount *= k;
+  }
   if (e.proxyOf) {
     const b = e.proxyOf;
     if (b.dead || opts.chained) return 0;
@@ -68,9 +75,12 @@ export function dealDamage(e, amount, opts = {}) {
   }
   const exposed = e.exposed > 0;
   if (exposed) dmg *= EXPOSED_MULT;
+  if (e.vulnerable) dmg *= e.vulnerable;     // e.g. an Oathbroken knight takes more
   dmg = Math.max(1, Math.round(dmg));
 
   e.hp -= dmg;
+  // A boss that must not die from one big hit (Aldric kneels at low health first).
+  if (e.hpFloor !== undefined && e.hp < e.hpFloor) e.hp = e.hpFloor;
   e.flash = Math.max(e.flash || 0, crit ? 0.18 : 0.11);
   e.hitAt = world.runTime;
 
