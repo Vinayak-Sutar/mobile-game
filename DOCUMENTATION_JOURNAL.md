@@ -24,11 +24,17 @@
   crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
   of Ash. Bosses follow written "hard but fair" rules (§5.14). **3 lives** per
   run.
-- **Two versions ship side by side.** The root (`index.html`, `src/`) is
-  **Version 2**. `v1/` is **Version 1**: a frozen copy of the 8-chamber game
-  from commit `c12c2d1`, plus 3 lives, its own save and its own service-worker
-  cache. A switch on each title screen links the two (§5.15). Unless told
-  otherwise, "the game" means Version 2.
+- **Four versions ship side by side**, each with its own save and cache, and
+  a 4-button switch on every title screen:
+  - The root (`index.html`, `src/`) is **Version 2**.
+  - `v1/` is **Version 1**: a frozen copy of the 8-chamber game from commit
+    `c12c2d1`, plus 3 lives (§5.15).
+  - `v3/` is **Version 3**: elements, reactions, traps. An experiment the
+    owner stepped back from (§13).
+  - `v4/` is **Version 4**: Version 2 plus simple spells from Spell doors.
+    **It is the current line of work (§14).**
+- **Work with the owner one step at a time:** build one thing, push it, give
+  them a phone link and a short test list, then stop and wait.
 - **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
   printed LAN URL on a phone on the same Wi-Fi (Version 1 is at `/v1/`).
   Landscape only.
@@ -1487,6 +1493,93 @@ this same round.
     two doors forever. Pick once per room.
 - **Not in this round:** the new enemies (`bestiary.js`, `affixes.js`)
   are drafted but not wired in or committed. They wait for the owner's go.
+
+## 14. Version 4 (`v4/`) — Version 2 plus simple spells (current direction)
+
+After playing V3 the owner decided the element system (reactions,
+surfaces, combos, Focus, many grenade types) was too much for a fast 2D
+phone game. **Version 4 is a fresh copy of Version 2** (the fast one) with
+only this added. V3 stays playable but is no longer the main line of work.
+
+**Owner's rules for V4:**
+- Spells keep their element, and each element does one clear thing: fire
+  burns over time, ice slows, lightning stuns. **No combinations or
+  reactions** (no ice + lightning, no puddles or surfaces).
+- One grenade type (V2's).
+- Spells are earned during a run; at most 4 are equipped, in a row at the
+  bottom of the screen.
+- Responsiveness changes (input buffer, dash-cancel, …) will come later,
+  **one at a time, when the owner asks**. Don't add them on your own.
+- Traps and special rooms may come later as their own step.
+
+**Plumbing:**
+- Save key `ashfall.v4.save`, seeded once from `ashfall.save.v1`.
+- Cache prefix `ashfall-v4-`; manifest "Ashfall — Version 4".
+- The version switcher has 4 buttons in all four versions (V1 and V3 were
+  touched only there).
+
+### 14.1 Step 1 — spells from Spell doors, grenade cancel (done)
+
+- **`v4/src/spells.js`:** 13 spells, 3 levels each (+30% damage and −12%
+  cooldown per level, plus a spell-specific extra listed in `up`). Every
+  spell has its own cooldown.
+  - Fire (burns: `e.burn`, V2's existing burn): Fireball (8 s, bursts on
+    the first foe or wall), Dragon's Breath (9 s, a 1 s channel), Meteor
+    Shower (24 s, 7 meteors, each marked on the floor first).
+  - Ice (slows: `e.slow`; bosses never slower than 80%): Frost Nova (9 s,
+    a ring that pushes back and slows to 50%), Ice Shards (6 s, piercing
+    shards).
+  - Lightning (stuns: `e.stunT`, new in `enemies.js`, bosses immune):
+    Chain Lightning (7 s, 4 leaps, 0.4 s stun).
+  - Wind: Gale (6 s, knockback, wall SLAM for 22, blows bullets back as
+    yours).
+  - Earth: Earthen Bulwark (10 s, a temporary wall).
+  - Poison: Corrosive Siphon (12 s, a draining beam that heals half the
+    damage).
+  - Arcane: Minor Missiles (7 s, homing, spread across targets), Aegis
+    (16 s, absorbs 2 hits via `setAegisHook` in `damagePlayer`), Sigil of
+    Stillness (16 s, slows foes and enemy bullets to 25%).
+  - Void: Singularity (18 s, a pull, bullets swallowed, then an implosion).
+- **Spell doors** (`rooms.js`, reward `'spell'`, ✧ cyan):
+  - A run starts with no spells. Door 2 is always a Spell door while you
+    have none, then about 1 chamber in 3.
+  - A guardian pays a boon plus health if you're hurt, else a spell.
+  - The pick screen (`showSpellSelect`) offers 3 spells: at least one new
+    one, and an upgrade if you know any. A known spell levels up (max 3;
+    maxed spells are never offered).
+  - A new spell with 4 equipped → "Replace which spell?" (or "Keep my
+    spells"). A dropped spell keeps its level if found again (`p.spellLv`).
+- **Casting:**
+  - The row of 4 slots sits at the bottom centre (`controls.spell0-3`, r30,
+    74 apart, y = h−46) and is drawn in every mode: on touch the slots are
+    the buttons, elsewhere they show the key or pad button.
+  - Each slot shows the glyph when ready, the seconds left while
+    recharging, and level pips above; an empty slot is a faint socket.
+  - Keyboard: 1–4. Pad: hold **R1** + ✕ ○ □ △. Dash on the pad is now ✕ or
+    L1 (R1 no longer dashes).
+- **Grenade cancel:** keeps the charge.
+  - Touch: while aiming, a ✕ CANCEL zone appears top-right
+    (`controls.gcancel`, far from any normal aiming drag). Let go over it
+    and the reticle disappears; nothing is thrown.
+  - Mouse: right-click while holding G.
+  - Any input: dash while aiming.
+- **Other changes:**
+  - Burning enemies tint orange and slowed ones icy; stunned enemies show
+    stars.
+  - Friendly projectiles support `target` (homing), `onHitEnemy`, and
+    `onExpire` on a hit.
+- **Verified:**
+  - Every spell cast on 3 brutes (damage, burn, slow 0.5, a stun on all 3
+    for Chain Lightning, the Gale slam). Aegis blocks 2 hits. The Sigil
+    slows a bullet to ~25%. Bulwark adds a wall.
+  - Levelling through the door screen: 1→2→3, Fireball's cooldown goes
+    8 → 6.1 s, and a maxed spell is never offered.
+  - The replace screen works.
+  - Grenade cancel by touch ✕, right-click and dash: 0 thrown, charge kept.
+    A normal aimed throw still throws.
+  - Full 15-chamber runs on all 4 weapons, taking Spell doors and casting:
+    0 errors, all victories, 5–9 Spell doors per run.
+  - V2 still runs; all switcher links are correct.
 
 ## 12. Glossary
 

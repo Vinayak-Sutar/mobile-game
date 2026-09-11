@@ -2,7 +2,7 @@
 // and every menu screen.
 
 import { world, view, arena, arenaBounds, resetWorld, clearEntities } from './state.js';
-import { clamp, TAU } from './util.js';
+import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
@@ -17,8 +17,11 @@ import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } f
 import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
-  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro, BOSS_DEPTH,
+  generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
+  FINAL_DEPTH, BOSS_EVERY, effDepth,
 } from './rooms.js';
+import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
+import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
@@ -27,6 +30,10 @@ import { offerBoons, applyBoon, describeBoon, GODS } from './boons.js';
 import {
   drawHud, drawControls, updateUi, resetUi, showToast, showOverlay, hideOverlay, overlayVisible,
 } from './ui.js';
+import {
+  SPELLS, SPELL_SLOTS, ELEMENT_INFO, spellById, spellColor, spellLevel, offerSpells, learnSpell, tryCast,
+  updateSpellZones, drawSpellZones, drawPlayerSpells,
+} from './spells.js';
 import {
   save, loadSave, writeSave, UPGRADES, upgradeCost, canAfford, buyUpgrade, metaBonuses, bankRun, goldMultiplier,
 } from './save.js';
@@ -55,6 +62,8 @@ let audioStarted = false;
 // A weapon picked while the phone was still upright; the run starts once
 // it's been turned sideways.
 let pendingWeapon = null;
+// Set when the weapon screen was reached from Boss Trials.
+let pendingTrial = null;
 
 // --- setup -----------------------------------------------------------------
 
@@ -117,7 +126,7 @@ function checkOrientation() {
   if (!upright && pendingWeapon) {
     const w = pendingWeapon;
     pendingWeapon = null;
-    startRun(w);
+    beginRun(w);
   }
   if (upright && state === 'playing') showPause();
 }
@@ -149,6 +158,8 @@ function startRun(weapon) {
   world.player = createPlayer(weapon, metaBonuses());
   world.depth = 1;
   world.loop = 0;
+  // A different order of guardians every run; the Warden always closes it.
+  world.bossOrder = shuffle(CREATURE_BOSSES);
 
   const room = generateRoom(1, 0);
   startRoom(room);
@@ -158,6 +169,29 @@ function startRun(weapon) {
   hideOverlay();
 }
 
+/**
+ * Boss Trials: straight into one boss fight, with a few boons so it plays
+ * like it would mid-run. Nothing is banked — it's practice, not farming.
+ */
+function startTrial(weapon, bossType) {
+  startRun(weapon);
+  world.trial = bossType;
+  const p = world.player;
+  const final = bossType === 'warden';
+  const gifts = final ? 8 : 3;
+  for (let i = 0; i < gifts; i++) {
+    const offer = offerBoons(p, 1);
+    if (offer[0]) applyBoon(p, offer[0]);
+  }
+  p.hp = p.stats.maxHp;
+  world.depth = final ? FINAL_DEPTH : BOSS_EVERY * 2;
+  clearEntities();
+  clearFx();
+  const room = generateRoom(world.depth, 0, { bossType, slot: final ? 4 : 1 });
+  startRoom(room);
+  showToast('BOSS TRIAL', BOSS_INFO[bossType].animal === 'Final' ? 'The final guardian' : BOSS_INFO[bossType].animal);
+}
+
 function advanceRoom() {
   world.depth++;
   clearEntities();
@@ -165,10 +199,19 @@ function advanceRoom() {
   const room = generateRoom(world.depth, world.loop);
   startRoom(room);
   initAmbient(world.biome || getBiome());
-  if (room.type === 'boss') showToast('THE LAST GATE', 'Something is waiting.');
+  if (room.final) showToast('THE LAST GATE', 'Something is waiting.');
+  else if (room.type === 'boss') showToast(`CHAMBER ${world.depth}`, 'A guardian bars the way.');
   else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : '');
   state = 'playing';
   hideOverlay();
+}
+
+/** The weapon was picked: a normal run, or the Boss Trial chosen before it. */
+function beginRun(weapon) {
+  const trial = pendingTrial;
+  pendingTrial = null;
+  if (trial) startTrial(weapon, trial);
+  else startRun(weapon);
 }
 
 function loopDeeper() {
@@ -180,17 +223,22 @@ function loopDeeper() {
 
 function handleDoor(door) {
   if (door.reward === 'exit') {
-    onVictory();
+    if (world.trial) showTrialEnd(true);
+    else onVictory();
     return;
   }
   if (door.reward === 'boon') {
     showBoonSelect();
     return;
   }
+  if (door.reward === 'spell') {
+    showSpellSelect();
+    return;
+  }
   if (door.reward === 'heal') {
     healPlayer(Math.round(world.player.stats.maxHp * 0.40));
   } else if (door.reward === 'gold') {
-    const amount = 18 + world.depth * 9;
+    const amount = Math.round(18 + effDepth(world.depth) * 9);
     world.gold += amount;
     sfx.pickup();
   }
@@ -200,7 +248,7 @@ function handleDoor(door) {
 /**
  * A spare life. The collapse plays out first (the `dying` state), then the
  * player stands back up where they fell: full health, a long moment of
- * invulnerability, enemy shots wiped and everything nearby shoved back, so a
+ * invulnerability, enemy fire wiped and everything nearby shoved back, so a
  * revive can't be instantly undone by what killed you.
  */
 function revivePlayer() {
@@ -215,13 +263,7 @@ function revivePlayer() {
   p.dashing = false;
   p.hurtFlash = 0;
 
-  // Safe to splice here: this runs from tick(), never inside the projectile loop.
-  for (let i = world.projectiles.length - 1; i >= 0; i--) {
-    const pr = world.projectiles[i];
-    if (pr.friendly) continue;
-    burstFx(pr.x, pr.y, { count: 2, color: pr.color, speed: 90, size: 3, life: 0.3, drag: 4, shape: 'spark' });
-    world.projectiles.splice(i, 1);
-  }
+  clearBullets();
   for (const e of world.enemies) {
     if (e.dead || e.spawning) continue;
     const d = Math.hypot(e.x - p.x, e.y - p.y);
@@ -241,14 +283,14 @@ function revivePlayer() {
 }
 
 function onDeath() {
-  const p = world.player;
+  if (world.trial) { showTrialEnd(false); return; }
   bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
   state = 'dead';
   showRunEnd(false);
 }
 
 function onVictory() {
-  bankRun({ gold: world.gold, depth: BOSS_DEPTH, kills: world.kills, won: true });
+  bankRun({ gold: world.gold, depth: FINAL_DEPTH, kills: world.kills, won: true });
   state = 'victory';
   flash(0.4, '#ffd9a0');
   showRunEnd(true);
@@ -302,7 +344,9 @@ function tick(dt) {
       updateStatuses(dt);
       updateHitboxes(dt);
       updateGrenades(dt);
+      updateSpellZones(dt);
       updateProjectiles(dt);
+      updateHazards(dt);
       updatePickups(dt);
       updateRoom(dt);
       updateFx(dt);
@@ -332,6 +376,7 @@ function tick(dt) {
     updateFx(dt);
     updateEnemies(dt);
     updateProjectiles(dt);
+    updateHazards(dt);
     deathTimer -= dt;
     if (deathTimer <= 0) {
       if (world.player.lives > 1) revivePlayer();
@@ -370,11 +415,15 @@ function render() {
     drawFxBelow(ctx);
     drawObstacles(ctx);
     drawDoors(ctx, world.runTime);
+    drawHazardsBelow(ctx, world.runTime);
+    drawSpellZones(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
     drawPickups(ctx);
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);
+    if (world.player) drawPlayerSpells(ctx, world.player, world.runTime);
     drawProjectiles(ctx);
+    drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
     drawFxAbove(ctx);
     drawRoomIntro(ctx, world.room, world.runTime);
@@ -482,16 +531,16 @@ function applyMusicVolume(v) {
 }
 
 /**
- * This is Version 1: the original eight-chamber game, kept as a separate copy
- * with its own save. Version 2 (15 chambers, five bosses) is one folder up.
+ * Version 1 (the original eight-chamber game) is kept as a separate, frozen
+ * copy in ./v1/ with its own save. This row switches between the two.
  */
 function versionRow() {
   return `
     <div class="versions">
-      <button class="ver on" data-act="version-here" aria-current="true">Version 1<small>8 chambers · 1 boss</small></button>
+      <button class="ver" data-act="version" data-href="../v1/">Version 1<small>8 chambers · 1 boss</small></button>
       <button class="ver" data-act="version" data-href="../">Version 2<small>15 chambers · 5 bosses</small></button>
       <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
-      <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
+      <button class="ver on" data-act="version-here" aria-current="true">Version 4<small>spells · pure action</small></button>
     </div>`;
 }
 
@@ -526,11 +575,13 @@ function showTitle() {
       <div class="eyebrow">top-down action roguelike · prototype</div>
       <h1>Ashfall</h1>
       ${versionRow()}
-      <p class="sub">Eight chambers stand between you and the surface. You have three lives.
+      <p class="sub">Fifteen chambers and five guardians stand between you and the surface.
+      You have three lives.
       Clear a room, choose a door, take a boon, go deeper.
       Death is not the end — the darkness you carry out makes you stronger.</p>
       <div class="row">
         <button class="btn" data-act="biome">Begin Run</button>
+        <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -540,12 +591,15 @@ function showTitle() {
       ${dualSenseRow()}
       <div class="keys">
         <b>Touch</b> — left half drags to move · <kbd>ATK</kbd> attack · <kbd>DASH</kbd> dash ·
-        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim)<br>
+        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim; drag onto ✕ to cancel) ·
+        the row at the bottom casts your spells<br>
         <b>Keyboard</b> — <kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>click</kbd>/<kbd>J</kbd> attack ·
-        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim) ·
+        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>G</kbd> grenade (hold to aim, right-click cancels) ·
+        <kbd>1</kbd>–<kbd>4</kbd> spells ·
         <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
         <b>Controller</b> — <kbd>L stick</kbd> move · <kbd>R stick</kbd> aim · <kbd>R2</kbd> attack ·
-        <kbd>L2</kbd> special · <kbd>R1</kbd>/<kbd>✕</kbd> dash · <kbd>○</kbd> grenade (hold + R stick) ·
+        <kbd>L2</kbd> special · <kbd>✕</kbd>/<kbd>L1</kbd> dash · <kbd>○</kbd> grenade (hold + R stick; dash cancels) ·
+        hold <kbd>R1</kbd> + <kbd>✕○□△</kbd> spells ·
         <kbd>Options</kbd> pause
       </div>
     </div>`);
@@ -573,7 +627,7 @@ function showBiomeSelect() {
     <div class="panel">
       <div class="eyebrow">where the gate opens</div>
       <h2>Choose your descent</h2>
-      <p class="sub">Terrain only — every biome runs the same eight chambers.</p>
+      <p class="sub">Terrain only — every biome runs the same fifteen chambers.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
     </div>`);
@@ -622,6 +676,66 @@ function showBoonSelect() {
       <div class="eyebrow">a gift is offered</div>
       <h2>Choose a boon</h2>
       <div class="cards">${cards}</div>
+    </div>`);
+}
+
+// --- Spell doors (Version 4): pick 1 of 3; known spells level up --------------
+
+let pendingSpells = [];
+let pendingSpellId = null;
+
+function showSpellSelect() {
+  const p = world.player;
+  pendingSpells = offerSpells(p, 3);
+  if (!pendingSpells.length) { advanceRoom(); return; }
+  state = 'boon';
+  sfx.boon();
+  const cards = pendingSpells.map((sp, i) => {
+    const c = spellColor(sp);
+    const el = ELEMENT_INFO[sp.element];
+    const lv = spellLevel(p, sp.id);
+    const known = p.spells.includes(sp.id);
+    const head = known ? `level ${lv + 1}` : lv ? `returns at level ${lv}` : 'new';
+    const tag = `${el.name}${el.effect ? ` · ${el.effect}` : ''} · ${sp.cd}s cooldown`;
+    return `
+      <div class="card spellcard" data-act="spell-pick" data-idx="${i}" style="border-color:${c}88">
+        <div class="glyph" style="color:${c}">${sp.glyph}</div>
+        <div class="tag" style="color:${c}">${tag}</div>
+        <div class="name">${sp.name} <span style="opacity:.6">${head}</span></div>
+        <div class="desc">${known ? `<b>Level up:</b> ${sp.up}.` : sp.desc}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">a spell tome lies open</div>
+      <h2>Choose a spell</h2>
+      <p class="sub">${p.spells.length} of ${SPELL_SLOTS} spell slots filled. Taking a spell you know levels it up (up to 3).</p>
+      <div class="cards">${cards}</div>
+    </div>`);
+}
+
+/** Four spells already equipped: which one makes room for the new one? */
+function showSpellReplace(id) {
+  const p = world.player;
+  const sp = spellById(id);
+  pendingSpellId = id;
+  const cards = p.spells.map((sid, i) => {
+    const s = spellById(sid);
+    const c = spellColor(s);
+    return `
+      <div class="card spellcard" data-act="spell-replace" data-idx="${i}" style="border-color:${c}88">
+        <div class="glyph" style="color:${c}">${s.glyph}</div>
+        <div class="name">${s.name} <span style="opacity:.6">level ${spellLevel(p, sid)}</span></div>
+        <div class="desc">Replace with ${sp.name}.</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">your hands are full</div>
+      <h2>Replace which spell?</h2>
+      <p class="sub">${sp.name} takes its slot. A spell you drop keeps its level if you find it again.</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="spell-skip">Keep my spells</button></div>
     </div>`);
 }
 
@@ -734,7 +848,53 @@ const KILLER_NAMES = {
   wretch: 'a Wretch', slinger: 'a Slinger', brute: 'a Brute', charger: 'a Charger',
   bomber: "a Bomber's blast", splitter: 'a Splitter', spitter: 'a Spitter',
   warden: 'the Warden of Ash', explosion: 'an explosion',
+  turtle: 'Gravemaw the Shellback', croc: 'Mawgrim, the Mire King',
+  gorilla: 'Kharn, the Ashen Silverback', peacock: 'Solenne, the Hundred-Eyed',
 };
+
+// --- Boss Trials ------------------------------------------------------------
+
+function showTrials() {
+  state = 'trials';
+  const order = [...CREATURE_BOSSES, 'warden'];
+  const cards = order.map((type) => {
+    const b = BOSS_INFO[type];
+    return `
+      <div class="card" data-act="trial-pick" data-boss="${type}" style="border-color:${b.color}66">
+        <div class="tag" style="color:${b.color}">${b.animal === 'Final' ? 'Final guardian' : b.animal}</div>
+        <div class="name" style="color:${b.color}">${b.title}</div>
+        <div class="desc">${b.subtitle}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">practice · nothing is banked</div>
+      <h2>Boss Trials</h2>
+      <p class="sub">Fight any guardian on its own, with a few boons to start.
+      In a real run they guard chambers 3, 6, 9 and 12 in a random order; the Warden waits at 15.</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
+    </div>`);
+}
+
+function showTrialEnd(won) {
+  state = won ? 'victory' : 'dead';
+  const info = BOSS_INFO[world.trial] || BOSS_INFO.warden;
+  const last = world.trial;
+  const t = world.runTime;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">boss trial</div>
+      <h2 style="color:${info.color}">${won ? 'Guardian Felled' : 'Defeated'}</h2>
+      <p class="sub">${info.title} — ${won ? 'beaten' : 'still standing'} after
+      ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}.</p>
+      <div class="row">
+        <button class="btn" data-act="trial-again" data-boss="${last}">${won ? 'Fight Again' : 'Retry'}</button>
+        <button class="btn ghost" data-act="trials">Other Trials</button>
+        <button class="btn ghost" data-act="title">Title</button>
+      </div>
+    </div>`);
+}
 
 function showRunEnd(won) {
   const banked = Math.round(world.gold * goldMultiplier());
@@ -803,15 +963,27 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
   if (act !== 'padcheck') stopPadCheck();
 
   switch (act) {
-    case 'title': showTitle(); break;
+    case 'title': pendingTrial = null; showTitle(); break;
     case 'version': location.href = el.dataset.href; break;
     case 'version-here': break;
+    case 'trials': showTrials(); break;
+    case 'trial-pick': {
+      if (isTouchDevice() && !isFullscreen()) enterFullscreen();
+      pendingTrial = el.dataset.boss;
+      showWeaponSelect();
+      break;
+    }
+    case 'trial-again': {
+      pendingTrial = el.dataset.boss;
+      showWeaponSelect();
+      break;
+    }
     case 'mirror': showMirror(); break;
     case 'padcheck': showPadCheck(); break;
     case 'vol-down': applyMusicVolume(audio.musicVolume - 0.1); break;
     case 'vol-up': applyMusicVolume(audio.musicVolume + 0.1); break;
     case 'fullscreen': toggleFullscreen().then(() => showTitle()); break;
-    case 'weapon': showWeaponSelect(); break;
+    case 'weapon': pendingTrial = null; showWeaponSelect(); break;
     case 'biome': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       showBiomeSelect();
@@ -833,7 +1005,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
         checkOrientation();
         break;
       }
-      startRun(WEAPONS[idx]);
+      beginRun(WEAPONS[idx]);
       break;
     }
     case 'boon': {
@@ -842,6 +1014,21 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       advanceRoom();
       break;
     }
+    case 'spell-pick': {
+      const sp = pendingSpells[idx];
+      if (!sp) break;
+      if (learnSpell(world.player, sp.id) === 'full') { showSpellReplace(sp.id); break; }
+      sfx.boon();
+      advanceRoom();
+      break;
+    }
+    case 'spell-replace': {
+      learnSpell(world.player, pendingSpellId, idx);
+      sfx.boon();
+      advanceRoom();
+      break;
+    }
+    case 'spell-skip': advanceRoom(); break;
     case 'buy': {
       if (buyUpgrade(UPGRADES[idx])) { sfx.pickup(); showMirror(); }
       break;
@@ -869,7 +1056,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'abandon': {
-      bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
+      if (!world.trial) bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
       showTitle();
       break;
     }
@@ -929,10 +1116,16 @@ requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
 // poking at balance from the browser console.
 window.ashfall = {
   world, view, arena, input, fx,
+  // Version 4 spells: learn/level one, open a Spell door screen, cast by id.
+  SPELLS,
+  learn: (id, times = 1) => { for (let k = 0; k < times; k++) learnSpell(world.player, id, 0); return world.player.spells; },
+  spellDoor: () => showSpellSelect(),
+  cast: (id) => tryCast(world.player, id),
   WEAPONS,
   get state() { return state; },
   set state(s) { state = s; },
   tick, render, startRun, advanceRoom, showTitle,
+  trial: (type, weaponIdx = 0) => startTrial(WEAPONS[weaponIdx], type),
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,
