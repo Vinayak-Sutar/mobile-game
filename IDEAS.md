@@ -73,6 +73,9 @@ test them.
   extinguishing fuses.
 
 ### 2. Nagaraja, the Coil Beneath — giant snake
+> **Built in Version 4** (`v4/src/boss-naga.js`, journal §14.4): the body as a moving wall,
+> glowing weak scales, The Coil (escape it or break free), and a Hydra second phase with
+> two heads and an Ouroboros barrage. The notes below are the original design.
 *"The arena is not a floor. It is her body."*
 - **Arena:** a ring-shaped temple; her body is so long it **becomes walls** that move.
 - **Signature — The Coil:** her body segments snake across the arena and block movement

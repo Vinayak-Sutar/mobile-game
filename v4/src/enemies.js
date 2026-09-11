@@ -676,7 +676,7 @@ export function spawnEnemy(type, x, y, opts = {}) {
 
   if (def.init) def.init(e);
   world.enemies.push(e);
-  if (!e.spawning) sfx.spawn();
+  if (!e.spawning && !def.invisible) sfx.spawn();
   return e;
 }
 
@@ -711,6 +711,9 @@ export function updateEnemies(dt) {
       }
       continue;
     }
+
+    // Parts placed by their boss each frame (coils) don't move themselves.
+    if (e.def.fixed) continue;
 
     // Knockback velocity decays exponentially; AI movement is applied on top.
     const decay = Math.exp(-7 * dt);
@@ -762,6 +765,8 @@ export function updateEnemies(dt) {
 
 export function drawEnemies(ctx) {
   for (const e of world.enemies) {
+    // Boss parts drawn by their boss (Nagaraja's coils) draw nothing themselves.
+    if (e.def.invisible) continue;
     if (e.spawning) {
       const k = e.spawnT / SPAWN_TIME;
       ctx.globalAlpha = 0.35;

@@ -234,6 +234,13 @@ export const sfx = {
     noise({ dur: 0.16, vol: 0.28, freq: 1800, freq2: 300, type: 'bandpass', q: 0.8 });
     tone({ freq: 160, freq2: 60, type: 'triangle', dur: 0.12, vol: 0.18 });
   },
+  // Nagaraja: a long hiss and a tail rattle.
+  hiss() {
+    noise({ dur: 0.7, vol: 0.16, freq: 5200, freq2: 2600, type: 'highpass', q: 0.6 });
+  },
+  rattle() {
+    for (let k = 0; k < 7; k++) noise({ dur: 0.035, vol: 0.12, freq: 3800, type: 'bandpass', q: 3, delay: k * 0.055 });
+  },
   bell() {
     [220, 440, 660, 880].forEach((f, i) =>
       tone({ freq: f, type: 'sine', dur: 1.8 - i * 0.3, vol: 0.12 / (i + 1), attack: 0.005 }));

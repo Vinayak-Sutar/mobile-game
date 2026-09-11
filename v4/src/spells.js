@@ -166,7 +166,7 @@ export const SPELLS = [
     up: '+1 missile, +30% damage',
     cast(p, aim, target, lv) {
       const foes = world.enemies
-        .filter((e) => !e.dead && !e.spawning && !e.hidden && dist(p.x, p.y, e.x, e.y) < 560)
+        .filter((e) => !e.dead && !e.spawning && !e.hidden && !e.noTarget && dist(p.x, p.y, e.x, e.y) < 560)
         .sort((a, b) => dist(p.x, p.y, a.x, a.y) - dist(p.x, p.y, b.x, b.y));
       const n = 5 + (lv - 1);
       for (let k = 0; k < n; k++) {
@@ -476,7 +476,7 @@ function updateChannel(p, dt) {
 function nextChain(from, hit, range) {
   let best = null, bestD = range;
   for (const e of world.enemies) {
-    if (e.dead || e.spawning || e.hidden || hit.has(e)) continue;
+    if (e.dead || e.spawning || e.hidden || e.noTarget || hit.has(e)) continue;
     const d = dist(from.x, from.y, e.x, e.y);
     if (d < bestD) { bestD = d; best = e; }
   }

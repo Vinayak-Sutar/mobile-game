@@ -14,7 +14,8 @@ export const EXPOSED_MULT = 1.35;
 export function nearestEnemy(x, y, maxDist = Infinity, exclude = null) {
   let best = null, bestD = maxDist * maxDist;
   for (const e of world.enemies) {
-    if (e.dead || e === exclude || e.spawning || e.hidden) continue;
+    // `noTarget`: boss parts that shouldn't pull auto-aim (armoured coils).
+    if (e.dead || e === exclude || e.spawning || e.hidden || e.noTarget) continue;
     const d = dist2(x, y, e.x, e.y);
     if (d < bestD) { bestD = d; best = e; }
   }
@@ -36,6 +37,24 @@ export function enemiesInRadius(x, y, radius, exclude = null) {
  */
 export function dealDamage(e, amount, opts = {}) {
   if (!e || e.dead || e.hp <= 0 || e.spawning || e.invuln) return 0;
+  // A boss part (a body segment, a second head) passes its hits to the boss,
+  // scaled by `proxyMult` (a number or a function of the part). Damage over
+  // time and chained blasts don't count, and one sweep or spell that catches
+  // several parts at once counts once.
+  if (e.proxyOf) {
+    const b = e.proxyOf;
+    if (b.dead || opts.chained) return 0;
+    const key = opts.source === 'projectile' ? null : (opts.source || 'hit');
+    if (key && b.proxyTick === world.runTime && b.proxyKey === key) return 0;
+    b.proxyTick = world.runTime;
+    b.proxyKey = key;
+    const mult = typeof e.proxyMult === 'function' ? e.proxyMult(e) : (e.proxyMult ?? 1);
+    e.flash = 0.1;
+    if (mult <= 0) return 0;
+    const dealt = dealDamage(b, amount * mult, { ...opts, knockback: 0, at: e });
+    if (dealt > 0 && e.onProxyHit) e.onProxyHit(e, dealt);
+    return dealt;
+  }
   const p = world.player;
   const st = p ? p.stats : null;
 
@@ -66,13 +85,14 @@ export function dealDamage(e, amount, opts = {}) {
 
   if (!opts.silent) {
     const dir = opts.dir ?? rand(0, TAU);
-    burst(e.x, e.y, {
+    const at = opts.at || e;       // a hit on a boss part shows where it landed
+    burst(at.x, at.y, {
       count: crit ? 14 : 7,
       color: crit ? '#fff0b0' : '#ffd9d9',
       speed: crit ? 340 : 210, size: crit ? 4 : 3,
       life: 0.3, dir, spread: 1.5, shape: 'spark', drag: 5,
     });
-    damageText(e.x, e.y - e.r, String(dmg), {
+    damageText(at.x, at.y - (at.r || e.r), String(dmg), {
       color: crit ? '#ffd45e' : exposed ? '#ffe9a8' : '#ffffff', crit, size: exposed ? 20 : 17,
     });
     if (crit) {

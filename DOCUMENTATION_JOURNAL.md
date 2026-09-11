@@ -1729,6 +1729,89 @@ The owner's feedback after playing her: "not challenging enough", and
   A fight to the death took 56 s with no errors. A full run was a victory
   with Vesper at slot 2.
 
+### 14.4 Step 3 — Nagaraja, the Coil Beneath (done)
+
+The second boss from IDEAS.md, reworked for V4 (no parry, no elements).
+Every move is a snake move.
+
+- **Engine additions** (generic, for any multi-part boss):
+  - `e.proxyOf` / `proxyMult` / `onProxyHit`: a part passes its hits to
+    its boss, scaled (`combat.dealDamage`). Damage over time and chained
+    blasts don't pass through, and one sweep or spell that catches several
+    parts in the same tick counts once. Damage numbers show where the hit
+    landed (`opts.at`).
+  - `e.noTarget`: auto-aim, Chain Lightning and Minor Missiles skip the
+    part.
+  - `def.fixed`: the boss places the part; it never moves itself.
+  - `def.invisible`: the boss draws the part; it also spawns silently.
+  - New sounds: `sfx.hiss`, `sfx.rattle`.
+- **`boss-naga.js`:** 1500 HP at slot 0. The body is 36 `nagaseg` parts
+  (21 u apart, ~770 u long) that follow the head's trail (`makeSerpent` /
+  `trailPush` / `layBody`).
+  - **The body is a wall:** you can't walk through it, and it stops enemy
+    bullets (older than 0.2 s). A dash hops over it, except while she
+    coils: then the body is "raised" and drawn with a gold rim. Burrowed
+    segments are untouchable.
+  - **Damage:** the head takes ×1, the armoured coils ×0.25, and the 3
+    **glowing scales** ×1.6. A scale cracks after 3.5% of her max HP and a
+    new one lights 1.5 s later; the neck can't glow. Auto-aim skips the
+    armoured coils.
+  - **Phase 1:** Strike, Double Strike, Fang Volley, Venom Spit (lobs that
+    leave venom pools: small damage every 0.5 s, 5 s), Tail Lash (a rattle
+    and a cone from wherever the tail lies), Burrow (cracks show her path,
+    a marked eruption), Hood Flare (true hugging only: within 120 u for
+    0.8 s), Sidewinder (a drawn S-path she races along, then a strike),
+    **The Coil** and **Hypnotic Sway** (the phase-1 barrage: a swirling
+    floor, bending spiral scales and gapped rings).
+  - **The Coil (signature):** a gold circle marks it; her head races to it
+    and lays a full ring in 1.35 s.
+    - Out before it closes → she's EXPOSED 1.5 s.
+    - Trapped → the ring squeezes 124 → 62 u over 3.2 s. Deal 7% of her max
+      HP (the glowing scales move onto the ring) → "BROKE FREE", EXPOSED
+      1.9 s. Otherwise "CRUSHED" for 1.5× damage.
+  - **Phase 2, Hydra:** a 3.4 s transformation. She thrashes, her body tears
+    at segment 18, a second head (`nagahead`, ×1 proxy) grows from the
+    stump, the braziers burn green and "HYDRA" appears.
+    - Head B has its own little AI (`tickHeadB`): it keeps across from head
+      A and spits fangs, or joins in on command (`orderB`).
+    - New moves: Twin Strike, Crossfire, Venom Rain, Shed Skin (her empty
+      skin stays as a wall for 6 s while she comes up under you), Great
+      Coil (each head lays half the ring) and **Ouroboros** (the phase-2
+      barrage: the halves chase each other round a ring, fanning fangs
+      inward; EXPOSED 2.2 s after).
+  - **Art:** a jade body with gold scale diamonds, a cobra hood, amber slit
+    eyes (green at dusk), a flicking forked tongue and open jaws with
+    fangs. The temple floor has a carved ring, a spiral serpent mosaic and
+    four braziers; there's a green tint in phase 2.
+- **Bugs the bots found and fixed:**
+  - The strike lane was drawn 60 u wide against a ~72 u bite. It's now 76 u
+    wide and 398 u long (`STRIKE_LANE_*`), covering the whole bite.
+  - Her body pinned players against a strike, and dashes couldn't cross
+    it. Dashes now hop over it (except during the Coil).
+  - Hood Flare fired whenever her head slithered past you. It now needs
+    real hugging and has a longer tell; its shockwave is phase 2 only.
+- **Measured** (damage per minute, phase 1 / phase 2):
+
+  | Player bot | Phase 1 | Phase 2 |
+  | --- | --- | --- |
+  | Standing still | 334 | 255 |
+  | Circling on autopilot | 64 | 172 |
+  | Human-like (0.25 s reactions) | 104 | 129 |
+  | Expert (reads lanes, dashes through) | 19 | ~70–93 |
+
+  The expert's phase-2 damage is spread across every move (Ouroboros 14,
+  everything else ≤ 7): harder, not unfair.
+- **Verified:**
+  - All 10 phase-1 and 16 phase-2 moves run to completion with no errors.
+  - Damage rules: 40 / 10 / 64 for the same hit on the head / a coil / a
+    scale.
+  - The Coil: escaping → EXPOSED; breaking free → EXPOSED; staying passive
+    → crushed.
+  - The phase change: 2 serpents, a second head, 35 segments. Her death
+    leaves 0 parts and opens the doors.
+  - Full runs with her in the pool: victories, no errors.
+  - Checked at the phone's 844×390 size.
+
 ## 12. Glossary
 
 | Term | Meaning |
