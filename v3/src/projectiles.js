@@ -96,8 +96,10 @@ export function updateProjectiles(dt) {
       }
     }
 
-    pr.x += pr.vx * dt;
-    pr.y += pr.vy * dt;
+    // Inside a Sigil of Stillness enemy bullets crawl at a quarter speed.
+    const sm = pr.inSigil ? 0.25 : 1;
+    pr.x += pr.vx * dt * sm;
+    pr.y += pr.vy * dt * sm;
     pr.rot += (pr.spin || 0) * dt;
 
     if (pr.shape !== 'arrow' && pr.trailEvery < 5) {
@@ -176,6 +178,7 @@ export function updateProjectiles(dt) {
           dir: Math.atan2(pr.vy, pr.vx),
           source: 'projectile',
           heavy: !!pr.heavyHit,
+          element: pr.element || undefined,
         });
         if (pr.pierce > 0) pr.pierce--;
         else { consumed = true; break; }
@@ -477,6 +480,7 @@ export function updateHitboxes(dt) {
         dir: angleTo(h.x, h.y, e.x, e.y),
         source: 'melee',
         heavy: !!h.heavy,
+        element: h.element || undefined,
       });
       if (h.onHit) h.onHit(e, h);
     }

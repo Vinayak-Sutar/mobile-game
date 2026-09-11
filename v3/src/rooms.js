@@ -356,10 +356,37 @@ export function drawFloor(ctx, time) {
   ctx.strokeRect(b.l - 10, b.t - 10, arena.w + 20, arena.h + 20);
 }
 
+/** An Earthen Bulwark: raw raised stone that cracks as it runs out. */
+function drawBulwark(ctx, o) {
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  roundRect(ctx, o.x + 3, o.y + 6, o.w, o.h, 5);
+  ctx.fill();
+  ctx.fillStyle = '#7a5d3a';
+  roundRect(ctx, o.x, o.y, o.w, o.h, 5);
+  ctx.fill();
+  ctx.fillStyle = '#c9a36b';
+  roundRect(ctx, o.x + 3, o.y + 3, o.w - 6, Math.min(o.h, o.w) * 0.35, 3);
+  ctx.fill();
+  if (o.temp < 1.2) {
+    ctx.strokeStyle = 'rgba(20,10,0,0.7)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(o.x + o.w * 0.2, o.y + o.h * 0.1);
+    ctx.lineTo(o.x + o.w * 0.55, o.y + o.h * 0.5);
+    ctx.lineTo(o.x + o.w * 0.35, o.y + o.h * 0.9);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#c9a36b';
+  ctx.lineWidth = 2;
+  roundRect(ctx, o.x, o.y, o.w, o.h, 5);
+  ctx.stroke();
+}
+
 export function drawObstacles(ctx) {
   const room = world.room;
   if (!room) return;
   for (const o of room.obstacles) {
+    if (o.bulwark) { drawBulwark(ctx, o); continue; }
     ctx.fillStyle = 'rgba(0,0,0,0.4)';
     roundRect(ctx, o.x + 4, o.y + 8, o.w, o.h, 8);
     ctx.fill();

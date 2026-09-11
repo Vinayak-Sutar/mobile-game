@@ -16,6 +16,10 @@ const DEFAULTS = {
   musicOn: true,
   musicVolume: 0.7,
   biome: 'ember',
+  // Version 3: the spell loadout (3 of SPELLS) and grenade type.
+  loadout: ['downpour', 'storm', 'gale'],
+  grenadeType: 'frag',
+  codex: { reactions: {} },
 };
 
 export const UPGRADES = [

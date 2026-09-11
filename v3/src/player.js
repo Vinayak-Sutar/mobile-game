@@ -14,6 +14,7 @@ import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransf
 import { updateGrenade, GRENADE } from './grenade.js';
 import { canParry, startParry, updateParry, isParrying, drawParry } from './parry.js';
 import { playerSpeedMult } from './elements.js';
+import { updateSpells } from './spells.js';
 
 // Input buffer: a press made slightly too early (mid-swing, mid-dash) is
 // remembered this long and fires the moment it's allowed.
@@ -66,6 +67,12 @@ export function createPlayer(weapon, meta = {}) {
     riposteT: 0,
     riposteMult: 2,
     buffer: { attack: 0, special: 0, dash: 0, parry: 0 },
+    spells: [],         // spell ids, the loadout (spells.js)
+    spellIdx: 0,
+    spellCd: 0,
+    imbue: null,        // { el, t } — weapon carries an element after a spell
+    aegis: null,        // { hits, t }
+    channel: null,      // Dragon's Breath
     boons: {},
     boonOrder: [],
     face: -Math.PI / 2,
@@ -202,8 +209,9 @@ export function updatePlayer(p, dt) {
     }
   }
 
-  // --- attacks ------------------------------------------------------------
-  updateAttack(p, dt);
+  // --- spells, attacks ------------------------------------------------------
+  updateSpells(p, dt, world.realDt || dt);
+  if (!p.channel) updateAttack(p, dt);
   updateGrenade(p, dt);
 
   // --- movement -----------------------------------------------------------
@@ -213,6 +221,7 @@ export function updatePlayer(p, dt) {
     if (p.charging) speed *= 0.55;
     if (p.parry && !p.parry.success) speed *= 0.4;
     speed *= playerSpeedMult(p);
+    if (p.channel) speed *= 0.5;
 
     const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;

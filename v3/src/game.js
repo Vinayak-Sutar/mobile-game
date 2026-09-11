@@ -20,6 +20,10 @@ import {
   updateElements, setDiscoverHook, hitElement, elementArea, applyStatus, drawPlayerElements, REACTIONS,
 } from './elements.js';
 import { spawnSurface, drawSurfaces, drawClouds } from './surfaces.js';
+import {
+  SPELLS, spellById, spellState, updateSpellZones, drawSpellZones, drawPlayerSpells, drawSpellWheel, tryCast,
+} from './spells.js';
+import { ELEMENTS } from './elements.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
@@ -157,6 +161,8 @@ function startRun(weapon) {
   initAmbient(world.biome);
 
   world.player = createPlayer(weapon, metaBonuses());
+  world.player.spells = validLoadout(save.loadout);
+  controls.cast.enabled = world.player.spells.length > 0;
   world.depth = 1;
   world.loop = 0;
   // A different order of guardians every run; the Warden always closes it.
@@ -331,25 +337,29 @@ function tick(dt) {
   if (state === 'playing') {
     // Presses are buffered before the hitstop check so a freeze can't eat them.
     bufferInput(world.player, dt);
+    world.realDt = dt;
     if (fx.hitstop > 0) {
       // Freeze the simulation but keep the feedback layer crawling, so the
       // screen shake still lands during the freeze.
       fx.hitstop -= dt;
       updateFx(dt * 0.18);
     } else {
-      world.runTime += dt;
-      updatePlayer(world.player, dt);
-      updateEnemies(dt);
-      updateStatuses(dt);
-      updatePoise(dt);
-      updateElements(dt);
-      updateHitboxes(dt);
-      updateGrenades(dt);
-      updateProjectiles(dt);
-      updateHazards(dt);
-      updatePickups(dt);
-      updateRoom(dt);
-      updateFx(dt);
+      // While the spell wheel is open the world runs at 20% speed.
+      const sdt = spellState.wheel ? dt * 0.2 : dt;
+      world.runTime += sdt;
+      updatePlayer(world.player, sdt);
+      updateEnemies(sdt);
+      updateStatuses(sdt);
+      updatePoise(sdt);
+      updateElements(sdt);
+      updateHitboxes(sdt);
+      updateGrenades(sdt);
+      updateSpellZones(sdt);
+      updateProjectiles(sdt);
+      updateHazards(sdt);
+      updatePickups(sdt);
+      updateRoom(sdt);
+      updateFx(sdt);
 
       // Music follows the fight: calm between waves, full kit in combat,
       // a harder variation once the Warden is up.
@@ -415,6 +425,7 @@ function render() {
     drawFxBelow(ctx);
     drawObstacles(ctx);
     drawSurfaces(ctx, world.runTime);
+    drawSpellZones(ctx, world.runTime);
     drawDoors(ctx, world.runTime);
     drawHazardsBelow(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
@@ -422,6 +433,7 @@ function render() {
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);
     if (world.player) drawPlayerElements(ctx, world.player);
+    if (world.player) drawPlayerSpells(ctx, world.player, world.runTime);
     drawClouds(ctx, world.runTime);
     drawProjectiles(ctx);
     drawHazardsAbove(ctx);
@@ -437,6 +449,7 @@ function render() {
   if (inRun) {
     drawHud(ctx, world.runTime);
     if (state === 'playing') drawControls(ctx, world.runTime);
+    if (state === 'playing') drawSpellWheel(ctx, world.player);
     drawLowHealthVignette();
   }
 
@@ -646,6 +659,46 @@ function showWeaponSelect() {
       <h2>Take up a weapon</h2>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
+    </div>`);
+}
+
+// --- spell loadout (Version 3) -------------------------------------------------
+
+const LOADOUT_SIZE = 3;
+let chosenWeapon = null;
+
+/** The saved loadout, cleaned of unknown ids (a renamed spell can't break a save). */
+function validLoadout(list) {
+  const ids = (Array.isArray(list) ? list : []).filter((id) => spellById(id));
+  return [...new Set(ids)].slice(0, LOADOUT_SIZE);
+}
+
+function showLoadout() {
+  state = 'loadout';
+  const chosen = validLoadout(save.loadout);
+  const cards = SPELLS.map((sp) => {
+    const on = chosen.includes(sp.id);
+    const c = ELEMENTS[sp.element] ? ELEMENTS[sp.element].color : '#fff';
+    return `
+      <div class="card spellcard ${on ? 'picked' : ''}" data-act="spell-toggle" data-spell="${sp.id}"
+           style="border-color:${c}${on ? 'ee' : '44'}">
+        <div class="glyph" style="color:${c}">${sp.glyph}</div>
+        <div class="name" style="color:${c}">${sp.name}</div>
+        <div class="tag">${ELEMENTS[sp.element] ? ELEMENTS[sp.element].name : ''} · ${sp.cost} focus</div>
+        <div class="desc">${sp.desc}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">${chosenWeapon ? chosenWeapon.name : ''} · choose three spells</div>
+      <h2>Spell Loadout <span style="opacity:.6;font-size:.6em">${chosen.length}/${LOADOUT_SIZE}</span></h2>
+      <p class="sub">Tap CAST to cast the selected spell; hold it to open the wheel (time slows).
+      Elements combine: rain then lightning, frost on the wet, fire on poison… try things.</p>
+      <div class="cards">${cards}</div>
+      <div class="row">
+        <button class="btn" data-act="loadout-go" ${chosen.length ? '' : 'disabled'}>Begin</button>
+        <button class="btn ghost" data-act="weapon">Back</button>
+      </div>
     </div>`);
 }
 
@@ -934,15 +987,34 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'pick': {
+      // Version 3: the spell loadout comes between weapon and run.
+      chosenWeapon = WEAPONS[idx];
+      showLoadout();
+      break;
+    }
+    case 'spell-toggle': {
+      const id = el.dataset.spell;
+      const cur = validLoadout(save.loadout);
+      const at = cur.indexOf(id);
+      if (at >= 0) cur.splice(at, 1);
+      else if (cur.length < LOADOUT_SIZE) cur.push(id);
+      else { cur.shift(); cur.push(id); }
+      save.loadout = cur;
+      writeSave();
+      showLoadout();
+      break;
+    }
+    case 'loadout-go': {
+      if (!chosenWeapon) { showWeaponSelect(); break; }
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       // The landscape lock resolves a moment after fullscreen, and never on
       // iOS. If the phone is still upright, hold the run until it's turned.
       if (isPortraitTouch()) {
-        pendingWeapon = WEAPONS[idx];
+        pendingWeapon = chosenWeapon;
         checkOrientation();
         break;
       }
-      beginRun(WEAPONS[idx]);
+      beginRun(chosenWeapon);
       break;
     }
     case 'boon': {
@@ -1054,6 +1126,9 @@ window.ashfall = {
   area: (el, x, y, r, opts) => elementArea(el, x, y, r, opts),
   surface: (type, x, y, r, owner) => spawnSurface(type, x, y, r, owner),
   applyStatus, REACTIONS,
+  loadout: (ids) => { save.loadout = ids; if (world.player) { world.player.spells = validLoadout(ids); controls.cast.enabled = true; } },
+  cast: (id) => tryCast(world.player, id),
+  spellState,
   spawn: (type, x, y, opts) => spawnEnemyDebug(type, x, y, opts),
   pad, dualsense, probeDualSense, rumble, pollGamepad,
   bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets,

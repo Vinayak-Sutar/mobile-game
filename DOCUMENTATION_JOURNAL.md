@@ -1209,6 +1209,78 @@ V3 toolbox.
     it); puddle + frost = ice; oil + fire = Inferno (34).
   - The player's own fire does 0 to them; enemy fire burns.
 
+### 13.3 Milestone 4 — spells, Focus, the CAST wheel, weapon imbue (done)
+
+- **`spells.js`**: `SPELLS` (10 entries: `{ id, name, element, cost, glyph,
+  aim: 'self' | 'cone' | 'target' | 'place', desc, cast(p, aim, target) }`).
+  - **Aegis** (2): absorbs 2 hits via the `setAegisHook` in `damagePlayer`,
+    then bursts (knockback, 20 damage, bullets within 170 destroyed).
+  - **Dragon's Breath** (1): a 1 s channel, fire cone r190; every 0.1 s it
+    deals 6, burns light bullets and touches the floor with fire. The player
+    moves at 50% and can't attack while channelling.
+  - **Rime** (1): frost cone r210, 16 damage, freezes puddles.
+  - **Gale** (1): wind cone r240, knockback 950, interrupts wind-ups, turns
+    enemy bullets in the cone into yours, disperses clouds, blows fire
+    downwind. Enemies it hurls into a wall or pillar take a 22 heavy
+    **SLAM** (`e.galeT` in `updateEnemies`).
+  - **Stormcall** (1): bolt 22 on the nearest foe, chains 3 times (14 each),
+    +1 jump per wet target, electrifies puddles.
+  - **Downpour** (1): a rain zone r130 for 5 s (Wet every 0.5 s) plus a
+    puddle.
+  - **Sigil of Stillness** (2): a zone r135 for 7 s; enemies at 50% (bosses
+    75%), enemy bullets inside at 25% speed (`pr.inSigil`, set each tick by
+    `updateSpellZones`, which runs before `updateProjectiles`).
+  - **Earthen Bulwark** (1): a temporary axis-aligned obstacle (`temp: 5`,
+    `bulwark: true`) that blocks bodies and bullets, then shatters into 10
+    friendly earth shards.
+  - **Toxic Bloom** (1): a pod that bursts into a toxic cloud r115.
+  - **Singularity** (2): r240 for 2.5 s; pulls enemies (bosses at 20%) and
+    enemy bullets (swallowed within 24), then implodes for 30 heavy.
+- **Focus:** a spell costs 1–2 pips; with too little the cast fails with
+  "NO FOCUS". 0.3 s global cooldown. Silenced blocks casting (for future
+  Hexers).
+- **Casting:**
+  - Tap CAST = cast the selected spell.
+  - Hold ≥ 0.18 s = the **wheel**: the world runs at 20% (`sdt` in `tick()`;
+    `world.realDt` keeps the hold timer real-time). Drag, point the mouse or
+    push the right stick toward a slot; release to select and cast. Release
+    near the centre cancels.
+  - Keys 1–3 pick; the mouse wheel cycles.
+  - The wheel is drawn centred on screen for every input (on touch it first
+    sat over the button cluster).
+- **Targets:**
+  - Cones use `p.aimAngle` (auto-aim, mouse or stick).
+  - Placed spells go to the mouse position (≤ 380 u), else the nearest enemy,
+    else 200 u ahead.
+- **Imbue:** an elemental spell imbues the weapon for 4 s. `spawn.js` adds
+  `element` to every friendly hitbox/projectile from `p.imbue`, so swings
+  apply that element (and its reactions). The HUD shows "STORM WEAPON 3.2s".
+- **Loadout screen** (pulled forward from Milestone 8): weapon pick → a
+  loadout screen (toggle 3 of 10 spells) → Begin. Saved in `save.loadout`
+  (default Downpour / Stormcall / Gale). Trials go through it too.
+- **HUD:** the CAST button shows the selected spell's glyph, colour and cost;
+  three small spell icons next to the Focus pips (the selected one filled).
+- **Debug:** `ashfall.loadout([...])`, `ashfall.cast('gale')`,
+  `ashfall.spellState`.
+- **Verified:**
+  - Downpour wets 3 enemies → Stormcall electrocutes all three (29–33 each)
+    and imbues storm.
+  - Gale pushes an enemy 92 u and turns 4/4 bullets.
+  - Three Rime casts freeze an enemy and the puddle becomes ice.
+  - Breath: 52 damage, burning, 3/3 bullets burnt.
+  - Sigil: a bullet moves exactly 25% of normal.
+  - Bulwark blocks a bullet, then crumbles.
+  - Bloom poisons, then fire blows the cloud.
+  - Singularity pulls an enemy 101 u closer and swallows a bullet.
+  - Aegis absorbs 2 hits, then damage lands normally. With no Focus the cast
+    is refused.
+  - The wheel opens and closes on hold/release, and a touch drag picks a slot.
+  - Full 15-chamber runs with 4 different loadouts and 43–56 casts each: 0
+    errors.
+  - Bot quirk: a bot that walks onto the door for only 4 ticks can miss a boon
+    screen and stall. Walk to the door until the depth changes (the loop in
+    the runs above).
+
 ## 12. Glossary
 
 | Term | Meaning |

@@ -131,6 +131,12 @@
   .ver.on{color:var(--gold);border-color:rgba(255,200,97,.6);background:rgba(255,200,97,.08);cursor:default}
   .ver:not(.on):active{transform:scale(.96)}
 
+  /* Version 3 spell loadout cards. */
+  .spellcard{min-height:150px}
+  .spellcard .desc{font-size:11px}
+  .spellcard.picked{background:rgba(142,240,255,.08);box-shadow:0 0 0 2px rgba(142,240,255,.35),0 0 20px rgba(142,240,255,.18)}
+  .btn[disabled]{opacity:.4;pointer-events:none}
+
   /* Upright-phone fallback where the landscape lock isn't available. */
   #rotate{
     position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;

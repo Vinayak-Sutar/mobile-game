@@ -17,6 +17,10 @@ import {
 // per ~300 damage, i.e. every several seconds of real fighting.
 export const FOCUS_PER_DAMAGE = 1 / 300;
 
+let aegisHook = null;
+/** spells.js registers the Aegis absorb handler (avoids an import cycle). */
+export function setAegisHook(fn) { aegisHook = fn; }
+
 // A boss left open after its big pattern takes extra damage. The window is
 // the reward for dodging everything that came before it.
 export const EXPOSED_MULT = 1.35;
@@ -292,6 +296,8 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown', o
     return false;
   }
   if (p.invuln > 0 || p.dashing) return false;
+  // The Aegis spell eats whole hits (spells.js registers the handler).
+  if (p.aegis && aegisHook && aegisHook(p)) return false;
 
   const st = p.stats;
   let dmg = Math.max(1, Math.round(amount * (1 - st.damageReduction)));

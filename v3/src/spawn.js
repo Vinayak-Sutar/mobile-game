@@ -3,6 +3,11 @@
 
 import { world } from './state.js';
 
+function imbuedElement() {
+  const p = world.player;
+  return p && p.imbue && p.imbue.t > 0 ? p.imbue.el : (p && p.weapon && p.weapon.element) || null;
+}
+
 export function spawnProjectile(o) {
   const p = {
     x: 0, y: 0, vx: 0, vy: 0,
@@ -40,6 +45,8 @@ export function spawnProjectile(o) {
     ...o,
   };
   p.maxLife = p.life;
+  // A weapon imbued by a spell carries that element into everything it fires.
+  if (p.friendly && p.element === undefined) p.element = imbuedElement();
   // Anything big enough to see as a boulder or a fat glob is heavy.
   if (p.heavy === undefined) p.heavy = !p.friendly && p.r >= 14;
   world.projectiles.push(p);
@@ -70,6 +77,7 @@ export function spawnHitbox(o) {
   };
   h.maxLife = h.life;
   h.hits = new Set();
+  if (h.friendly && h.element === undefined) h.element = imbuedElement();
   world.hitboxes.push(h);
   return h;
 }

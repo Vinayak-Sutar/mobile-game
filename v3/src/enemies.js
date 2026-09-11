@@ -5,8 +5,8 @@
 import { world } from './state.js';
 import { TAU, clamp, rand, dist, angleTo, polygon, lerp } from './util.js';
 import { spawnProjectile } from './spawn.js';
-import { damagePlayer, explode } from './combat.js';
-import { burst, ring, shake, flash as screenFlash, parryCue } from './fx.js';
+import { damagePlayer, explode, dealDamage } from './combat.js';
+import { burst, ring, shake, flash as screenFlash, parryCue, damageText } from './fx.js';
 import { initPoise } from './poise.js';
 import { drawEnemyElements, hasStatus } from './elements.js';
 
@@ -769,7 +769,19 @@ export function updateEnemies(dt) {
 
     separate(e, dt);
     // Airborne (a leaping gorilla) sails over pillars; walls still apply on landing.
-    if (!e.z) collideWorld(e);
+    if (!e.z) {
+      const bumped = collideWorld(e);
+      // Hurled by Gale into a wall or pillar: a heavy slam.
+      if (e.galeT > 0) {
+        e.galeT -= dt;
+        if (bumped && Math.hypot(e.vx || 0, e.vy || 0) > 220) {
+          e.galeT = 0;
+          dealDamage(e, 22, { heavy: true, source: 'spell', knockback: 0 });
+          damageText(e.x, e.y - e.r - 20, 'SLAM', { color: '#9fffcf', size: 17 });
+          shake(0.25);
+        }
+      }
+    }
 
     if (dt > 0) {
       e.mvx = (e.x - prevX) / dt;

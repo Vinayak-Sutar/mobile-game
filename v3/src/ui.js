@@ -11,6 +11,8 @@ import { BOSS_INFO } from './bosses.js';
 import { audio } from './audio.js';
 import { GRENADE } from './grenade.js';
 import { resetMenuFocus } from './gamepad.js';
+import { spellById } from './spells.js';
+import { ELEMENTS } from './elements.js';
 
 const FONT = '"Segoe UI", Roboto, system-ui, sans-serif';
 
@@ -121,6 +123,7 @@ export function drawHud(ctx, time) {
   // --- focus: the spell resource, three pips that fill smoothly -----------
   const fy = py + 17;
   drawFocus(ctx, p, x, fy, time);
+  drawSpellSlots(ctx, p, x + 70, fy);
 
   // --- boons --------------------------------------------------------------
   let bx = x;
@@ -282,6 +285,46 @@ function drawFocus(ctx, p, x, cy, time) {
   }
 }
 
+/** The three equipped spells after the Focus pips; the selected one is ringed. */
+function drawSpellSlots(ctx, p, x, cy) {
+  if (!p.spells || !p.spells.length) return;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  for (let i = 0; i < p.spells.length; i++) {
+    const sp = spellById(p.spells[i]);
+    if (!sp) continue;
+    const cx = x + i * 22;
+    const c = ELEMENTS[sp.element] ? ELEMENTS[sp.element].color : '#fff';
+    const sel = i === p.spellIdx;
+    ctx.globalAlpha = (p.focus || 0) >= sp.cost ? 1 : 0.4;
+    ctx.fillStyle = sel ? c : 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = c;
+    ctx.lineWidth = sel ? 2.5 : 1.5;
+    ctx.stroke();
+    ctx.fillStyle = sel ? '#0b0712' : c;
+    ctx.font = `900 11px ${FONT}`;
+    ctx.fillText(sp.glyph, cx, cy + 0.5);
+  }
+  ctx.globalAlpha = 1;
+  if (!input.touchMode) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,0.45)';
+    ctx.font = `700 10px ${FONT}`;
+    ctx.fillText('[C] cast · [1-3] pick', x + p.spells.length * 22 + 2, cy + 1);
+  }
+  // Imbued weapon: its element, and the seconds left.
+  if (p.imbue) {
+    const c = ELEMENTS[p.imbue.el] ? ELEMENTS[p.imbue.el].color : '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = c;
+    ctx.font = `800 10px ${FONT}`;
+    ctx.fillText(`${ELEMENTS[p.imbue.el].name.toUpperCase()} WEAPON ${p.imbue.t.toFixed(1)}s`, x + p.spells.length * 22 + (input.touchMode ? 4 : 120), cy + 1);
+  }
+}
+
 const START_LIVES_SHOWN = 3;
 
 function drawLives(ctx, p, x, cy, time, size = 1) {
@@ -403,8 +446,11 @@ export function drawControls(ctx, time) {
   // Parry: the glyph is the same four-point star as the white parry glint.
   button(ctx, controls.parry, '#ffe27a',
     p ? (p.parry ? 0.02 : 1 - clamp((p.parryCd || 0) / 0.55, 0, 1)) : 1, '✧');
-  if (controls.cast.enabled) {
-    button(ctx, controls.cast, FOCUS_COLOR, p ? clamp((p.focus || 0), 0, 1) : 1, '✺');
+  if (controls.cast.enabled && p && p.spells && p.spells.length) {
+    const sp = spellById(p.spells[p.spellIdx]);
+    const c = sp && ELEMENTS[sp.element] ? ELEMENTS[sp.element].color : FOCUS_COLOR;
+    const afford = sp ? clamp((p.focus || 0) / sp.cost, 0, 1) : 1;
+    button(ctx, controls.cast, c, afford, sp ? sp.glyph : '✺', sp ? `${sp.cost}` : '');
   }
 }
 
