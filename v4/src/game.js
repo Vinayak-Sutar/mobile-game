@@ -183,6 +183,8 @@ function startTrial(weapon, bossType) {
     const offer = offerBoons(p, 1);
     if (offer[0]) applyBoon(p, offer[0]);
   }
+  // Two spells too, as a run would have by then (some bosses answer them).
+  for (const sp of offerSpells(p, 2)) learnSpell(p, sp.id);
   p.hp = p.stats.maxHp;
   world.depth = final ? FINAL_DEPTH : BOSS_EVERY * 2;
   clearEntities();

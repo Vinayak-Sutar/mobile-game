@@ -313,6 +313,33 @@ function drawSpellRow(ctx, p) {
       ctx.arc(btn.x - (lv - 1) * 5 + k * 10, btn.y - btn.r - 7, 3, 0, TAU);
       ctx.fill();
     }
+    // Silenced (all slots) or hexed (one slot): the Weeping Bride's marks.
+    const now = world.runTime;
+    if ((p.silencedUntil || 0) > now) {
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#1a1024';
+      ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.r, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = '#b46cff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(btn.x - btn.r * 0.6, btn.y - btn.r * 0.6); ctx.lineTo(btn.x + btn.r * 0.6, btn.y + btn.r * 0.6); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    if (p.hex && p.hex.id === sp.id && p.hex.until > now) {
+      const k = 0.6 + Math.sin(now * 8) * 0.3;
+      ctx.globalAlpha = k;
+      ctx.strokeStyle = '#b46cff';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.r + 5, 0, TAU); ctx.stroke();
+      // Her face on it: a pale oval with hollow eyes.
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#eef2fb';
+      ctx.beginPath(); ctx.ellipse(btn.x, btn.y, btn.r * 0.42, btn.r * 0.52, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#1a1024';
+      for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(btn.x + sd * btn.r * 0.16, btn.y - btn.r * 0.08, btn.r * 0.09, btn.r * 0.14, 0, 0, TAU); ctx.fill(); }
+      ctx.beginPath(); ctx.ellipse(btn.x, btn.y + btn.r * 0.25, btn.r * 0.08, btn.r * 0.12, 0, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 1;
+    }
     if (p.spellDenied && p.spellDenied.id === sp.id) {
       ctx.globalAlpha = p.spellDenied.t / 0.3;
       ctx.strokeStyle = '#ff5e6e';

@@ -151,6 +151,14 @@ test them.
 - **Tests:** parry mastery, choice and consequence, respect for the player's honor.
 
 ### 5. The Weeping Bride, Lady of the Hollow Mirror — ghost
+> **Built in Version 4** (`v4/src/boss-bride.js`, journal §14.7):
+> - Lanterns you light by striking them. She takes ×0.2 unless lit.
+> - Mirror copies that fire mirrored bullets; only the real one shows in the wall mirrors.
+> - Wail silences your spells; Hex possesses one (casting it hurts you).
+> - Phase 2 is "The Hollow Mirror".
+> - Tuned to the original bosses' difficulty.
+>
+> The notes below are the original design.
 *"You only see her when there is light."*
 - **Arena:** a dark ballroom lit by lanterns and giant mirrors. Most of the room is in
   shadow.

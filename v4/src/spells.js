@@ -352,10 +352,27 @@ export function tryCast(p, id) {
   if (!spell || !p || p.dead) return false;
   if (!p.spellCds) p.spellCds = {};
   if (p.channel || p.dashing || p.spellGcd > 0) return false;
+  // A boss's Wail silences every spell for a moment.
+  if ((p.silencedUntil || 0) > world.runTime) {
+    p.spellDenied = { id: spell.id, t: 0.3 };
+    if ((p.silenceSaid || -9) < world.runTime - 0.6) {
+      p.silenceSaid = world.runTime;
+      damageText(p.x, p.y - p.r - 20, 'SILENCED', { color: '#b46cff', size: 14 });
+    }
+    sfx.ui();
+    return false;
+  }
   if (cooldownLeft(p, spell.id) > 0) {
     p.spellDenied = { id: spell.id, t: 0.3 };
     sfx.ui();
     return false;
+  }
+  // A hexed spell (the Weeping Bride's) goes off against you instead.
+  if (p.hex && p.hex.id === spell.id && p.hex.until > world.runTime) {
+    p.spellCds[spell.id] = spellCooldown(p, spell);
+    p.spellGcd = GLOBAL_CD;
+    if (p.hex.onCast) p.hex.onCast(p, spell);
+    return true;
   }
   const lv = Math.max(1, spellLevel(p, spell.id));
   p.spellCds[spell.id] = spellCooldown(p, spell);

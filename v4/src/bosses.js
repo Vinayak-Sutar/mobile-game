@@ -38,6 +38,7 @@ import { VESPER } from './boss-vesper.js';
 import { NAGA } from './boss-naga.js';
 import { SOLARIS, GRUMM } from './boss-wardens.js';
 import { ALDRIC } from './boss-aldric.js';
+import { BRIDE } from './boss-bride.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1137,6 +1138,17 @@ export const BOSS_DEFS = {
     init(e) { e.noPush = true; },
     update() {}, draw() {},
   },
+  bride: bossDef(BRIDE, {
+    r: 22, hp: 1250, speed: 150, mass: 30, color: '#dfeaff', damageBase: 18,
+    title: 'The Weeping Bride', subtitle: 'Lady of the Hollow Mirror',
+  }),
+  // Her mirror images: placed and drawn by her (boss-bride.js); a hit shatters one.
+  bridecopy: {
+    r: 22, hp: 999999, speed: 0, mass: 999, cost: 999, minDepth: 99, color: '#dfeaff',
+    fixed: true, invisible: true,
+    init(e) { e.noPush = true; },
+    update() {}, draw() {},
+  },
   aldric: bossDef(ALDRIC, {
     r: 22, hp: 1300, speed: 150, mass: 24, color: '#c8ccd8', damageBase: 17,
     title: 'Ser Aldric the Oathbound', subtitle: 'The Last Knight of the Moon',
@@ -1225,7 +1237,7 @@ export const BOSS_DEFS = {
 
 /** Boss roster: shuffled into slots 1-4 each run; the Warden is always last. */
 // The guardian pool: four of these guard chambers 3, 6, 9 and 12, shuffled per run.
-export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris', 'aldric'];
+export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris', 'aldric', 'bride'];
 
 export const BOSS_INFO = {
   turtle: { title: BOSS_DEFS.turtle.title, subtitle: BOSS_DEFS.turtle.subtitle, color: '#6fdca0', animal: 'Turtle' },
@@ -1235,6 +1247,7 @@ export const BOSS_INFO = {
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  bride: { title: BOSS_DEFS.bride.title, subtitle: BOSS_DEFS.bride.subtitle, color: '#dfeaff', animal: 'Ghost' },
   aldric: { title: BOSS_DEFS.aldric.title, subtitle: BOSS_DEFS.aldric.subtitle, color: '#e8f0ff', animal: 'Knight' },
   grumm: { title: BOSS_DEFS.grumm.title, subtitle: 'The Twin Wardens', color: '#9a98aa', animal: 'Duo' },
   warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Final' },

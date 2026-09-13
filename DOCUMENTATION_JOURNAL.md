@@ -1975,6 +1975,113 @@ He's in the guardian pool and the trials ("Knight").
   - 4 full runs with Aldric as the first guardian: victories, no errors
     (one spared him).
   - Checked at 844×390.
+- **Owner's verdict:** "very easy". The original four creature bosses felt
+  right. That set the calibration target for the next boss (§14.7).
+
+### 14.7 Step 6 — the Weeping Bride, calibrated to the original bosses (done)
+
+**Calibration first.** The owner found Aldric "very easy" and the original
+four "awesome", so the originals were measured with the same bot (45 s
+samples, damage per minute):
+
+| Boss | Idle | Human bot | Expert bot | Exposed |
+| --- | --- | --- | --- | --- |
+| Turtle, P1 / last | 331 / 520 | 139 / 109 | 91 / 151 | ~15–28% |
+| Gorilla, P1 / last | 572 / 625 | 139 / 292 | 77 / 107 | 14–26% |
+| Peacock, P1 / last | 197 / 337 | 99 / 107 | 63 / 100 | 10–18% |
+| Crocodile, last | 548 | 175 | 180 | 16–25% |
+| Aldric (honor) P1 / P2 | 399 / 305 | 85 / 137 | **0** / 48 | ~22% |
+| Vesper P1 / P2 | 333 / 389 | 143 / 157 | **0** / 9 | ~19% |
+
+The reading: the originals keep hurting even a perfect dodger (63–180),
+because something is always coming (darts, spins, boulders, contact). The V4
+bosses let a perfect dodger take nothing in phase 1. **Target for new
+bosses:** idle 350–600, human bot 100–200, expert bot 60–150.
+
+**The Weeping Bride** (`boss-bride.js`, spec `BRIDE`, 1250 HP at slot 0,
+r 22). She's in the pool and the trials ("Ghost").
+
+- **Light (signature):** a dark ballroom with 6 lanterns.
+  - Hit a lantern (a melee hitbox or a friendly bullet) to light it for
+    18 s (13 s in phase 2). It fades over its last 2 s.
+  - She's only fully hurt while lit: in a lantern's glow (r 190), a
+    fallen chandelier's glow (r 170, 7 s), or your own aura (r 150).
+  - In the dark, `guardFn` scales hits ×0.2 ("UNSEEN"). Grenades are
+    chained, so they skip it.
+  - So a pure ranged fight needs lanterns where she floats, and she
+    blows them out. Close range meets Wail, Embrace and Cold Hands.
+  - Drawn in `drawArena` (floor level): marble checks, then a small
+    offscreen darkness canvas with soft holes, scaled up, then warm
+    additive glows. Telegraphs and bullets are drawn above it, so they stay
+    fully visible (phone fairness).
+- **Mirrors:** copies are `bridecopy` enemies (`fixed`, `invisible`,
+  `summoner`). She places them every tick at her reflection across the
+  centre line ('h') or the horizontal line ('v').
+  - Every petal she fires, they fire mirrored (`bshot`).
+  - Only she has a shadow and shows in the two mirrors on the far wall.
+    Copies also carry a crack.
+  - A hit on a copy (`guardFn = shatter`) breaks it into 10 glass shards,
+    gapped toward you. It gives no gold. Auto-aim can pick copies: a
+    deliberate trap.
+  - Phase 1: the copies last 11 s. Phase 2: both are permanent and re-form
+    5 s after shattering.
+- **Pressure:** in idle she keeps her distance (220–330) and weeps a
+  3-petal volley every ~1 s. Touching her chills (contact damage).
+- **Moves:**
+  - **Veil Petals:** 3 fans of 6 (7 in phase 2).
+  - **Cold Hands:** 5–6 marked hands, led onto your path.
+  - **Wail:** a red cone from her and every copy. It hurts, knocks back
+    and **silences** your spells for 3 s.
+  - **Lantern Snuff:** a gapped gust ring that blows out lanterns as it
+    passes.
+  - **Chandelier:** a big marked crash on you, crystal shards, then its
+    glow.
+  - **Mirror Copies.**
+  - **Grasping Veil:** a lane, then a flight; two in phase 2.
+  - **Embrace:** anti-hug; a cold ring, then she teleports somewhere dark.
+  - **Veil Dance:** a barrage, then EXPOSED 1.6 s.
+- **Phase 2, "The Hollow Mirror"** at 50%: glass bursts, the lanterns die,
+  the copies re-form, and she turns crimson.
+  - **Tearfall:** dense small tear markers, the big ones on you.
+  - **Wedding March:** she glides at you, and candles detonate down her
+    aisle in order.
+  - **HEX:** a violet lane. If it catches you, one of your spells is hers
+    for 10 s, and casting it hurts you.
+  - **Requiem:** a kaleidoscope barrage; she and her copies spin mirrored
+    petal arms while hands keep reaching up. Then EXPOSED 2 s.
+- **Engine hooks:**
+  - `spells.js` `tryCast`: `p.silencedUntil` blocks every cast
+    ("SILENCED"); `p.hex = { id, until, onCast }` spends the cooldown and
+    calls `onCast` instead.
+  - `ui.js`: silenced slots get a dark disc and a violet slash; the hexed
+    slot gets a pulsing violet ring and her face.
+  - She clears both on death.
+  - Boss Trials now also start with 2 random spells, as a real run has by
+    chamber 6. The Bride's Wail and Hex act on them.
+- **Measured** (60 s bot samples; the bot doesn't use lanterns or attack):
+
+  | Phase | Idle | Human bot | Expert bot | Exposed |
+  | --- | --- | --- | --- | --- |
+  | 1 | 410 | 112 | 79 | ~5% |
+  | 2 | 496 | 167–200 | 39–80 | ~5% |
+
+  Both phases sit inside the originals' range. The first pass was softer
+  (human bot 72 in phase 1). Tuning then:
+  - idle petals every 0.95 s;
+  - fans of 6;
+  - Cold Hands led further;
+  - shorter lunge, chandelier and wail tells;
+  - Mirror more often;
+  - a denser Tearfall and Requiem.
+- **Verified:**
+  - All 13 moves end cleanly in both phases.
+  - Lanterns light from bullets and melee.
+  - UNSEEN ×0.2 and lit ×1.
+  - Copy shatter (10 shards), and copies re-form in phase 2.
+  - Silence blocks casting; a hexed cast hurts the player (18).
+  - The phase change; death clears the room and the marks.
+  - 4 full runs with her as the first guardian: victories, no errors.
+  - Checked at 844×390 in touch layout.
 
 ## 12. Glossary
 
