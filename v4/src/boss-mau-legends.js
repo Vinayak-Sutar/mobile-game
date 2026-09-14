@@ -79,7 +79,7 @@ export const LEGEND_MOVES = {
       sfx.hiss();
       sub(e, 'slither', 1.5);
     },
-    update(e, dt) {
+    update(e) {
       const total = 1.5;
       while (e.coilN < e.coils.length && e.st >= e.coilN * 0.07) {
         const [x, y] = e.coils[e.coilN];

@@ -34,7 +34,7 @@ import { burst, ring, shake, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { spawnHazard } from './hazards.js';
 import { spawnPickup } from './spawn.js';
-import { PV, say, leadAt, center, blastAt, hurt, strikeLane, cutLands, startLeap, stepLeap } from './boss-mau-kit.js';
+import { PV, say, leadAt, center, blastAt, hurt, cutLands, startLeap, stepLeap } from './boss-mau-kit.js';
 import { LEGEND_MOVES, updateLegends } from './boss-mau-legends.js';
 import { drawMau, drawCatBox, drawMauExtras, drawMauArena, GOLD, JADE, CATNIP, SOUL } from './boss-mau-art.js';
 
