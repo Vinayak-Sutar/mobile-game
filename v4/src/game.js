@@ -18,7 +18,7 @@ import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
-  FINAL_DEPTH, BOSS_EVERY, effDepth,
+  FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, GUARDIAN_COUNT, effDepth,
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
 import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
@@ -186,10 +186,11 @@ function startTrial(weapon, bossType) {
   // Two spells too, as a run would have by then (some bosses answer them).
   for (const sp of offerSpells(p, 2)) learnSpell(p, sp.id);
   p.hp = p.stats.maxHp;
-  world.depth = final ? FINAL_DEPTH : BOSS_EVERY * 2;
+  // A guardian trial plays like the second guardian of the old run (tier 1).
+  world.depth = final ? FINAL_DEPTH : FIRST_BOSS_DEPTH + BOSS_GAP;
   clearEntities();
   clearFx();
-  const room = generateRoom(world.depth, 0, { bossType, slot: final ? 4 : 1 });
+  const room = generateRoom(world.depth, 0, final ? { bossType, slot: GUARDIAN_COUNT } : { bossType, slot: 1, tier: 1 });
   startRoom(room);
   showToast('BOSS TRIAL', BOSS_INFO[bossType].animal === 'Final' ? 'The final guardian' : BOSS_INFO[bossType].animal);
 }
@@ -577,7 +578,7 @@ function showTitle() {
       <div class="eyebrow">top-down action roguelike · prototype</div>
       <h1>Ashfall</h1>
       ${versionRow()}
-      <p class="sub">Fifteen chambers and five guardians stand between you and the surface.
+      <p class="sub">Fifteen chambers stand between you and the surface, a guardian in every other one.
       You have three lives.
       Clear a room, choose a door, take a boon, go deeper.
       Death is not the end — the darkness you carry out makes you stronger.</p>
@@ -873,7 +874,7 @@ function showTrials() {
       <div class="eyebrow">practice · nothing is banked</div>
       <h2>Boss Trials</h2>
       <p class="sub">Fight any guardian on its own, with a few boons to start.
-      In a real run four of them guard chambers 3, 6, 9 and 12, in a random order; the Warden waits at 15.</p>
+      In a real run six of them guard chambers 3, 5, 7, 9, 11 and 13, in a random order; the Warden waits at 15.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
     </div>`);

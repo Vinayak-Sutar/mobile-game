@@ -2083,6 +2083,45 @@ r 22). She's in the pool and the trials ("Ghost").
   - 4 full runs with her as the first guardian: victories, no errors.
   - Checked at 844×390 in touch layout.
 
+### 14.8 Step 7 — a guardian in every other chamber (done)
+
+The owner: "add a boss fight in every alternate chamber. And we will keep
+this structure till the end, and we will keep adding new bosses."
+
+- **Structure** (V4 only; V1–V3 unchanged):
+  - Chambers 1–2 are fights (the guaranteed Spell door comes from
+    chamber 1).
+  - From chamber 3, fight and guardian alternate: guardians at 3, 5, 7, 9,
+    11 and 13, the Warden at 15.
+  - Six guardians are drawn per run from the shuffled pool
+    (`CREATURE_BOSSES`, 9 bosses now), with no repeats while the pool has
+    ≥ 6.
+- **Data-driven** in `rooms.js`: `FIRST_BOSS_DEPTH = 3`, `BOSS_GAP = 2`,
+  `GUARDIAN_COUNT` (derived, 6), `isBossDepth()` and `guardianIndex()`.
+  `BOSS_EVERY` is gone. Adding a boss changes nothing here: it joins the
+  pool.
+- **Elites** move to the fight chambers 6 and 12 (5 and 11 are now
+  guardians).
+- **Scaling:** the six guardians climb the old four-slot curve, tier =
+  slot × 3/5 (0, 0.6, 1.2, 1.8, 2.4, 3.0), so HP and damage run from ×1.0 at
+  chamber 3 to ×1.9 / ×1.3 at chamber 13. Fractional tiers are fine: `tm()`
+  and `idle()` only use tier arithmetically.
+  - Trials pass `tier: 1` explicitly, so trial HP is unchanged and the bot
+    tables in §14.2–14.7 stay valid. The Warden trial uses slot
+    `GUARDIAN_COUNT`.
+- **Unchanged:**
+  - Guardian doors still pay a boon plus health/spell/gold.
+  - The top-bar pips read `isBossDepth`, so they show the new pattern.
+  - Title and Trials text updated.
+- **Verified:**
+  - Depths 1–15 map to F F B F B F B F B F B F B F W, with elites at 6 and 12.
+  - Slots 0–5 and the Warden resolve to 6 distinct guardians, then the
+    Warden.
+  - Scaling per slot matches the curve.
+  - Trial HP is unchanged (Aldric 1690).
+  - 2 full runs reach victory through 6 guardians plus the Warden, with no
+    errors; loop 2 rooms keep the same pattern.
+
 ## 12. Glossary
 
 | Term | Meaning |

@@ -11,20 +11,29 @@ import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
 import { getBiome, updateAmbient } from './biomes.js';
 
-// A run is 15 chambers: two fights, then a guardian, five times over.
-// Chambers 3, 6, 9 and 12 hold the four creature bosses in a per-run shuffled
-// order; chamber 15 is always the Warden of Ash.
+// A run is 15 chambers: two fights to warm up, then a guardian in every other
+// chamber — 3, 5, 7, 9, 11 and 13, drawn from the guardian pool in a per-run
+// shuffled order — and the Warden of Ash always at 15. New bosses just join
+// the pool (CREATURE_BOSSES); the structure stays.
 export const FINAL_DEPTH = 15;
-export const BOSS_EVERY = 3;
-export const ELITE_DEPTHS = [5, 11];
+export const FIRST_BOSS_DEPTH = 3;
+export const BOSS_GAP = 2;
+/** Guardians before the Warden: 6. */
+export const GUARDIAN_COUNT = Math.floor((FINAL_DEPTH - FIRST_BOSS_DEPTH) / BOSS_GAP);
+export const ELITE_DEPTHS = [6, 12];
 
-export function isBossDepth(depth) { return depth % BOSS_EVERY === 0; }
+export function isBossDepth(depth) {
+  return depth >= FIRST_BOSS_DEPTH && (depth - FIRST_BOSS_DEPTH) % BOSS_GAP === 0;
+}
+
+/** 0 for the first guardian, GUARDIAN_COUNT for the Warden. */
+function guardianIndex(depth) { return Math.floor((depth - FIRST_BOSS_DEPTH) / BOSS_GAP); }
 
 /**
  * The combat difficulty curve was measured on an 8-chamber run (§6 of the
  * journal). Stretching it over 15 chambers keeps those numbers valid: chamber
- * 14 plays like the old chamber 7.5, and the elite chambers 5 and 11 land on
- * the old elite depths 3 and 6 exactly.
+ * 14 plays like the old chamber 7.5, and the elite chambers 6 and 12 land on
+ * the old elite depths 3.5 and 6.5.
  */
 export function effDepth(depth) { return 1 + (depth - 1) * 0.5; }
 
@@ -34,7 +43,7 @@ const SPAWNABLE = ['wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute'
 export function bossForDepth(depth) {
   if (depth >= FINAL_DEPTH) return 'warden';
   const order = world.bossOrder && world.bossOrder.length ? world.bossOrder : CREATURE_BOSSES;
-  return order[(depth / BOSS_EVERY - 1) % order.length];
+  return order[guardianIndex(depth) % order.length];
 }
 
 export function generateRoom(depth, loop = 0, opts = {}) {
@@ -49,8 +58,9 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     loop,
     type: isBoss ? 'boss' : isElite ? 'elite' : 'combat',
     bossType,
-    // Boss slot 0-3 for the creatures, 4 for the Warden: drives their scaling.
-    bossSlot: isBoss ? (opts.slot ?? Math.min(4, Math.round(depth / BOSS_EVERY) - 1)) : 0,
+    // Guardian slot 0-5, GUARDIAN_COUNT for the Warden: drives their scaling.
+    bossSlot: isBoss ? (opts.slot ?? Math.min(GUARDIAN_COUNT, guardianIndex(depth))) : 0,
+    bossTier: opts.tier,
     final: bossType === 'warden',
     obstacles: isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
     waves: isBoss ? [] : makeWaves(eff, loop, isElite),
@@ -177,15 +187,16 @@ function enemyScale(depth, loop) {
  * Bosses get their own curve rather than the depth ramp — at full depth
  * scaling the old Warden was a ~3300 HP damage sponge. Each later creature
  * slot is tougher and hits a little harder, because the player arrives with
- * three more boons each time.
+ * more boons each time. The six guardians climb the curve the old four did:
+ * tier 0 at chamber 3 up to tier 3 at chamber 13.
  */
 export function bossScaling(room) {
   const loop = room.loop || 0;
   if (room.bossType === 'warden') {
     return { scale: 1.9 + loop * 0.8, dmgScale: 1.1 + loop * 0.3, tier: 4 };
   }
-  const slot = Math.min(3, room.bossSlot || 0);
-  return { scale: 1 + slot * 0.3 + loop * 0.8, dmgScale: 1 + slot * 0.1 + loop * 0.3, tier: slot };
+  const tier = room.bossTier ?? Math.min(3, (room.bossSlot || 0) * 3 / Math.max(1, GUARDIAN_COUNT - 1));
+  return { scale: 1 + tier * 0.3 + loop * 0.8, dmgScale: 1 + tier * 0.1 + loop * 0.3, tier };
 }
 
 export function updateRoom(dt) {

@@ -1235,8 +1235,8 @@ export const BOSS_DEFS = {
   },
 };
 
-/** Boss roster: shuffled into slots 1-4 each run; the Warden is always last. */
-// The guardian pool: four of these guard chambers 3, 6, 9 and 12, shuffled per run.
+// The guardian pool: six of these guard chambers 3, 5, 7, 9, 11 and 13,
+// shuffled per run; the Warden is always last. A new boss only needs adding here.
 export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris', 'aldric', 'bride'];
 
 export const BOSS_INFO = {
