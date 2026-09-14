@@ -181,6 +181,12 @@ test them.
 - **Tests:** light and fire as tools, reading shadows, Silence, adapting the spell loadout.
 
 ### 6. Echo of the Monkey King — trickster sage (Wukong homage)
+> **Built in Version 4** (`v4/src/boss-monkey.js`, journal §14.10): an original sage design
+> (bronze-gold fur, cream robe, red rope sash, leaf crown, bamboo staff) on a cloud summit
+> you can fall off. Seventy-Two Transformations borrow a move from guardians beaten this run,
+> plus a Clone Army (pop a clone and its strike never comes), a Staff Spin that deflects
+> shots, Stone Monkey (crack him open), and in phase 2 the summit shrinks and the
+> Heaven-Splitting Staff sweeps it. The notes below are the original design.
 - **Arena:** a cloud platform above a sea of cloud; falling off = fall damage and respawn.
 - **Signature — 72 Transformations:** every 20 s he transforms into a smaller version of
   a boss you've already beaten in this run (turtle shell spin, croc dive, peacock

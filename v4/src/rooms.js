@@ -277,6 +277,7 @@ function spawnWave(room, wave) {
 
 function clearRoom(room) {
   room.cleared = true;
+  if (room.type === 'boss' && room.bossType && !world.trial) world.beaten.push(room.bossType);
   room.doorsOpen = true;
   room.doors = makeDoors(room);
   sfx.door();

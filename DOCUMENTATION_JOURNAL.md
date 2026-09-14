@@ -2161,6 +2161,85 @@ This replaces §14.8's six-of-the-pool structure.
     one run and last in the other, and no errors.
   - Press Deeper reshuffles all 10.
 
+### 14.10 Step 9 — Echo of the Monkey King (done)
+
+The owner asked for the Monkey King right after the all-bosses run (§14.9).
+`boss-monkey.js`, spec `MONKEY`, 1300 HP at slot 0, r 24. He's in
+`BOSS_POOL`, so a run is now **11 guardians, 23 chambers**. The trial card
+says "Trickster".
+
+- **Art:** an original sage, drawn in the spec:
+  - bronze-gold fur, round ears, a lighter face;
+  - a cream robe with a sky-blue collar and a red rope sash;
+  - a crown of three leaves, a curling tail, and a bamboo staff with bronze
+    caps.
+  - The real sage has a faint gold glow (phase 1 too) and a glowing staff;
+    clones have neither.
+- **The Summit (arena):** a dusk sea of cloud with a rock ellipse
+  (rx 0.44w, ry 0.43h). No obstacles.
+  - Off the rock for 0.1 s, and not mid-dash, you **fall**: −12% max HP,
+    back to 72% of the way out, "FELL!".
+  - The edge flushes red where you stand at k > 0.86.
+  - Falls only happen while he's alive, so the doors are safe.
+- **Guard hooks** (`guardFn`):
+  - While spinning, projectiles and spells are DEFLECTED: nearby friendly
+    bullets are `cleared`, and melee still lands.
+  - Stone skin takes ×0.15, and each hit is a crack (10, or 12 in phase 2)
+    → STONE SHATTERED, EXPOSED 2 s.
+- **Moves:**
+  - **Extending Staff:** a 560 lane (0.4 s), twice in phase 2.
+  - **Staff Combo:** two cones, then a red slam.
+  - **Staff Spin:** chases you, deflects shots, throws spark rings, then
+    he's dizzy.
+  - **Cloud Somersault:** a lane, and puffs burst behind him.
+  - **Clone Army:** 4 clones, 6 in phase 2. `monkeyclone` enemies are
+    fixed and invisible, drawn by him. They ring you and poke in sequence;
+    a popped clone kills its lane and its strike.
+  - **Pillar Slam:** a wide red lane, then rock shards to both sides.
+  - **Stone Monkey.**
+  - **Cudgel Throw:** out and back.
+  - **Cloud Dive:** 2 dives, 3 in phase 2; the last lands with a
+    shockwave.
+- **Seventy-Two Transformations:** `world.beaten` (new) records guardians
+  cleared this run (`clearRoom`, not in trials). He becomes one of them, or
+  any in a trial, for one signature move:
+  - turtle shell ricochet; croc hidden snaps; gorilla leap and shockwave;
+  - peacock feather spiral; Vesper quickdraw lanes; naga venom lobs;
+  - lancer spear lane; a borrowed Final Oath; Cold Hands; Warden novas.
+  - A form icon floats over him. Phase 2 does two forms back to back.
+- **Phase 2, "The Great Sage Awakens"** at 50%:
+  - clones pop, a gold aura, and the summit crumbles to rx 0.36w, ry 0.35h
+    (the player is kept on the rock during the shrink);
+  - **Heaven-Splitting Staff:** a giant two-ended staff sweeping the summit
+    for 5.5 s with gapped spark rings, then EXPOSED 2 s.
+- **Measured** (45 s bot samples, damage a minute; falls counted apart):
+
+  | Phase | Idle | Human bot | Expert bot, first pass | Expert bot, after tuning |
+  | --- | --- | --- | --- | --- |
+  | 1 | 537 | 195 | 11 (+9 falls) | 32–41 (+4–9 falls) |
+  | 2 | 447 | 179 | 43 (+8 falls) | 76–85 (+3–7 falls) |
+
+  The expert bot dodged too cleanly, so the idle staff flick became 3
+  sparks every 1.05 s (0.85 s in phase 2), the poke tell 0.4 s, and
+  Heaven's rings every 1.1 s.
+  - Phase 2 now sits inside the target (60–150).
+  - Phase 1 clean-dodge damage is still low, but falls are real damage
+    (~10 each for an 80 HP player). Counting them, the expert takes about
+    80–160 a minute.
+- **Test pitfall:** a gamepad connected to the PC with stick drift steered
+  the bot off the edge ~30 times a minute. Bot runs now stub
+  `navigator.getGamepads = () => []` on the test page.
+- **Verified:**
+  - Every move and all 10 forms end cleanly in both phases.
+  - Fall (−12%, back on the rock).
+  - Spin deflects a shot on its first frame.
+  - Popping a clone kills its strike, and no clones are left afterwards.
+  - Stone takes exactly 6 per cracked hit, and 10 cracks expose him.
+  - The phase change shrinks the summit; death clears the room.
+  - 2 full 23-chamber runs won with him 6th, and his forms (turtle,
+    gorilla) came from guardians already beaten.
+  - Checked at 844×390.
+
 
 | Term | Meaning |
 | --- | --- |

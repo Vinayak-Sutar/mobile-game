@@ -13,7 +13,8 @@ export const world = {
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
   biome: null,      // terrain/palette chosen at run start
-  bossOrder: [],    // the four creature bosses, shuffled per run
+  bossOrder: [],    // every guardian, shuffled per run (boss-pool.js)
+  beaten: [],       // guardians beaten so far this run (the Monkey King borrows them)
   trial: null,      // boss type when playing a Boss Trial, else null
   gold: 0,
   kills: 0,
@@ -51,6 +52,7 @@ export function resetWorld() {
   world.depth = 1;
   world.loop = 0;
   world.bossOrder = [];
+  world.beaten = [];
   world.trial = null;
   world.gold = 0;
   world.kills = 0;
