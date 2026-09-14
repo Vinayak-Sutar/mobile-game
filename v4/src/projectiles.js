@@ -301,11 +301,41 @@ export function drawProjectiles(ctx) {
     if (parked) ctx.globalAlpha = 0.55 + Math.sin(world.runTime * 30) * 0.3;
     ctx.translate(pr.x, pr.y);
     const byVelocity = pr.shape === 'arrow' || pr.shape === 'spear' || pr.shape === 'feather' || pr.shape === 'bullet';
-    const a = byVelocity ? Math.atan2(pr.vy, pr.vx) : pr.rot;
+    const a = byVelocity ? Math.atan2(pr.vy, pr.vx) : (pr.rot || 0);
     ctx.rotate(a);
     ctx.fillStyle = pr.color;
 
     switch (pr.shape) {
+      case 'note': {
+        // A musical note (the Maestro's): a tilted head, a stem and a flag,
+        // always upright so it reads as a note, with a soft glow.
+        const r = pr.r;
+        ctx.globalAlpha = 0.25;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.9, 0, TAU);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = '#0b0712';
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.35, r * 1.05 + 1.5, r * 0.78 + 1.5, -0.4, 0, TAU);
+        ctx.fill();
+        ctx.fillStyle = pr.color;
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.35, r * 1.05, r * 0.78, -0.4, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = pr.color;
+        ctx.lineWidth = Math.max(2, r * 0.3);
+        ctx.beginPath();
+        ctx.moveTo(r * 0.9, r * 0.15);
+        ctx.lineTo(r * 0.9, -r * 2.1);
+        ctx.quadraticCurveTo(r * 2.0, -r * 1.5, r * 1.5, -r * 0.6);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.3, r * 0.15, r * 0.35, r * 0.2, -0.4, 0, TAU);
+        ctx.fill();
+        break;
+      }
       case 'feather': {
         // A leaf blade with a dark outline and a bright spine.
         const L = pr.r * 2.4, W = pr.r * 0.9;

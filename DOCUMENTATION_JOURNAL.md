@@ -2319,6 +2319,59 @@ says "Conductor".
   - The regular music really stops during his fight and returns after.
   - The balance.
 
+### 14.12 The Maestro, round 2 — harder, a real melody, eight new instruments
+
+Owner feedback: "actually nice", but "so easy". Asked for musical-note
+projectiles, more attacks and enjoyable melodies, and "drums… vibrations of
+those drums can be a type of attack", plus more instruments and musical
+traits. The owner tests; I ran static checks only.
+
+- **Harder:**
+  - Tempo 100 → **116** BPM, and Presto 126 → **144**.
+  - HP 1250 → 1400 and damageBase 18 → 20.
+  - Most phrases start on the next half bar (less downtime). Grace notes
+    fire on every beat while he's idle.
+  - Presto drives a timpani ring under most phrases (`accomp`).
+  - Denser attacks: staccato adds off-beat notes, 5-lane chords, eighth-note
+    crescendo in Presto, 6-cut flurry.
+  - FORTISSIMO needs 10 beats (was 8) and exposes for 2.0 s.
+  - The orchestra returns sooner (cooldown 14) and adds a cymbalist in
+    Presto.
+- **Note bullets:** a new `note` shape in `projectiles.js` (head, stem and
+  flag, always upright). Every Maestro bullet uses it.
+- **The music:**
+  - An 8-bar progression, Am–F–C–G–Am–F–E–E7.
+  - A composed **lead melody**: `MELODY` in boss-maestro.js, played by
+    `band.lead` (a triangle plus a quiet detuned saw) on the eighth-note
+    grid (`onHalf`).
+  - Presto adds a running eighth-note bass and harp arpeggio, and kicks on
+    every beat.
+  - The count-in is now its own bar (`song` starts at −4).
+  - New voices in `audio.js`: `lead`, `harp`, `organ`, `bassDrum`, `tick`.
+- **New phrases** (21 in all):
+  - **Bass Drum Resonance:** a great drum on stage is struck every beat.
+    Vibration rings roll out of it, and bands of the floor around it shake
+    loose (marked). Presto: two drums, left and right.
+  - **Snare Roll:** sixteenth-note buzz rings, then an accent ring and a
+    note burst.
+  - **Piano Keys:** the stage becomes 12 key strips. The melody you hear
+    presses its keys: each note lights its strip a beat ahead, then strikes
+    it. Presto adds a harmony key.
+  - **Harp Glissando:** 10 string bands swept in order, with 2 neighbouring
+    strings left silent as the way through. Presto can sweep sideways.
+  - **Metronome:** a giant pendulum swings from the top of the stage,
+    ticking through the middle every beat and flinging notes; the rod and
+    bob hurt.
+  - **Cymbal Crash:** two cymbals slide in from either side of you and meet
+    on beat 3 (a marker) with a burst of notes.
+  - **Syncopation:** two bars of attacks on the "and"s, and a blast on the
+    "and" of four.
+  - **Pipe Organ** (Presto): five pipes ring you and sound in turn, then
+    all together with a centre blast and a ring of notes. Step out between
+    two pipes.
+- The sheet has glyphs for each new kind (snare ×, harp tick, metronome
+  triangle, cymbal ring, organ bar). Fermata warns 4 beats in Presto.
+
 
 | Term | Meaning |
 | --- | --- |

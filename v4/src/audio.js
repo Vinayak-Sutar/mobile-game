@@ -486,6 +486,36 @@ export const band = {
     const out = melodicBus(); if (!out) return;
     tone({ freq: midi(m), type: 'sawtooth', dur: Math.max(0.1, dur), vol: 0.1, out, filter: { freq: 900, freq2: 260, q: 4 } });
   },
+  /** The melody: a soft triangle with a quiet, slightly detuned saw for body. */
+  lead(m, dur) {
+    const out = melodicBus(); if (!out) return;
+    const d = Math.max(0.12, dur * 0.95);
+    tone({ freq: midi(m), type: 'triangle', dur: d, vol: 0.085, attack: 0.02, out });
+    tone({ freq: midi(m) * 1.006, type: 'sawtooth', dur: d, vol: 0.022, attack: 0.03, out, filter: { freq: 2200, freq2: 900, q: 0.8 } });
+  },
+  harp(m) {
+    const out = melodicBus(); if (!out) return;
+    tone({ freq: midi(m), type: 'triangle', dur: 0.45, vol: 0.08, attack: 0.002, out });
+    tone({ freq: midi(m) * 2, type: 'sine', dur: 0.25, vol: 0.025, out });
+  },
+  organ(ms, dur) {
+    const out = melodicBus(); if (!out) return;
+    for (const m of ms) {
+      tone({ freq: midi(m), type: 'square', dur: Math.max(0.2, dur), vol: 0.03, attack: 0.04, out, filter: { freq: 1500, q: 0.7 } });
+      tone({ freq: midi(m) * 2, type: 'sine', dur: Math.max(0.2, dur), vol: 0.02, attack: 0.04, out });
+    }
+  },
+  /** A great bass drum: a deep boom, a click of the beater, and a rumble. */
+  bassDrum(vol = 1) {
+    tone({ freq: 95, freq2: 36, type: 'sine', dur: 0.55, vol: 0.4 * vol });
+    tone({ freq: 190, freq2: 70, type: 'triangle', dur: 0.2, vol: 0.12 * vol });
+    noise({ dur: 0.35, vol: 0.14 * vol, freq: 260, freq2: 80 });
+  },
+  /** A metronome's wooden tick. */
+  tick() {
+    tone({ freq: 1250, type: 'square', dur: 0.03, vol: 0.09 });
+    tone({ freq: 830, type: 'triangle', dur: 0.05, vol: 0.06, delay: 0.005 });
+  },
   sforzando(ms) {
     band.kick(1.2);
     band.crash();

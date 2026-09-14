@@ -2,28 +2,28 @@
 // THE MAESTRO, CONDUCTOR OF THE LAST SYMPHONY — a spectral conductor on a
 // dark concert stage. "Every one of my attacks is a note. Learn the music."
 //
-// THE BEAT (signature): he keeps his own tempo, and the drums you hear are
-// it. Every attack lands ON a beat. A strip of sheet music across the top of
-// the stage shows what is coming: notes scroll left to the playhead, and each
-// note is an attack (gold = bullets, blue = brass lanes, red = blasts, white =
-// timpani rings, violet = strings). Read ahead and you'll know the rhythm.
+// THE BEAT (signature): he keeps his own tempo and plays his own piece — a
+// composed melody over drums, bass and strings. Every attack lands ON the
+// music. A strip of sheet music across the top of the stage shows what is
+// coming: notes scroll left to the playhead, and each note is an attack.
+// His bullets are musical notes.
 //
-// ON THE BEAT: your hits that land on the beat deal x1.5 ("ON BEAT"). Eight
-// separate beats struck in time — FORTISSIMO — and the orchestra stumbles:
-// his score is torn up and he's wide open.
+// ON THE BEAT: your hits on the beat deal x1.5 ("ON BEAT"). Ten separate
+// beats struck in time — FORTISSIMO — and the orchestra stumbles: his score
+// is torn up and he's wide open.
 //
-// Moves (phrases, each a bar or more): Staccato, Timpani, Crescendo, Brass
-// Chord, Arpeggio, Legato, Fermata (the music stops — find a stage light
-// before the SFORZANDO), Baton Flurry, Orchestra (spectral musicians play
-// along until they're struck down), Rubato (the tempo swells and sags),
-// OVERTURE (the phase-1 barrage).
-// Phase 2 — PRESTO: the coat comes off and the tempo leaps; eighth notes,
-// wider chords, the Canon (a bar, then its echo from the other side), and
-// the GRAND FINALE.
+// Phrases (each a bar or more, every one an instrument or a piece of music):
+// Staccato, Timpani, Crescendo, Brass Chord, Arpeggio, Legato, Fermata (the
+// music stops — find a stage light before the SFORZANDO), Baton Flurry,
+// Orchestra, Rubato, Bass Drum Resonance (the floor itself vibrates), Snare
+// Roll, Piano Keys (the melody you hear presses the keys of the stage),
+// Harp Glissando, Metronome, Cymbal Crash, Syncopation, OVERTURE.
+// Phase 2 — PRESTO: the coat comes off, the tempo leaps, the drums drive
+// under everything; Pipe Organ, the Canon, and the GRAND FINALE.
 // ============================================================================
 
 import { world, arena, arenaBounds } from './state.js';
-import { TAU, clamp, rand, dist, angleTo, angleDiff, lerp } from './util.js';
+import { TAU, clamp, rand, randInt, dist, angleTo, angleDiff, lerp } from './util.js';
 import { sub, idle, expose, shot, shockwave, inArena, turnToward, forward, spawnEnemyFn } from './boss-kit.js';
 import { damagePlayer } from './combat.js';
 import { burst, ring, shake, flash, damageText } from './fx.js';
@@ -38,24 +38,46 @@ const BOMB = '#ff5e6e';
 const DRUM = '#f4f0ff';
 const SFZ = '#ff3d6e';
 const VIOLET = '#b48cff';
+const WOOD = '#8a5a3a';
 
-const BPM1 = 100;
-const BPM2 = 126;
+const BPM1 = 116;
+const BPM2 = 144;
 const ON_BEAT = 0.1;       // seconds either side of a beat that count as "on it"
-const STREAK = 8;          // separate beats struck in time for FORTISSIMO
+const STREAK = 10;         // separate beats struck in time for FORTISSIMO
 const PX_PER_BEAT = 56;    // sheet-music scroll
+const KEYS = 12;           // piano-key strips across the stage
 
 const p2 = (e) => e.phase >= 2;
 const PV = { x: 0, y: 0 };   // your smoothed velocity, for leading attacks
 
-// A minor, i - VI - III - V: the Maestro's own piece.
+// --- the piece ----------------------------------------------------------------------
+// Eight bars in A minor: Am - F - C - G - Am - F - E - E7, round and round.
 const PROG = [
   { root: 45, pad: [57, 60, 64], arp: [69, 72, 76, 81] },   // Am
   { root: 41, pad: [53, 57, 60], arp: [65, 69, 72, 77] },   // F
   { root: 48, pad: [55, 60, 64], arp: [67, 72, 76, 79] },   // C
+  { root: 43, pad: [55, 59, 62], arp: [67, 71, 74, 79] },   // G
+  { root: 45, pad: [57, 60, 64], arp: [69, 72, 76, 81] },   // Am
+  { root: 41, pad: [53, 57, 60], arp: [65, 69, 72, 77] },   // F
   { root: 40, pad: [56, 59, 64], arp: [68, 71, 76, 80] },   // E
+  { root: 40, pad: [56, 59, 62], arp: [68, 71, 74, 80] },   // E7
 ];
-const chordAt = (beat) => PROG[((Math.floor(beat / 4) % 4) + 4) % 4];
+// The melody: [beat in bar, MIDI note, length in beats]. A rising question in
+// bars 1-4, a climbing answer in 5-6, and a turn on E that pulls back home.
+const MELODY = [
+  [[0, 76, 1], [1, 81, 0.5], [1.5, 83, 0.5], [2, 84, 1], [3, 83, 0.5], [3.5, 81, 0.5]],
+  [[0, 81, 1.5], [1.5, 79, 0.5], [2, 77, 1], [3, 76, 1]],
+  [[0, 79, 1], [1, 84, 0.5], [1.5, 86, 0.5], [2, 88, 1], [3, 86, 0.5], [3.5, 84, 0.5]],
+  [[0, 86, 1.5], [1.5, 83, 0.5], [2, 79, 2]],
+  [[0, 76, 1], [1, 81, 0.5], [1.5, 83, 0.5], [2, 84, 0.5], [2.5, 86, 0.5], [3, 88, 1]],
+  [[0, 89, 1], [1, 88, 0.5], [1.5, 86, 0.5], [2, 84, 1], [3, 81, 1]],
+  [[0, 83, 1], [1, 80, 0.5], [1.5, 81, 0.5], [2, 83, 1], [3, 76, 1]],
+  [[0, 80, 1], [1, 83, 1], [2, 88, 2]],
+];
+const barOf = (beat) => (((Math.floor(beat / 4)) % 8) + 8) % 8;
+const chordAt = (beat) => PROG[barOf(beat)];
+/** A melody pitch to a key strip: low notes on the left, high on the right. */
+const keyIndex = (m) => clamp(Math.round((m - 76) * (KEYS - 1) / 13), 0, KEYS - 1);
 
 function say(e, text, color = VIOLET) {
   damageText(e.x, e.y - e.r - 30, text, { color, size: 16 });
@@ -82,11 +104,37 @@ function blastAt(e, x, y, r, delay, mult, color) {
   return spawnHazard({ kind: 'blast', x: sx, y: sy, r, delay, damage: Math.round(e.damage * mult), color, source: e.type, owner: e, quiet: true });
 }
 
+function noteShot(e, a, speed, color, dmg = 0.42, from = null) {
+  shot(e, a, speed, { shape: 'note', r: 7, color, dmg, life: 5, ...(from ? { x: from.x, y: from.y, off: 14 } : {}) });
+}
+
 function fan(e, center, n, spread, speed, color, dmg = 0.42, from = null) {
   for (let i = 0; i < n; i++) {
     const a = n === 1 ? center : center + (i / (n - 1) - 0.5) * spread;
-    shot(e, a, speed, { shape: 'orb', r: 7, color, dmg, life: 5, ...(from ? { x: from.x, y: from.y, off: 14 } : {}) });
+    noteShot(e, a, speed, color, dmg, from);
   }
+}
+
+function ringNotes(e, x, y, n, speed, color, dmg = 0.38) {
+  const off = rand(0, TAU);
+  for (let k = 0; k < n; k++) noteShot(e, off + (k / n) * TAU, speed, color, dmg, { x, y });
+}
+
+/** A vibration ring from a drum: two gaps either side of you. */
+function drumRing(e, x, y, o = {}) {
+  const p = world.player;
+  const pa = p ? angleTo(x, y, p.x, p.y) + (o.turn || 0) : 0;
+  spawnHazard({
+    kind: 'shockring', x, y, r0: o.r0 || 30, speed: o.speed || 280, width: o.width || 16, maxR: o.maxR || 1000,
+    damage: Math.round(e.damage * (o.dmg || 0.6)), color: o.color || DRUM, source: e.type, owner: e,
+    gaps: [{ a: pa + 0.75, w: o.gapW || 0.85 }, { a: pa - 0.75, w: o.gapW || 0.85 }], wait: 0,
+  });
+}
+
+/** Damage from something that keeps touching (a pendulum, a cymbal). */
+function hurt(e, mult, sx, sy) {
+  if ((e.contactCd || 0) > 0) return;
+  if (damagePlayer(Math.round(e.damage * mult), sx, sy, e.type)) e.contactCd = 0.5;
 }
 
 function touch(e, mult) {
@@ -136,17 +184,21 @@ function add(e, n) {
   e.score.push({ warn: 0, cued: false, done: false, ...n });
 }
 
-/** The first bar line (or half bar, grid 2) at least `lead` beats away. */
-function nextBar(e, lead, grid = 4) {
+/** The first bar line (grid 4), half bar (2) or beat (1) at least `lead` beats away. */
+function nextBar(e, lead, grid) {
   return Math.ceil((e.song + lead) / grid) * grid;
 }
 
-/** A phrase: schedule its notes on the next bar, then conduct until they're played. */
-function phraseMove(cooldown, lead, build, grid = 4) {
+/**
+ * A phrase: schedule its notes on the next grid line, then conduct until
+ * they're played. In Presto the drums drive under most phrases (accomp).
+ */
+function phraseMove(cooldown, lead, build, grid = 2, accomp = true) {
   return {
     cooldown,
     start(e, p) {
       const at0 = nextBar(e, lead, grid);
+      e.accomp = accomp;
       e.phraseEnd = build(e, p, at0);
       sub(e, 'play', 999);
     },
@@ -162,7 +214,7 @@ function drumNote(e, at) {
     at, kind: 'drum', warn: 1,
     cue: (e) => { e.drumCue = at; },
     fire: (e) => {
-      shockwave(e, { speed: p2(e) ? 290 : 260, dmg: 0.7, color: DRUM });
+      shockwave(e, { speed: p2(e) ? 300 : 270, dmg: 0.7, color: DRUM });
       band.timpani(chordAt(at).root + 12, 1);
       shake(0.3);
       e.drumCue = null;
@@ -170,12 +222,12 @@ function drumNote(e, at) {
   });
 }
 
-function fanNote(e, at, n, spread, pitch) {
+function fanNote(e, at, n, spread, pitch, speed = 270) {
   add(e, {
     at, kind: 'pizz', warn: 0.5,
     cue: (e) => { e.batonFlash = 1; },
     fire: (e, p) => {
-      fan(e, leadAt(e.x, e.y, p, 250, 0.6), n, spread, 250, PIZZ);
+      fan(e, leadAt(e.x, e.y, p, speed, 0.6), n, spread, speed, PIZZ);
       band.pizz(pitch, 1);
     },
   });
@@ -193,8 +245,8 @@ function arpLine(e, at0, count, offsets, descend) {
         if (line.a === undefined) { line.x = e.x; line.y = e.y; line.a = angleTo(e.x, e.y, p.x, p.y); }
         for (const off of offsets) {
           const a = line.a + off;
-          const d = 90 + step * 70;
-          blastAt(e, line.x + Math.cos(a) * d, line.y + Math.sin(a) * d, 46, secs(e, at), 0.55, BOMB);
+          const d = 80 + step * 64;
+          blastAt(e, line.x + Math.cos(a) * d, line.y + Math.sin(a) * d, 48, secs(e, at), 0.6, BOMB);
         }
       },
       fire: () => band.bell(chordAt(at).arp[step % 4] + (step >= 4 ? 12 : 0)),
@@ -205,7 +257,7 @@ function arpLine(e, at0, count, offsets, descend) {
 /** FERMATA → SFORZANDO: the music stops, stage lights mark the safe spots, then the whole stage is struck. */
 function sforzando(e, at) {
   add(e, {
-    at, kind: 'sfz', warn: 3,
+    at, kind: 'sfz', warn: p2(e) ? 4 : 3,
     cue: (e, p) => {
       e.silenceUntil = at;
       e.safeUntil = at + 0.6;
@@ -214,7 +266,7 @@ function sforzando(e, at) {
     },
     fire: (e, p) => {
       const inSafe = e.safe && e.safe.some((s) => dist(p.x, p.y, s.x, s.y) < s.r + p.r * 0.3);
-      if (!inSafe) damagePlayer(Math.round(e.damage * 1.3), e.x, e.y, e.type);
+      if (!inSafe) damagePlayer(Math.round(e.damage * 1.4), e.x, e.y, e.type);
       flash(0.35, SFZ);
       shake(0.8);
       band.sforzando(chordAt(at).pad);
@@ -226,11 +278,12 @@ function sforzando(e, at) {
 function safeSpots(e, p) {
   const b = arenaBounds();
   const out = [];
-  const r = p2(e) ? 64 : 74;
+  const r = p2(e) ? 60 : 68;
+  const far = p2(e) ? 330 : 360;
   for (let tries = 0; tries < 120 && out.length < 3; tries++) {
     const x = rand(b.l + 90, b.r - 90), y = rand(b.t + 110, b.b - 70);
     const d = dist(x, y, p.x, p.y);
-    if (d < 140 || d > 360) continue;
+    if (d < 150 || d > far) continue;
     if (out.some((s) => dist(s.x, s.y, x, y) < 220)) continue;
     out.push({ x, y, r });
   }
@@ -247,7 +300,8 @@ function safeSpots(e, p) {
 function spawnOrchestra(e, at0) {
   const b = arenaBounds();
   const spots = [['drum', b.l + 90, b.t + 120], ['violin', b.r - 90, b.t + 120], ['horn', b.r - 90, b.b - 60]];
-  const bars = p2(e) ? 8 : 5;
+  if (p2(e)) spots.push(['cymbal', b.l + 90, b.b - 60]);
+  const bars = p2(e) ? 8 : 6;
   for (const [variant, x, y] of spots) {
     if (e.musicians.some((m) => m.variant === variant && !m.dead)) continue;
     const m = spawnEnemyFn('musician', x, y, { instant: true, summoner: e, scale: (e.scale || 1) * 0.8 });
@@ -269,17 +323,12 @@ function playMusician(e, p, mu, beat, m, ch) {
   }
   mu.pulseAt = world.runTime;
   if (mu.variant === 'drum' && (m === 0 || m === 2)) {
-    const pa = angleTo(mu.x, mu.y, p.x, p.y);
-    spawnHazard({
-      kind: 'shockring', x: mu.x, y: mu.y, r0: 24, speed: 230, width: 14, maxR: 900,
-      damage: Math.round(e.damage * 0.5), color: DRUM, source: e.type, owner: e,
-      gaps: [{ a: pa + 0.8, w: 0.9 }, { a: pa - 0.8, w: 0.9 }], wait: 0,
-    });
+    drumRing(e, mu.x, mu.y, { speed: 240, dmg: 0.5, width: 14, gapW: 0.9 });
     band.timpani(ch.root + 12, 0.6);
   }
   if (mu.variant === 'violin') {
-    shot(e, leadAt(mu.x, mu.y, p, 230, 0.6), 230, { x: mu.x, y: mu.y, off: 14, shape: 'orb', r: 6, color: PIZZ, dmg: 0.35, life: 4 });
-    band.pizz(ch.arp[beat % 4] + 12, 0.5);
+    noteShot(e, leadAt(mu.x, mu.y, p, 240, 0.6), 240, PIZZ, 0.35, mu);
+    band.pizz(ch.arp[((beat % 4) + 4) % 4] + 12, 0.5);
   }
   if (mu.variant === 'horn') {
     if (m === 2) {
@@ -292,6 +341,10 @@ function playMusician(e, p, mu, beat, m, ch) {
       mu.aim = undefined;
     }
   }
+  if (mu.variant === 'cymbal' && m === 0) {
+    ringNotes(e, mu.x, mu.y, 10, 200, PIZZ, 0.35);
+    band.crash();
+  }
 }
 
 // --- on the beat ----------------------------------------------------------------------
@@ -301,31 +354,59 @@ function onBeat(e, p, beat) {
   const m = ((beat % 4) + 4) % 4;
   const ch = chordAt(beat);
   const spb = 60 / e.bpm;
-  if (beat < 4 && e.song < 4.5) {
+  if (beat < 0) {
     // The count-in.
     band.click();
     damageText(e.x, e.y - e.r - 24, String(m + 1), { color: DRUM, size: 18 });
     return;
   }
   if (!silent(e)) {
-    if (m === 0 || m === 2) band.kick(); else band.snare(0.8);
-    if (m === 0) { band.bass(ch.root, spb * 1.8); band.strings(ch.pad, spb * 4); }
-    else if (m === 2) band.bass(ch.root + 12, spb * 0.9);
+    if (p2(e)) { band.kick(); if (m === 1 || m === 3) band.snare(1); }
+    else if (m === 0 || m === 2) band.kick();
+    else band.snare(0.8);
+    if (m === 0) band.strings(ch.pad, spb * 4);
+    if (!p2(e)) {
+      if (m === 0) band.bass(ch.root, spb * 1.8);
+      else if (m === 2) band.bass(ch.root + 7, spb * 0.9);
+    }
+    // Presto: the drums drive under the phrase.
+    if (p2(e) && m === 0 && e.action === 'play' && e.accomp) shockwave(e, { speed: 300, dmg: 0.5, color: DRUM });
   }
   // Grace notes while he turns the page to the next phrase.
-  if (e.action === 'idle' && (m === 1 || m === 3)) {
-    const a = leadAt(e.x, e.y, p, 240, 0.7);
-    for (const k of [-0.12, 0.12]) shot(e, a + k, 240, { shape: 'orb', r: 6, color: PIZZ, dmg: 0.35, life: 4 });
-    band.pizz(ch.arp[m], 0.7);
+  if (e.action === 'idle') {
+    const a = leadAt(e.x, e.y, p, 250, 0.7);
+    for (const k of [-0.12, 0.12]) noteShot(e, a + k, 250, PIZZ, 0.35);
+    band.pizz(ch.arp[m], 0.6);
     e.batonFlash = 1;
   }
   if (e.action !== 'exposed' && !silent(e)) {
     for (const mu of e.musicians) if (!mu.dead) playMusician(e, p, mu, beat, m, ch);
   }
   e.musicians = e.musicians.filter((mu) => !mu.dead);
+  if (e.metro && e.song >= e.metro.start && e.song <= e.metro.end) {
+    // The pendulum's bob throws notes as it crosses the middle.
+    const g = metroGeom(e);
+    fan(e, angleTo(g.tx, g.ty, p.x, p.y), 3, 0.5, 230, VIOLET, 0.35, { x: g.tx, y: g.ty });
+  }
 }
 
-/** Your hits on the beat land harder; eight beats in time and the orchestra stumbles. */
+/** Every eighth note: hats, the melody, and Presto's running bass and strings. */
+function onHalf(e, pos) {
+  if (pos < 0 || silent(e)) return;
+  const spb = 60 / e.bpm;
+  const off = pos - Math.floor(pos / 4) * 4;
+  if (off % 1 !== 0) band.hat(0.6);
+  else if (p2(e)) band.hat(0.3);
+  for (const [o, m, d] of MELODY[barOf(pos)]) if (o === off) band.lead(m, d * spb);
+  if (p2(e)) {
+    const ch = chordAt(pos);
+    const i = Math.round(off * 2);
+    band.bass(ch.root + (i % 2 ? 12 : 0), spb * 0.45);
+    band.harp(ch.arp[i % 4] - 12);
+  }
+}
+
+/** Your hits on the beat land harder; ten beats in time and the orchestra stumbles. */
 function tempoGuard(e) {
   if (e.action === 'phase') return 1;
   const frac = e.song - Math.floor(e.song);
@@ -348,18 +429,28 @@ function tempoGuard(e) {
   return 1;
 }
 
-function fortissimo(e) {
-  e.streak = 0;
+function clearStage(e) {
   e.score = [];
   e.safe = null;
   e.silenceUntil = 0;
   e.rubato = null;
-  e.bpm = e.baseBpm;
   e.drumCue = null;
+  e.metro = null;
+  e.harp = null;
+  e.keyboard = null;
+  e.cymbals = [];
+  e.pipes = null;
+  e.drums = null;
+}
+
+function fortissimo(e) {
+  e.streak = 0;
+  clearStage(e);
+  e.bpm = e.baseBpm;
   damageText(e.x, e.y - e.r - 34, 'FORTISSIMO!', { color: PIZZ, size: 20 });
   burst(e.x, e.y, { count: 30, color: PIZZ, speed: 320, size: 4, life: 0.6, drag: 3, shape: 'spark' });
   band.crash();
-  expose(e, 2.4);
+  expose(e, 2.0);
 }
 
 /** Glide to a conducting distance, facing you. */
@@ -374,37 +465,73 @@ function drift(e, dt, p, k = 1) {
   [e.x, e.y] = inArena(e.x, e.y, e.r + 20);
 }
 
+// --- stage pieces: metronome, keys, harp, cymbals, pipes, drums ------------------------
+
+function metroGeom(e) {
+  const M = e.metro;
+  const th = M.amp * Math.sin(PI * (e.song - M.start) * (2 / M.period));
+  const a = PI / 2 + th;
+  return { x: M.x, y: M.y, a, tx: M.x + Math.cos(a) * M.len, ty: M.y + Math.sin(a) * M.len };
+}
+
+function segDist(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const k = clamp(((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  return Math.hypot(px - (x1 + dx * k), py - (y1 + dy * k));
+}
+
+function keyRect(i) {
+  const b = arenaBounds();
+  const sw = (b.r - b.l) / KEYS;
+  return { x0: b.l + i * sw, x1: b.l + (i + 1) * sw };
+}
+
+function harpRect(H, k) {
+  const b = arenaBounds();
+  if (H.vertical) {
+    const sw = (b.r - b.l) / H.n;
+    return { x0: b.l + k * sw, x1: b.l + (k + 1) * sw, y0: b.t, y1: b.b };
+  }
+  const sh = (b.b - b.t) / H.n;
+  return { x0: b.l, x1: b.r, y0: b.t + k * sh, y1: b.t + (k + 1) * sh };
+}
+
+function cymbalPos(e, c, sd) {
+  const k = clamp((e.song - c.from) / (c.at - c.from), 0, 1);
+  return [c.tx + Math.cos(c.a) * c.spread * (1 - k) * sd, c.ty + Math.sin(c.a) * c.spread * (1 - k) * sd, k];
+}
+
 // --- the moveset --------------------------------------------------------------------
 
 export const MAESTRO = {
   phases: [0.5],
   phaseTime: 3.0,
   roarPitch: 1.6,
-  opening: { overture: 16, orchestra: 10, fermata: 12, rubato: 8, canon: 99, finale: 99 },
+  opening: { overture: 18, orchestra: 8, fermata: 12, rubato: 10, metronome: 6, keys: 5, canon: 99, organ: 99, finale: 99 },
 
   /** An open stage. */
   arena() { return []; },
 
   init(e) {
     e.bpm = e.baseBpm = BPM1;
-    e.song = 0;
-    e.lastBeat = -1;
-    e.lastHalf = -1;
-    e.score = [];
+    e.song = -4;          // a bar of count-in before the music starts
+    e.lastBeat = -5;
+    e.lastHalf = -9;
     e.musicians = [];
     e.fxLines = [];
     e.streak = 0;
     e.lastHitBeat = -99;
     e.beatPulse = 0;
     e.batonFlash = 0;
-    e.silenceUntil = 0;
     e.sfz = 0;
     e.face = PI / 2;
     e.guardFn = tempoGuard;
+    clearStage(e);
   },
 
   tick(e, dt, p) {
     e.touchCd = Math.max(0, (e.touchCd || 0) - dt);
+    e.contactCd = Math.max(0, (e.contactCd || 0) - dt);
     if (e.exposed > 0 && e.action !== 'exposed') e.exposed = Math.max(0, e.exposed - dt);
     if (e.ppx !== undefined && dt > 0) {
       const vx = (p.x - e.ppx) / dt, vy = (p.y - e.ppy) / dt;
@@ -438,7 +565,29 @@ export const MAESTRO = {
     const beat = Math.floor(e.song);
     if (beat !== e.lastBeat) { e.lastBeat = beat; onBeat(e, p, beat); }
     const half = Math.floor(e.song * 2);
-    if (half !== e.lastHalf) { e.lastHalf = half; if (half % 2 && !silent(e) && e.song > 4) band.hat(0.7); }
+    if (half !== e.lastHalf) { e.lastHalf = half; onHalf(e, half / 2); }
+
+    // The metronome's pendulum and the sliding cymbals hurt to touch.
+    if (e.metro) {
+      if (e.song > e.metro.end + 0.5) e.metro = null;
+      else if (e.song >= e.metro.start) {
+        const g = metroGeom(e);
+        if (segDist(p.x, p.y, g.x, g.y, g.tx, g.ty) < 14 + p.r * 0.5 || dist(p.x, p.y, g.tx, g.ty) < 34 + p.r * 0.5) hurt(e, 0.7, g.tx, g.ty);
+      }
+    }
+    for (const c of e.cymbals) {
+      for (const sd of [-1, 1]) {
+        const [cx, cy, k] = cymbalPos(e, c, sd);
+        if (k > 0.05 && k < 1 && dist(p.x, p.y, cx, cy) < 30 + p.r * 0.5) hurt(e, 0.5, cx, cy);
+      }
+    }
+    e.cymbals = e.cymbals.filter((c) => e.song < c.at + 0.1);
+    if (e.keyboard && e.song > e.keyboard.until) e.keyboard = null;
+    if (e.keyboard) e.keyboard.strips = e.keyboard.strips.filter((s) => e.song < s.at + 0.5);
+    if (e.harp && e.song > e.harp.end) e.harp = null;
+    if (e.drums && e.song > e.drums.end) e.drums = null;
+    if (e.pipes && e.song > e.pipes.end) e.pipes = null;
+
     if (e.streak > 0 && e.song - e.lastHitBeat > 4) e.streak = 0;
     if (e.safe && e.song > e.safeUntil) e.safe = null;
     touch(e, 0.4);
@@ -449,23 +598,20 @@ export const MAESTRO = {
   choose(e, p, d) {
     const alive = e.musicians.some((m) => !m.dead);
     const pool = [
-      ['staccato', 2.6], ['timpani', d < 260 ? 3 : 2], ['crescendo', 2.4], ['chord', 2.2],
-      ['arpeggio', 2], ['legato', 1.8], ['fermata', 1.4], ['flurry', e.hug > 0.5 ? 8 : 0],
-      ['orchestra', alive ? 0 : 1.6], ['rubato', 1.2],
+      ['staccato', 2.4], ['timpani', 2], ['crescendo', 2.2], ['chord', 2],
+      ['arpeggio', 1.8], ['legato', 1.6], ['fermata', 1.3], ['flurry', e.hug > 0.5 ? 9 : 0],
+      ['orchestra', alive ? 0 : 1.6], ['rubato', 1.0], ['resonance', 2.2], ['snare', d < 260 ? 3 : 1.2],
+      ['keys', 2], ['harp', 1.8], ['metronome', 1.6], ['cymbal', 2], ['syncopation', 1.8],
     ];
     if (!p2(e)) pool.push(['overture', 3]);
-    else pool.push(['canon', 2.4], ['finale', 3.5]);
+    else pool.push(['organ', 2.2], ['canon', 2.2], ['finale', 3.5]);
     return pool;
   },
 
   // --- phase 2: PRESTO ----------------------------------------------------------------
   onPhase(e) {
     e.marks = {};
-    e.score = [];
-    e.safe = null;
-    e.silenceUntil = 0;
-    e.rubato = null;
-    e.drumCue = null;
+    clearStage(e);
     e.streak = 0;
     e.startBpm = e.bpm;
     say(e, 'Presto!', PIZZ);
@@ -484,115 +630,116 @@ export const MAESTRO = {
   afterPhase(e) {
     e.baseBpm = BPM2;
     e.bpm = BPM2;
-    Object.assign(e.cool, { canon: 3, finale: 10, orchestra: 6, fermata: 6 });
+    Object.assign(e.cool, { canon: 3, organ: 5, finale: 10, orchestra: 6, fermata: 6 });
   },
 
   moves: {
-    // 1. Staccato: a fan of notes on every beat of the bar (every eighth in phase 2).
+    // 1. Staccato: a fan on every beat, and a single note on every "and"
+    //    (Presto: 3-fans on every eighth, 5-fans on the downbeats).
     staccato: phraseMove(3, 1, (e, p, at0) => {
-      const eighths = p2(e), steps = eighths ? 8 : 4, step = eighths ? 0.5 : 1;
-      for (let i = 0; i < steps; i++) {
-        const at = at0 + i * step;
-        fanNote(e, at, eighths ? 3 : 5, eighths ? 0.36 : 0.6, chordAt(at).arp[i % 4]);
+      for (let i = 0; i < 8; i++) {
+        const at = at0 + i * 0.5;
+        const onBeat = i % 2 === 0;
+        if (p2(e)) fanNote(e, at, i % 4 === 0 ? 5 : 3, i % 4 === 0 ? 0.6 : 0.36, chordAt(at).arp[i % 4], 290);
+        else fanNote(e, at, onBeat ? 5 : 1, 0.6, chordAt(at).arp[i % 4]);
       }
-      return at0 + steps * step;
-    }),
-
-    // 2. Timpani: a ring rolls out from him on beats 1 and 3 (every beat in phase 2).
-    timpani: phraseMove(5, 1, (e, p, at0) => {
-      for (const b of p2(e) ? [0, 1, 2, 3] : [0, 2]) drumNote(e, at0 + b);
       return at0 + 4;
     }),
 
-    // 3. Crescendo: a blast where you stand on each beat — each one bigger.
+    // 2. Timpani: a ring rolls out on every beat of the bar.
+    timpani: phraseMove(5, 1, (e, p, at0) => {
+      for (let b = 0; b < 4; b++) drumNote(e, at0 + b);
+      return at0 + 4;
+    }, 2, false),
+
+    // 3. Crescendo: a blast where you stand on each beat — each bigger (on
+    //    every eighth in Presto).
     crescendo: phraseMove(6, 1, (e, p, at0) => {
-      const R = [44, 62, 84, 120], D = [0.45, 0.55, 0.7, 1.0];
-      for (let i = 0; i < 4; i++) {
-        const at = at0 + i;
+      const n = p2(e) ? 8 : 4, step = p2(e) ? 0.5 : 1;
+      for (let i = 0; i < n; i++) {
+        const at = at0 + i * step;
+        const k = i / (n - 1);
         add(e, {
           at, kind: 'bomb', warn: 1,
-          cue: (e, p) => { blastAt(e, p.x + PV.x * 0.4, p.y + PV.y * 0.4, R[i], secs(e, at), D[i], BOMB); },
-          fire: () => { band.pizz(chordAt(at).arp[i], 0.6 + i * 0.3); if (i === 3) band.crash(); },
+          cue: (e, p) => { blastAt(e, p.x + PV.x * 0.4, p.y + PV.y * 0.4, lerp(40, 125, k), secs(e, at), lerp(0.45, 1.0, k), BOMB); },
+          fire: () => { band.pizz(chordAt(at).arp[i % 4], 0.6 + k * 0.6); if (i === n - 1) band.crash(); },
         });
       }
-      return at0 + 4;
+      return at0 + n * step;
     }),
 
-    // 4. Brass Chord: three lanes (five in phase 2) blast on beat 1, then
-    //    three more between them on beat 3.
+    // 4. Brass Chord: five lanes blast on beat 1, five more between them on
+    //    beat 3 (Presto: three chords, the middle one syncopated).
     chord: phraseMove(5, 2, (e, p, at0) => {
-      const n = p2(e) ? 5 : 3;
-      for (const [b, off, warn] of [[0, 0, 2], [2, 0.5, 1.5]]) {
+      const hits = p2(e) ? [[0, 0, 2], [1.5, 0.5, 1.5], [3, 0, 1.5]] : [[0, 0, 2], [2, 0.5, 1.5]];
+      for (const [b, off, warn] of hits) {
         const at = at0 + b;
         add(e, {
           at, kind: 'brass', warn,
           cue: (e, p, note) => {
             const base = angleTo(e.x, e.y, p.x, p.y);
             note.x = e.x; note.y = e.y; note.angles = [];
-            for (let k = 0; k < n; k++) {
-              const a = base + (k - (n - 1) / 2 + off) * 0.34;
+            for (let k = 0; k < 5; k++) {
+              const a = base + (k - 2 + off) * 0.32;
               note.angles.push(a);
               spawnHazard({ kind: 'lane', x: e.x, y: e.y, angle: a, len: 900, width: 44, delay: secs(e, at), color: BRASS, owner: e });
             }
           },
           fire: (e, p, note) => {
-            for (const a of note.angles || []) strike(e, note.x, note.y, a, 900, 22, 0.8, 240);
+            for (const a of note.angles || []) strike(e, note.x, note.y, a, 900, 22, 0.85, 240);
             band.brass(chordAt(at).pad);
             shake(0.25);
           },
         });
       }
-      return at0 + 3;
+      return at0 + 4;
     }),
 
-    // 5. Arpeggio: blasts march out toward you on eighth notes, then march back.
+    // 5. Arpeggio: blasts march out toward you on eighth notes, then back.
     arpeggio: phraseMove(6, 1, (e, p, at0) => {
-      const offsets = p2(e) ? [-0.3, 0.3] : [0];
+      const offsets = p2(e) ? [-0.3, 0.3] : [-0.18, 0.18];
       arpLine(e, at0, 8, offsets, false);
       arpLine(e, at0 + 4, 8, offsets.map((o) => o + 0.35), true);
       return at0 + 8;
-    }),
+    }, 4),
 
     // 6. Legato: a long slur — arms of notes turning around him for two bars.
     legato: phraseMove(7, 1, (e, p, at0) => {
-      const arms = p2(e) ? 3 : 2;
+      const arms = p2(e) ? 4 : 3;
       const base = rand(0, TAU);
       for (let i = 0; i < 16; i++) {
         const at = at0 + i * 0.5;
         add(e, {
           at, kind: 'string',
-          fire: (e) => {
-            if (i === 0) band.strings(chordAt(at).pad.map((m) => m + 12), secs(e, at + 8));
-            for (let k = 0; k < arms; k++) shot(e, base + i * 0.3 + (k / arms) * TAU, 170, { shape: 'orb', r: 7, color: STRING, dmg: 0.4, life: 6 });
-          },
+          fire: (e) => { for (let k = 0; k < arms; k++) noteShot(e, base + i * 0.3 + (k / arms) * TAU, 180, STRING, 0.4); },
         });
       }
       return at0 + 8;
-    }),
+    }, 4),
 
     // 7. Fermata: the music stops. Stage lights mark safe spots — get into
     //    one before the SFORZANDO strikes the whole stage.
-    fermata: phraseMove(16, 3, (e, p, at0) => { sforzando(e, at0); return at0 + 1; }),
+    fermata: phraseMove(14, 4, (e, p, at0) => { sforzando(e, at0); return at0 + 1; }, 4, false),
 
-    // 8. Baton Flurry: too close, and the baton cuts on eighth notes.
+    // 8. Baton Flurry: too close, and the baton cuts on six eighth notes.
     flurry: phraseMove(4, 1, (e, p, at0) => {
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 6; i++) {
         const at = at0 + i * 0.5;
         add(e, {
           at, kind: 'bomb', warn: 1,
           cue: (e, p, n) => {
             n.a = angleTo(e.x, e.y, p.x, p.y) + (i % 2 ? 0.45 : -0.45);
-            spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: n.a, arc: 1.8, r: 150, delay: secs(e, at), color: BOMB, owner: e, follow: e });
+            spawnHazard({ kind: 'cone', x: e.x, y: e.y, angle: n.a, arc: 1.8, r: 160, delay: secs(e, at), color: BOMB, owner: e, follow: e });
           },
-          fire: (e, p, n) => { cutLands(e, n.a, 1.8, 150, 0.55); band.pizz(chordAt(at).arp[i] + 12, 1); },
+          fire: (e, p, n) => { cutLands(e, n.a, 1.8, 160, 0.55); band.pizz(chordAt(at).arp[i % 4] + 12, 1); },
         });
       }
-      return at0 + 2;
-    }, 2),
+      return at0 + 3;
+    }, 1),
 
-    // 9. Orchestra: a drummer, a violinist and a horn player take their
-    //    seats and play along with him until they're struck down or bow.
-    orchestra: phraseMove(22, 2, (e, p, at0) => {
+    // 9. Orchestra: a drummer, a violinist and a horn player (and in Presto
+    //    a cymbalist) take their seats and play along until struck down.
+    orchestra: phraseMove(14, 2, (e, p, at0) => {
       add(e, {
         at: at0, kind: 'drum', warn: 2,
         cue: (e) => say(e, 'Orchestra!', VIOLET),
@@ -610,35 +757,248 @@ export const MAESTRO = {
         const at = at0 + i;
         add(e, {
           at, kind: 'pizz',
-          fire: (e, p) => { fan(e, leadAt(e.x, e.y, p, 240, 0.6), 3, 0.34, 240, PIZZ); band.pizz(chordAt(at).arp[i % 4], 0.9); },
+          fire: (e, p) => { fan(e, leadAt(e.x, e.y, p, 250, 0.6), 4, 0.5, 250, PIZZ); band.pizz(chordAt(at).arp[i % 4], 0.9); },
         });
       }
       return at0 + 8;
+    }, 4),
+
+    // 11. Bass Drum Resonance: a great drum is struck on every beat and the
+    //     stage vibrates — rings roll out of it, and the boards around it
+    //     shake loose in bands (marked). Presto: two drums, left and right.
+    resonance: phraseMove(10, 2, (e, p, at0) => {
+      const b = arenaBounds();
+      const c = center();
+      const spots = p2(e)
+        ? [[b.l + 170, c.y], [b.r - 170, c.y]]
+        : [inArena(lerp(e.x, c.x, 0.4), lerp(e.y, c.y, 0.4), 120)];
+      add(e, {
+        at: at0, kind: 'drum', warn: 1,
+        cue: (e) => { e.drums = { list: spots.map(([x, y]) => ({ x, y, hitAt: -9 })), end: at0 + 8.5 }; say(e, 'Feel the floor!', DRUM); },
+      });
+      for (let i = 0; i < 8; i++) {
+        const at = at0 + i;
+        add(e, {
+          at, kind: 'drum', warn: i % 2 === 0 ? 1 : 0,
+          cue: i % 2 === 0 ? (e) => {
+            if (!e.drums) return;
+            const D = e.drums.list[(i / 2) % e.drums.list.length];
+            const R = [150, 270][(i / 2) % 2];
+            const off = rand(0, TAU);
+            for (let k = 0; k < 10; k++) {
+              const a = off + (k / 10) * TAU;
+              blastAt(e, D.x + Math.cos(a) * R, D.y + Math.sin(a) * R, 42, secs(e, at), 0.5, DRUM);
+            }
+          } : null,
+          fire: (e) => {
+            if (!e.drums) return;
+            const D = e.drums.list[i % e.drums.list.length];
+            D.hitAt = world.runTime;
+            drumRing(e, D.x, D.y, { speed: 300, dmg: 0.6, width: 18, turn: i * 0.7 });
+            band.bassDrum(1);
+            shake(0.35);
+          },
+        });
+      }
+      return at0 + 8;
+    }, 4, false),
+
+    // 12. Snare Roll: a buzz of tiny rings on sixteenth notes, then the
+    //     accent — a fast ring and a burst of notes.
+    snare: phraseMove(7, 1, (e, p, at0) => {
+      for (let i = 0; i < 6; i++) {
+        const at = at0 + i * 0.25;
+        add(e, {
+          at, kind: 'snare',
+          fire: (e) => {
+            spawnHazard({
+              kind: 'shockring', x: e.x, y: e.y, r0: e.r, speed: 420, width: 10, maxR: 170 + i * 20,
+              damage: Math.round(e.damage * 0.35), color: DRUM, source: e.type, owner: e,
+              gaps: [{ a: rand(0, TAU), w: 1.0 }], wait: 0,
+            });
+            band.snare(0.3 + i * 0.1);
+          },
+        });
+      }
+      add(e, {
+        at: at0 + 2, kind: 'drum', warn: 1,
+        cue: (e) => { e.drumCue = at0 + 2; },
+        fire: (e) => {
+          shockwave(e, { speed: 380, dmg: 0.8, color: DRUM, gapW: 0.7 });
+          ringNotes(e, e.x, e.y, 12, 230, PIZZ, 0.4);
+          band.snare(1.3);
+          band.crash();
+          e.drumCue = null;
+        },
+      });
+      return at0 + 2.5;
+    }, 2, false),
+
+    // 13. Piano Keys: the stage becomes a keyboard. The melody you hear
+    //     presses its keys — each note lights its key a beat ahead, then
+    //     strikes down the whole strip. (Presto: a harmony key below too.)
+    keys: phraseMove(11, 1, (e, p, at0) => {
+      e.keyboard = { until: at0 + 8.5, strips: [] };
+      add(e, { at: at0, kind: 'rest', warn: 1, cue: (e) => say(e, 'Play along!', PIZZ) });
+      for (let bar = 0; bar < 2; bar++) {
+        for (const [o, m] of MELODY[barOf(at0 + bar * 4)]) {
+          const at = at0 + bar * 4 + o;
+          const idx = [keyIndex(m)];
+          if (p2(e)) idx.push(keyIndex(m - 5));
+          add(e, {
+            at, kind: 'key', warn: 1,
+            cue: (e) => { if (e.keyboard) for (const i of idx) e.keyboard.strips.push({ i, at }); },
+            fire: (e, p) => {
+              for (const i of idx) {
+                const K = keyRect(i);
+                if (p.x + p.r * 0.4 > K.x0 && p.x - p.r * 0.4 < K.x1) { damagePlayer(Math.round(e.damage * 0.6), (K.x0 + K.x1) / 2, p.y, e.type); break; }
+              }
+            },
+          });
+        }
+      }
+      return at0 + 8;
+    }, 4),
+
+    // 14. Harp Glissando: the strings of a giant harp span the stage and are
+    //     plucked one after another in a sweep. Two neighbouring strings are
+    //     never played — that gap (shimmering) is the way through.
+    harp: phraseMove(9, 2, (e, p, at0) => {
+      const vertical = p2(e) && Math.random() < 0.5;
+      const n = 10;
+      const safeK = randInt(1, n - 3);
+      const step = p2(e) ? 0.25 : 0.5;
+      e.harp = { vertical, n, safeK, lines: [], from: at0 - 2, end: at0 + n * step + 0.5 };
+      add(e, { at: at0, kind: 'rest', warn: 2, cue: (e) => say(e, 'Glissando!', PIZZ) });
+      for (let k = 0; k < n; k++) {
+        if (k === safeK || k === safeK + 1) continue;
+        const at = at0 + k * step;
+        add(e, {
+          at, kind: 'harp', warn: 1,
+          cue: (e) => { if (e.harp) e.harp.lines.push({ k, at }); },
+          fire: (e, p) => {
+            if (!e.harp) return;
+            const R = harpRect(e.harp, k);
+            const pad = p.r * 0.4;
+            if (p.x + pad > R.x0 && p.x - pad < R.x1 && p.y + pad > R.y0 && p.y - pad < R.y1) damagePlayer(Math.round(e.damage * 0.65), p.x, p.y, e.type);
+            band.harp(chordAt(at).arp[k % 4] + 12);
+          },
+        });
+      }
+      return at0 + n * step;
+    }, 4),
+
+    // 15. Metronome: a giant pendulum swings from the top of the stage,
+    //     ticking through the middle on every beat and flinging notes. Cross
+    //     under it when it's at the far end of its swing.
+    metronome: phraseMove(12, 1, (e, p, at0) => {
+      const b = arenaBounds();
+      e.metro = { x: (b.l + b.r) / 2, y: b.t + 64, len: (b.b - b.t) * 0.82, amp: 1.05, start: at0, end: at0 + 8, period: p2(e) ? 1.5 : 2 };
+      add(e, { at: at0, kind: 'metro', warn: 1, cue: (e) => say(e, 'Keep time!', VIOLET) });
+      for (let i = 0; i < 8; i++) add(e, { at: at0 + i, kind: 'metro', fire: () => band.tick() });
+      return at0 + 8;
+    }, 4, false),
+
+    // 16. Cymbal Crash: two cymbals slide in from either side of you and
+    //     meet with a crash on the third beat, throwing notes (two pairs in
+    //     Presto).
+    cymbal: phraseMove(7, 2, (e, p, at0) => {
+      const meets = p2(e) ? [2, 3] : [2];
+      for (const mb of meets) {
+        const at = at0 + mb;
+        add(e, {
+          at, kind: 'cymbal', warn: 2,
+          cue: (e, p, n) => {
+            [n.x, n.y] = inArena(p.x + PV.x * 0.5, p.y + PV.y * 0.5, 60);
+            e.cymbals.push({ tx: n.x, ty: n.y, a: rand(0, PI), from: at - 2, at, spread: 340 });
+            blastAt(e, n.x, n.y, 95, secs(e, at), 1.0, PIZZ);
+          },
+          fire: (e, p, n) => { ringNotes(e, n.x, n.y, 12, 220, PIZZ, 0.4); band.crash(); band.kick(1.2); shake(0.5); },
+        });
+      }
+      return at0 + meets[meets.length - 1] + 0.5;
     }),
 
-    // 11. OVERTURE (phase-1 barrage): four bars — timpani on every downbeat,
+    // 17. Syncopation: two bars where everything lands on the off-beats —
+    //     the "and" between the drums — with a blast on the "and" of four.
+    syncopation: phraseMove(8, 1, (e, p, at0) => {
+      add(e, { at: at0, kind: 'rest', warn: 1, cue: (e) => say(e, 'Syncopation!', PIZZ) });
+      for (let i = 0; i < 8; i++) {
+        const at = at0 + i + 0.5;
+        fanNote(e, at, p2(e) ? 4 : 3, 0.45, chordAt(at).arp[(i + 1) % 4]);
+        if (i % 4 === 3) {
+          add(e, { at, kind: 'bomb', warn: 1, cue: (e, p) => blastAt(e, p.x + PV.x * 0.4, p.y + PV.y * 0.4, 72, secs(e, at), 0.7, BOMB) });
+        }
+      }
+      return at0 + 8;
+    }, 4),
+
+    // 18. OVERTURE (phase-1 barrage): four bars — timpani on every downbeat,
     //     staccato on the backbeats, and an arpeggio across the last two.
     //     Then he bows.
-    overture: phraseMove(30, 1, (e, p, at0) => {
+    overture: phraseMove(28, 1, (e, p, at0) => {
       add(e, { at: at0, kind: 'rest', warn: 1, cue: (e) => say(e, 'The Overture!', PIZZ) });
       for (let bar = 0; bar < 4; bar++) {
         const b0 = at0 + bar * 4;
         drumNote(e, b0);
-        fanNote(e, b0 + 1, 5, 0.6, chordAt(b0).arp[1]);
-        fanNote(e, b0 + 3, 5, 0.6, chordAt(b0).arp[3]);
+        fanNote(e, b0 + 1, 6, 0.7, chordAt(b0).arp[1]);
+        fanNote(e, b0 + 2.5, 3, 0.4, chordAt(b0).arp[2]);
+        fanNote(e, b0 + 3, 6, 0.7, chordAt(b0).arp[3]);
       }
-      arpLine(e, at0 + 8, 8, [0], false);
-      arpLine(e, at0 + 12, 8, [0.35], true);
+      arpLine(e, at0 + 8, 8, [-0.15, 0.15], false);
+      arpLine(e, at0 + 12, 8, [0.2, 0.5], true);
       add(e, {
         at: at0 + 16, kind: 'sfz',
-        fire: (e) => { band.sforzando(chordAt(at0).pad); say(e, 'Bravo!', PIZZ); expose(e, 2.2); },
+        fire: (e) => { band.sforzando(chordAt(at0).pad); say(e, 'Bravo!', PIZZ); expose(e, 2.0); },
       });
       return at0 + 16.5;
-    }),
+    }, 4, false),
 
     // --- phase 2 ------------------------------------------------------------------------
 
-    // 12. Canon: a bar of blasts and notes — then he steps through to the
+    // 19. Pipe Organ: five pipes rise around you and sound one by one, then
+    //     all together with a ring of notes from the middle — step out
+    //     between two pipes.
+    organ: phraseMove(12, 2, (e, p, at0) => {
+      add(e, {
+        at: at0, kind: 'organ', warn: 2,
+        cue: (e, p) => {
+          const base = rand(0, TAU);
+          const [cx, cy] = inArena(p.x, p.y, 120);
+          e.pipes = { cx, cy, list: [], end: at0 + 3.6 };
+          for (let k = 0; k < 5; k++) {
+            const a = base + (k / 5) * TAU;
+            const [x, y] = inArena(cx + Math.cos(a) * 210, cy + Math.sin(a) * 210, 30);
+            e.pipes.list.push({ x, y, at: at0 + k * 0.5 });
+          }
+          say(e, 'The organ!', BRASS);
+        },
+      });
+      for (let k = 0; k < 5; k++) {
+        const at = at0 + k * 0.5;
+        add(e, {
+          at, kind: 'organ', warn: 1,
+          cue: (e) => { const P = e.pipes && e.pipes.list[k]; if (P) blastAt(e, P.x, P.y, 62, secs(e, at), 0.7, BRASS); },
+          fire: (e) => band.organ([chordAt(at).arp[k % 4]], 60 / e.bpm),
+        });
+      }
+      add(e, {
+        at: at0 + 3, kind: 'organ', warn: 1,
+        cue: (e) => {
+          if (!e.pipes) return;
+          for (const P of e.pipes.list) blastAt(e, P.x, P.y, 62, secs(e, at0 + 3), 0.7, BRASS);
+          blastAt(e, e.pipes.cx, e.pipes.cy, 95, secs(e, at0 + 3), 1.0, BRASS);
+        },
+        fire: (e) => {
+          if (e.pipes) ringNotes(e, e.pipes.cx, e.pipes.cy, 16, 200, BRASS, 0.4);
+          band.organ(chordAt(at0).pad, 120 / e.bpm);
+          shake(0.4);
+        },
+      });
+      return at0 + 3.5;
+    }, 4),
+
+    // 20. Canon: a bar of blasts and notes — then he steps through to the
     //     other side of the stage and the bar answers itself, mirrored.
     canon: phraseMove(9, 1, (e, p, at0) => {
       const marks = [];
@@ -651,7 +1011,7 @@ export const MAESTRO = {
             marks[i] = [x, y];
             blastAt(e, x, y, 70, secs(e, at), 0.6, BOMB);
           },
-          fire: (e, p) => { fan(e, angleTo(e.x, e.y, p.x, p.y), 3, 0.4, 250, PIZZ); band.pizz(chordAt(at).arp[i], 1); },
+          fire: (e, p) => { fan(e, angleTo(e.x, e.y, p.x, p.y), 4, 0.5, 270, PIZZ); band.pizz(chordAt(at).arp[i], 1); },
         });
       }
       add(e, {
@@ -671,18 +1031,18 @@ export const MAESTRO = {
             const c = center();
             const m = marks[i];
             if (m) blastAt(e, 2 * c.x - m[0], 2 * c.y - m[1], 70, secs(e, at), 0.6, BOMB);
-            blastAt(e, p.x, p.y, 50, secs(e, at), 0.5, BOMB);
+            blastAt(e, p.x + PV.x * 0.3, p.y + PV.y * 0.3, 56, secs(e, at), 0.55, BOMB);
           },
-          fire: (e, p) => { fan(e, angleTo(e.x, e.y, p.x, p.y), 3, 0.4, 250, PIZZ); band.pizz(chordAt(at).arp[3 - i] + 12, 1); },
+          fire: (e, p) => { fan(e, angleTo(e.x, e.y, p.x, p.y), 4, 0.5, 270, PIZZ); band.pizz(chordAt(at).arp[3 - i] + 12, 1); },
         });
       }
       return at0 + 8;
     }),
 
-    // 13. GRAND FINALE (phase-2 barrage): the orchestra returns, strings spin
+    // 21. GRAND FINALE (phase-2 barrage): the orchestra returns, strings spin
     //     for four bars over the timpani, then the music stops — find a light —
     //     SFORZANDO. Then he bows, spent.
-    finale: phraseMove(32, 3, (e, p, at0) => {
+    finale: phraseMove(30, 3, (e, p, at0) => {
       add(e, {
         at: at0, kind: 'drum', warn: 2,
         cue: (e) => say(e, 'The Grand Finale!', PIZZ),
@@ -693,20 +1053,17 @@ export const MAESTRO = {
         const at = at0 + i * 0.5;
         add(e, {
           at, kind: 'string',
-          fire: (e) => {
-            if (i === 0) band.strings(chordAt(at).pad.map((m) => m + 12), secs(e, at + 16));
-            for (let k = 0; k < 3; k++) shot(e, base + i * 0.26 + (k / 3) * TAU, 150, { shape: 'orb', r: 7, color: STRING, dmg: 0.4, life: 6 });
-          },
+          fire: (e) => { for (let k = 0; k < 4; k++) noteShot(e, base + i * 0.26 + (k / 4) * TAU, 160, STRING, 0.4); },
         });
       }
       for (let bar = 0; bar < 4; bar++) drumNote(e, at0 + bar * 4);
       sforzando(e, at0 + 20);
       add(e, {
         at: at0 + 21, kind: 'rest',
-        fire: (e) => { say(e, 'Bravo… bravo.', PIZZ); expose(e, 2.6); },
+        fire: (e) => { say(e, 'Bravo… bravo.', PIZZ); expose(e, 2.4); },
       });
       return at0 + 21.5;
-    }),
+    }, 4, false),
   },
 
   // --- drawing ------------------------------------------------------------------------
@@ -715,6 +1072,28 @@ export const MAESTRO = {
 
   drawExtras(e, ctx, t) {
     const p = world.player;
+    const b = arenaBounds();
+    drawKeyboard(ctx, e, b);
+    drawHarp(ctx, e);
+    // Fermata: the stage goes red; stage lights mark where it's safe.
+    if (e.safe) {
+      ctx.fillStyle = `rgba(255,40,80,${0.12 + Math.sin(t * 12) * 0.05})`;
+      ctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
+      for (const s of e.safe) {
+        const g = ctx.createRadialGradient(s.x, s.y, 4, s.x, s.y, s.r);
+        g.addColorStop(0, 'rgba(255,245,210,0.55)');
+        g.addColorStop(1, 'rgba(255,245,210,0.12)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#fff4d0';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    }
+    drawDrums(ctx, e, t);
+    drawPipes(ctx, e);
+    drawCymbals(ctx, e);
+    drawMetronome(ctx, e);
     // The timpani's warning: a ring closing on him.
     if (e.drumCue !== null && e.drumCue !== undefined) {
       const k = clamp(1 - secs(e, e.drumCue) / (60 / e.bpm), 0, 1);
@@ -734,22 +1113,6 @@ export const MAESTRO = {
       ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x + Math.cos(f.a) * f.len, f.y + Math.sin(f.a) * f.len); ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
-    }
-    // Fermata: the stage goes red; stage lights mark where it's safe.
-    if (e.safe) {
-      const b = arenaBounds();
-      ctx.fillStyle = `rgba(255,40,80,${0.12 + Math.sin(t * 12) * 0.05})`;
-      ctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
-      for (const s of e.safe) {
-        const g = ctx.createRadialGradient(s.x, s.y, 4, s.x, s.y, s.r);
-        g.addColorStop(0, 'rgba(255,245,210,0.55)');
-        g.addColorStop(1, 'rgba(255,245,210,0.12)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill();
-        ctx.strokeStyle = '#fff4d0';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-      }
     }
     if (e.sfz > 0) {
       ctx.globalAlpha = e.sfz;
@@ -783,7 +1146,6 @@ export const MAESTRO = {
     drawSheet(ctx, e);
     if (e.action === 'phase') {
       const k = clamp(1 - e.t / (e.phaseT || 1), 0, 1);
-      const b = arenaBounds();
       ctx.globalAlpha = Math.sin(k * PI);
       ctx.fillStyle = PIZZ;
       ctx.textAlign = 'center';
@@ -795,7 +1157,7 @@ export const MAESTRO = {
   },
 
   /** A dark concert stage: wooden boards, velvet wings, empty chairs, footlights. */
-  drawArena(ctx, room, t) {
+  drawArena(ctx) {
     const e = world.enemies.find((q) => q.type === 'maestro' && !q.dead);
     const b = arenaBounds();
     const w = b.r - b.l, h = b.b - b.t;
@@ -859,7 +1221,13 @@ const GLYPHS = {
   brass: { line: 3, color: BRASS, shape: 'bar' },
   bomb: { line: 0.5, color: BOMB, shape: 'head' },
   drum: { line: 4, color: DRUM, shape: 'diamond' },
+  snare: { line: 3.5, color: DRUM, shape: 'x' },
   sfz: { line: 2, color: SFZ, shape: 'accent' },
+  key: { line: 1.5, color: BOMB, shape: 'head' },
+  harp: { line: 0, color: PIZZ, shape: 'tick' },
+  metro: { line: 2.5, color: VIOLET, shape: 'tri' },
+  cymbal: { line: 0, color: PIZZ, shape: 'ring' },
+  organ: { line: 2, color: BRASS, shape: 'bar' },
 };
 
 function noteGlyph(ctx, x, y, color, shape, alpha = 1) {
@@ -877,6 +1245,17 @@ function noteGlyph(ctx, x, y, color, shape, alpha = 1) {
   } else if (shape === 'accent') {
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(x - 8, y - 7); ctx.lineTo(x + 8, y); ctx.lineTo(x - 8, y + 7); ctx.stroke();
+  } else if (shape === 'x') {
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4); ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4); ctx.stroke();
+  } else if (shape === 'tick') {
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 7); ctx.stroke();
+  } else if (shape === 'tri') {
+    ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x + 6, y + 5); ctx.lineTo(x - 6, y + 5); ctx.closePath(); ctx.fill();
+  } else if (shape === 'ring') {
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU); ctx.stroke();
   }
   ctx.globalAlpha = 1;
 }
@@ -924,7 +1303,148 @@ function drawSheet(ctx, e) {
   // The streak toward FORTISSIMO.
   for (let k = 0; k < STREAK; k++) {
     ctx.fillStyle = k < e.streak ? PIZZ : 'rgba(255,255,255,0.15)';
-    ctx.beginPath(); ctx.arc(x1 + 22 + (k % 4) * 9, y0 + 6 + Math.floor(k / 4) * 12, 3.2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x1 + 22 + (k % 5) * 9, y0 + 6 + Math.floor(k / 5) * 12, 3.2, 0, TAU); ctx.fill();
+  }
+}
+
+/** Piano Keys: the stage as a keyboard; keys light a beat ahead, then strike. */
+function drawKeyboard(ctx, e, b) {
+  const K = e.keyboard;
+  if (!K) return;
+  for (let i = 0; i < KEYS; i++) {
+    const R = keyRect(i);
+    ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.06)';
+    ctx.fillRect(R.x0, b.t, R.x1 - R.x0, b.b - b.t);
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(R.x1 - 1, b.t, 2, b.b - b.t);
+    if (i % 7 !== 2 && i % 7 !== 6) {
+      ctx.fillStyle = 'rgba(10,6,14,0.55)';
+      ctx.fillRect(R.x1 - (R.x1 - R.x0) * 0.25, b.t, (R.x1 - R.x0) * 0.5, 70);
+    }
+  }
+  for (const s of K.strips) {
+    const R = keyRect(s.i);
+    if (e.song < s.at) {
+      const k = clamp(1 - (s.at - e.song), 0, 1);
+      ctx.fillStyle = `rgba(255,94,110,${0.1 + k * 0.35})`;
+    } else {
+      ctx.fillStyle = `rgba(255,255,255,${clamp(1 - (e.song - s.at) * 3, 0, 1) * 0.6})`;
+    }
+    ctx.fillRect(R.x0 + 2, b.t, R.x1 - R.x0 - 4, b.b - b.t);
+  }
+}
+
+/** Harp Glissando: every string faint, the next ones bright, the gap shimmering. */
+function drawHarp(ctx, e) {
+  const H = e.harp;
+  if (!H || e.song < H.from) return;
+  const t = world.runTime;
+  for (let k = 0; k < H.n; k++) {
+    const R = harpRect(H, k);
+    const safe = k === H.safeK || k === H.safeK + 1;
+    if (safe) {
+      ctx.fillStyle = `rgba(160,255,190,${0.1 + Math.sin(t * 8) * 0.04})`;
+      ctx.fillRect(R.x0, R.y0, R.x1 - R.x0, R.y1 - R.y0);
+      continue;
+    }
+    ctx.strokeStyle = 'rgba(255,212,94,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (H.vertical) { const x = (R.x0 + R.x1) / 2; ctx.moveTo(x, R.y0); ctx.lineTo(x, R.y1); }
+    else { const y = (R.y0 + R.y1) / 2; ctx.moveTo(R.x0, y); ctx.lineTo(R.x1, y); }
+    ctx.stroke();
+  }
+  for (const L of H.lines) {
+    const R = harpRect(H, L.k);
+    if (e.song < L.at) {
+      const k = clamp(1 - (L.at - e.song), 0, 1);
+      ctx.fillStyle = `rgba(255,212,94,${0.08 + k * 0.32})`;
+    } else {
+      ctx.fillStyle = `rgba(255,255,230,${clamp(1 - (e.song - L.at) * 3, 0, 1) * 0.6})`;
+    }
+    ctx.fillRect(R.x0, R.y0, R.x1 - R.x0, R.y1 - R.y0);
+  }
+}
+
+function drawMetronome(ctx, e) {
+  if (!e.metro) return;
+  const g = metroGeom(e);
+  const live = e.song >= e.metro.start;
+  ctx.globalAlpha = live ? 1 : 0.4;
+  ctx.strokeStyle = '#d8d0e8';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(g.x, g.y); ctx.lineTo(g.tx, g.ty); ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = '#3a2a4a';
+  ctx.beginPath(); ctx.arc(g.x, g.y, 12, 0, TAU); ctx.fill();
+  ctx.fillStyle = PIZZ;
+  ctx.shadowColor = PIZZ;
+  ctx.shadowBlur = live ? 14 : 0;
+  ctx.beginPath(); ctx.arc(g.tx, g.ty, 34, 0, TAU); ctx.fill();
+  ctx.shadowBlur = 0;
+  noteGlyph(ctx, g.tx - 3, g.ty + 6, '#3a2a4a', 'head', 1);
+  ctx.globalAlpha = 1;
+}
+
+function drawCymbals(ctx, e) {
+  for (const c of e.cymbals) {
+    for (const sd of [-1, 1]) {
+      const [x, y] = cymbalPos(e, c, sd);
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(e.song * 6 * sd);
+      ctx.fillStyle = '#d8b04a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 30, 26, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#8a6a20';
+      ctx.lineWidth = 2;
+      for (const rr of [9, 17, 25]) { ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * 0.87, 0, 0, TAU); ctx.stroke(); }
+      ctx.fillStyle = '#fff0b0';
+      ctx.beginPath(); ctx.arc(-8, -7, 4, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
+
+function drawPipes(ctx, e) {
+  if (!e.pipes) return;
+  for (const P of e.pipes.list) {
+    const lit = e.song >= P.at - 1;
+    if (lit) {
+      const g = ctx.createRadialGradient(P.x, P.y, 4, P.x, P.y, 50);
+      g.addColorStop(0, 'rgba(111,184,255,0.45)');
+      g.addColorStop(1, 'rgba(111,184,255,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(P.x, P.y, 50, 0, TAU); ctx.fill();
+    }
+    ctx.fillStyle = '#b8c0d0';
+    ctx.beginPath(); ctx.arc(P.x, P.y, 24, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#5a6070';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#1a1a24';
+    ctx.beginPath(); ctx.arc(P.x, P.y, 13, 0, TAU); ctx.fill();
+  }
+}
+
+/** The great bass drums of Resonance; their skins shiver when struck. */
+function drawDrums(ctx, e, t) {
+  if (!e.drums) return;
+  for (const D of e.drums.list) {
+    const since = t - D.hitAt;
+    const wob = since < 0.5 ? Math.sin(since * 60) * (1 - since * 2) * 5 : 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(D.x, D.y + 12, 52, 20, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = WOOD;
+    ctx.beginPath(); ctx.arc(D.x, D.y, 50, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#d8b04a';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#efe4cc';
+    ctx.beginPath(); ctx.arc(D.x, D.y, 40 + wob, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(138,90,58,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(D.x, D.y, 26 + wob * 0.6, 0, TAU); ctx.stroke();
   }
 }
 
@@ -1012,7 +1532,7 @@ export function drawMusician(e, ctx) {
   ctx.beginPath(); ctx.ellipse(0, r * 0.1, r * 0.75, r * 0.85, 0, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.arc(0, -r * 0.75, r * 0.42, 0, TAU); ctx.fill();
   if (e.variant === 'drum') {
-    ctx.fillStyle = '#8a5a3a';
+    ctx.fillStyle = WOOD;
     ctx.beginPath(); ctx.ellipse(0, r * 0.75, r * 0.9, r * 0.38, 0, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#f4e8d0';
     ctx.lineWidth = 2;
@@ -1024,6 +1544,9 @@ export function drawMusician(e, ctx) {
     ctx.strokeStyle = '#f4e8d0';
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(-r * 0.6, r * 0.3 - k * 6); ctx.lineTo(r * 0.9, -r * 0.4 + k * 6); ctx.stroke();
+  } else if (e.variant === 'cymbal') {
+    ctx.fillStyle = '#d8b04a';
+    for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * (r * 0.7 - k * 5), 0, r * 0.35, r * 0.5, 0, 0, TAU); ctx.fill(); }
   } else {
     ctx.strokeStyle = '#e8c060';
     ctx.lineWidth = 3;

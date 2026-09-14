@@ -1141,7 +1141,7 @@ export const BOSS_DEFS = {
     update() {}, draw() {},
   },
   maestro: bossDef(MAESTRO, {
-    r: 22, hp: 1250, speed: 150, mass: 20, color: '#b48cff', damageBase: 18,
+    r: 22, hp: 1400, speed: 150, mass: 20, color: '#b48cff', damageBase: 20,
     title: 'The Maestro', subtitle: 'Conductor of the Last Symphony',
   }),
   // His orchestra: spectral musicians who play on his beat (boss-maestro.js).
