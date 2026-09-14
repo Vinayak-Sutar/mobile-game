@@ -306,6 +306,15 @@ export const sfx = {
     noise({ dur: 1.2, vol: 0.4, freq: 1200, freq2: 60 });
     tone({ freq: 80, freq2: 35, type: 'sawtooth', dur: 1.0, vol: 0.22 });
   },
+  // The Grandmaster: a wooden piece set down, and a chess clock being pressed.
+  clack(pitch = 1) {
+    noise({ dur: 0.05, vol: 0.22, freq: 1900 * pitch, type: 'bandpass', q: 2.2 });
+    tone({ freq: 620 * pitch, freq2: 420 * pitch, type: 'triangle', dur: 0.07, vol: 0.12 });
+  },
+  chessClock() {
+    tone({ freq: 1500, type: 'square', dur: 0.025, vol: 0.08 });
+    noise({ dur: 0.03, vol: 0.12, freq: 2600, type: 'bandpass', q: 3, delay: 0.01 });
+  },
   roar(pitch = 1) {
     tone({ freq: 120 * pitch, freq2: 320 * pitch, type: 'sawtooth', dur: 0.9, vol: 0.28, filter: { freq: 1800 } });
     noise({ dur: 0.9, vol: 0.26, freq: 900 * pitch, freq2: 260, type: 'bandpass', q: 0.7 });

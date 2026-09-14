@@ -42,6 +42,8 @@ import { BRIDE } from './boss-bride.js';
 import { MONKEY } from './boss-monkey.js';
 import { MAESTRO, drawMusician } from './boss-maestro.js';
 import { MAU } from './boss-mau.js';
+import { GRANDMASTER } from './boss-chess.js';
+import { drawChessman } from './boss-chess-art.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1141,6 +1143,18 @@ export const BOSS_DEFS = {
     init(e) { e.noPush = true; },
     update() {}, draw() {},
   },
+  grandmaster: bossDef(GRANDMASTER, {
+    r: 24, hp: 1600, speed: 120, mass: 40, color: '#e8c060', damageBase: 19,
+    title: 'The Grandmaster', subtitle: 'King of the Living Board',
+  }),
+  // His chessmen: moved by him square by square (boss-chess-board.js); capture them.
+  chessman: {
+    r: 20, hp: 80, speed: 0, mass: 999, cost: 999, minDepth: 99, color: '#e8c060',
+    fixed: true,
+    init(e) { e.noPush = true; },
+    update() {},
+    draw: drawChessman,
+  },
   mau: bossDef(MAU, {
     r: 24, hp: 1800, speed: 190, mass: 20, color: '#5fe0a0', damageBase: 19,
     title: 'Mau, the Nine-Lived', subtitle: 'The Great Cat of Nine Legends',
@@ -1283,6 +1297,7 @@ export const BOSS_INFO = {
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  grandmaster: { title: BOSS_DEFS.grandmaster.title, subtitle: BOSS_DEFS.grandmaster.subtitle, color: '#e8c060', animal: 'Chess' },
   mau: { title: BOSS_DEFS.mau.title, subtitle: BOSS_DEFS.mau.subtitle, color: '#5fe0a0', animal: 'Cat' },
   maestro: { title: BOSS_DEFS.maestro.title, subtitle: BOSS_DEFS.maestro.subtitle, color: '#c8a8ff', animal: 'Conductor' },
   monkey: { title: BOSS_DEFS.monkey.title, subtitle: BOSS_DEFS.monkey.subtitle, color: '#ffc861', animal: 'Trickster' },

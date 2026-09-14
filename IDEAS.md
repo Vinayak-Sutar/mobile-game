@@ -257,6 +257,14 @@ test them.
 > - Later lives are Ra's Great Cat against Apep, Kot Bayun's lullaby, the nekomata, the Kasha, Freyja's chariot, the Cat Sìth and the Yule Cat.
 > - Catnip pots are the counterplay.
 
+### 16. The Grandmaster — the living chessboard
+> **Built in Version 4** (`v4/src/boss-chess*.js`, journal §14.17):
+> - The arena is a chessboard, and his pieces attack by real chess rules.
+> - Squares light up before they strike.
+> - Capture pieces to break his protection.
+> - CHECK: find an unattacked square in time.
+> - Phase 2 flips the board: Promotion, Blitz, Zugzwang, and Checkmate in Three.
+
 ### Mini-bosses (for special chambers)
 - **The Headsman** (a slow executioner; one huge parryable swing).
 - **Twin Hounds** (they share one HP bar; kill both within 5 s or the other revives it).

@@ -2533,6 +2533,62 @@ to the correct box".
   - The tell is now one faint purr and jingle 1.4 s into a 3.6 s wait
     (was every second).
 
+### 14.17 The Grandmaster — the chess boss (built; owner testing)
+
+The owner picked "The Grandmaster" from the boss list. The files are
+`boss-chess.js` (the King's fight), `boss-chess-board.js` (squares,
+strikes, pieces and chess rules) and `boss-chess-art.js` (drawing). HP 1600
+at slot 0. He's in `BOSS_POOL`, so a run is **14 guardians, 29 chambers**.
+Only static checks have run; the owner tests.
+
+- **The board:** the arena becomes 8 ranks × as many files as fit (square =
+  arena height / 8), drawn as varnished wood.
+- **Strikes** (the core idea): every attack is a set of squares, each with
+  its own strike time. A square lights and fills during its warning, then
+  flashes and hits whoever stands on it (once per strike group). Built with
+  `strikeTogether` (all at once) and `strikeAlong` (down a path, `step`
+  apart).
+  - Warnings are 0.85 s, 0.7 s in phase 2 and 0.5 s in Blitz.
+- **Pieces** (`chessman`: fixed, 80 HP × scale, their own art and health
+  bar; killing one shows CAPTURED):
+  - Real chess attack sets (`attackCells`): pawn diagonals; rook and bishop
+    rays that stop at the first piece, so pieces block lines; knight Ls;
+    the queen does both.
+  - Moves are timed slides or knight hops (`movePiece`).
+  - Pawns can't step onto your square, and promote on the far rank.
+  - Pieces are capped at 7 (10 in phase 2); the oldest leave.
+- **The King:** steps one square at a time, about 5 squares from you.
+  - PROTECTED (×0.5) while 3+ pieces stand (4+ in phase 2).
+  - Touching him strikes your square.
+- **Moves:**
+  - **Opening:** 5 pawns and a knight.
+  - **Pawn Storm:** 3 advances of diagonal strikes and steps.
+  - **Rook's File** and **Bishop's Diagonal:** a piece set down 4–9 squares
+    from you on a line, then it strikes and slides. Two at once in phase 2.
+  - **Knight's Fork:** a hop onto your square, then its 8 squares; 2
+    knights, 3 in phase 2.
+  - **Queen's Sweep:** 3 lines through you, repositioning before each.
+  - **CHECK:** every square attacked by settled pieces, plus the King's
+    neighbours, strikes together after 1.8 s (1.5 s in phase 2) for ×1.2.
+    Coverage is capped at 72% of the board, so there's always a safe
+    square. CHECKMATE or ESCAPED.
+  - **Castling:** the King swaps with a rook; both neighbourhoods strike.
+  - **Royal Guard:** anti-hug.
+  - **Royal Decree:** 8-direction volleys.
+  - **Scholar's Mate** (phase-1 barrage): bishop line, queen line, fork,
+    CHECK, then EXPOSED 2.2 s.
+- **Phase 2, The Board Flips:** the colours invert, pawns march the other
+  way, and the crown tips.
+  - **Promotion:** all pawns become random pieces.
+  - **BLITZ:** 6 s of pieces taking turns attacking every 0.55 s, with the
+    clock in red.
+  - **ZUGZWANG:** for 8 s, 0.8 s on one square makes it strike.
+  - **Checkmate in Three:** 4 pieces, then 3 checks at 1.5, 1.2 and 1.0 s,
+    with knights and sliders repositioning between them. Then EXPOSED
+    2.6 s.
+- **Sounds:** `sfx.clack` (a wooden piece set down), `sfx.chessClock`, and
+  the church `bell` for CHECK.
+
 
 | Term | Meaning |
 | --- | --- |
