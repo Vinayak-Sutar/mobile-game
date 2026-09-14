@@ -2122,7 +2122,45 @@ this structure till the end, and we will keep adding new bosses."
   - 2 full runs reach victory through 6 guardians plus the Warden, with no
     errors; loop 2 rooms keep the same pattern.
 
-## 12. Glossary
+### 14.9 Step 8 — every guardian in every run, no fixed finale (done)
+
+The owner: "add all the bosses in run. So every alternate chamber will be a
+boss, and don't keep Warden as the final boss. Randomly put all the bosses."
+This replaces §14.8's six-of-the-pool structure.
+
+- **The pool:** `boss-pool.js` exports `BOSS_POOL` (10 guardians, the
+  Warden included). It has no imports because `rooms.js` reads its length
+  while loading. `bosses.js` re-exports it, and `CREATURE_BOSSES` is gone.
+- **The run:**
+  - `startRun` shuffles the whole pool into `world.bossOrder`.
+    `loopDeeper` reshuffles it for the next loop.
+  - Chambers 1–2 are fights, then fight and guardian alternate from chamber 3.
+  - `FINAL_DEPTH = FIRST_BOSS_DEPTH + (GUARDIAN_COUNT − 1) × BOSS_GAP`:
+    **21 chambers** with 10 guardians. Each new boss adds 2 chambers by
+    itself.
+- **The finale:** `room.final` = the last boss chamber (not the Warden).
+  Its door is the exit, so beating the last guardian wins the run. The
+  toast reads "THE LAST GATE".
+- **Curves stretch to any run length:**
+  - `effDepth` maps the last chamber onto the measured curve's chamber 8.
+  - Elites sit at the fight chambers nearest eff 3.5 and 6.5 (8 and 18
+    for 21 chambers).
+  - Boss scaling: tier = slot × 3/(N−1) for everyone, the Warden included
+    (his old special case, ×1.9 as the finale, is gone; he lands on the
+    curve wherever he's drawn).
+- **Trials:** every boss, the Warden too, is a tier-1 trial with 3 boons
+  (the Warden trial used to be ×1.9 with 8 boons). His card says "Warden".
+- **HUD:** 21 pips, and every boss is a diamond (no Warden triangle).
+- **Verified:**
+  - `FINAL_DEPTH` 21, `GUARDIAN_COUNT` 10, elites 8/18, effDepth 1 → 8.
+  - Chambers map to F F B F B F B E B F B F B F B F B E B F B, with
+    `final` only at 21.
+  - Scaling runs ×1.00 → ×1.90 over slots 0–9.
+  - Trials: Aldric 1690 HP (unchanged), the Warden 1625.
+  - 2 full runs won through all 10 guardians, with the Warden at slot 3 in
+    one run and last in the other, and no errors.
+  - Press Deeper reshuffles all 10.
+
 
 | Term | Meaning |
 | --- | --- |

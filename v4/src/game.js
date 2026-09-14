@@ -18,10 +18,10 @@ import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
-  FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, GUARDIAN_COUNT, effDepth,
+  FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, effDepth,
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
-import { BOSS_INFO, CREATURE_BOSSES, clearBullets } from './bosses.js';
+import { BOSS_INFO, BOSS_POOL, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
@@ -158,8 +158,8 @@ function startRun(weapon) {
   world.player = createPlayer(weapon, metaBonuses());
   world.depth = 1;
   world.loop = 0;
-  // A different order of guardians every run; the Warden always closes it.
-  world.bossOrder = shuffle(CREATURE_BOSSES);
+  // Every guardian, in a different order every run.
+  world.bossOrder = shuffle(BOSS_POOL);
 
   const room = generateRoom(1, 0);
   startRoom(room);
@@ -177,22 +177,20 @@ function startTrial(weapon, bossType) {
   startRun(weapon);
   world.trial = bossType;
   const p = world.player;
-  const final = bossType === 'warden';
-  const gifts = final ? 8 : 3;
-  for (let i = 0; i < gifts; i++) {
+  for (let i = 0; i < 3; i++) {
     const offer = offerBoons(p, 1);
     if (offer[0]) applyBoon(p, offer[0]);
   }
   // Two spells too, as a run would have by then (some bosses answer them).
   for (const sp of offerSpells(p, 2)) learnSpell(p, sp.id);
   p.hp = p.stats.maxHp;
-  // A guardian trial plays like the second guardian of the old run (tier 1).
-  world.depth = final ? FINAL_DEPTH : FIRST_BOSS_DEPTH + BOSS_GAP;
+  // Every trial plays at tier 1, as the trials always have.
+  world.depth = FIRST_BOSS_DEPTH + BOSS_GAP;
   clearEntities();
   clearFx();
-  const room = generateRoom(world.depth, 0, final ? { bossType, slot: GUARDIAN_COUNT } : { bossType, slot: 1, tier: 1 });
+  const room = generateRoom(world.depth, 0, { bossType, slot: 1, tier: 1 });
   startRoom(room);
-  showToast('BOSS TRIAL', BOSS_INFO[bossType].animal === 'Final' ? 'The final guardian' : BOSS_INFO[bossType].animal);
+  showToast('BOSS TRIAL', BOSS_INFO[bossType].animal);
 }
 
 function advanceRoom() {
@@ -202,7 +200,7 @@ function advanceRoom() {
   const room = generateRoom(world.depth, world.loop);
   startRoom(room);
   initAmbient(world.biome || getBiome());
-  if (room.final) showToast('THE LAST GATE', 'Something is waiting.');
+  if (room.final) showToast('THE LAST GATE', `CHAMBER ${world.depth} · the last guardian`);
   else if (room.type === 'boss') showToast(`CHAMBER ${world.depth}`, 'A guardian bars the way.');
   else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : '');
   state = 'playing';
@@ -220,6 +218,7 @@ function beginRun(weapon) {
 function loopDeeper() {
   world.loop++;
   world.depth = 0;   // advanceRoom increments to 1
+  world.bossOrder = shuffle(BOSS_POOL);
   advanceRoom();
   showToast(`LOOP ${world.loop + 1}`, 'The dungeon sharpens its teeth.');
 }
@@ -578,7 +577,7 @@ function showTitle() {
       <div class="eyebrow">top-down action roguelike · prototype</div>
       <h1>Ashfall</h1>
       ${versionRow()}
-      <p class="sub">Fifteen chambers stand between you and the surface, a guardian in every other one.
+      <p class="sub">Every guardian stands between you and the surface, one in every other chamber.
       You have three lives.
       Clear a room, choose a door, take a boon, go deeper.
       Death is not the end — the darkness you carry out makes you stronger.</p>
@@ -859,12 +858,12 @@ const KILLER_NAMES = {
 
 function showTrials() {
   state = 'trials';
-  const order = [...CREATURE_BOSSES, 'warden'];
+  const order = BOSS_POOL;
   const cards = order.map((type) => {
     const b = BOSS_INFO[type];
     return `
       <div class="card" data-act="trial-pick" data-boss="${type}" style="border-color:${b.color}66">
-        <div class="tag" style="color:${b.color}">${b.animal === 'Final' ? 'Final guardian' : b.animal}</div>
+        <div class="tag" style="color:${b.color}">${b.animal}</div>
         <div class="name" style="color:${b.color}">${b.title}</div>
         <div class="desc">${b.subtitle}</div>
       </div>`;
@@ -874,7 +873,7 @@ function showTrials() {
       <div class="eyebrow">practice · nothing is banked</div>
       <h2>Boss Trials</h2>
       <p class="sub">Fight any guardian on its own, with a few boons to start.
-      In a real run six of them guard chambers 3, 5, 7, 9, 11 and 13, in a random order; the Warden waits at 15.</p>
+      In a real run you face all of them, in a random order, one in every other chamber.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
     </div>`);

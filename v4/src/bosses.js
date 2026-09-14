@@ -1235,9 +1235,8 @@ export const BOSS_DEFS = {
   },
 };
 
-// The guardian pool: six of these guard chambers 3, 5, 7, 9, 11 and 13,
-// shuffled per run; the Warden is always last. A new boss only needs adding here.
-export const CREATURE_BOSSES = ['turtle', 'croc', 'gorilla', 'peacock', 'vesper', 'naga', 'solaris', 'aldric', 'bride'];
+// The guardian pool lives in boss-pool.js (a new boss is added there).
+export { BOSS_POOL } from './boss-pool.js';
 
 export const BOSS_INFO = {
   turtle: { title: BOSS_DEFS.turtle.title, subtitle: BOSS_DEFS.turtle.subtitle, color: '#6fdca0', animal: 'Turtle' },
@@ -1250,5 +1249,5 @@ export const BOSS_INFO = {
   bride: { title: BOSS_DEFS.bride.title, subtitle: BOSS_DEFS.bride.subtitle, color: '#dfeaff', animal: 'Ghost' },
   aldric: { title: BOSS_DEFS.aldric.title, subtitle: BOSS_DEFS.aldric.subtitle, color: '#e8f0ff', animal: 'Knight' },
   grumm: { title: BOSS_DEFS.grumm.title, subtitle: 'The Twin Wardens', color: '#9a98aa', animal: 'Duo' },
-  warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Final' },
+  warden: { title: 'The Warden of Ash', subtitle: 'Keeper of the Last Gate', color: '#ff3d5e', animal: 'Warden' },
 };

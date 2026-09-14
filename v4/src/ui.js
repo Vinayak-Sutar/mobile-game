@@ -153,8 +153,7 @@ export function drawHud(ctx, time) {
   const label = world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
   ctx.fillText(label, cx, 26);
 
-  // Depth pips: bars for fights, diamonds for guardians, a crown-triangle for
-  // the Warden.
+  // Depth pips: bars for fights, diamonds for guardians.
   const pipW = 10, gap = 4;
   const total = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
   let ppx = cx - total / 2;
@@ -162,10 +161,7 @@ export function drawHud(ctx, time) {
     const done = i < world.depth;
     const here = i === world.depth;
     ctx.fillStyle = here ? '#ffd45e' : done ? 'rgba(255,212,94,0.45)' : 'rgba(255,255,255,0.14)';
-    if (i === FINAL_DEPTH) {
-      polygon(ctx, ppx + pipW / 2, 44, 7.5, 3, -Math.PI / 2);
-      ctx.fill();
-    } else if (isBossDepth(i)) {
+    if (isBossDepth(i)) {
       if (!done && !here) ctx.fillStyle = 'rgba(255,120,120,0.4)';
       polygon(ctx, ppx + pipW / 2, 43.5, 5.5, 4, 0);
       ctx.fill();
