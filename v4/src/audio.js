@@ -266,6 +266,46 @@ export const sfx = {
     tone({ freq: 988, type: 'triangle', dur: 0.12, vol: 0.14 });
     tone({ freq: 1319, type: 'triangle', dur: 0.2, vol: 0.14, delay: 0.08 });
   },
+  // Mau, the cat of nine lives. A meow is a nasal "m" into a rising-falling
+  // vowel: a filtered saw sweeping up, then down.
+  meow(pitch = 1) {
+    tone({ freq: 420 * pitch, freq2: 820 * pitch, type: 'sawtooth', dur: 0.16, vol: 0.12, filter: { type: 'bandpass', freq: 1300 * pitch, q: 2.5 } });
+    tone({ freq: 820 * pitch, freq2: 480 * pitch, type: 'sawtooth', dur: 0.34, vol: 0.12, delay: 0.14, filter: { type: 'bandpass', freq: 1100 * pitch, freq2: 700 * pitch, q: 2.5 } });
+    tone({ freq: 840 * pitch, freq2: 500 * pitch, type: 'sine', dur: 0.32, vol: 0.05, delay: 0.15 });
+  },
+  catHiss() {
+    noise({ dur: 0.55, vol: 0.2, freq: 3600, freq2: 5200, type: 'highpass', q: 0.7 });
+    noise({ dur: 0.3, vol: 0.08, freq: 1800, type: 'bandpass', q: 1.5, delay: 0.05 });
+  },
+  /** A purr: a fast flutter of low, soft bursts (~25 a second). */
+  purr(dur = 1) {
+    const n = Math.round(dur * 25);
+    for (let k = 0; k < n; k++) noise({ dur: 0.03, vol: 0.1, freq: 260, type: 'lowpass', delay: k * 0.04 });
+  },
+  yowl() {
+    tone({ freq: 300, freq2: 520, type: 'sawtooth', dur: 0.35, vol: 0.16, filter: { type: 'bandpass', freq: 900, q: 2 } });
+    tone({ freq: 520, freq2: 220, type: 'sawtooth', dur: 0.7, vol: 0.16, delay: 0.3, filter: { type: 'bandpass', freq: 800, freq2: 400, q: 2 } });
+    noise({ dur: 0.9, vol: 0.12, freq: 700, freq2: 200, type: 'bandpass', q: 0.8 });
+  },
+  trill() {
+    for (let k = 0; k < 5; k++) tone({ freq: 700 + k * 60, type: 'triangle', dur: 0.05, vol: 0.09, delay: k * 0.045 });
+  },
+  scratch() {
+    for (let k = 0; k < 3; k++) noise({ dur: 0.06, vol: 0.2, freq: 2600, freq2: 900, type: 'bandpass', q: 1.8, delay: k * 0.05 });
+  },
+  /** Her collar bell: you can hear her when you can't see her. */
+  jingle() {
+    tone({ freq: 2640, type: 'sine', dur: 0.18, vol: 0.07 });
+    tone({ freq: 3520, type: 'sine', dur: 0.14, vol: 0.05, delay: 0.06 });
+  },
+  coin() {
+    tone({ freq: 1980, type: 'square', dur: 0.05, vol: 0.06 });
+    tone({ freq: 2970, type: 'triangle', dur: 0.12, vol: 0.06, delay: 0.04 });
+  },
+  thunder() {
+    noise({ dur: 1.2, vol: 0.4, freq: 1200, freq2: 60 });
+    tone({ freq: 80, freq2: 35, type: 'sawtooth', dur: 1.0, vol: 0.22 });
+  },
   roar(pitch = 1) {
     tone({ freq: 120 * pitch, freq2: 320 * pitch, type: 'sawtooth', dur: 0.9, vol: 0.28, filter: { freq: 1800 } });
     noise({ dur: 0.9, vol: 0.26, freq: 900 * pitch, freq2: 260, type: 'bandpass', q: 0.7 });

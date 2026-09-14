@@ -2406,6 +2406,79 @@ The owner: "make version 4 the default for our page."
 - **Local server:** `python serve.py` still serves the repo root, so
   `http://<ip>:8000/` opens Version 4.
 
+### 14.14 Mau, the Nine-Lived — the cat boss (built; owner testing)
+
+The owner asked for a cat boss with cat sounds and "all the cat-related
+traits", researched from mythology and pop culture. The files are
+`boss-mau.js` (fight and lives 1–4), `boss-mau-legends.js` (lives 5–9),
+`boss-mau-kit.js` (helpers) and `boss-mau-art.js` (drawing). HP 1800 at
+slot 0. She's in `BOSS_POOL`, so a run is **13 guardians, 27 chambers**.
+
+- **Research used:**
+  - The "nine lives" saying: Highland lore says a witch could become the
+    Cat Sìth nine times, and stayed a cat after the ninth.
+  - Ra as the Great Cat Mau kills Apep with a knife beneath the persea tree
+    (Book of the Dead).
+  - Kot Bayun (Slavic): sings travellers to sleep on a golden pillar, has
+    iron claws, and his tales heal whoever catches him.
+  - Nekomata (Japanese): the split tail, ghost fire, and making the dead
+    dance.
+  - Kasha: a fire-cart cat who comes with thunder to steal the dead.
+  - Freyja's chariot is drawn by two cats (Norse).
+  - Cat Sìth steals souls before burial.
+  - Jólakötturinn: a house-sized Yule Cat that peers in at windows.
+  - The maneki-neko's beckoning paw.
+  - Real cat behaviour: purring at 25–50 Hz, the slow blink, zoomies as
+    hunt rehearsal, the righting reflex.
+- **Nine lives:** `phases` at 8/9 … 1/9, and `e.life` = `e.phase`.
+  - Each lost life: a 1.0 s flip, landing on her feet, and a new life with
+    its name banner. Lives 5 and 9 are 2.6 s transformations
+    (`onPhase` sets `e.phaseT`/`e.t`).
+  - Each life unlocks moves (`MOVES_BY_LIFE`); the newest life's moves are
+    weighted ×1.6.
+  - Nine cat heads across the top count what's left.
+- **Moves by life:**
+  - **1 The Housecat:** butt-wiggle pounce (the wiggle is the tell), claw
+    swipes, knocking vases off the ledge (marked falls that shatter),
+    hairball (lob plus slow goo), hiss (puffed fur takes ×0.5, knockback
+    burst), and the beckoning paw (pulls you in; marked coins, some of
+    which drop real gold).
+  - **2 The Red Dot:** a laser dot chases you and she pounces whenever it
+    stops.
+  - **3:** Zoomies (6 shown dashes), and The Grin (she fades to a grin
+    while her collar bell jingles, then pounces from behind you).
+  - **4 Schrödinger's Box:** `catbox` enemies shuffle.
+    - The real box wobbles, purrs and jingles every second.
+    - Striking it: "OBSERVED: ALIVE!" and she's EXPOSED.
+    - A wrong box releases a ghost ring.
+    - A timeout makes her burst out and pounce.
+  - **5 The Great Cat of Ra** (golden form, and the persea tree grows):
+    Knife of Mau (3 slashes with blade crescents), Apep (a serpent of
+    marked coils that all burst together), and the Sun of Heliopolis
+    barrage.
+  - **6 Kot Bayun:**
+    - A lullaby from a golden pillar; drowsiness builds within 300.
+    - At full you're ASLEEP (`p.slowUntil`/`p.slowMult`, a new player.js
+      hook) and she pounces.
+    - 5 hits while she sings: a heal pickup, and she's exposed.
+  - **7 Nekomata:** split tail; ghost fire (6 homing wisps), and the
+    dancing dead (3 wretches).
+  - **8:** Kasha (a thunder tell, then a burning wheel that bounces 3 times
+    and leaves fire), and Freyja's Chariot (two lynxes down parallel lanes,
+    safe between; twice).
+  - **9 Cat Sìth** (black form, white star):
+    - Soul Snatch: a pounce that knocks your soul loose; catch it for +12%
+      HP, or she heals 5%, capped at her current life.
+    - The Yule Cat: a giant face over the wall and 4 marked paw slams.
+    - The Nine Lives barrage: 8 ghost cats pounce in turn, then EXPOSED.
+- **Catnip counterplay:** three pots. Strike one and it becomes a cloud; if
+  she enters it: CATNIP!, EXPOSED 2.2 s (12 s cooldown). Pots regrow in
+  16 s.
+- **Sounds** (`audio.js`): `meow`, `catHiss`, `purr`, `yowl`, `trill`,
+  `scratch`, `jingle` (her bell), `coin` and `thunder`.
+- **Not yet verified:** the owner tests on the phone. Only static checks
+  have run.
+
 
 | Term | Meaning |
 | --- | --- |

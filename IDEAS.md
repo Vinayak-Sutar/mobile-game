@@ -250,6 +250,13 @@ test them.
   removes moves). Its core overheats — Frost stops the overheat, Fire makes it explode
   early (a dangerous gamble).
 
+### 15. Mau, the Nine-Lived — cat of nine legends
+> **Built in Version 4** (`v4/src/boss-mau*.js`, journal §14.14):
+> - Nine lives: each lost life is a new legend.
+> - Early lives are the housecat, the red dot, zoomies and the grin, and Schrödinger's box.
+> - Later lives are Ra's Great Cat against Apep, Kot Bayun's lullaby, the nekomata, the Kasha, Freyja's chariot, the Cat Sìth and the Yule Cat.
+> - Catnip pots are the counterplay.
+
 ### Mini-bosses (for special chambers)
 - **The Headsman** (a slow executioner; one huge parryable swing).
 - **Twin Hounds** (they share one HP bar; kill both within 5 s or the other revives it).

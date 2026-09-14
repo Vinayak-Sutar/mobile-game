@@ -41,6 +41,7 @@ import { ALDRIC } from './boss-aldric.js';
 import { BRIDE } from './boss-bride.js';
 import { MONKEY } from './boss-monkey.js';
 import { MAESTRO, drawMusician } from './boss-maestro.js';
+import { MAU } from './boss-mau.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1140,6 +1141,17 @@ export const BOSS_DEFS = {
     init(e) { e.noPush = true; },
     update() {}, draw() {},
   },
+  mau: bossDef(MAU, {
+    r: 24, hp: 1800, speed: 190, mass: 20, color: '#5fe0a0', damageBase: 19,
+    title: 'Mau, the Nine-Lived', subtitle: 'The Great Cat of Nine Legends',
+  }),
+  // Schrödinger's boxes: placed and drawn by Mau (boss-mau.js); strike one to look inside.
+  catbox: {
+    r: 30, hp: 999999, speed: 0, mass: 999, cost: 999, minDepth: 99, color: '#b8864e',
+    fixed: true, invisible: true,
+    init(e) { e.noPush = true; },
+    update() {}, draw() {},
+  },
   maestro: bossDef(MAESTRO, {
     r: 22, hp: 1400, speed: 150, mass: 20, color: '#b48cff', damageBase: 20,
     title: 'The Maestro', subtitle: 'Conductor of the Last Symphony',
@@ -1271,6 +1283,7 @@ export const BOSS_INFO = {
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  mau: { title: BOSS_DEFS.mau.title, subtitle: BOSS_DEFS.mau.subtitle, color: '#5fe0a0', animal: 'Cat' },
   maestro: { title: BOSS_DEFS.maestro.title, subtitle: BOSS_DEFS.maestro.subtitle, color: '#c8a8ff', animal: 'Conductor' },
   monkey: { title: BOSS_DEFS.monkey.title, subtitle: BOSS_DEFS.monkey.subtitle, color: '#ffc861', animal: 'Trickster' },
   bride: { title: BOSS_DEFS.bride.title, subtitle: BOSS_DEFS.bride.subtitle, color: '#dfeaff', animal: 'Ghost' },

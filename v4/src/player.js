@@ -178,6 +178,8 @@ export function updatePlayer(p, dt) {
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= 0.55;
     if (p.channel) speed *= 0.5;      // channelling a spell
+    // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
+    if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
 
     const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;
