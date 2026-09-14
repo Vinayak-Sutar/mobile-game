@@ -2599,6 +2599,69 @@ Only static checks have run; the owner tests.
     classic Wikipedia/lichess set (Colin M. L. Burnett, BSD-licensed, needs
     a credit line) was offered, or hand-drawn pieces. No choice made yet.
 
+### 14.18 Kwaku Anansi, Keeper of All Stories — the spider boss (built; owner testing)
+
+The owner picked Anansi. He's researched from Ashanti (Akan) folklore and
+portrayed respectfully, as the clever trickster hero of the tales.
+
+- **Files:**
+  - `boss-anansi.js`: fight core, web strands, spider moves, phases.
+  - `boss-anansi-tales.js`: the story chapters.
+  - `boss-anansi-kit.js`: helpers.
+  - `boss-anansi-art.js`: drawing.
+- **Stats:** HP 1500 at slot 0, r 26. He's in `BOSS_POOL`, so a run is
+  **14 guardians, 29 chambers**. Only static checks have run; the owner
+  tests.
+- **Research used:**
+  - In the Ashanti tales, all stories belonged to Nyame the sky god. Their
+    price was Onini the python, Osebo the leopard, Mmoboro the hornets and
+    Mmoatia the fairy.
+  - Anansi paid it with tricks: he measured the python against a stick and
+    tied him to it; cried "It's raining!" so the hornets flew into his
+    gourd; dug a pit on the leopard's path; and caught the fairy with a
+    gum-covered doll holding yams.
+  - In another tale he tried to hoard all wisdom in a pot and dropped it,
+    scattering wisdom across the world.
+  - The tales are called Anansesem ("spider stories"). He's a shapeshifter,
+    and some tales credit him with making the sun, moon and stars.
+- **Arena, the canopy web:** 6 sticky strands. Walking on one slows you
+  (×0.72) and makes it tremble.
+- **Chapters** (a banner plus a talking drum):
+  - **The Python:** a measuring-stick lane through you, the python
+    stretching along it, then 9 silk knots burst down it (two crossing
+    pythons in phase 2).
+  - **The Hornets:** rain markers, a homing swarm (enemy bullets with
+    `homing`, flagged `isHornet`), then they fly into the gourd.
+    - Strike the full gourd: STUNG!, EXPOSED 2.2 s.
+    - Wait, and they come back out.
+  - **The Leopard:** 3 faint dashed pits, then Osebo pounces 3–4 times
+    down lanes.
+    - If a pounce crosses a pit, OSEBO FALLS IN and Anansi laughs: EXPOSED
+      1.8 s.
+  - **The Gum Doll:** 2 sticky dolls beside you.
+    - Touching or swinging at one: STUCK (slow ×0.12 for 1.1 s).
+    - He pounces 3 times; if a pounce crosses a doll, he's stuck: EXPOSED
+      2.2 s.
+  - **Web of the Sky God** (phase-1 barrage): spokes of star-silk plus
+    gapped rings, then EXPOSED 2.2 s.
+- **Spider moves:**
+  - **Silk Line:** 3 lanes. A hit reels you in for 1.2 s, and a bite
+    follows if you're still close.
+  - **Rappel Drop:** up the thread (untargetable), a shadow marker, a drop
+    and a silk ring; two drops in phase 2.
+  - **Egg Sac:** 2 sacs; break them within 4 s or 3 spiderlings each
+    hatch (small wretches).
+  - **Shed Skin:** the husk stays as a decoy (it bursts into silk if
+    struck) while he fades, creeps behind you and pounces.
+- **Phase 2, All Stories Are Anansi's:**
+  - **Many Legs:** anti-hug; 8 stamping cones around him in turn.
+  - **The Pot of Wisdom:** he climbs; the pot falls on a marker and
+    shatters into shards plus 5 heal pickups.
+  - **All Stories** (the finale): two pythons, rain, a swarm, two leopard
+    pounces, then the sky web, then EXPOSED 2.6 s.
+- **Sounds:** `skitter`, `silk`, `buzz`, and `talkingDrum` (an
+  atumpan-style pitch bend).
+
 
 | Term | Meaning |
 | --- | --- |

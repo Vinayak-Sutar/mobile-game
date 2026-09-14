@@ -42,6 +42,7 @@ import { BRIDE } from './boss-bride.js';
 import { MONKEY } from './boss-monkey.js';
 import { MAESTRO, drawMusician } from './boss-maestro.js';
 import { MAU } from './boss-mau.js';
+import { ANANSI } from './boss-anansi.js';
 import { GRANDMASTER } from './boss-chess.js';
 import { drawChessman } from './boss-chess-art.js';
 
@@ -1155,6 +1156,10 @@ export const BOSS_DEFS = {
     update() {},
     draw: drawChessman,
   },
+  anansi: bossDef(ANANSI, {
+    r: 26, hp: 1500, speed: 200, mass: 30, color: '#e8a030', damageBase: 19,
+    title: 'Kwaku Anansi', subtitle: 'Keeper of All Stories',
+  }),
   mau: bossDef(MAU, {
     r: 24, hp: 1800, speed: 190, mass: 20, color: '#5fe0a0', damageBase: 19,
     title: 'Mau, the Nine-Lived', subtitle: 'The Great Cat of Nine Legends',
@@ -1298,6 +1303,7 @@ export const BOSS_INFO = {
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
   grandmaster: { title: BOSS_DEFS.grandmaster.title, subtitle: BOSS_DEFS.grandmaster.subtitle, color: '#e8c060', animal: 'Chess' },
+  anansi: { title: BOSS_DEFS.anansi.title, subtitle: BOSS_DEFS.anansi.subtitle, color: '#ffd45e', animal: 'Spider' },
   mau: { title: BOSS_DEFS.mau.title, subtitle: BOSS_DEFS.mau.subtitle, color: '#5fe0a0', animal: 'Cat' },
   maestro: { title: BOSS_DEFS.maestro.title, subtitle: BOSS_DEFS.maestro.subtitle, color: '#c8a8ff', animal: 'Conductor' },
   monkey: { title: BOSS_DEFS.monkey.title, subtitle: BOSS_DEFS.monkey.subtitle, color: '#ffc861', animal: 'Trickster' },

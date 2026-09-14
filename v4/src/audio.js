@@ -315,6 +315,23 @@ export const sfx = {
     tone({ freq: 1500, type: 'square', dur: 0.025, vol: 0.08 });
     noise({ dur: 0.03, vol: 0.12, freq: 2600, type: 'bandpass', q: 3, delay: 0.01 });
   },
+  // Anansi: legs skittering, a snap of silk, a hornet swarm, a talking drum.
+  skitter() {
+    for (let k = 0; k < 6; k++) noise({ dur: 0.02, vol: 0.1, freq: 3200, type: 'bandpass', q: 3, delay: k * 0.03 });
+  },
+  silk() {
+    noise({ dur: 0.22, vol: 0.16, freq: 5200, freq2: 1800, type: 'bandpass', q: 1.2 });
+    tone({ freq: 900, freq2: 1500, type: 'sine', dur: 0.12, vol: 0.05 });
+  },
+  buzz(dur = 0.8) {
+    const n = Math.round(dur * 12);
+    for (let k = 0; k < n; k++) tone({ freq: 210 + (k % 3) * 18, type: 'sawtooth', dur: 0.09, vol: 0.05, delay: k * 0.07, filter: { freq: 1400, q: 1 } });
+  },
+  /** An atumpan-style talking drum: the pitch bends as it speaks. */
+  talkingDrum(up = true) {
+    tone({ freq: up ? 140 : 220, freq2: up ? 230 : 130, type: 'sine', dur: 0.32, vol: 0.3 });
+    noise({ dur: 0.05, vol: 0.12, freq: 900, type: 'bandpass', q: 1.5 });
+  },
   roar(pitch = 1) {
     tone({ freq: 120 * pitch, freq2: 320 * pitch, type: 'sawtooth', dur: 0.9, vol: 0.28, filter: { freq: 1800 } });
     noise({ dur: 0.9, vol: 0.26, freq: 900 * pitch, freq2: 260, type: 'bandpass', q: 0.7 });

@@ -266,6 +266,12 @@ test them.
 > - CHECK: find an unattacked square in time.
 > - Phase 2 flips the board: Promotion, Blitz, Zugzwang, and Checkmate in Three.
 
+### 17. Kwaku Anansi, Keeper of All Stories — spider trickster
+> **Built in Version 4** (`v4/src/boss-anansi*.js`, journal §14.18):
+> - Chapters from the Ashanti tales: the python on the stick, the hornets in the gourd, the leopard's pit, and the fairy's gum doll.
+> - A sticky web arena, silk lines, rappel drops, egg sacs, and a shed skin.
+> - Phase 2: the Pot of Wisdom and All Stories.
+
 ### Mini-bosses (for special chambers)
 - **The Headsman** (a slow executioner; one huge parryable swing).
 - **Twin Hounds** (they share one HP bar; kill both within 5 s or the other revives it).
