@@ -2500,6 +2500,39 @@ Owner report: getting hit by the Maestro "disturbs" his melody.
   - Result: no drift, and a hazard can land at most one hit-stop (≤0.1 s)
     after its beat, once.
 
+### 14.16 Mau: Schrödinger's Box made hard, and the auto-find fixed
+
+Owner: the cat fight "was very nice". The box should be hard to read, with
+fast shuffles and threats during them, and "Heart-Seeker automatically gets
+to the correct box".
+
+- **Why it was easy to find:**
+  - The real box always started in the middle slot, nearest the player, and
+    auto-aim (`nearestEnemy`) points at the nearest box. Three slow swaps
+    often left it there.
+  - Multi-hits opened every box: Arrow Volley (7 arrows), piercing charged
+    shots and sweeps called `hitBox` on each box they touched, so the real
+    one was always among them.
+  - The hidden boss was parked on the real box's position.
+- **Fixes:**
+  - The real box starts in a random slot.
+  - One look at a time: after a box is struck, `e.lookLock` ignores box hits
+    for 0.6 s.
+  - The observer effect: a wrong box releases a ghost ring and the rest
+    reshuffle (2 swaps). Guess down to the last box and she bursts out and
+    pounces.
+  - While hidden she sits at the centroid of the row with
+    `noTarget = true` (cleared by `popOut` and `clearProps`).
+- **Harder:**
+  - 7 swaps (9 from life 7) at 0.26 s (0.2 s from life 7), and 4 boxes from
+    life 7.
+  - Threats the whole time (`boxThreat`): every 0.45 s during the shuffle,
+    0.9 s while waiting, alternating between a random box spitting 8
+    claw-shards (every box jolts, so the wobble is no tell) and 3 marked
+    vase drops around the player.
+  - The tell is now one faint purr and jingle 1.4 s into a 3.6 s wait
+    (was every second).
+
 
 | Term | Meaning |
 | --- | --- |

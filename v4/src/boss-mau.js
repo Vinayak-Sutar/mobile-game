@@ -101,6 +101,7 @@ function clearProps(e) {
   for (const b of e.boxes) b.dead = true;
   e.boxes = [];
   e.hidden = false;
+  e.noTarget = false;
 }
 
 // --- the housecat's moves helpers --------------------------------------------------
@@ -142,9 +143,18 @@ function dashTo(e, p, t) {
 
 // --- Schrödinger's box ---------------------------------------------------------------
 
+function liveBoxes(e) { return e.boxes.filter((b) => !b.dead); }
+
+/**
+ * Strike a box to look inside. Only one look counts at a time (a volley or a
+ * piercing arrow that clips several boxes opens just the first), and a wrong
+ * look disturbs the rest: the remaining boxes shuffle again.
+ */
 function hitBox(c) {
   const e = c.summoner;
-  if (!e || e.dead || e.action !== 'box' || e.sub !== 'wait' || c.dead) return 0;
+  if (!e || e.dead || e.action !== 'box' || c.dead) return 0;
+  if (e.sub !== 'wait' || world.runTime < (e.lookLock || 0)) { c.wobble = 0.4; return 0; }
+  e.lookLock = world.runTime + 0.6;
   if (c.real) {
     damageText(c.x, c.y - 40, 'OBSERVED: ALIVE!', { color: GOLD, size: 17 });
     popOut(e, c);
@@ -156,6 +166,9 @@ function hitBox(c) {
     burst(c.x, c.y, { count: 18, color: '#b8864e', speed: 220, size: 4, life: 0.5, drag: 3, shape: 'shard' });
     c.dead = true;
     sfx.meow(0.6);
+    // The observer effect: looking in the wrong box sets the others moving.
+    e.swaps = 2;
+    sub(e, 'shuffle', 0.15);
   }
   return 0;
 }
@@ -164,9 +177,32 @@ function popOut(e, c) {
   e.x = c.x; e.y = c.y;
   e.hidden = false;
   e.invuln = false;
+  e.noTarget = false;
   for (const b of e.boxes) { if (!b.dead) burst(b.x, b.y, { count: 14, color: '#b8864e', speed: 200, size: 4, life: 0.5, drag: 3, shape: 'shard' }); b.dead = true; }
   e.boxes = [];
   sfx.meow(1.1);
+}
+
+/** While the boxes shuffle and wait, something is always coming at you. */
+function boxThreat(e, p) {
+  const live = liveBoxes(e);
+  if (!live.length) return;
+  e.threatN = (e.threatN || 0) + 1;
+  if (e.threatN % 2) {
+    // A random box spits claw-shards, and every box jolts, so it tells you nothing.
+    const b = live[Math.floor(rand(0, live.length))];
+    const off = rand(0, TAU);
+    for (let k = 0; k < 8; k++) shot(e, off + (k / 8) * TAU, 210, { x: b.x, y: b.y, off: 22, shape: 'shard', r: 6, color: JADE, dmg: 0.35, life: 3 });
+    for (const q of live) q.wobble = 0.6;
+    sfx.scratch();
+  } else {
+    // Things get knocked off the ledge onto you.
+    for (let k = 0; k < 3; k++) {
+      const ang = rand(0, TAU), r = k === 0 ? 0 : rand(80, 170);
+      blastAt(e, p.x + Math.cos(ang) * r + PV.x * 0.3, p.y + Math.sin(ang) * r + PV.y * 0.3, 50, 0.75, 0.55, '#6fb8c8');
+    }
+    sfx.meow(rand(1.2, 1.5));
+  }
 }
 
 // --- the fight --------------------------------------------------------------------------
@@ -587,33 +623,66 @@ export const MAU = {
       },
     },
 
-    // Life 4. Schrödinger's Box: three boxes, and she jumps into one. They
-    // shuffle. Until you look — strike a box — she's alive and dead at once.
-    // The right box purrs and jingles now and then; a wrong box lets a ghost
-    // out. Take too long and she bursts out at you.
+    // Life 4. Schrödinger's Box: three boxes (four from life 7), and she
+    // jumps into one. They shuffle fast while shards and falling vases keep
+    // you busy. Until you look (strike a box) she's alive and dead at once.
+    // One look at a time; a wrong box lets a ghost out and the rest shuffle
+    // again. The right box gives one faint purr and jingle while you decide.
+    // Take too long, or guess down to the last box, and she bursts out at you.
     box: {
       cooldown: 16,
       start(e, p) {
         const c = center();
+        const n = e.life >= 7 ? 4 : 3;
+        const gap = n === 4 ? 150 : 170;
         const y = clamp(p.y < c.y ? c.y + 60 : c.y - 60, arenaBounds().t + 120, arenaBounds().b - 80);
+        const realK = Math.floor(rand(0, n));
         e.boxes = [];
-        for (let k = 0; k < 3; k++) {
-          const bx = spawnEnemyFn('catbox', c.x + (k - 1) * 170, y, { instant: true, summoner: e, color: '#b8864e' });
+        let into = null;
+        for (let k = 0; k < n; k++) {
+          const bx = spawnEnemyFn('catbox', c.x + (k - (n - 1) / 2) * gap, y, { instant: true, summoner: e, color: '#b8864e' });
           if (!bx) continue;
           bx.guardFn = hitBox;
-          bx.real = k === 1;
+          bx.real = k === realK;
           bx.wobble = 0;
           e.boxes.push(bx);
+          if (bx.real) into = bx;
         }
-        startLeap(e, c.x, y, 0.5);
+        e.boxY = y;
+        e.threatT = 0.6;
+        startLeap(e, into ? into.x : c.x, y, 0.5);
         say(e, 'If I fits, I sits.', GOLD);
         sub(e, 'hop', 0.5);
       },
       update(e, dt, p) {
         if (e.sub === 'hop') {
-          if (stepLeap(e, dt)) { e.hidden = true; e.invuln = true; sfx.thud(); e.swaps = e.life >= 7 ? 4 : 3; sub(e, 'shuffle', 0.2); }
+          if (stepLeap(e, dt)) {
+            e.hidden = true;
+            e.invuln = true;
+            e.noTarget = true;
+            sfx.thud();
+            e.swaps = e.life >= 7 ? 9 : 7;
+            sub(e, 'shuffle', 0.15);
+          }
           return;
         }
+        if (e.sub === 'wind') {
+          e.wiggle = 1;
+          if (e.t <= 0) { e.wiggle = 0; startLeap(e, e.pounceTo[0], e.pounceTo[1], 0.3); sub(e, 'leap', 1); }
+          return;
+        }
+        if (e.sub === 'leap') {
+          if (stepLeap(e, dt)) { cutLands(e, e.aim, TAU, 72, 0.9); idle(e, 0.4); }
+          return;
+        }
+        for (const q of e.boxes) q.wobble = Math.max(0, (q.wobble || 0) - dt * 2);
+        const live = liveBoxes(e);
+        // Nothing gives her away: she waits in the middle of the row, untargetable.
+        if (live.length) {
+          e.x = live.reduce((s2, q) => s2 + q.x, 0) / live.length;
+          e.y = e.boxY;
+        }
+        if ((e.threatT -= dt) <= 0) { e.threatT = e.sub === 'shuffle' ? 0.45 : 0.9; boxThreat(e, p); }
         if (e.sub === 'shuffle') {
           if (e.swap) {
             const k = clamp(e.st / e.swap.dur, 0, 1);
@@ -627,39 +696,34 @@ export const MAU = {
             e.swap = null;
           }
           if (e.t > 0) return;
+          if (live.length <= 1) {
+            // Guessed down to the last box: she's had enough.
+            if (live[0]) { popOut(e, live[0]); aimPounce(e, p, 0.35); } else { e.hidden = false; e.invuln = false; e.noTarget = false; idle(e, 0.3); }
+            return;
+          }
           if (e.swaps > 0) {
             e.swaps--;
-            const live = e.boxes.filter((b) => !b.dead);
             const i = Math.floor(rand(0, live.length));
             const j = (i + 1 + Math.floor(rand(0, live.length - 1))) % live.length;
-            e.swap = { pair: [live[i], live[j]], ax: live[i].x, bx: live[j].x, y: live[i].y, dur: e.life >= 7 ? 0.38 : 0.5 };
+            e.swap = { pair: [live[i], live[j]], ax: live[i].x, bx: live[j].x, y: e.boxY, dur: e.life >= 7 ? 0.2 : 0.26 };
             sfx.swing(0.8);
             sub(e, 'shuffle', 0);
             return;
           }
-          e.purrT = 1.0;
-          sub(e, 'wait', 3.2);
+          e.hintT = 1.4;
+          sub(e, 'wait', 3.6);
           return;
         }
         if (e.sub === 'wait') {
-          const real = e.boxes.find((b) => b.real && !b.dead);
-          for (const b of e.boxes) b.wobble = Math.max(0, (b.wobble || 0) - dt * 2);
-          if (real && (e.purrT -= dt) <= 0) { e.purrT = 1.0; real.wobble = 1; sfx.purr(0.3); sfx.jingle(); }
-          if (real) { e.x = real.x; e.y = real.y; }
+          const real = live.find((q) => q.real);
+          if (real && e.hintT > 0 && (e.hintT -= dt) <= 0) { real.wobble = 0.5; sfx.purr(0.25); sfx.jingle(); }
           if (e.t <= 0 && real) {
             popOut(e, real);
             aimPounce(e, p, 0.4);
             return;
           }
-          if (!real) { e.hidden = false; e.invuln = false; idle(e, 0.3); }
-          return;
+          if (!real) { e.hidden = false; e.invuln = false; e.noTarget = false; idle(e, 0.3); }
         }
-        if (e.sub === 'wind') {
-          e.wiggle = 1;
-          if (e.t <= 0) { e.wiggle = 0; startLeap(e, e.pounceTo[0], e.pounceTo[1], 0.3); sub(e, 'leap', 1); }
-          return;
-        }
-        if (e.sub === 'leap' && stepLeap(e, dt)) { cutLands(e, e.aim, TAU, 72, 0.9); idle(e, 0.4); }
       },
     },
 
