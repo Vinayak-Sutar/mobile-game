@@ -2479,6 +2479,27 @@ slot 0. She's in `BOSS_POOL`, so a run is **13 guardians, 27 chambers**.
 - **Not yet verified:** the owner tests on the phone. Only static checks
   have run.
 
+### 14.15 Fix: the Maestro's melody stuttered whenever a hit landed
+
+Owner report: getting hit by the Maestro "disturbs" his melody.
+
+- **Cause:** `damagePlayer` calls `hitstop(0.1)` (and `dealDamage` calls
+  0.022–0.06 s on your own hits). During a hit-stop `tick()` skips every
+  update, including the boss's, so `e.song` stopped. The drums, bass and
+  melody (all triggered from `e.song` crossings) paused and came back late:
+  an audible hiccup on every hit.
+- **Fix:**
+  - New generic hook: in the hit-stop branch, `game.js` calls
+    `spec.realTick(e, dt)` for any live boss that has one.
+  - The Maestro's `musicClock` (tempo, beat and eighth-note crossings, and
+    the band) runs from both `tick` and `realTick`, so the music keeps
+    exact time through the freeze.
+  - Gameplay on the beat moved to `beatEvents`: grace notes, musicians,
+    Presto drums, metronome notes. It stays frozen with the fight and runs
+    on the first tick after, as do score cues and fires (`song >= at`).
+  - Result: no drift, and a hazard can land at most one hit-stop (≤0.1 s)
+    after its beat, once.
+
 
 | Term | Meaning |
 | --- | --- |

@@ -349,7 +349,30 @@ function playMusician(e, p, mu, beat, m, ch) {
 
 // --- on the beat ----------------------------------------------------------------------
 
-function onBeat(e, p, beat) {
+/**
+ * The music clock: tempo, beats and eighth notes, and the band playing on
+ * them. It keeps running through a hit-stop freeze (MAESTRO.realTick), so the
+ * melody never stutters when a hit lands; the fight's beat events catch up in
+ * tick once the freeze ends.
+ */
+function musicClock(e, dt) {
+  band.takeStage();
+  // Rubato: the tempo swells, then sags, then settles.
+  if (e.rubato) {
+    const x = (e.song - e.rubato.at) / e.rubato.len;
+    if (x >= 1) { e.rubato = null; e.bpm = e.baseBpm; }
+    else if (x >= 0) e.bpm = e.baseBpm * (1 + 0.32 * Math.sin(TAU * x));
+  }
+  e.song += dt * e.bpm / 60;
+  e.beatPulse = Math.max(0, e.beatPulse - dt * 4);
+  const beat = Math.floor(e.song);
+  if (beat !== e.lastBeat) { e.lastBeat = beat; beatSounds(e, beat); }
+  const half = Math.floor(e.song * 2);
+  if (half !== e.lastHalf) { e.lastHalf = half; onHalf(e, half / 2); }
+}
+
+/** The band on the beat: the count-in, drums, bass and strings. */
+function beatSounds(e, beat) {
   e.beatPulse = 1;
   const m = ((beat % 4) + 4) % 4;
   const ch = chordAt(beat);
@@ -360,18 +383,24 @@ function onBeat(e, p, beat) {
     damageText(e.x, e.y - e.r - 24, String(m + 1), { color: DRUM, size: 18 });
     return;
   }
-  if (!silent(e)) {
-    if (p2(e)) { band.kick(); if (m === 1 || m === 3) band.snare(1); }
-    else if (m === 0 || m === 2) band.kick();
-    else band.snare(0.8);
-    if (m === 0) band.strings(ch.pad, spb * 4);
-    if (!p2(e)) {
-      if (m === 0) band.bass(ch.root, spb * 1.8);
-      else if (m === 2) band.bass(ch.root + 7, spb * 0.9);
-    }
-    // Presto: the drums drive under the phrase.
-    if (p2(e) && m === 0 && e.action === 'play' && e.accomp) shockwave(e, { speed: 300, dmg: 0.5, color: DRUM });
+  if (silent(e)) return;
+  if (p2(e)) { band.kick(); if (m === 1 || m === 3) band.snare(1); }
+  else if (m === 0 || m === 2) band.kick();
+  else band.snare(0.8);
+  if (m === 0) band.strings(ch.pad, spb * 4);
+  if (!p2(e)) {
+    if (m === 0) band.bass(ch.root, spb * 1.8);
+    else if (m === 2) band.bass(ch.root + 7, spb * 0.9);
   }
+}
+
+/** The fight on the beat (frozen with the rest of the fight during a hit-stop). */
+function beatEvents(e, p, beat) {
+  if (beat < 0) return;
+  const m = ((beat % 4) + 4) % 4;
+  const ch = chordAt(beat);
+  // Presto: the drums drive under the phrase.
+  if (p2(e) && !silent(e) && m === 0 && e.action === 'play' && e.accomp) shockwave(e, { speed: 300, dmg: 0.5, color: DRUM });
   // Grace notes while he turns the page to the next phrase.
   if (e.action === 'idle') {
     const a = leadAt(e.x, e.y, p, 250, 0.7);
@@ -516,6 +545,7 @@ export const MAESTRO = {
     e.bpm = e.baseBpm = BPM1;
     e.song = -4;          // a bar of count-in before the music starts
     e.lastBeat = -5;
+    e.lastBeatEvent = -5;
     e.lastHalf = -9;
     e.musicians = [];
     e.fxLines = [];
@@ -540,17 +570,8 @@ export const MAESTRO = {
     e.ppx = p.x; e.ppy = p.y;
     e.hug = dist(e.x, e.y, p.x, p.y) < e.r + 110 ? (e.hug || 0) + dt : Math.max(0, (e.hug || 0) - dt * 2);
 
-    // His own music plays: the regular track steps aside while he's alive.
-    band.takeStage();
-
-    // Rubato: the tempo swells, then sags, then settles.
-    if (e.rubato) {
-      const x = (e.song - e.rubato.at) / e.rubato.len;
-      if (x >= 1) { e.rubato = null; e.bpm = e.baseBpm; }
-      else if (x >= 0) e.bpm = e.baseBpm * (1 + 0.32 * Math.sin(TAU * x));
-    }
-    e.song += dt * e.bpm / 60;
-    e.beatPulse = Math.max(0, e.beatPulse - dt * 4);
+    // His own music plays (the regular track steps aside while he's alive).
+    musicClock(e, dt);
     e.batonFlash = Math.max(0, e.batonFlash - dt * 3);
     e.sfz = Math.max(0, e.sfz - dt);
     for (const f of e.fxLines) f.t -= dt;
@@ -563,9 +584,7 @@ export const MAESTRO = {
     e.score = e.score.filter((n) => !n.done || e.song - n.at < 1.5);
 
     const beat = Math.floor(e.song);
-    if (beat !== e.lastBeat) { e.lastBeat = beat; onBeat(e, p, beat); }
-    const half = Math.floor(e.song * 2);
-    if (half !== e.lastHalf) { e.lastHalf = half; onHalf(e, half / 2); }
+    if (beat !== e.lastBeatEvent) { e.lastBeatEvent = beat; beatEvents(e, p, beat); }
 
     // The metronome's pendulum and the sliding cymbals hurt to touch.
     if (e.metro) {
@@ -592,6 +611,9 @@ export const MAESTRO = {
     if (e.safe && e.song > e.safeUntil) e.safe = null;
     touch(e, 0.4);
   },
+
+  /** Called during a hit-stop freeze: the music keeps time. */
+  realTick(e, dt) { musicClock(e, dt); },
 
   idle(e, dt, p) { drift(e, dt, p); },
 

@@ -339,6 +339,12 @@ function tick(dt) {
       // screen shake still lands during the freeze.
       fx.hitstop -= dt;
       updateFx(dt * 0.18);
+      // A boss that keeps time with its own music (the Maestro) keeps its
+      // clock running through the freeze, so the melody never stutters.
+      for (const en of world.enemies) {
+        const spec = en.def && en.def.spec;
+        if (!en.dead && !en.spawning && spec && spec.realTick) spec.realTick(en, dt);
+      }
     } else {
       world.runTime += dt;
       updatePlayer(world.player, dt);
