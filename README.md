@@ -36,7 +36,8 @@ npx --yes serve -l 8000 .
 
 The repo is set up for **GitHub Pages** with no build step: Settings → Pages →
 *Deploy from a branch* → `main` / `(root)`. The game is then at
-`https://vinayak-sutar.github.io/mobile-game/`.
+`https://vinayak-sutar.github.io/mobile-game/`, which opens **Version 4**
+(the default). Versions 1–3 are at `/v1/`, `/v2/` and `/v3/`.
 
 Pages serves over HTTPS, which is a secure context — so fullscreen, wake lock,
 the installable PWA and the DualSense WebHID features all work there, with none
@@ -156,9 +157,11 @@ still moves you forward.
 - **3 lives.** Fall with a life to spare and you get back up where you fell,
   at full health, with a moment of invulnerability. Hearts next to the health
   bar show what's left.
-- **Two versions.** The title screen switches between **Version 2** (this
-  one: 15 chambers, five bosses) and **Version 1** (the original eight-chamber
-  game with one boss, kept as-is in `v1/` with its own save, plus 3 lives).
+- **Four versions.** The site root opens **Version 4** (`v4/`, the current
+  game: spells, and a guardian in every other chamber). **Version 2**
+  (15 chambers, five bosses) is in `v2/`, **Version 1** (the original
+  eight-chamber game) in `v1/`, and **Version 3** (the elements experiment) in
+  `v3/`. Each has its own save; every title screen switches between them.
 - **4 weapons.** Bow — the default, listed first — (hold to charge a piercing
   shot, volley special), Blade (3-hit combo → spin), Spear (piercing thrusts,
   thrown spear), Shield (bashes that deflect projectiles, ricocheting throw).

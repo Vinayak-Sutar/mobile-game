@@ -17,16 +17,21 @@
 - **Stack:** vanilla JavaScript ES modules + Canvas 2D + WebAudio. **No engine,
   no framework, no build step to run, no image/audio asset files** — all art is
   drawn procedurally and all sound is synthesised at runtime.
-- **Size:** Version 2 is ~11,250 lines in 30 JS modules in `src/`, plus
-  `index.html`, `serve.py`, `build.mjs`, `sw.js`, `manifest.json`; entry point
-  `src/game.js`. Version 1 (`v1/`) is a separate ~8,400 lines in 26 modules.
+- **Size:** every version is its own folder:
+  - `v2/src/`: Version 2, ~11,250 lines in 30 modules.
+  - `v1/`: Version 1, ~8,400 lines.
+  - `v3/`: Version 3.
+  - `v4/src/`: Version 4.
+  - The root holds only `index.html` (a redirect to `v4/`), `sw.js`
+    (retires the old root worker), `serve.py` and `build.mjs`.
 - **Run:** 15 chambers. Chambers 3/6/9/12 are four creature bosses (turtle,
   crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
   of Ash. Bosses follow written "hard but fair" rules (§5.14). **3 lives** per
   run.
 - **Four versions ship side by side**, each with its own save and cache, and
   a 4-button switch on every title screen:
-  - The root (`index.html`, `src/`) is **Version 2**.
+  - The site root (`index.html`) redirects to **Version 4**, the default (§14.13).
+  - `v2/` is **Version 2** (it lived at the root until §14.13).
   - `v1/` is **Version 1**: a frozen copy of the 8-chamber game from commit
     `c12c2d1`, plus 3 lives (§5.15).
   - `v3/` is **Version 3**: elements, reactions, traps. An experiment the
@@ -36,7 +41,8 @@
 - **Work with the owner one step at a time:** build one thing, push it, give
   them a phone link and a short test list, then stop and wait.
 - **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
-  printed LAN URL on a phone on the same Wi-Fi (Version 1 is at `/v1/`).
+  printed LAN URL on a phone on the same Wi-Fi (the root opens Version 4;
+  the others are at `/v1/`, `/v2/`, `/v3/`).
   Landscape only.
 - **Repo:** `https://github.com/Vinayak-Sutar/mobile-game` (branch `main`).
   Intended to be served by GitHub Pages at
@@ -2371,6 +2377,34 @@ traits. The owner tests; I ran static checks only.
     two pipes.
 - The sheet has glyphs for each new kind (snare ×, harp tick, metronome
   triangle, cymbal ring, organ bar). Fermata warns 4 beats in Presto.
+
+### 14.13 Version 4 is the default (site layout change)
+
+The owner: "make version 4 the default for our page."
+
+- **Moved** (`git mv`): Version 2's `index.html`, `manifest.json`,
+  `icon.svg`, `sw.js` and `src/` go from the root into `v2/`. V2 only uses
+  relative paths, so it runs unchanged. The root `assets/` folder isn't
+  referenced by any version's code and stays.
+- **Root `index.html`** is now a small front door:
+  - It unregisters a service worker scoped exactly to the root (the old V2
+    worker), then `location.replace('./v4/' + search + hash)`.
+  - It falls back after 0.8 s, and uses a 2 s meta refresh without
+    JavaScript.
+- **Root `sw.js`** is a retiring worker for phones that still have the old
+  one: skipWaiting, delete `ashfall-main-*` and `ashfall-v1` caches,
+  unregister, and reload the pages it controlled. Don't delete this file:
+  without it the browser's update check would 404 and the old worker would
+  never go away.
+- **V2's cache prefix** is now `ashfall-v2-`, so the retiring worker can't
+  touch it. Saves are unaffected (localStorage is per origin, not per path).
+  V4 still seeds from V2's `ashfall.save.v1`.
+- **Version switch:** V2's links are now `../v1/`, `../v3/` and `../v4/`,
+  and V1, V3 and V4 point Version 2 at `../v2/`.
+- **Build:** `build.mjs` and `npm run bundle` now make the standalone file
+  from Version 4.
+- **Local server:** `python serve.py` still serves the repo root, so
+  `http://<ip>:8000/` opens Version 4.
 
 
 | Term | Meaning |

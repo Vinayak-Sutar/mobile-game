@@ -520,16 +520,16 @@ function applyMusicVolume(v) {
 }
 
 /**
- * Version 1 (the original eight-chamber game) is kept as a separate, frozen
- * copy in ./v1/ with its own save. This row switches between the two.
+ * This is Version 2, in v2/. The site root opens Version 4; every version is
+ * its own folder with its own save, and this row switches between them.
  */
 function versionRow() {
   return `
     <div class="versions">
-      <button class="ver" data-act="version" data-href="./v1/">Version 1<small>8 chambers · 1 boss</small></button>
+      <button class="ver" data-act="version" data-href="../v1/">Version 1<small>8 chambers · 1 boss</small></button>
       <button class="ver on" data-act="version-here" aria-current="true">Version 2<small>15 chambers · 5 bosses</small></button>
-      <button class="ver" data-act="version" data-href="./v3/">Version 3<small>spells · elements · traps</small></button>
-      <button class="ver" data-act="version" data-href="./v4/">Version 4<small>spells · pure action</small></button>
+      <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
+      <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
     </div>`;
 }
 

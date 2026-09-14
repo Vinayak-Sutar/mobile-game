@@ -6,7 +6,7 @@
   "description": "Top-down action roguelike prototype (Hades-like), vanilla canvas.",
   "scripts": {
     "start": "python serve.py",
-    "bundle": "esbuild src/game.js --bundle --format=iife --outfile=dist/bundle.js",
+    "bundle": "esbuild v4/src/game.js --bundle --format=iife --outfile=dist/bundle.js",
     "build": "npm run bundle && node build.mjs"
   },
   "devDependencies": {

@@ -2,12 +2,14 @@
 // file. The result runs from file:// with no server, because there are no
 // module imports or external requests left to block.
 //
-//   npx esbuild src/game.js --bundle --format=iife --outfile=dist/bundle.js
+//   npx esbuild v4/src/game.js --bundle --format=iife --outfile=dist/bundle.js
+//
+// It builds Version 4, the default game.
 //   node build.mjs
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
-const html = readFileSync('index.html', 'utf8');
+const html = readFileSync('v4/index.html', 'utf8');
 const bundle = readFileSync('dist/bundle.js', 'utf8');
 
 const SCRIPT_TAG = '<script type="module" src="./src/game.js"></script>';

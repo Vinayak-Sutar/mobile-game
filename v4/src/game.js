@@ -540,7 +540,7 @@ function versionRow() {
   return `
     <div class="versions">
       <button class="ver" data-act="version" data-href="../v1/">Version 1<small>8 chambers · 1 boss</small></button>
-      <button class="ver" data-act="version" data-href="../">Version 2<small>15 chambers · 5 bosses</small></button>
+      <button class="ver" data-act="version" data-href="../v2/">Version 2<small>15 chambers · 5 bosses</small></button>
       <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
       <button class="ver on" data-act="version-here" aria-current="true">Version 4<small>spells · pure action</small></button>
     </div>`;

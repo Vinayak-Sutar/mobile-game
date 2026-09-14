@@ -1,56 +1,18 @@
-// Offline cache for the installed PWA.
-//
-// Bump CACHE when shipping: the old cache is dropped on activate, so players
-// are never stuck on a stale build.
-//
-// Version 1 (./v1/) has its own worker and its own cache prefix. Each worker
-// only ever deletes caches with its own prefix, so the two versions can't
-// wipe each other's offline copy.
-const PREFIX = 'ashfall-main-';
-const CACHE = `${PREFIX}2`;
-const LEGACY = ['ashfall-v1'];   // this worker's cache name before versions split
-
-const SHELL = [
-  './',
-  './index.html',
-  './manifest.json',
-  './icon.svg',
-  './src/game.js',
-];
-
-self.addEventListener('install', (ev) => {
-  // addAll fails the whole install if any entry 404s, so tolerate misses.
-  ev.waitUntil(
-    caches.open(CACHE)
-      .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
-      .then(() => self.skipWaiting()),
-  );
-});
+// Retiring worker. Version 2 used to live at the site root with a service
+// worker here; it moved to v2/ (with its own worker and cache), and the root
+// is now a redirect to Version 4. Phones that still have the old root worker
+// fetch this file on their next visit: it clears the old cache, unregisters
+// itself, and reloads any page it controlled so the redirect takes over.
+self.addEventListener('install', () => self.skipWaiting());
 
 self.addEventListener('activate', (ev) => {
-  ev.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(keys
-        .filter((k) => k !== CACHE && (k.startsWith(PREFIX) || LEGACY.includes(k)))
-        .map((k) => caches.delete(k))))
-      .then(() => self.clients.claim()),
-  );
-});
-
-self.addEventListener('fetch', (ev) => {
-  const req = ev.request;
-  if (req.method !== 'GET') return;
-  if (new URL(req.url).origin !== location.origin) return;
-
-  // Network-first: a dev refresh should always get fresh code, and the cache
-  // is only there to keep the game playable offline.
-  ev.respondWith(
-    fetch(req)
-      .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
-        return res;
-      })
-      .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html'))),
-  );
+  ev.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys
+      .filter((k) => k.startsWith('ashfall-main-') || k === 'ashfall-v1')
+      .map((k) => caches.delete(k)));
+    await self.registration.unregister();
+    const pages = await self.clients.matchAll({ type: 'window' });
+    for (const page of pages) page.navigate(page.url).catch(() => {});
+  })());
 });
