@@ -2240,6 +2240,85 @@ says "Trickster".
     gorilla) came from guardians already beaten.
   - Checked at 844×390.
 
+### 14.11 Step 10 — The Maestro, the rhythm boss (built; owner testing)
+
+The owner picked the Maestro from IDEAS.md. From this step on, **the owner
+tests on the phone** (memory `feedback-owner-tests`). I only ran static
+checks, so the build is unverified in the browser.
+
+`boss-maestro.js`, spec `MAESTRO`, 1250 HP at slot 0, r 22. He's in
+`BOSS_POOL`, so a run is now **12 guardians, 25 chambers**. The trial card
+says "Conductor".
+
+- **Beat clock:** `e.song` counts beats (`+= dt × bpm/60`) at 100 BPM in
+  phase 1 and 126 BPM in phase 2.
+  - A one-bar count-in (clicks, "1 2 3 4") opens the fight.
+  - On each beat: kick on beats 1 and 3, snare on 2 and 4, a bass note, a
+    string pad every bar, and hats on the off-beats.
+  - The piece is original, A minor i–VI–III–V.
+  - Every attack plays its own voice: pizzicato for bullets, timpani,
+    brass, a bell for the arpeggio, a sforzando chord.
+- **Audio:** `band` in `audio.js`.
+  - Percussion uses the master bus, because the beat is gameplay and plays
+    even with music off.
+  - Melodic voices use the music bus and follow the music setting.
+  - `band.takeStage()` (every frame he's alive) sets
+    `audio.bossTrackUntil`; the regular scheduler skips its steps until
+    then, so the normal track resumes 0.3 s after he dies, the run ends or
+    the game pauses.
+- **The score:** a note is `{ at, warn, cue, fire }` in beats.
+  - At `at − warn` the cue spawns the telegraph, with the hazard delay
+    converted from beats to seconds.
+  - At `at` it fires.
+  - Phrases (moves) schedule their notes on the next bar line with
+    `phraseMove(cooldown, lead, build, grid)`.
+- **Sheet music:** a staff at the top of the stage.
+  - Notes scroll left to a playhead at 56 units a beat; bar lines, and a
+    fermata arc over silences.
+  - Each glyph shows the attack type: gold = bullets, violet = strings,
+    blue bar = brass lanes, red = blasts, white diamond = timpani, red
+    accent = sforzando.
+  - FORTISSIMO streak pips sit at the right end.
+- **On the beat** (`guardFn`): hits within ±0.1 s of a beat do ×1.5
+  ("♪ ON BEAT").
+  - Each beat struck in time adds 1 to a streak; an off-beat hit takes 1
+    away, and 4 beats with no on-beat hit reset it.
+  - 8 → **FORTISSIMO**: his score is cleared, tempo and silence reset, and
+    he's EXPOSED 2.4 s.
+- **Phrases:**
+  - **Staccato:** a fan every beat, or 3-fans on eighths in phase 2.
+  - **Timpani:** rings on beats 1 and 3 (every beat in phase 2), with a
+    closing-ring cue.
+  - **Crescendo:** blasts on you growing 44 → 120.
+  - **Brass Chord:** 3 or 5 lanes on beat 1, then an offset set on beat 3.
+  - **Arpeggio:** blasts marching out on eighths, then back.
+  - **Legato:** 2–3 spiral arms for 2 bars.
+  - **Fermata:** 3 beats of silence, a red stage and 3 safe stage lights;
+    then SFORZANDO hits ×1.3 anywhere outside them.
+  - **Baton Flurry:** anti-hug; 4 cones on eighths, on a half-bar grid.
+  - **Orchestra:** a drummer (gapped rings on 1 and 3), a violinist (a
+    bullet a beat) and a horn (a lane on 3 that strikes on 4). They are
+    `musician` enemies (90 HP × scale, fixed, killable) for 5 bars (8 in
+    phase 2), then they bow.
+  - **Rubato:** tempo ×(1 + 0.32·sin) over 2 bars with a fan every beat.
+  - **Overture:** the phase-1 barrage; 4 bars, then "Bravo!" and EXPOSED
+    2.2 s.
+- **Idle:** grace-note bullet pairs on beats 2 and 4 while he turns the
+  page.
+- **Phase 2, PRESTO:**
+  - The tempo speeds up to 126 during the transformation, the coat comes
+    off, and notes orbit him.
+  - **Canon:** a bar of blasts on you, he steps to the mirrored side, and
+    the bar echoes mirrored.
+  - **Grand Finale:** the orchestra, 4 bars of spiral strings over timpani,
+    then Fermata → Sforzando, then EXPOSED 2.6 s.
+- **Not yet verified** (owner testing):
+  - Moves and phases run without errors.
+  - The sheet matches the attacks.
+  - The on-beat window feels right on a phone.
+  - The regular music really stops during his fight and returns after.
+  - The balance.
+
 
 | Term | Meaning |
 | --- | --- |

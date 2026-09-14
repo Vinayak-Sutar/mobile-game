@@ -208,6 +208,15 @@ test them.
   clouds (blindness zones).
 
 ### 8. The Maestro — rhythm boss
+> **Built in Version 4** (`v4/src/boss-maestro.js`, journal §14.11):
+> - Every attack lands on his beat, and he plays his own music.
+> - Sheet music across the top shows the upcoming attacks as notes.
+> - Hits on the beat do ×1.5; 8 beats in time is FORTISSIMO (he's exposed).
+> - Fermata/Sforzando: find a stage light.
+> - An orchestra of killable musicians.
+> - Phase 2 is PRESTO, with a faster tempo, the Canon and the Grand Finale.
+>
+> The notes below are the original design.
 - Every attack lands **on the beat** of the music; the music speeds up by phase. The
   telegraph is the rhythm itself (plus visual beats on the floor tiles).
 - Parrying **on the beat** gives double posture damage. Staying in rhythm fills a combo

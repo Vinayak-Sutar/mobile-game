@@ -40,6 +40,7 @@ import { SOLARIS, GRUMM } from './boss-wardens.js';
 import { ALDRIC } from './boss-aldric.js';
 import { BRIDE } from './boss-bride.js';
 import { MONKEY } from './boss-monkey.js';
+import { MAESTRO, drawMusician } from './boss-maestro.js';
 
 // ============================================================================
 // TURTLE — Gravemaw the Shellback. Slow, heavy, and the first lesson: read the
@@ -1139,6 +1140,18 @@ export const BOSS_DEFS = {
     init(e) { e.noPush = true; },
     update() {}, draw() {},
   },
+  maestro: bossDef(MAESTRO, {
+    r: 22, hp: 1250, speed: 150, mass: 20, color: '#b48cff', damageBase: 18,
+    title: 'The Maestro', subtitle: 'Conductor of the Last Symphony',
+  }),
+  // His orchestra: spectral musicians who play on his beat (boss-maestro.js).
+  musician: {
+    r: 18, hp: 90, speed: 0, mass: 999, cost: 999, minDepth: 99, color: '#b48cff',
+    fixed: true,
+    init(e) { e.noPush = true; },
+    update() {},
+    draw: drawMusician,
+  },
   monkey: bossDef(MONKEY, {
     r: 24, hp: 1300, speed: 185, mass: 24, color: '#e0a84a', damageBase: 18,
     title: 'Echo of the Monkey King', subtitle: 'Sage of the Cloud Summit',
@@ -1258,6 +1271,7 @@ export const BOSS_INFO = {
   vesper: { title: BOSS_DEFS.vesper.title, subtitle: BOSS_DEFS.vesper.subtitle, color: '#ffb35e', animal: 'Gunslinger' },
   naga: { title: BOSS_DEFS.naga.title, subtitle: BOSS_DEFS.naga.subtitle, color: '#6fd8a4', animal: 'Serpent' },
   solaris: { title: 'The Twin Wardens', subtitle: 'Solaris the Lancer & Grumm the Hammer', color: '#ffd45e', animal: 'Duo' },
+  maestro: { title: BOSS_DEFS.maestro.title, subtitle: BOSS_DEFS.maestro.subtitle, color: '#c8a8ff', animal: 'Conductor' },
   monkey: { title: BOSS_DEFS.monkey.title, subtitle: BOSS_DEFS.monkey.subtitle, color: '#ffc861', animal: 'Trickster' },
   bride: { title: BOSS_DEFS.bride.title, subtitle: BOSS_DEFS.bride.subtitle, color: '#dfeaff', animal: 'Ghost' },
   aldric: { title: BOSS_DEFS.aldric.title, subtitle: BOSS_DEFS.aldric.subtitle, color: '#e8f0ff', animal: 'Knight' },

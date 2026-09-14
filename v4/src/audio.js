@@ -18,6 +18,7 @@ let musicBus = null;
 export const audio = {
   muted: false, music: true, active: false, ready: false, suspended: false,
   musicVolume: 0.7,   // the player's slider, 0..1
+  bossTrackUntil: 0,  // a boss playing its own music (the Maestro) keeps this in the future
 };
 
 // The slider maps onto the music bus through a curve, because loudness is
@@ -377,7 +378,7 @@ function scheduler() {
   // After a suspend the clock has moved on; never try to "catch up" a backlog.
   if (nextNoteTime < ctx.currentTime - 0.2) nextNoteTime = ctx.currentTime + 0.05;
   while (nextNoteTime < ctx.currentTime + LOOKAHEAD) {
-    if (!audio.muted) scheduleStep(stepIndex, nextNoteTime);
+    if (!audio.muted && !(performance.now() < audio.bossTrackUntil)) scheduleStep(stepIndex, nextNoteTime);
     nextNoteTime += STEP;
     stepIndex++;
   }
@@ -435,6 +436,63 @@ export function previewMusic() {
     tone({ freq: midi(m), type: 'triangle', dur: STEP * 1.6, vol: 0.065, at: t0 + i * STEP * 2, out: musicBus });
   });
 }
+
+// --- the Maestro's band ------------------------------------------------------
+//
+// The Maestro plays his own piece, one voice per attack, triggered from the
+// game's beat clock. Percussion goes through the master bus (the beat is
+// gameplay, so it plays even with music off); the melodic voices go through
+// the music bus and respect the music setting and slider.
+
+const melodicBus = () => (audio.music ? musicBus : null);
+
+export const band = {
+  /** Keep the regular track quiet for a moment (called every frame he's alive). */
+  takeStage() { audio.bossTrackUntil = performance.now() + 300; },
+  kick(vol = 1) {
+    tone({ freq: 150, freq2: 45, type: 'sine', dur: 0.2, vol: 0.3 * vol });
+    noise({ dur: 0.02, vol: 0.12 * vol, freq: 3500, type: 'highpass' });
+  },
+  snare(vol = 1) {
+    noise({ dur: 0.14, vol: 0.14 * vol, freq: 1800, type: 'bandpass', q: 0.8 });
+    tone({ freq: 210, freq2: 140, type: 'triangle', dur: 0.1, vol: 0.08 * vol });
+  },
+  hat(vol = 1) { noise({ dur: 0.04, vol: 0.05 * vol, freq: 7000, type: 'highpass' }); },
+  crash() { noise({ dur: 0.9, vol: 0.18, freq: 6000, freq2: 2500, type: 'highpass', q: 0.5 }); },
+  click() { tone({ freq: 1800, type: 'square', dur: 0.03, vol: 0.1 }); },
+  timpani(m, vol = 1) {
+    tone({ freq: midi(m), freq2: midi(m) * 0.8, type: 'sine', dur: 0.6, vol: 0.3 * vol });
+    tone({ freq: midi(m) * 2, type: 'triangle', dur: 0.25, vol: 0.08 * vol });
+    noise({ dur: 0.08, vol: 0.1 * vol, freq: 600 });
+  },
+  pizz(m, vol = 1) {
+    const out = melodicBus(); if (!out) return;
+    tone({ freq: midi(m), type: 'triangle', dur: 0.2, vol: 0.12 * vol, out, filter: { freq: 2600, freq2: 700, q: 1 } });
+  },
+  bell(m) {
+    const out = melodicBus(); if (!out) return;
+    tone({ freq: midi(m), type: 'sine', dur: 0.9, vol: 0.1, out });
+    tone({ freq: midi(m) * 2.76, type: 'sine', dur: 0.4, vol: 0.03, out });
+  },
+  brass(ms) {
+    const out = melodicBus(); if (!out) return;
+    for (const m of ms) tone({ freq: midi(m), type: 'sawtooth', dur: 0.5, vol: 0.07, attack: 0.03, out, filter: { freq: 1600, freq2: 700, q: 2 } });
+  },
+  strings(ms, dur) {
+    const out = melodicBus(); if (!out) return;
+    for (const m of ms) tone({ freq: midi(m), type: 'sawtooth', dur: Math.max(0.2, dur), vol: 0.03, attack: 0.15, out, filter: { freq: 1800, q: 0.7 } });
+  },
+  bass(m, dur) {
+    const out = melodicBus(); if (!out) return;
+    tone({ freq: midi(m), type: 'sawtooth', dur: Math.max(0.1, dur), vol: 0.1, out, filter: { freq: 900, freq2: 260, q: 4 } });
+  },
+  sforzando(ms) {
+    band.kick(1.2);
+    band.crash();
+    band.brass(ms.map((m) => m + 12));
+    band.brass(ms);
+  },
+};
 
 /** Peak and RMS of the final output, in dBFS, over the analyser's window. */
 export function outputLevel() {
