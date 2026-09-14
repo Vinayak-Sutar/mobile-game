@@ -2588,6 +2588,16 @@ Only static checks have run; the owner tests.
     2.6 s.
 - **Sounds:** `sfx.clack` (a wooden piece set down), `sfx.chessClock`, and
   the church `bell` for CHECK.
+- **On hold:** after two rounds of piece art (top-down tokens, then
+  upright silhouettes) the owner said the idea "has so much potential" but
+  needs design and balance work first.
+  - He is out of `BOSS_POOL`, so he's in neither runs nor Boss Trials.
+  - All his code and registration stay in place (`boss-chess*.js`, the
+    `grandmaster` and `chessman` defs).
+  - A run is back to **13 guardians, 27 chambers**.
+  - Open question: the piece art. chess.com's set is proprietary; the
+    classic Wikipedia/lichess set (Colin M. L. Burnett, BSD-licensed, needs
+    a credit line) was offered, or hand-drawn pieces. No choice made yet.
 
 
 | Term | Meaning |

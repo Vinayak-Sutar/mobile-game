@@ -259,6 +259,7 @@ test them.
 
 ### 16. The Grandmaster — the living chessboard
 > **Built in Version 4** (`v4/src/boss-chess*.js`, journal §14.17):
+> - ON HOLD: out of the boss pool until his design, balance and piece art are reworked.
 > - The arena is a chessboard, and his pieces attack by real chess rules.
 > - Squares light up before they strike.
 > - Capture pieces to break his protection.
