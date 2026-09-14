@@ -4,9 +4,10 @@
 > understand the entire project without the conversation history that produced
 > it. Written to be read top to bottom once, then used as a reference.
 >
-> **Last updated:** 2026-09-11, after commit `27ea3fb` (3 lives and the
-> Version 1 / Version 2 split), which followed `e8f73d3` (boss battles). If
-> code and this document disagree, **the code wins** — then fix this document.
+> **Last updated:** 2026-09-15, after commit `8f7a1d2` (Kwaku Anansi, the
+> spider boss). **New session? Read §0, then §15 (the Version 4 handover),
+> then the §14 entries for whatever you're touching.** If code and this
+> document disagree, **the code wins** — then fix this document.
 
 ---
 
@@ -24,10 +25,15 @@
   - `v4/src/`: Version 4.
   - The root holds only `index.html` (a redirect to `v4/`), `sw.js`
     (retires the old root worker), `serve.py` and `build.mjs`.
-- **Run:** 15 chambers. Chambers 3/6/9/12 are four creature bosses (turtle,
-  crocodile, gorilla, peacock) in a per-run shuffled order; 15 is the Warden
-  of Ash. Bosses follow written "hard but fair" rules (§5.14). **3 lives** per
-  run.
+- **Run (Version 4, current):**
+  - Chambers 1–2 are fights; from chamber 3, fight and guardian alternate.
+  - **Every guardian in `BOSS_POOL`** (`v4/src/boss-pool.js`) is fought
+    once, in a fresh shuffle each run (and each loop). Beating the last one
+    wins.
+  - 14 guardians → **29 chambers**; each new boss adds 2 chambers by itself.
+  - **3 lives** per run. Bosses follow the "hard but fair" rules (§5.14).
+  - Version 2's old run (15 chambers, creature bosses at 3/6/9/12, the
+    Warden at 15) is kept only in `v2/`.
 - **Four versions ship side by side**, each with its own save and cache, and
   a 4-button switch on every title screen:
   - The site root (`index.html`) redirects to **Version 4**, the default (§14.13).
@@ -40,10 +46,16 @@
     **It is the current line of work (§14).**
 - **Work with the owner one step at a time:** build one thing, push it, give
   them a phone link and a short test list, then stop and wait.
-- **Run locally:** `python serve.py` → open `http://localhost:8000` (PC) or the
-  printed LAN URL on a phone on the same Wi-Fi (the root opens Version 4;
-  the others are at `/v1/`, `/v2/`, `/v3/`).
-  Landscape only.
+- **The owner tests, not you** (since 2026-09-14):
+  - Don't run browser tests, bots or regressions yourself.
+  - Run only the static checks (§8.2), commit, push, and hand over a
+    specific "what to test" list (§15.1).
+- **Run locally:** `python serve.py` → open `http://localhost:8000` (PC).
+  - On the phone (same Wi-Fi) open `http://<PC Wi-Fi IPv4>:8000/`. **The IP
+    changes**: it was 10.20.79.236, then 10.188.185.236. Check with
+    `ipconfig` and curl it before giving the link.
+  - The root opens Version 4; the others are at `/v1/`, `/v2/`, `/v3/`.
+  - Landscape only.
 - **Repo:** `https://github.com/Vinayak-Sutar/mobile-game` (branch `main`).
   Intended to be served by GitHub Pages at
   `https://vinayak-sutar.github.io/mobile-game/`.
@@ -2663,24 +2675,334 @@ portrayed respectfully, as the clever trickster hero of the tales.
   atumpan-style pitch bend).
 
 
+---
+
+## 15. Version 4 handover (state of the project, 2026-09-15)
+
+The one place to restart from after a compaction. Each item points to the
+detailed §14 entry where one exists.
+
+### 15.1 Working with the owner (hard rules)
+
+- **One step at a time.** Build one feature or boss, run the static checks,
+  commit and push, make sure the phone server is up, give a short "what to
+  test" list — then **stop and wait**. Never chain features, even if a plan
+  lists several. (Memory: `feedback-one-step-at-a-time`.)
+- **The owner tests, not you** (since 2026-09-14):
+  - No browser tests, difficulty bots, forced-move loops or full-run
+    regressions.
+  - Static checks only (§15.2).
+  - The test list must name the risky parts to check (new counters, phase
+    changes, readability on the phone). (Memory: `feedback-owner-tests`.)
+- **If you ever open the preview browser** (debugging only): mute first with
+  `(await import('./src/audio.js')).audio.muted = true`.
+  - End with `ashfall.showTitle(); ashfall.tick(1/60)`, then `tabs_close`.
+    Otherwise the music plays on the owner's PC.
+  - Never `preview_stop` (it kills the server the phone uses).
+  - (Memory: `feedback-close-test-tab`.)
+- **What the owner wants from bosses:**
+  - A strong theme, researched from mythology, folklore and pop culture
+    ("all corners of the internet"), with sources cited.
+  - Every move follows that theme, and there are many moves (10–20).
+  - One "crazy" signature mechanic.
+  - A second phase with a transformation animation.
+  - Long combos that reward observation, and cheese-proofing (no easy
+    hugging, pure-ranged or hiding strategy).
+  - An artistic feel.
+  - **Challenging but fair, at the difficulty of the original four
+    creature bosses** (they "were actually awesome"; §14.7 has the
+    numbers).
+  - Their favourites so far: the Maestro and Mau.
+- **"What boss next?"** Offer 5–7 themed ideas with a recommendation; the
+  owner picks.
+- **Git:**
+  - Push to `main` after every change.
+  - End commit messages with `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`.
+  - Before every commit, run
+    `git diff --cached --name-only | grep -iE "\.certs|\.pem|\.zip|dist/"`;
+    it must print nothing (`.certs/` holds a private key).
+  - Use the owner's email only for git authorship.
+- **Don't touch:**
+  - `v1/`, which is frozen except for the version switcher.
+  - `v3/src/affixes.js` and `v3/src/bestiary.js`, untracked drafts.
+- **Legal:** don't copy proprietary art (chess.com's pieces were refused);
+  folklore and pop-culture figures get original designs; portray cultural
+  figures respectfully (Anansi as the clever hero of his tales).
+
+### 15.2 Tooling, workflow and pitfalls (Windows PC, Git Bash)
+
+- **Server:** the preview server "ashfall" (`.claude/launch.json`, runs
+  `python serve.py 8000` on 0.0.0.0).
+  - If it's down, `preview_start` with name `ashfall`. It opens a tab;
+    close it.
+  - Phone link: `ipconfig | grep -A4 "Wi-Fi" | grep IPv4`, then
+    `curl http://<ip>:8000/v4/src/<file>` should return 200. The IP has
+    changed before.
+- **Static checks (Version 4):**
+  ```bash
+  for f in v4/src/*.js; do node --check "$f"; done
+  npx --yes esbuild@0.25.0 v4/src/game.js --bundle --format=iife --outfile=/dev/null   # expect "Done"
+  npx --yes eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module,ecmaVersion:2022 --rule '{"no-undef":"error"}' v4/src/*.js
+  npx --yes eslint@8.57.0 --no-eslintrc --env browser,es2022 --parser-options=sourceType:module,ecmaVersion:2022 --rule '{"no-unused-vars":"warn"}' v4/src/<new files>
+  ```
+  `npm notice` lines are noise. Grep them out before looking for "error".
+- **Patching:**
+  - Write Python patch scripts into the session scratchpad. Each uses a
+    `rep()` that asserts its anchor exists before replacing.
+  - **Long bash heredocs, especially with non-ASCII text (—, …, é), fail**
+    with "unexpected EOF". Write scripts and commit messages to files with
+    the Write tool, then run them (`git commit -F file`). Short ASCII
+    heredocs are fine.
+- **Output limits:** a big boss written in one response can hit the output
+  cap. Split it across responses and files:
+  - `boss-X-art.js` (drawing)
+  - `boss-X-kit.js` (helpers)
+  - `boss-X-legends.js` / `boss-X-tales.js` (move groups)
+  - `boss-X.js` (the spec)
+
+  Agree the field contract (the `e.*` fields the art reads) first.
+- **A cycle-safe module pattern:** helpers live in a kit file with no
+  imports from the spec. The spec spreads a move group
+  (`moves: { ..., ...LEGEND_MOVES }`) that only imports the kit and art.
+- **Pitfalls found:**
+  - **Hit-stop** (`fx.hitstop`, from `damagePlayer` 0.1 s and `dealDamage`
+    0.02–0.06 s) freezes the whole simulation. Tests must tick past it,
+    and a boss with a musical clock needs `realTick` (§14.15).
+  - **A drifting gamepad** on the owner's PC steers synthetic input. Test
+    pages must stub `navigator.getGamepads = () => []` (§14.10).
+  - **Multi-hit weapons** (Arrow Volley, piercing arrows, sweeps) can
+    trigger "strike one of these" puzzles on several targets at once. Lock
+    to one look per window (§14.16).
+  - **Auto-aim** (`nearestEnemy`) targets the nearest valid enemy. Don't
+    let a hidden boss's position, spawn order or starting slot give away a
+    puzzle; use `noTarget` (§14.16).
+
+### 15.3 The Version 4 map
+
+- **The site root:**
+  - `index.html` redirects to `./v4/` and unregisters the old root service
+    worker scope.
+  - `sw.js` is a retiring worker. **Don't delete it:** it clears the old
+    `ashfall-main-*` caches on phones.
+  - `v2/` holds Version 2 (cache `ashfall-v2-`).
+  - `build.mjs` and `npm run bundle` build Version 4 into a single file.
+- **`v4/`:** `index.html`, `manifest.json` ("Ashfall — Version 4"), and
+  `sw.js` (cache `ashfall-v4-`, network-first).
+  - Save key `ashfall.v4.save`, seeded once from V2's `ashfall.save.v1`.
+  - All versions share an origin, so saves are localStorage keys; they
+    don't depend on the path.
+- **`v4/src` engine:**
+  - `game.js`: loop, states, Boss Trials, version switch, and the hit-stop
+    `realTick` hook.
+  - `state.js`: `world`, including `bossOrder` and `beaten`.
+  - `rooms.js`: run structure, doors, `bossScaling`.
+  - `enemies.js`, `combat.js`, `projectiles.js`, `hazards.js`, `spawn.js`.
+  - `player.js`, `weapons.js`, `grenade.js`, `spells.js`, `boons.js`.
+  - `input.js`, `gamepad.js`, `ui.js`, `fx.js`, `audio.js`, `save.js`,
+    `util.js`, and the rest.
+- **Bosses:**
+  - `boss-kit.js`: the shared boss brain and helpers.
+  - `bosses.js`: every boss def, the creature bosses' moves, `BOSS_INFO`
+    (trial cards), and re-export of the pool.
+  - `boss-pool.js`: `BOSS_POOL`.
+  - Warden: `enemies.js`.
+  - Named bosses: `boss-vesper.js`, `boss-naga.js`, `boss-wardens.js`,
+    `boss-aldric.js`, `boss-bride.js`, `boss-monkey.js`,
+    `boss-maestro.js`, `boss-mau*.js` (4 files), `boss-anansi*.js`
+    (4 files), and `boss-chess*.js` (3 files, on hold).
+
+### 15.4 Version 4 systems
+
+- **Spells** (§14.1–14.2):
+  - 13 spells, each doing one simple thing (fire burns, ice slows,
+    lightning stuns). No element combos, no parry.
+  - Cooldowns were doubled at the owner's request. Levels 1–3; 4 slots.
+  - Earned from Spell doors: always offered in the first chamber, then
+    about 1 in 3.
+  - Touch buttons on the right arc; keys 1–4; R1 plus a face button on a
+    pad.
+  - One grenade type, which can be cancelled (the ✕ zone, a right-click,
+    or a dash).
+- **Run structure** (§14.9): `BOSS_POOL` holds every guardian;
+  `FIRST_BOSS_DEPTH = 3`, `BOSS_GAP = 2`, `GUARDIAN_COUNT` = pool length.
+  - `FINAL_DEPTH = 3 + (N − 1) × 2`.
+  - `effDepth` stretches the measured 8-chamber fight curve over any run
+    length.
+  - Elites sit at the fight chambers nearest eff 3.5 and 6.5.
+  - Boss tier = slot × 3/(N − 1): HP ×(1 + 0.3·tier), up to ×1.9; damage
+    ×(1 + 0.1·tier), up to ×1.3. Loops add +0.8 HP and +0.3 damage and
+    reshuffle.
+  - `room.final` is the last guardian chamber; its door exits to victory.
+  - `world.beaten` lists guardians cleared this run.
+  - Guardian doors pay a boon plus health, a spell or gold.
+- **Boss Trials:** every pool boss at tier 1, with 3 boons and 2 random
+  spells.
+- **Boss kit** (`boss-kit.js`). A boss is a spec object passed to
+  `bossDef(spec, stats)`. The spec provides:
+  - `phases` (HP fractions), `phaseTime`, `phaseAnim(e,dt,p,k)`,
+    `roarPitch`, and `opening` (starting cooldowns).
+  - `init`, `tick`, `idle`, and `choose(e,p,d) → [[move, weight]]`.
+  - `onPhase(e, want)` (may set `e.phaseT`/`e.t` for per-phase lengths)
+    and `afterPhase`.
+  - `moves { name: { cooldown, start(e,p), update(e,dt,p) } }`.
+  - `arena()` (obstacles), `draw`, `drawExtras(e,ctx,t)`,
+    `drawArena(ctx,room,t)`, and `realTick(e,dt)`.
+
+  The kit exports:
+  - The move state machine: `act`, `sub`, `idle(e,t)` (scaled by phase and
+    tier) and `expose(e,t)` (EXPOSED ×1.35).
+  - Bullets: `shot(e,a,speed,{x,y,off,shape,r,color,dmg,life,extra})`,
+    `fanShot`, `ringShot`, and `tm(e)` (bullet speed by tier; only the
+    original creature bosses use it).
+  - Hazard shapes: `lane(e,t,len,width,color)` (follows `e.aim`), `lob`,
+    and `shockwave` (gapped rings).
+  - Movement: `inArena`, `turnToward`, `forward`.
+  - Summons: `spawnEnemyFn`, and `clearHostiles` (summons die with the
+    boss).
+
+  The kit's rules:
+  - A phase change waits for EXPOSED to end, then sets `invuln` and clears
+    bullets and hazards.
+  - The last move chosen gets ×0.25 weight.
+- **Engine hooks bosses use** (all additive and generic):
+  - `combat.dealDamage`:
+    - `e.guardFn(e, opts, amount)` returns a multiplier (0 = blocked). It's
+      skipped for `opts.chained` (grenade blasts, burn ticks).
+    - `e.vulnerable` multiplies damage taken; `e.hpFloor` stops HP falling
+      below a value.
+    - Parts pass hits to the boss: `e.proxyOf`, `proxyMult`, `onProxyHit`.
+  - Targeting and drawing flags:
+    - `e.noTarget`: auto-aim and spells skip it.
+    - `e.hidden`: not drawn; only the boss's `drawExtras` runs; targeting
+      skips it.
+    - `e.invuln`: projectile collision skips it.
+    - Enemy def `fixed` (the engine doesn't move it) and `invisible` (the
+      engine doesn't draw it; its boss does).
+  - `player.js`: `p.slowUntil` (run time) and `p.slowMult` multiply move
+    speed.
+  - `spells.js` and `ui.js`:
+    - `p.silencedUntil` blocks casting.
+    - `p.hex = { id, until, onCast }` spends that spell and calls `onCast`
+      instead.
+    - Both are drawn on the spell buttons.
+  - `projectiles.js`:
+    - Hostile bullets honour `homing` (they curve toward you).
+    - `extra` flags pass through (e.g. `isHornet`).
+    - The `note` shape is an upright musical note; the others are `bullet`,
+      `feather`, `shard`, `rock` and `orb`.
+  - `game.js`: during a hit-stop, `spec.realTick(e, dt)` runs for live
+    bosses.
+  - `audio.js`:
+    - `band` voices: kick, snare, hat, crash, click, timpani, pizz, bell,
+      brass, strings, bass, lead, harp, organ, bassDrum, tick, sforzando.
+    - `band.takeStage()` sets `audio.bossTrackUntil` (+0.3 s), which pauses
+      the regular music scheduler while a boss plays its own track.
+    - Percussion always uses the master bus; melodic voices use the music
+      bus and follow the music setting.
+  - Boss sfx:
+    - Vesper and Naga: gunshot, bell, click, hiss, rattle.
+    - Shared: chime, splash, whirr, exposed, roar(pitch).
+    - Mau: meow, catHiss, purr, yowl, trill, scratch, jingle, coin,
+      thunder.
+    - Grandmaster: clack, chessClock.
+    - Anansi: skitter, silk, buzz, talkingDrum.
+- **Difficulty targets** (§14.7, damage a minute from the bot method):
+  - The originals: idle 197–625, human bot 99–292, expert bot 63–180.
+  - New bosses should keep pressure on even a perfect dodger: idle volleys,
+    short rests, short punish windows.
+
+### 15.5 The guardians (current `BOSS_POOL`, 14) — essentials
+
+| Boss (key) | Signature and counters | Status | Journal |
+| --- | --- | --- | --- |
+| Turtle, Crocodile, Gorilla, Peacock (`turtle` `croc` `gorilla` `peacock`) | The original creature bosses; the owner's benchmark for difficulty | Tuned | §5.14, §6.1 |
+| Warden of Ash (`warden`) | The old final boss, now just one of the pool | Unchanged | §5.14 |
+| Deadeye Vesper (`vesper`) | Gunslinger: six-shot cylinder and reload windows, crates, High Noon, Deadeye, roulette | Round 2, harder | §14.2–14.3 |
+| Nagaraja (`naga`) | Serpent body as a wall (dash hops it), proxy parts, hood, coils, Hydra split | Tuned | §14.4 |
+| Twin Wardens (`solaris`, which brings `grumm`) | A duo with combos and friendly fire; phase 2 depends on kill order | Tuned | §14.5 |
+| Ser Aldric (`aldric`) | The bow (honor or Oathbroken), a guard that strains, counters and breaks, Final Oath, kneel: spare (+1 life) or execute (+15% damage) | **Owner: "very easy"**, not retuned | §14.6 |
+| Weeping Bride (`bride`) | Lanterns and light (×0.2 unseen), mirror copies with mirrored bullets, Wail silences, Hex, the Hollow Mirror | Tuned to the originals | §14.7 |
+| Echo of the Monkey King (`monkey`) | Cloud summit (fall −12%), 72 transformations from bosses beaten this run, clones, deflecting spin, stone skin, the summit shrinks | Tuned | §14.10 |
+| The Maestro (`maestro`) | A beat clock and score, sheet-music telegraph, on-beat ×1.5 and FORTISSIMO, 21 musical phrases, orchestra, composed melody | Owner liked it; round 2 and stutter fix untested | §14.11, §14.12, §14.15 |
+| Mau, the Nine-Lived (`mau`) | Nine lives, each adding a legend's moves; catnip counterplay; Schrödinger's box (hardened, not auto-findable) | Owner: "very nice"; box changes untested | §14.14, §14.16 |
+| Kwaku Anansi (`anansi`) | Canopy web; chapters: python, hornets (strike the gourd), leopard (lure it into a pit), gum doll (sticks either of you); Pot of Wisdom heals | Built, **untested** | §14.18 |
+| *On hold:* The Grandmaster (`grandmaster`) | Chessboard, square strikes, real chess attack sets, CHECK puzzle | Out of the pool; needs design, balance and piece art | §14.17 |
+
+### 15.6 Decisions and feedback, in order
+
+1. **V3 abandoned for V4:** its elements, reactions and parry were "too
+   confusing". V4 is V2 plus simple spells.
+2. **Responsiveness work** (input buffer, dash-cancel, bullet cutting,
+   haptics) waits until the owner asks, one item at a time. Traps and
+   special rooms in V4 would be their own step.
+3. **Spell cooldowns doubled.**
+4. **Vesper:** "not challenging enough, stick to the guns theme" led to
+   round 2.
+5. **Aldric:** "very easy" made the original four the difficulty
+   benchmark.
+6. **Run structure:** a boss in every other chamber, then **every guardian
+   in every run** with no fixed Warden finale.
+7. **Maestro:** note-shaped bullets, harder, a better melody, more
+   instruments; later, the melody stuttered on hits (fixed).
+8. **Version 4 made the default** at the site root; V2 moved to `v2/`.
+9. **Mau:** the box made hard to track, and Heart-Seeker's auto-find
+   fixed.
+10. **Grandmaster:** the pieces were unreadable twice. chess.com's art is
+    proprietary; the options offered were the BSD-licensed classic
+    Wikipedia/lichess set (needs a credit) or hand-drawn pieces. The owner
+    paused, then put him on hold.
+11. **Self-testing stopped** (2026-09-14): the owner tests.
+
+### 15.7 Backlog and open questions (confirm with the owner before starting)
+
+- **Waiting on owner test results:** Anansi (everything), the Mau box
+  changes, the Maestro stutter fix and round-2 balance, the V4-default
+  switch.
+- **Grandmaster:** redesign, balance and a piece-art decision (above),
+  then back into `BOSS_POOL`.
+- **A balance pass** (the owner said "we will balance the bosses later").
+  Proposals:
+  - Difficulty bands in the shuffle, so hard bosses never come first and
+    easy ones never last.
+  - Newer bosses scale pressure with tier (tells, bullet speed), not just
+    HP and damage.
+  - Measure a full 29-chamber run with real boons.
+  - Retune Aldric.
+- **Pacing:** runs are now long (29 chambers). Watch for feedback.
+- **More bosses** (IDEAS.md):
+  - Main ideas: the Ringmaster (haunted circus), Hourglass Knight,
+    Clockwork Colossus, Mimic King, Leviathan of the Drowned Bell, Plague
+    Doctor, Frost Wyrm, Puppeteer, Hive Mother, Sol & Luna, the
+    Cartographer, the Gambler, Echo of You.
+  - Mini-bosses: the Headsman, Twin Hounds, the Alchemist, the Bramble
+    Witch.
+- **After bosses:** regular enemy variety for V4, and traps and special
+  rooms for V4.
+
+---
+
+## 12. Glossary
+
 | Term | Meaning |
 | --- | --- |
-| Chamber / depth | A room; the run is chambers 1–15; 3/6/9/12 creature bosses, 15 the Warden |
-| Effective depth | `effDepth(d)`: the 15-chamber run mapped onto the old 8-chamber difficulty curve |
-| Loop | Continuing past the final boss via Press Deeper; everything scales up |
-| Elite | A stronger enemy variant with a gold ring (chambers 5 and 11) |
-| Boss slot / tier | 0–3 = which creature-boss chamber (3/6/9/12); drives boss HP, damage, bullet speed |
-| Barrage | A boss's one dense bullet pattern; long cooldown, always ends EXPOSED |
+| Chamber / depth | A room. V4: chambers 1…`FINAL_DEPTH` (29 with 14 guardians), with guardians on odd chambers from 3. V2: 15 chambers, bosses at 3/6/9/12/15 |
+| Effective depth | `effDepth(d)`: the run mapped onto the measured 8-chamber difficulty curve (the last chamber plays like chamber 8) |
+| Loop | Continuing past the final boss via Press Deeper; everything scales up (V4 also reshuffles the guardians) |
+| Elite | A stronger enemy variant with a gold ring (V4: the fight chambers nearest eff 3.5 and 6.5) |
+| Guardian pool | `BOSS_POOL` (`v4/src/boss-pool.js`): every boss a V4 run fights, in a shuffled order |
+| Boss slot / tier | Slot = which guardian of the run (0…N−1). Tier = slot × 3/(N−1): HP ×1–1.9, damage ×1–1.3, shorter rests (and faster bullets for the original four) |
+| Barrage | A boss's dense signature pattern; long cooldown, usually ends EXPOSED |
 | Exposed | A boss's punish window: stopped, gold halo, takes ×1.35 damage |
 | Hazard | A telegraphed non-projectile attack in `world.hazards` (blast, lob, shockring, beam, cone, lane) |
-| Boss Trial | Practice fight against one boss from the title screen; nothing banked |
-| Version 1 / Version 2 | V1 = the original 8-chamber game in `v1/` (frozen, own save); V2 = the current 15-chamber game at the root |
+| Boss Trial | A practice fight against one boss from the title screen (V4: tier 1, 3 boons, 2 spells); nothing banked |
+| Versions | V1 `v1/` (frozen 8-chamber game), V2 `v2/` (15 chambers), V3 `v3/` (elements experiment), V4 `v4/` (the default at the site root; current work) |
 | Life / revive | 3 per run; dying with a spare stands you back up at full HP (`revivePlayer()`) |
 | Boon | A stacking run upgrade from one of 5 gods, chosen at boon doors |
+| Spell door | V4: a door that offers a new spell or a level-up (4 slots) |
 | Darkness | Meta currency: gold banked at the end of every run |
 | Mirror of Night | Meta shop for permanent upgrades |
-| Telegraph | The readable wind-up pose or marker before an enemy attack |
-| Hitstop | A brief freeze of the simulation on impact, for feel |
+| Telegraph | The readable wind-up pose or marker before an attack |
+| Hitstop | A brief freeze of the simulation on impact; bosses with a musical clock keep time through it via `realTick` |
 | Trauma | 0..1 screen-shake energy; also drives gamepad rumble |
-| World units | Logical coordinates (600 tall); scaled to screen by `view.scale` |
-| Intensity | Music level: 0 calm, 1 combat, 2 boss |
+| World units | Logical coordinates (a 1280×720 view); scaled to the screen by `view.scale` |
+| Intensity | Music level: 0 calm, 1 combat, 2 boss. A boss can replace the track with its own (`band.takeStage()`) |
