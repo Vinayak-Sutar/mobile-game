@@ -15,6 +15,7 @@ import { input, initInput, updateInput, endFrameInput, layoutControls, resetInpu
 import { createPlayer, updatePlayer, drawPlayer } from './player.js';
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
 import { drawCorpses } from './enemies-folk.js';
+import { drawTrainingHud, updateMeter, resetMeter } from './training.js';
 import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
@@ -32,7 +33,8 @@ import {
   drawHud, drawControls, updateUi, resetUi, showToast, showOverlay, hideOverlay, overlayVisible,
 } from './ui.js';
 import {
-  SPELLS, SPELL_SLOTS, ELEMENT_INFO, spellById, spellColor, spellLevel, offerSpells, learnSpell, tryCast,
+  SPELLS, SPELL_SLOTS, SPELL_MAX_LEVEL, ELEMENT_INFO, spellById, spellColor, spellLevel,
+  offerSpells, learnSpell, tryCast,
   updateSpellZones, drawSpellZones, drawPlayerSpells,
 } from './spells.js';
 import {
@@ -286,6 +288,13 @@ function revivePlayer() {
 }
 
 function onDeath() {
+  if (world.training) {
+    const p = world.player;
+    if (p) { p.dead = false; p.hp = p.stats.maxHp; p.invuln = 1.2; }
+    showToast('BACK ON YOUR FEET', 'Nothing is lost in training');
+    state = 'playing';
+    return;
+  }
   if (world.trial) { showTrialEnd(false); return; }
   bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
   state = 'dead';
@@ -357,6 +366,7 @@ function tick(dt) {
       updateProjectiles(dt);
       updateHazards(dt);
       updatePickups(dt);
+      if (world.training) updateTraining();
       updateRoom(dt);
       updateFx(dt);
 
@@ -445,6 +455,7 @@ function render() {
 
   if (inRun) {
     drawHud(ctx, world.runTime);
+    drawTrainingHud(ctx);
     if (state === 'playing') drawControls(ctx, world.runTime);
     drawLowHealthVignette();
   }
@@ -593,6 +604,7 @@ function showTitle() {
       <div class="row">
         <button class="btn" data-act="biome">Begin Run</button>
         <button class="btn ghost" data-act="trials">Boss Trials</button>
+        <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -939,7 +951,180 @@ function showRunEnd(won) {
     </div>`);
 }
 
+// --- Training Ground -------------------------------------------------------
+// A room with straw dummies where the loadout can be rebuilt at any time, so a
+// weapon or a spell can be learned without spending a run on it. Nothing here
+// is banked.
+
+const training = {
+  weapon: 0,
+  spells: [],           // spell ids, in slot order
+  levels: {},           // id -> 1..3
+  invincible: true,
+  freeCasts: false,
+};
+
+/** What can be called into the ring, in the order they appear in a run. */
+const TRAINING_FOES = [
+  'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
+  'adze', 'chinthe', 'vetala',
+];
+
+function trainingLoadout() {
+  const p = world.player;
+  if (!p) return;
+  p.spells = [];
+  p.spellLv = {};
+  p.spellCds = {};
+  for (const id of training.spells.slice(0, SPELL_SLOTS)) {
+    learnSpell(p, id);
+    p.spellLv[id] = training.levels[id] || 1;
+  }
+  p.invincible = training.invincible;
+  p.hp = p.stats.maxHp;
+}
+
+function trainingSetWeapon(i) {
+  training.weapon = clamp(i, 0, WEAPONS.length - 1);
+  // Rebuilt rather than patched, so no weapon state survives the swap.
+  if (world.training && world.player) {
+    const old = world.player;
+    const next = createPlayer(WEAPONS[training.weapon], metaBonuses());
+    next.x = old.x;
+    next.y = old.y;
+    next.face = old.face;
+    next.aimAngle = old.aimAngle;
+    world.player = next;
+    trainingLoadout();
+  }
+}
+
+function trainingToggleSpell(id) {
+  const at = training.spells.indexOf(id);
+  if (at >= 0) training.spells.splice(at, 1);
+  else if (training.spells.length < SPELL_SLOTS) training.spells.push(id);
+  else training.spells[SPELL_SLOTS - 1] = id;       // full: replace the last slot
+  if (!training.levels[id]) training.levels[id] = 1;
+  if (world.training) trainingLoadout();
+}
+
+function trainingDummies(n = 3) {
+  const b = arenaBounds();
+  const cx = b.l + (b.r - b.l) / 2;
+  const y = b.t + (b.b - b.t) * 0.3;
+  for (let i = 0; i < n; i++) {
+    spawnEnemyDebug('dummy', cx + (i - (n - 1) / 2) * 130, y);
+  }
+}
+
+function trainingClear() {
+  clearEntities();
+  clearFx();
+  resetMeter();
+  trainingDummies();
+}
+
+function startTraining() {
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+  resetMeter();
+
+  world.biome = getBiome(save.biome);
+  initAmbient(world.biome);
+  world.player = createPlayer(WEAPONS[training.weapon], metaBonuses());
+  world.training = true;
+  world.depth = 1;
+
+  const room = generateRoom(1, 0, { training: true });
+  startRoom(room);
+  trainingLoadout();
+  trainingDummies();
+
+  showToast('TRAINING GROUND', 'Pause to change your loadout');
+  state = 'playing';
+  hideOverlay();
+}
+
+/** Per-frame upkeep while the Training Ground is open. */
+function updateTraining() {
+  updateMeter();
+  const p = world.player;
+  if (!p || !training.freeCasts) return;
+  // Practice mode: everything is always ready, so a rotation can be drilled.
+  for (const id of Object.keys(p.spellCds || {})) p.spellCds[id] = 0;
+  p.spellGcd = 0;
+  p.specialCd = 0;
+  p.dashStock = p.stats.dashCharges;
+  p.grenadeStock = GRENADE.maxCharges;
+}
+
+function showTraining() {
+  const live = !!world.training;
+  state = live ? 'paused' : 'training';
+
+  const weapons = WEAPONS.map((w, i) => `
+    <div class="card tgw ${i === training.weapon ? 'on' : ''}" data-act="t-weapon" data-idx="${i}"
+         style="border-color:${w.color}${i === training.weapon ? '' : '55'}">
+      <div class="glyph" style="color:${w.color}">${w.glyph}</div>
+      <div class="name" style="color:${w.color}">${w.name}</div>
+      <div class="tag" style="color:${w.color}">${w.specialName}</div>
+    </div>`).join('');
+
+  const spells = SPELLS.map((s) => {
+    const slot = training.spells.indexOf(s.id);
+    const on = slot >= 0;
+    const lv = training.levels[s.id] || 1;
+    const c = spellColor(s);
+    return `
+      <div class="chip ${on ? 'on' : ''}" data-act="t-spell" data-id="${s.id}" style="--c:${c}">
+        ${on ? `<span class="slot">${slot + 1}</span>` : ''}
+        <span class="sg" style="color:${c}">${s.glyph}</span>
+        <span class="sn">${s.name}</span>
+        <span class="sm">${s.element} &middot; ${s.cd}s</span>
+        ${on ? `<button class="lv" data-act="t-level" data-id="${s.id}">Lv ${'I'.repeat(lv)}</button>` : ''}
+      </div>`;
+  }).join('');
+
+  const foes = TRAINING_FOES.map((t) => `
+    <button class="tgl" data-act="t-spawn" data-type="${t}">${t}</button>`).join('');
+
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">practice &middot; nothing is banked</div>
+      <h2>Training Ground</h2>
+      <p class="sub">Swap weapons and spells as often as you like, call in anything
+      you want to fight, and watch what your build actually does to a dummy.</p>
+
+      <div class="tgsec">Weapon</div>
+      <div class="cards">${weapons}</div>
+
+      <div class="tgsec">Spells &mdash; ${training.spells.length}/${SPELL_SLOTS} equipped (tap Lv to rank up)</div>
+      <div class="chips">${spells}</div>
+
+      <div class="tgsec">Room</div>
+      <div class="chips">
+        <button class="tgl ${training.invincible ? 'on' : ''}" data-act="t-toggle" data-opt="invincible">Invincible</button>
+        <button class="tgl ${training.freeCasts ? 'on' : ''}" data-act="t-toggle" data-opt="freeCasts">No cooldowns</button>
+        <button class="tgl" data-act="t-spawn" data-type="dummy">+ dummy</button>
+        <button class="tgl" data-act="t-clear">Clear room</button>
+      </div>
+
+      <div class="tgsec">Call in a foe</div>
+      <div class="chips">${foes}</div>
+
+      <div class="row">
+        <button class="btn" data-act="${live ? 't-resume' : 't-start'}">${live ? 'Resume' : 'Enter the ring'}</button>
+        <button class="btn ghost" data-act="t-leave">Leave</button>
+      </div>
+    </div>`);
+}
+
 function showPause() {
+  // In the Training Ground the pause screen is the loadout panel.
+  if (world.training) { showTraining(); return; }
+
   state = 'paused';
   showOverlay(`
     <div class="panel">
@@ -978,6 +1163,37 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'version': location.href = el.dataset.href; break;
     case 'version-here': break;
     case 'trials': showTrials(); break;
+    case 'training': showTraining(); break;
+    case 't-start': startTraining(); break;
+    case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
+    case 't-leave': world.training = false; clearEntities(); showTitle(); break;
+    case 't-weapon': trainingSetWeapon(idx); showTraining(); break;
+    case 't-spell': trainingToggleSpell(el.dataset.id); showTraining(); break;
+    case 't-level': {
+      const id = el.dataset.id;
+      training.levels[id] = ((training.levels[id] || 1) % SPELL_MAX_LEVEL) + 1;
+      if (world.training) trainingLoadout();
+      showTraining();
+      break;
+    }
+    case 't-toggle': {
+      const opt = el.dataset.opt;
+      training[opt] = !training[opt];
+      if (world.training && world.player) world.player.invincible = training.invincible;
+      showTraining();
+      break;
+    }
+    case 't-spawn': {
+      if (!world.training) startTraining();
+      const b = arenaBounds();
+      spawnEnemyDebug(el.dataset.type, b.l + (b.r - b.l) * (0.3 + Math.random() * 0.4),
+        b.t + (b.b - b.t) * (0.25 + Math.random() * 0.3));
+      state = 'playing';
+      hideOverlay();
+      resetInput();
+      break;
+    }
+    case 't-clear': trainingClear(); showTraining(); break;
     case 'trial-pick': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       pendingTrial = el.dataset.boss;

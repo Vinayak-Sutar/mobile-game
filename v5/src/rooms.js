@@ -72,15 +72,16 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     depth,
     eff,
     loop,
-    type: isBoss ? 'boss' : isElite ? 'elite' : 'combat',
+    type: opts.training ? 'training' : isBoss ? 'boss' : isElite ? 'elite' : 'combat',
+    training: !!opts.training,
     bossType,
     // Guardian slot 0 … GUARDIAN_COUNT - 1: drives their scaling.
     bossSlot: isBoss ? (opts.slot ?? Math.min(GUARDIAN_COUNT - 1, guardianIndex(depth))) : 0,
     bossTier: opts.tier,
     // The last guardian of the run: its door is the way out.
     final: isBoss && !world.trial && depth >= FINAL_DEPTH,
-    obstacles: isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
-    waves: isBoss ? [] : makeWaves(eff, loop, isElite),
+    obstacles: opts.training ? [] : isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
+    waves: (isBoss || opts.training) ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,
     waveDelay: 0.6,
     cleared: false,
@@ -243,6 +244,10 @@ export function updateRoom(dt) {
     }
     return;
   }
+
+  // The Training Ground never clears and never opens a door: it is a room to
+  // stand in, not one to get through.
+  if (room.training) return;
 
   const alive = world.enemies.filter((e) => !e.dead).length;
 

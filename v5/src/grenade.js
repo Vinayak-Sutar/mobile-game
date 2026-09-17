@@ -92,6 +92,8 @@ export function updateGrenade(p, dt) {
     if (p.grenadeTimer <= 0) {
       p.grenadeStock++;
       p.grenadeTimer = GRENADE.recharge;
+      p.grenadePop = 0.42;
+      sfx.ui();
       sfx.ui();
     }
   }
@@ -106,6 +108,10 @@ export function updateGrenade(p, dt) {
     sfx.ui();
   }
 
+  if (input.grenadePressed && p.grenadeStock <= 0) {
+    p.grenadeDenied = 0.45;
+    sfx.click();
+  }
   if (input.grenadePressed && p.grenadeStock > 0) {
     p.grenadeHeld = 0;
     p.grenadeAiming = false;

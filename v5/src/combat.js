@@ -83,6 +83,8 @@ export function dealDamage(e, amount, opts = {}) {
   if (e.hpFloor !== undefined && e.hp < e.hpFloor) e.hp = e.hpFloor;
   e.flash = Math.max(e.flash || 0, crit ? 0.18 : 0.11);
   e.hitAt = world.runTime;
+  // Anything that wants to know it was hurt (the training dummy's meter).
+  if (e.onHurt) e.onHurt(e, dmg);
 
   // Knockback, scaled by the enemy's mass and any wind boon.
   const kb = (opts.knockback ?? 0) * (st ? st.knockbackMult : 1);
@@ -273,6 +275,7 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown') {
   const p = world.player;
   if (!p || p.hp <= 0) return false;
   if (p.invuln > 0 || p.dashing) return false;
+  if (p.invincible) return false;                    // Training Ground toggle
   if (aegisHook && aegisHook(p)) return false;       // the shield took it
 
   const st = p.stats;

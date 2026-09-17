@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.5. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.7. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3088,7 +3088,54 @@ owner tests.
 - Does a Vetala raising a brute feel like a threat you can answer, or a chore?
 - Do waves feel more varied, or just busier?
 
-### 16.5 Folk enemies not built yet
+### 16.5 Step 3 — the Training Ground (built; owner testing)
+
+A practice room reached from the title screen, so a weapon or a spell can be
+learned without spending a run on it. `v5/src/training.js` holds the dummy and
+the meter; the loadout panel lives with the other menus in `game.js`.
+
+- **The room:** `generateRoom(1, 0, { training: true })`. A training room has
+  no obstacles, no waves, never clears and never opens a door
+  (`updateRoom` returns early on `room.training`). `world.training` marks the
+  mode and is cleared by `resetWorld`.
+- **The dummy** (`ENEMY_DEFS.dummy`): 5000 HP, `hpFloor` 1 so it can never die,
+  stationary, harmless. It leans when struck and its bar refills 1.4 s after
+  the last hit, so the bar reads as "how much did that burst take off".
+- **The meter** (top right): DPS over a rolling 5 s, best single hit and total.
+  Fed by a new `onHurt(e, dmg)` hook called from `dealDamage`, which any enemy
+  can now use.
+- **The loadout panel** (pause, or the title button):
+  - Weapon cards swap the weapon **live**. The player is rebuilt by
+    `createPlayer` at the same position, so no weapon state survives a swap.
+  - Every spell is a chip: tap to equip or unequip (4 slots, the slot number is
+    shown), tap **Lv** to cycle rank I - III.
+  - Toggles: **Invincible** (`p.invincible`, checked in `damagePlayer`) and
+    **No cooldowns** (zeroes spell, special, dash and grenade cooldowns every
+    frame, for drilling a rotation).
+  - Buttons to add a dummy, clear the room, or call in any regular enemy
+    including the three folk ones.
+  - Dying in training just stands you back up; nothing is banked.
+
+### 16.6 Step 3b — readable dash and grenade charges
+
+Research (see the sources in the 2026-09-17 answer): a radial sweep or a
+filling pip is read faster than a number; every input deserves a response
+within ~100 ms, including a **refused** one; and charges read best as discrete
+pips plus one continuous fill for the next charge.
+
+- **HUD** (`drawCharges` in `ui.js`): dash and grenade now use the same
+  vocabulary — a label, then one pip per charge in a dark socket. Full pips are
+  solid, the next one fills left to right with a bright leading edge.
+- **Landed charge:** the pip pops (scales up with a white ring) for 0.42 s, on
+  top of the existing refill sound; the grenade now gets that sound too.
+- **Refused press:** pressing dash or grenade with nothing left sets
+  `dashDenied` / `grenadeDenied` for 0.45 s — the group shakes, the empty pips
+  flash red, and a soft click plays. Previously nothing happened at all.
+- **Touch buttons:** a **segmented ring** around the button, one arc per
+  charge, with the next arc filling in white; the ring flashes outward when a
+  charge lands and turns red and shakes when a press is refused.
+
+### 16.7 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

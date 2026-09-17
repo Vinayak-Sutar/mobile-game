@@ -82,42 +82,25 @@ export function drawHud(ctx, time) {
   const livesBeside = view.w >= 1000;
   if (livesBeside) drawLives(ctx, p, x + w + 16, y + h / 2, time);
 
-  // --- dash charges -------------------------------------------------------
+  // --- dash and grenade charges -------------------------------------------
+  // Both are read the same way on purpose: one pip per charge, the next one
+  // filling as it recharges. A landed charge pops, a refused press shakes.
+  const py = y + h + 12;
   let px = x;
-  const py = y + h + 13;
-  for (let i = 0; i < p.stats.dashCharges; i++) {
-    const filled = i < p.dashStock;
-    ctx.fillStyle = filled ? p.weapon.color : 'rgba(255,255,255,0.16)';
-    roundRect(ctx, px, py, 24, 6, 3);
-    ctx.fill();
-    if (!filled && i === p.dashStock) {
-      const k = 1 - clamp(p.dashTimer / 0.75, 0, 1);
-      ctx.fillStyle = 'rgba(255,255,255,0.45)';
-      roundRect(ctx, px, py, 24 * k, 6, 3);
-      ctx.fill();
-    }
-    px += 28;
-  }
-
-  // --- grenade charges ----------------------------------------------------
-  px += 10;
-  for (let i = 0; i < GRENADE.maxCharges; i++) {
-    const filled = i < p.grenadeStock;
-    ctx.fillStyle = filled ? '#ffd45e' : 'rgba(255,255,255,0.16)';
-    ctx.beginPath();
-    ctx.arc(px + 5, py + 3, 5, 0, TAU);
-    ctx.fill();
-    if (!filled && i === p.grenadeStock) {
-      const k = 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1);
-      ctx.strokeStyle = 'rgba(255,212,94,0.7)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(px + 5, py + 3, 5, -Math.PI / 2, -Math.PI / 2 + k * TAU);
-      ctx.stroke();
-    }
-    px += 14;
-  }
-  if (!livesBeside) drawLives(ctx, p, px + 12, py + 3, time, 0.72);
+  px = drawCharges(ctx, {
+    x: px, y: py, label: 'DASH', color: p.weapon.color, pipW: 26,
+    max: p.stats.dashCharges, have: p.dashStock,
+    frac: 1 - clamp(p.dashTimer / 0.75, 0, 1),
+    pop: p.dashPop || 0, deny: p.dashDenied || 0,
+  });
+  px += 16;
+  px = drawCharges(ctx, {
+    x: px, y: py, label: 'BOMB', color: '#ffd45e', pipW: 22,
+    max: GRENADE.maxCharges, have: p.grenadeStock,
+    frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
+    pop: p.grenadePop || 0, deny: p.grenadeDenied || 0,
+  });
+  if (!livesBeside) drawLives(ctx, p, px + 14, py + 5, time, 0.72);
 
   // --- boons --------------------------------------------------------------
   let bx = x;
@@ -263,6 +246,72 @@ export function drawHud(ctx, time) {
 }
 
 /** Labels under each slot for keyboard and controller (hold R1 + a face button). */
+/**
+ * One group of charges: a label, then a pip per charge.
+ *
+ * Discrete pips answer "how many can I use", the filling pip answers "how long
+ * until the next one", and the pop and shake answer "did that register" -
+ * which is the part players notice without being able to name it.
+ */
+function drawCharges(ctx, o) {
+  const h = 10;
+  const shake = o.deny > 0 ? Math.sin(o.deny * 70) * 3 * (o.deny / 0.45) : 0;
+  let px = o.x + shake;
+
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = o.deny > 0 ? 'rgba(255,94,110,0.95)' : 'rgba(255,255,255,0.42)';
+  ctx.font = `800 9px ${FONT}`;
+  ctx.fillText(o.label, px, o.y + h / 2);
+  px += 32;
+
+  for (let i = 0; i < o.max; i++) {
+    const filled = i < o.have;
+    const charging = !filled && i === o.have;
+    const fresh = filled && i === o.have - 1 ? o.pop : 0;
+    const grow = fresh > 0 ? (fresh / 0.42) * 2.5 : 0;
+
+    // Socket.
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    roundRect(ctx, px - 1, o.y - 1, o.pipW + 2, h + 2, 4);
+    ctx.fill();
+
+    if (filled) {
+      ctx.fillStyle = o.color;
+      roundRect(ctx, px - grow, o.y - grow * 0.4, o.pipW + grow * 2, h + grow * 0.8, 4);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.28)';
+      roundRect(ctx, px, o.y, o.pipW, h * 0.42, 4);
+      ctx.fill();
+      if (fresh > 0) {
+        ctx.strokeStyle = `rgba(255,255,255,${(fresh / 0.42) * 0.8})`;
+        ctx.lineWidth = 2;
+        roundRect(ctx, px - grow - 2, o.y - grow * 0.4 - 2, o.pipW + grow * 2 + 4, h + grow * 0.8 + 4, 5);
+        ctx.stroke();
+      }
+    } else {
+      // Empty socket, flashing red on a refused press.
+      ctx.fillStyle = o.deny > 0 ? 'rgba(255,94,110,0.45)' : 'rgba(255,255,255,0.12)';
+      roundRect(ctx, px, o.y, o.pipW, h, 4);
+      ctx.fill();
+      if (charging) {
+        ctx.save();
+        ctx.beginPath();
+        roundRect(ctx, px, o.y, o.pipW, h, 4);
+        ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,0.34)';
+        ctx.fillRect(px, o.y, o.pipW * o.frac, h);
+        // Bright leading edge, so the fill reads as movement.
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillRect(px + o.pipW * o.frac - 2, o.y, 2, h);
+        ctx.restore();
+      }
+    }
+    px += o.pipW + 4;
+  }
+  return px - shake;
+}
+
 const PAD_FACE = ['✕', '○', '□', '△'];
 
 /**
@@ -456,14 +505,18 @@ export function drawControls(ctx, time) {
   }
 
   button(ctx, controls.attack, p ? p.weapon.color : '#fff', 1, p ? p.weapon.glyph : '');
-  button(ctx, controls.dash, '#9fb8ff',
-    p ? clamp(p.dashStock / Math.max(1, p.stats.dashCharges), 0, 1) : 1, '»',
-    p ? `${p.dashStock}` : '');
+  button(ctx, controls.dash, '#9fb8ff', p ? (p.dashStock > 0 ? 1 : 0) : 1, '»', '', p ? {
+    max: p.stats.dashCharges, have: p.dashStock,
+    frac: 1 - clamp(p.dashTimer / 0.75, 0, 1),
+    pop: p.dashPop || 0, deny: p.dashDenied || 0,
+  } : null);
   button(ctx, controls.special, '#ffd45e',
     p ? (p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1) : 1, '★');
-  button(ctx, controls.grenade, '#ff9a4d',
-    p ? (p.grenadeStock > 0 ? 1 : 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1)) : 1,
-    '◉', p ? `${p.grenadeStock}` : '');
+  button(ctx, controls.grenade, '#ff9a4d', p ? (p.grenadeStock > 0 ? 1 : 0) : 1, '◉', '', p ? {
+    max: GRENADE.maxCharges, have: p.grenadeStock,
+    frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
+    pop: p.grenadePop || 0, deny: p.grenadeDenied || 0,
+  } : null);
 
   // Aiming a grenade: a ✕ to drag onto and let go, to call the throw off.
   if (p && p.grenadeAiming) {
@@ -489,8 +542,13 @@ export function drawControls(ctx, time) {
   }
 }
 
-function button(ctx, btn, color, fill, glyph, badge = '') {
+function button(ctx, btn, color, fill, glyph, badge = '', charges = null) {
   const ready = fill >= 1;
+  // A refused press nudges the button; a landed charge rings it.
+  if (charges && charges.deny > 0) {
+    ctx.save();
+    ctx.translate(Math.sin(charges.deny * 70) * 3 * (charges.deny / 0.45), 0);
+  }
   ctx.globalAlpha = btn.pressed ? 0.34 : 0.18;
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -528,7 +586,44 @@ function button(ctx, btn, color, fill, glyph, badge = '') {
     ctx.font = `900 12px ${FONT}`;
     ctx.fillText(badge, btn.x + btn.r * 0.72, btn.y - btn.r * 0.62);
   }
+
+  // Charges as a segmented ring: one arc per charge, the next one filling.
+  if (charges) {
+    const gap = 0.16;
+    const span = TAU / charges.max;
+    const rr = btn.r + 7;
+    for (let i = 0; i < charges.max; i++) {
+      const a0 = -Math.PI / 2 + i * span + gap / 2;
+      const a1 = a0 + span - gap;
+      const filled = i < charges.have;
+      const charging = !filled && i === charges.have;
+      ctx.globalAlpha = filled ? 0.95 : 0.22;
+      ctx.strokeStyle = charges.deny > 0 && !filled ? '#ff5e6e' : color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(btn.x, btn.y, rr, a0, a1);
+      ctx.stroke();
+      if (charging) {
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.arc(btn.x, btn.y, rr, a0, a0 + (a1 - a0) * charges.frac);
+        ctx.stroke();
+      }
+    }
+    if (charges.pop > 0) {
+      const k = charges.pop / 0.42;
+      ctx.globalAlpha = k * 0.8;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(btn.x, btn.y, rr + (1 - k) * 12, 0, TAU);
+      ctx.stroke();
+    }
+  }
+
   ctx.globalAlpha = 1;
+  if (charges && charges.deny > 0) ctx.restore();
 }
 
 // --- DOM overlay -----------------------------------------------------------

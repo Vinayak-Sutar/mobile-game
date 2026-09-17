@@ -10,6 +10,7 @@ export const world = {
   pickups: [],
   hazards: [],      // telegraphed ground attacks (hazards.js)
   corpses: [],      // bodies left by kills, for the Vetala (enemies-folk.js)
+  training: false,  // the Training Ground, not a run
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
@@ -56,6 +57,7 @@ export function resetWorld() {
   world.bossOrder = [];
   world.beaten = [];
   world.trial = null;
+  world.training = false;
   world.gold = 0;
   world.kills = 0;
   world.runTime = 0;

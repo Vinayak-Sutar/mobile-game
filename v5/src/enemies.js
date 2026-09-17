@@ -14,6 +14,7 @@ import {
 } from './ai.js';
 import { BOSS_DEFS, bindBossSpawner, clearHostiles, clearBullets, drawBossExtras } from './bosses.js';
 import { FOLK_DEFS, bindFolkSpawner, updateCorpses } from './enemies-folk.js';
+import { TRAINING_DEFS } from './training.js';
 
 const SPAWN_TIME = 0.75;
 
@@ -611,7 +612,7 @@ export const ENEMY_DEFS = {
 
 // The four creature bosses and their minions live in bosses.js, and the
 // folk enemies (Chinthe, Adze, Vetala) in enemies-folk.js.
-Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS);
+Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, TRAINING_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -834,7 +835,7 @@ export function drawEnemies(ctx) {
     }
 
     // Health bar for anything meaningfully tanky.
-    if (!e.boss && e.hp < e.maxHp && e.maxHp > 45) {
+    if (!e.boss && !e.def.noBar && e.hp < e.maxHp && e.maxHp > 45) {
       const w = e.r * 2.2, h = 4;
       const x = e.x - w / 2, y = e.y - e.r - 12;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';

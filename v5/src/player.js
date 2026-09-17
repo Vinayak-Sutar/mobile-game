@@ -124,12 +124,19 @@ export function updatePlayer(p, dt) {
   p.blockTime = Math.max(0, p.blockTime - dt);
   if (p.comboTimer <= 0 && !p.attack) p.comboIndex = 0;
 
+  // Charge feedback: a pip pops when one lands, and a refused press says so.
+  p.dashPop = Math.max(0, (p.dashPop || 0) - dt);
+  p.dashDenied = Math.max(0, (p.dashDenied || 0) - dt);
+  p.grenadePop = Math.max(0, (p.grenadePop || 0) - dt);
+  p.grenadeDenied = Math.max(0, (p.grenadeDenied || 0) - dt);
+
   // Dash charges refill one at a time.
   if (p.dashStock < p.stats.dashCharges) {
     p.dashTimer -= dt;
     if (p.dashTimer <= 0) {
       p.dashStock++;
       p.dashTimer = 0.75;
+      p.dashPop = 0.42;
       sfx.ui();
     }
   }
@@ -138,6 +145,11 @@ export function updatePlayer(p, dt) {
 
   // --- dash ---------------------------------------------------------------
   if (input.dashPressed && !p.dashing && p.dashStock > 0) startDash(p);
+  else if (input.dashPressed && !p.dashing) {
+    // Out of charges: say no out loud rather than doing nothing.
+    p.dashDenied = 0.45;
+    sfx.click();
+  }
 
   if (p.dashing) {
     p.dashT -= dt;
