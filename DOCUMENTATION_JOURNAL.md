@@ -4,10 +4,11 @@
 > understand the entire project without the conversation history that produced
 > it. Written to be read top to bottom once, then used as a reference.
 >
-> **Last updated:** 2026-09-15, after commit `8f7a1d2` (Kwaku Anansi, the
-> spider boss). **New session? Read §0, then §15 (the Version 4 handover),
-> then the §14 entries for whatever you're touching.** If code and this
-> document disagree, **the code wins** — then fix this document.
+> **Last updated:** 2026-09-17 (Version 5 started: `v5/` is a copy of `v4/`,
+> §16). **New session? Read §0, then §15 (the Version 4 handover) and §16
+> (Version 5, the current line of work), then the §14 entries for whatever
+> you're touching.** If code and this document disagree, **the code wins**
+> — then fix this document.
 
 ---
 
@@ -2978,6 +2979,51 @@ detailed §14 entry where one exists.
     Witch.
 - **After bosses:** regular enemy variety for V4, and traps and special
   rooms for V4.
+
+---
+
+## 16. Version 5 (`v5/`) — enemy variety and mini-bosses (started 2026-09-17)
+
+The owner has not settled the direction of the game yet (roguelike vs
+souls-like, phone vs PC: see the research answer of 2026-09-16, summarised in
+§15.7). Rather than restructure the run, Version 5 starts as an exact copy of
+Version 4 and grows the part that is thin in every version so far: the
+**non-boss enemies between guardian chambers**, plus **mini-bosses** drawn from
+world mythology.
+
+### 16.1 Step 1 — the V5 copy (built; owner testing)
+
+`v5/` is `v4/` copied file for file, with only the per-version identifiers
+changed, so V4 keeps working untouched:
+
+- `v5/sw.js`: cache prefix `ashfall-v5-` (each worker only deletes its own
+  prefix, so no version can wipe another's offline copy).
+- `v5/manifest.json`: "Ashfall — Version 5", short name "Ashfall v5".
+- `v5/src/save.js`: key `ashfall.v5.save`, seeded once from `ashfall.v4.save`
+  so meta progress carries over, then independent.
+- The version switcher in `v1`–`v5` `src/game.js` gained a fifth button.
+  V1 is still frozen apart from that one line.
+- The site root still redirects to `./v4/`. V5 is reached from the switcher or
+  at `/v5/` until the owner says to promote it.
+
+Static checks only (`node --check`, an esbuild bundle of `v5/src/game.js`,
+eslint `no-undef`); the owner tests on the phone.
+
+### 16.2 Planned: the enemy roster
+
+Design targets and the mythology shortlist live in the step 2 proposal
+(offered to the owner on 2026-09-17). Principles carried in from research:
+
+- Every enemy has **one job** (a role: rusher, artillery, zoner, shield,
+  swarm, support, ambusher) and **one tell**, readable from silhouette,
+  colour and wind-up. Variety is about forcing different player behaviour,
+  not about more hit points.
+- Enemies are designed to **combine**: a zoner plus a rusher is a different
+  problem from either alone. Spawn rules should mix roles, not stack one.
+- **Mini-bosses** sit between fodder and guardians: a single named threat with
+  2–3 moves, one gimmick and an honest punish window, dropping a reward.
+- Fairness rules from §2 still hold: telegraph before damage, no off-screen
+  hits, no unavoidable damage.
 
 ---
 
