@@ -3009,10 +3009,7 @@ changed, so V4 keeps working untouched:
 Static checks only (`node --check`, an esbuild bundle of `v5/src/game.js`,
 eslint `no-undef`); the owner tests on the phone.
 
-### 16.2 Planned: the enemy roster
-
-Design targets and the mythology shortlist live in the step 2 proposal
-(offered to the owner on 2026-09-17). Principles carried in from research:
+### 16.2 Enemy design principles (research, 2026-09-17)
 
 - Every enemy has **one job** (a role: rusher, artillery, zoner, shield,
   swarm, support, ambusher) and **one tell**, readable from silhouette,
@@ -3024,6 +3021,80 @@ Design targets and the mythology shortlist live in the step 2 proposal
   2–3 moves, one gimmick and an honest punish window, dropping a reward.
 - Fairness rules from §2 still hold: telegraph before damage, no off-screen
   hits, no unavoidable damage.
+
+The mythology shortlist (ten regular enemies, six mini-bosses) is in the
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.5. Sacred or
+taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
+the list.
+
+### 16.3 Step 2 — the first three folk enemies (built; owner testing)
+
+`v5/src/enemies-folk.js` holds all three plus the corpse system. They are
+merged into `ENEMY_DEFS` next to the bosses
+(`Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS)`) and the factory reaches
+them through `bindFolkSpawner(spawnEnemy)`, the same trick bosses use to avoid
+importing `enemies.js` back.
+
+- **Chinthe** (Myanmar temple lion) — role **shield**, r 24, hp 135, cost 5,
+  `minDepth` 2.5, damage 14, at most 2 a wave.
+  - `guardFn` (the hook Aldric's guard uses) cuts damage to **x0.12** for hits
+    landing inside a 1.15 rad arc of its face, with a GUARDED pop and
+    `sfx.block()`. Hits from the side or behind land in full, and anything
+    with no direction (fire, blasts, chained hits) goes through.
+  - Turns at only 2.0 rad/s, so **circling it is the counter**; it walks at
+    full speed only while roughly facing you.
+  - Shield bash: 0.55 s wind-up with a telegraph ring, a 0.34 s lunge, then
+    **1.15 s `open`** where the guard is down and it is `exposed` (x1.35).
+- **Adze** (Ewe, Ghana and Togo) — role **swarm**, r 13, hp 38, cost 3,
+  `minDepth` 2, damage 7, at most 4 a wave.
+  - Flies as fireflies: `invuln` and `noTarget` (so auto-aim ignores it), fast
+    and wobbling, and **deals no damage in that form**.
+  - It must land to feed, so it gathers within 95 units or after 4.2 s
+    regardless. Gathering is a 0.45 s tell during which it is **already
+    solid and killable**; then 2 s of feeding, healing 12% of its health per
+    bite.
+  - A stun (Chain Lightning, Gale) always drops it out of the swarm.
+- **Vetala** (India) — role **support**, r 18, hp 78, cost 5, `minDepth` 3,
+  damage 9, **one a wave**.
+  - Holds 250–380 units away, strafes, and **blinks** 250–320 units away when
+    you close inside 130 (4 s cooldown).
+  - Rides a corpse: flies to it, then a **1.3 s rite** standing still, tethered
+    by a dashed line, `exposed` the whole time. Completing it raises that enemy
+    at **55% health, 85% damage**, tinted pale and flagged `risen`.
+  - **Any damage during the rite interrupts it** (INTERRUPTED, 0.9 s stagger,
+    the body stays). That is the punish window.
+  - With no body to ride it throws a slow homing hex bolt instead.
+- **Corpses** (`world.corpses`, reset with the world): `killEnemy` in
+  `combat.js` leaves one for anything that is not a boss, a boss part, a
+  summon, a split-off spawn or already risen. Life 14 s, at most 8, drawn
+  under everything by `drawCorpses` from `game.js`. A Vetala claims one so two
+  never fight over the same body, and it will not raise its own kind.
+
+**Wave composition** (`rooms.js`): every type now carries a `role`
+(`rusher`, `shooter`, `heavy`, `bomber`, `swarm`, `shield`, `support`) and an
+optional `maxPerWave`. `makeWaves` caps how many of a role one wave may hold
+(`ROLE_CAP`: rusher 4, shooter 3, swarm 4, bomber 3, heavy 2, shield 2,
+support 1) and never opens a wave with a shield or a support, so those arrive
+as a twist on top of a fight rather than as the fight.
+
+Static checks only (`node --check`, esbuild bundle, eslint `no-undef`); the
+owner tests.
+
+### 16.4 To watch when testing the folk enemies
+
+- Is the Chinthe's guard readable — is it obvious the front is blocked and
+  that going around works, rather than feeling like a damage sponge?
+- Does the Adze's swarm form frustrate (unkillable) or intrigue (wait for it)?
+- Does a Vetala raising a brute feel like a threat you can answer, or a chore?
+- Do waves feel more varied, or just busier?
+
+### 16.5 Folk enemies not built yet
+
+Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
+Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by
+itself). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the
+Hundred-Demon Parade, Kikimora of the Rafters, Baba Yaga's Hut, the Clay
+Guardian.
 
 ---
 

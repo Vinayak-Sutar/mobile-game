@@ -13,6 +13,7 @@ import {
   player, stepToward, stepAway, strafe, collideWorld, contactDamage, telegraphRing,
 } from './ai.js';
 import { BOSS_DEFS, bindBossSpawner, clearHostiles, clearBullets, drawBossExtras } from './bosses.js';
+import { FOLK_DEFS, bindFolkSpawner, updateCorpses } from './enemies-folk.js';
 
 const SPAWN_TIME = 0.75;
 
@@ -38,6 +39,7 @@ function separate(e, dt) {
 export const ENEMY_DEFS = {
   wretch: {
     r: 15, hp: 30, speed: 175, mass: 1, cost: 2, minDepth: 1, color: '#ff5e6e',
+    role: 'rusher',
     update(e, dt) {
       const p = player();
       if (!p) return;
@@ -86,6 +88,7 @@ export const ENEMY_DEFS = {
 
   slinger: {
     r: 15, hp: 42, speed: 140, mass: 1.1, cost: 3, minDepth: 2, color: '#5ee0c8',
+    role: 'shooter',
     init(e) { e.sign = Math.random() < 0.5 ? 1 : -1; e.cd = rand(0.6, 1.6); },
     update(e, dt) {
       const p = player();
@@ -150,6 +153,7 @@ export const ENEMY_DEFS = {
 
   brute: {
     r: 27, hp: 140, speed: 88, mass: 3, cost: 6, minDepth: 3, color: '#a97bff',
+    role: 'heavy', maxPerWave: 2,
     update(e, dt) {
       const p = player();
       if (!p) return;
@@ -199,6 +203,7 @@ export const ENEMY_DEFS = {
 
   charger: {
     r: 20, hp: 78, speed: 105, mass: 1.6, cost: 5, minDepth: 3, color: '#ff9a4d',
+    role: 'rusher',
     update(e, dt) {
       const p = player();
       if (!p) return;
@@ -268,6 +273,7 @@ export const ENEMY_DEFS = {
 
   bomber: {
     r: 16, hp: 26, speed: 155, mass: 0.8, cost: 3, minDepth: 2, color: '#ff4d9d',
+    role: 'bomber', maxPerWave: 3,
     init(e) {
       e.onDeath = (self) => {
         if (!self.detonated) explode(self.x, self.y, 100, self.damage, self, '#ff4d9d', true, 'bomber');
@@ -312,6 +318,7 @@ export const ENEMY_DEFS = {
 
   splitter: {
     r: 23, hp: 68, speed: 118, mass: 1.8, cost: 4, minDepth: 3, color: '#7dff9c',
+    role: 'swarm',
     init(e) {
       e.onDeath = (self) => {
         if (self.isSpawn) return;
@@ -361,6 +368,7 @@ export const ENEMY_DEFS = {
 
   spitter: {
     r: 21, hp: 60, speed: 0, mass: 6, cost: 4, minDepth: 4, color: '#ff7ad6',
+    role: 'shooter', maxPerWave: 2,
     init(e) { e.noPush = true; e.cd = rand(0.8, 2.0); e.phase = 0; },
     update(e, dt) {
       e.cd -= dt;
@@ -601,8 +609,9 @@ export const ENEMY_DEFS = {
   },
 };
 
-// The four creature bosses and their minions live in bosses.js.
-Object.assign(ENEMY_DEFS, BOSS_DEFS);
+// The four creature bosses and their minions live in bosses.js, and the
+// folk enemies (Chinthe, Adze, Vetala) in enemies-folk.js.
+Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -680,8 +689,10 @@ export function spawnEnemy(type, x, y, opts = {}) {
   return e;
 }
 
-// Bosses summon minions; hand them the factory rather than importing it back.
+// Bosses summon minions and the Vetala raises the dead; hand both the
+// factory rather than importing it back.
 bindBossSpawner(spawnEnemy);
+bindFolkSpawner(spawnEnemy);
 
 function defaultDamage(type) {
   return {
@@ -690,6 +701,7 @@ function defaultDamage(type) {
 }
 
 export function updateEnemies(dt) {
+  updateCorpses(dt);
   for (let i = world.enemies.length - 1; i >= 0; i--) {
     const e = world.enemies[i];
     if (e.dead) { world.enemies.splice(i, 1); continue; }

@@ -218,6 +218,16 @@ export function killEnemy(e, opts = {}) {
     explode(e.x, e.y, 96, st.explodeOnKill, e, '#ff9a4d');
   }
 
+  // A body for the Vetala to ride (enemies-folk.js). Bosses, boss parts,
+  // summons and the already-risen leave nothing behind.
+  if (!e.boss && !e.risen && !e.isSpawn && !e.summoner && !e.def.boss && !e.def.fixed && !e.def.invisible) {
+    world.corpses.push({
+      type: e.type, x: e.x, y: e.y, r: e.r, face: e.face || 0,
+      scale: e.scale || 1, color: e.color, t: 0, claim: null,
+    });
+    if (world.corpses.length > 8) world.corpses.shift();
+  }
+
   if (e.onDeath) e.onDeath(e);
 }
 

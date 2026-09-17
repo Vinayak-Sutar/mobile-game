@@ -272,6 +272,15 @@ test them.
 > - A sticky web arena, silk lines, rappel drops, egg sacs, and a shed skin.
 > - Phase 2: the Pot of Wisdom and All Stories.
 
+### 18. Folk enemies and mini-bosses — world folklore, non-boss
+> **Version 5** (`v5/src/enemies-folk.js`, journal §16.3): built the Chinthe
+> (shield), the Adze (swarm) and the Vetala (raises your kills).
+> Shortlisted, not built: Kappa, Jengu, Preta, Aleya, Chochin-obake, Duende,
+> Draugr; mini-bosses Tengu, Nuckelavee, the Hundred-Demon Parade, Kikimora,
+> Baba Yaga's Hut, the Clay Guardian.
+> Off the list on purpose: sacred or taboo figures (Wendigo, Australian
+> Aboriginal beings).
+
 ### Mini-bosses (for special chambers)
 - **The Headsman** (a slow executioner; one huge parryable swing).
 - **Twin Hounds** (they share one HP bar; kill both within 5 s or the other revives it).

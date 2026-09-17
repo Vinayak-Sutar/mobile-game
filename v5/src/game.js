@@ -14,6 +14,7 @@ import {
 import { input, initInput, updateInput, endFrameInput, layoutControls, resetInput, controls } from './input.js';
 import { createPlayer, updatePlayer, drawPlayer } from './player.js';
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
+import { drawCorpses } from './enemies-folk.js';
 import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
@@ -426,6 +427,7 @@ function render() {
     drawHazardsBelow(ctx, world.runTime);
     drawSpellZones(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
+    drawCorpses(ctx);
     drawPickups(ctx);
     drawEnemies(ctx);
     if (world.player) drawPlayer(world.player, ctx);

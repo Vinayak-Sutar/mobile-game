@@ -9,6 +9,7 @@ export const world = {
   grenades: [],
   pickups: [],
   hazards: [],      // telegraphed ground attacks (hazards.js)
+  corpses: [],      // bodies left by kills, for the Vetala (enemies-folk.js)
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
@@ -48,6 +49,7 @@ export function resetWorld() {
   world.grenades.length = 0;
   world.pickups.length = 0;
   world.hazards.length = 0;
+  world.corpses.length = 0;
   world.room = null;
   world.depth = 1;
   world.loop = 0;
@@ -69,4 +71,5 @@ export function clearEntities() {
   world.grenades.length = 0;
   world.pickups.length = 0;
   world.hazards.length = 0;
+  world.corpses.length = 0;
 }

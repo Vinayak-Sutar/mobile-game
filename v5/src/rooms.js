@@ -48,7 +48,13 @@ export const ELITE_DEPTHS = [eliteAt(3.5), eliteAt(6.5)];
  */
 export function effDepth(depth) { return 1 + (depth - 1) * (EFF_MAX - 1) / Math.max(1, FINAL_DEPTH - 1); }
 
-const SPAWNABLE = ['wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter'];
+const SPAWNABLE = [
+  'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
+  'adze', 'chinthe', 'vetala',
+];
+
+/** How many of a role a single wave may hold. */
+const ROLE_CAP = { rusher: 4, shooter: 3, swarm: 4, bomber: 3, heavy: 2, shield: 2, support: 1 };
 
 /** Which boss guards a boss chamber this run. */
 export function bossForDepth(depth) {
@@ -146,9 +152,20 @@ function makeWaves(depth, loop, isElite) {
     let guard = 0;
     while (budget > 1 && guard++ < 40) {
       const type = pick(pool);
-      const cost = ENEMY_DEFS[type].cost;
-      if (cost > budget) continue;
-      budget -= cost;
+      const def = ENEMY_DEFS[type];
+      if (def.cost > budget) continue;
+      // Roles are mixed on purpose: a shooter plus a rusher asks a different
+      // question than two of either, and one shield or spirit is a twist while
+      // three is a slog. Caps are per role and per type.
+      const role = def.role || 'rusher';
+      const inWave = (t) => (wave.find((s) => s.type === t) || { count: 0 }).count;
+      const roleCount = wave.reduce(
+        (n, s) => n + ((ENEMY_DEFS[s.type].role || 'rusher') === role ? s.count : 0), 0);
+      if (roleCount >= (ROLE_CAP[role] ?? 4)) continue;
+      if (inWave(type) >= (def.maxPerWave ?? 99)) continue;
+      // The support spirits only make sense with someone to raise.
+      if ((role === 'support' || role === 'shield') && wave.length === 0) continue;
+      budget -= def.cost;
       const found = wave.find((s) => s.type === type);
       if (found) found.count++;
       else wave.push({ type, count: 1 });
