@@ -3722,7 +3722,71 @@ It uses the Training Ground's weapon and spells. Nothing is banked.
 - Hand-painted ground textures.
 - Region music.
 
-### 16.20 Folk enemies not built yet
+### 16.20 Step 17 — The Wilds get ground: painted terrain and a live grass field
+
+Water bodies and swimming are the next step, not this one.
+
+**`terrain.js`** paints the ground.
+- A 20-unit grid holds a terrain type per cell: grass, tall grass, moss,
+  dirt, rock, gravel, snow, sand or paving.
+  - `classify()` in `overworld.js` decides the type, using noise-warped zone
+    borders.
+  - The quarry is rock, gravel and sand; the woods are moss; the ruins are
+    paving.
+  - Ridge ground below y ≈ 640 is snow.
+  - Shores (within 75 of water) are sand.
+  - Tall-grass fields sit in the meadow and around the lake.
+- Each pixel is painted like the Vault floor. Layers:
+  - patch noise, per-pixel grain and speckle;
+  - relief light from the upper left, strong on rock and snow (snow hollows
+    turn blue);
+  - rock cracks, flagstones with lost stones, and sand ripples;
+  - roads worn in with ruts (trampled grey on snow);
+  - soft contact shadows from obstacles marked `shadow`.
+- Baking is done in 256-unit chunks (1 px overlap, so no seams). At most 64
+  are kept, and the least recently used are dropped.
+  - Speed-up: border push, patches, relief and cracks are computed on a
+    6-unit lattice and interpolated.
+  - Chunks in view are painted at once; that only happens after a jump.
+  - The ring beyond the view is painted about 3 ms per frame.
+  - Measured on the PC: about 8 ms per chunk once warmed up.
+  - The cache is cleared on `gfx.epoch`, like the arena caches.
+
+**`grass.js`** runs the live grass field.
+- Tufts are sown on jittered grids: tall grass every 17 units, short grass
+  every 34. On touch screens (`pointer: coarse`) it's every 21 and 44.
+- Tufts are sorted into 128-unit buckets, stored in typed arrays.
+- Each tuft is a damped spring (K 46, damping 7):
+  - Wind gusts are travelling sine waves. A tuft under a gust leans further
+    and uses a lighter shade, so bands of light roll over a field.
+  - The player and enemies press blades flat, and they spring back.
+    Walking through tall grass throws off bits of blade.
+  - Friendly hitboxes cut tall grass (arc, rect or circle tests) down to
+    stubble. It regrows 8–30 s later.
+  - Each cut tuft has a 2.5% chance to drop gold and 1% to drop a heal.
+- Drawing:
+  - Blades are drawn as quadratic curves, batched into 8 `Path2D`s (4 shades
+    × tall/short).
+  - `drawFront` draws tall blades in front of a character over them, so
+    they stand waist-deep.
+
+**`overworld.js`** adds the rest:
+- Boulders are irregular polygons with lit faces. Up on the snow they get
+  snow caps. Five boulders stand on the snowfield.
+- Trees on snow or the high ridge are three-tier pines with snowy shoulders.
+- Wildflowers grow in clusters and nod in the wind. The old decals and road
+  strokes are gone.
+- Footstep puffs depend on the ground (snow, sand, gravel, rock, dirt), and
+  dashing sprays.
+- The snow takes soft prints (a gradient sprite) that fill back in over 12 s.
+- Weather:
+  - Snowfall when the camera is over snow.
+  - Leaves in the woods and meadow; dust in the quarry.
+- A colour grade per terrain eases in: cold on snow, green-dim in moss, warm
+  over the quarry.
+- The minimap is coloured by terrain.
+
+### 16.21 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

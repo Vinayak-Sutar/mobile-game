@@ -28,11 +28,13 @@
 // here unchanged. The world is one big "room" whose bounds are the whole
 // region, seen through a camera that follows you.
 
-import { world, arena, camera, view } from './state.js';
+import { world, arena, camera, view, gfx } from './state.js';
 import { TAU, clamp, rand, dist, roundRect } from './util.js';
 import { burst, ring, damageText, shake } from './fx.js';
 import { sfx } from './audio.js';
 import { spawnPickup } from './spawn.js';
+import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise } from './terrain.js';
+import { createGrass, grassMovers } from './grass.js';
 
 export const OW = { W: 3600, H: 2400 };
 const FOG = 100;                         // fog-of-war cell size
@@ -98,9 +100,13 @@ function build() {
   wall(obstacles, 354, 1150, 26, 126, 'gate', { id: 'vault' });
   for (let k = 0; k < 6; k++) wall(obstacles, 480 + rand(0, 300), 700 + k * 150 + rand(-30, 30), rand(60, 140), 24, 'ruin');
 
-  // Silverback Ridge: a rock rim across the top, broken by the path.
+  // Silverback Ridge: a rock rim across the top, broken by the path, and
+  // boulders standing out of the snowfield.
   wall(obstacles, 600, 120, 560, 30, 'cliff');
   wall(obstacles, 1440, 120, 600, 30, 'cliff');
+  for (const [bx, by] of [[760, 300], [980, 520], [1560, 330], [1760, 520], [1920, 260]]) {
+    wall(obstacles, bx + rand(-30, 30), by + rand(-30, 30), rand(50, 80), rand(40, 64), 'rock');
+  }
 
   // The hidden grove in the far north-east woods, walled by trees, entered
   // only through a bramble thicket.
@@ -109,6 +115,41 @@ function build() {
   wall(obstacles, 3150, 90, 26, 60, 'tree-wall');
   wall(obstacles, 3150, 210, 26, 200, 'tree-wall');
   wall(obstacles, 3150, 400, 450, 26, 'tree-wall');
+
+  // The ground itself (terrain.js): which kind of land lies where.
+  const segDist = (x, y) => {
+    let best = 1e9;
+    for (const r of roads) {
+      for (let i = 1; i < r.length; i++) {
+        const [ax, ay] = r[i - 1], [px, py] = r[i];
+        const t = clamp(((x - ax) * (px - ax) + (y - ay) * (py - ay)) / ((px - ax) ** 2 + (py - ay) ** 2), 0, 1);
+        best = Math.min(best, dist(x, y, ax + (px - ax) * t, ay + (py - ay) * t));
+      }
+    }
+    return best;
+  };
+  const waters = obstacles.filter((o) => o.kind === 'water' || o.kind === 'gap');
+  const classify = (x, y) => {
+    for (const o of waters) {
+      const dx = Math.max(o.x - x, 0, x - o.x - o.w), dy = Math.max(o.y - y, 0, y - o.y - o.h);
+      if (dx * dx + dy * dy < 75 * 75) return TT.SAND;                   // shores
+    }
+    // Zone borders wander, so regions bleed into each other.
+    const z = zoneAt(x + (vnoise(x * 0.004, y * 0.004) - 0.5) * 500, y + (vnoise(x * 0.004 + 9, y * 0.004 + 4) - 0.5) * 500);
+    const m = fbm(x * 0.004, y * 0.004);
+    switch (z.id) {
+      case 'ridge': return y < 640 + (m - 0.5) * 300 ? TT.SNOW : m > 0.56 ? TT.ROCK : TT.GRASS;
+      case 'woods': return m > 0.64 ? TT.GRASS : TT.MOSS;
+      case 'quarry': return m > 0.55 ? TT.ROCK : m < 0.33 ? TT.SAND : TT.GRAVEL;
+      case 'ruins': return x < 780 && y > 880 && y < 1520 ? TT.PAVE : m > 0.52 ? TT.DIRT : TT.GRASS;
+      case 'lake': return m > 0.6 ? TT.TALL : TT.GRASS;
+      default:
+        if (dist(x, y, 1300, 1300) < 170) return TT.GRASS;
+        return fbm(x * 0.0035 + 21, y * 0.0035 + 5) > 0.55 ? TT.TALL : TT.GRASS;
+    }
+  };
+  for (const o of obstacles) if (o.kind === 'rock' || o.kind === 'ruin' || o.kind === 'cliff' || o.kind === 'tree-wall') o.shadow = true;
+  const terrain = createTerrain({ W: OW.W, H: OW.H, classify, roadDist: segDist, obstacles });
 
   // Trees: thick in the woods, a scatter at the meadow's edges.
   let guard = 0;
@@ -120,20 +161,33 @@ function build() {
     if (onRoad(x, y) || near(x, y, trees.map((t) => [t.x, t.y]), 95)) continue;
     if (obstacles.some((o) => x > o.x - 60 && x < o.x + o.w + 60 && y > o.y - 60 && y < o.y + o.h + 60)) continue;
     if (dist(x, y, 1300, 1300) < 220 || dist(x, y, grove.x, grove.y) < 170) continue;
+    const ground = terrain.typeAt(x, y);
+    if (ground === TT.SAND || ground === TT.PAVE) continue;
     const r = rand(34, 54);
     wall(obstacles, x - 12, y - 8, 24, 20, 'trunk');
-    trees.push({ x, y, r, sway: rand(0, TAU), shade: rand(-8, 8), o: obstacles[obstacles.length - 1] });
+    // On the snow and the high ground they are pines.
+    const pine = ground === TT.SNOW || (z.id === 'ridge' && y < 900);
+    trees.push({ x, y, r, sway: rand(0, TAU), shade: rand(-8, 8), pine, o: obstacles[obstacles.length - 1] });
   }
 
-  // Ground decals: patches of ash and moss, grass tufts, flowers, stones.
-  for (let k = 0; k < 520; k++) {
-    const x = rand(0, OW.W), y = rand(0, OW.H);
-    const z = zoneAt(x, y);
-    const roll = Math.random();
-    if (roll < 0.35) decals.push({ t: 'patch', x, y, rx: rand(30, 90), ry: rand(15, 45), rot: rand(0, TAU), c: z.id === 'quarry' ? '120,100,80' : z.id === 'woods' ? '40,80,48' : '110,110,100' });
-    else if (roll < 0.8) decals.push({ t: 'grass', x, y, c: z.id === 'woods' ? '70,120,70' : z.id === 'quarry' ? '140,120,80' : '110,130,90' });
-    else if (roll < 0.9) decals.push({ t: 'flower', x, y, c: ['230,140,60', '220,90,120', '240,230,180'][(Math.random() * 3) | 0] });
-    else decals.push({ t: 'stone', x, y, r: rand(3, 7) });
+  // Wildflowers in the grass, in little clusters.
+  for (let k = 0; k < 90; k++) {
+    const cx = rand(0, OW.W), cy = rand(0, OW.H);
+    const ground = terrain.typeAt(cx, cy);
+    if (ground !== TT.GRASS && ground !== TT.TALL) continue;
+    const c = ['230,140,60', '220,90,120', '240,230,180', '170,150,240'][(Math.random() * 4) | 0];
+    for (let f = 0; f < 5; f++) decals.push({ t: 'flower', x: cx + rand(-26, 26), y: cy + rand(-16, 16), c, ph: rand(0, TAU) });
+  }
+
+  // Rocks get a shape: an irregular outline inside their box.
+  for (const o of obstacles) {
+    if (o.kind !== 'rock') continue;
+    o.poly = [];
+    for (let k = 0; k < 9; k++) {
+      const a = (k / 9) * TAU;
+      o.poly.push([Math.cos(a) * (o.w / 2) * rand(0.86, 1.06), Math.sin(a) * (o.h / 2) * rand(0.86, 1.06)]);
+    }
+    o.snowy = terrain.typeAt(o.x + o.w / 2, o.y + o.h / 2) === TT.SNOW;
   }
 
   // Points of interest.
@@ -173,9 +227,18 @@ function build() {
     trees.splice(i, 1);
   }
 
+  // The grass field, sown clear of walls, landmarks and the lantern trail.
+  const grass = createGrass(terrain, {
+    W: OW.W, H: OW.H,
+    blocked: (x, y) => near(x, y, clear, 50)
+      || obstacles.some((o) => x > o.x - 6 && x < o.x + o.w + 6 && y > o.y - 6 && y < o.y + o.h + 6),
+  });
+
   const fogW = Math.ceil(OW.W / FOG), fogH = Math.ceil(OW.H / FOG);
   return {
-    obstacles, pois, decals, trees, roads, lanterns,
+    obstacles, pois, decals, trees, roads, lanterns, terrain, grass,
+    prints: [], stepT: 0, lastX: 0, lastY: 0, printX: 0, printY: 0,
+    grade: [255, 230, 170, 0.04], printSprite: null, printEpoch: -1,
     fog: new Uint8Array(fogW * fogH), fogW, fogH,
     zone: null, respawn: { x: 1300, y: 1380 }, hearts: 0, secrets: 0,
     gateT: 0, returnFrom: null, beaten: {}, leaves: [],
@@ -300,6 +363,11 @@ export function updateOverworld(dt) {
 
   reveal(p.x, p.y, 420);
 
+  // The grass: wind, and everyone walking through it; your blows cut it.
+  ow.grass.update(dt, world.runTime, { x: camera.x, y: camera.y, w: view.w, h: view.h },
+    grassMovers(), world.hitboxes.filter((h) => h.friendly));
+  groundFeel(p, dt);
+
   // Entering a region: its name, once each time you cross into it.
   const z = zoneAt(p.x, p.y);
   if (z !== ow.zone) {
@@ -406,19 +474,79 @@ export function updateOverworld(dt) {
     }
   }
 
-  // Leaves drifting in the woods, dust in the quarry.
-  if (Math.random() < dt * 20) {
-    const x = camera.x + rand(-40, view.w + 40), y = camera.y + rand(-40, view.h);
+  // Weather: snow falling on the ridge, leaves in the woods and the meadow,
+  // dust in the quarry.
+  const here = ow.terrain.typeAt(camera.x + view.w / 2, camera.y + view.h / 2);
+  const snowing = here === TT.SNOW;
+  if (Math.random() < dt * (snowing ? 70 : 20)) {
+    const x = camera.x + rand(-40, view.w + 40), y = camera.y + rand(-60, view.h);
     const zz = zoneAt(x, y);
-    if (zz.id === 'woods' || zz.id === 'meadow' || zz.id === 'quarry') ow.leaves.push({ x, y, t: 0, life: rand(3, 5), vx: rand(20, 45), vy: rand(10, 25), rot: rand(0, TAU), c: zz.id === 'quarry' ? '#9a8a70' : zz.id === 'woods' ? '#8aa040' : '#c8a060' });
+    if (snowing) ow.leaves.push({ x, y, t: 0, life: rand(3, 6), vx: rand(-8, 22), vy: rand(24, 48), rot: 0, snow: true, s: rand(1, 2.4) });
+    else if (zz.id === 'woods' || zz.id === 'meadow' || zz.id === 'quarry') ow.leaves.push({ x, y, t: 0, life: rand(3, 5), vx: rand(20, 45), vy: rand(10, 25), rot: rand(0, TAU), c: zz.id === 'quarry' ? '#9a8a70' : zz.id === 'woods' ? '#8aa040' : '#c8a060' });
   }
   for (let i = ow.leaves.length - 1; i >= 0; i--) {
     const l = ow.leaves[i];
     l.t += dt; l.x += (l.vx + Math.sin(l.t * 2) * 12) * dt; l.y += l.vy * dt; l.rot += dt * 2;
     if (l.t > l.life) ow.leaves.splice(i, 1);
   }
-  if (ow.leaves.length > 60) ow.leaves.splice(0, ow.leaves.length - 60);
+  if (ow.leaves.length > 160) ow.leaves.splice(0, ow.leaves.length - 160);
+
+  // Each land has its own light: cold on the snow, green-dim in the woods,
+  // warm dust over the quarry. Eased, so crossing a border is a slow turn.
+  const want = GRADE[here] || GRADE[TT.GRASS];
+  const f2 = Math.min(1, dt * 1.2);
+  for (let k = 0; k < 4; k++) ow.grade[k] += (want[k] - ow.grade[k]) * f2;
   return action;
+}
+
+const GRADE = {
+  [TT.GRASS]: [255, 228, 168, 0.05], [TT.TALL]: [255, 224, 150, 0.06], [TT.MOSS]: [20, 70, 50, 0.13],
+  [TT.DIRT]: [160, 140, 170, 0.06], [TT.PAVE]: [150, 140, 175, 0.08], [TT.ROCK]: [255, 190, 130, 0.06],
+  [TT.GRAVEL]: [255, 186, 120, 0.08], [TT.SAND]: [255, 214, 150, 0.06], [TT.SNOW]: [185, 210, 255, 0.12],
+};
+const STEP_DUST = {
+  [TT.SNOW]: '#eef3fa', [TT.SAND]: '#cdb68c', [TT.GRAVEL]: '#a2927a', [TT.ROCK]: '#9a948c', [TT.DIRT]: '#9a8266',
+};
+
+/** How the ground answers your feet: dust, powder, prints in the snow. */
+function groundFeel(p, dt) {
+  const moved = Math.hypot(p.x - ow.lastX, p.y - ow.lastY);
+  ow.lastX = p.x; ow.lastY = p.y;
+  if (p.dead || moved > 200) return;                     // a respawn, not a step
+  const ground = ow.terrain.typeAt(p.x, p.y + p.r * 0.6);
+  const dust = STEP_DUST[ground];
+  if (moved > 0.5) {
+    ow.stepT -= dt;
+    if (ow.stepT <= 0 && dust) {
+      ow.stepT = 0.26;
+      burst(p.x, p.y + p.r * 0.7, { count: 2, color: dust, speed: 40, size: 3, life: 0.45, drag: 3, gravity: -10 });
+    }
+    if (p.dashing && dust && Math.random() < 0.7) {
+      burst(p.x, p.y + p.r * 0.6, { count: 2, color: dust, speed: 90, size: 3.5, life: 0.5, drag: 3, gravity: -14 });
+    }
+  }
+  // Soft prints through the snow, slowly filling back in.
+  if (ground === TT.SNOW && Math.hypot(p.x - ow.printX, p.y - ow.printY) > 13) {
+    ow.printX = p.x; ow.printY = p.y;
+    ow.prints.push({ x: p.x, y: p.y + p.r * 0.6, t: world.runTime, big: p.dashing });
+    if (ow.prints.length > 220) ow.prints.shift();
+  }
+}
+
+function printSprite() {
+  if (ow.printSprite && ow.printEpoch === gfx.epoch) return ow.printSprite;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(24, 24, 2, 24, 24, 24);
+  gr.addColorStop(0, 'rgba(120,140,178,0.55)');
+  gr.addColorStop(0.6, 'rgba(150,168,200,0.25)');
+  gr.addColorStop(1, 'rgba(170,186,214,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 48, 48);
+  ow.printSprite = c;
+  ow.printEpoch = gfx.epoch;
+  return c;
 }
 
 // --- drawing (world space; game.js has already applied the camera) ------------------------
@@ -429,51 +557,20 @@ export function drawOverworldBelow(ctx, time) {
   if (!ow) return;
   const cx = camera.x, cy = camera.y, vw = view.w, vh = view.h;
 
-  // The land: each region's colour, blending where they meet.
-  ctx.fillStyle = '#2c3230';
-  ctx.fillRect(cx, cy, vw, vh);
-  for (const z of ZONES) {
-    if (z.x + z.r < cx || z.x - z.r > cx + vw || z.y + z.r < cy || z.y - z.r > cy + vh) continue;
-    const g = ctx.createRadialGradient(z.x, z.y, z.r * 0.2, z.x, z.y, z.r);
-    g.addColorStop(0, `rgba(${z.col},1)`);
-    g.addColorStop(1, `rgba(${z.col},0)`);
-    ctx.fillStyle = g;
-    ctx.fillRect(cx, cy, vw, vh);
-  }
+  // The painted ground (terrain.js), baked in chunks as they come into view.
+  ow.terrain.draw(ctx, cx, cy, vw, vh);
 
-  // Patches, grass, flowers, stones.
-  for (const d of ow.decals) {
-    if (!inView(d.x, d.y)) continue;
-    if (d.t === 'patch') {
-      ctx.fillStyle = `rgba(${d.c},0.18)`;
-      ctx.beginPath(); ctx.ellipse(d.x, d.y, d.rx, d.ry, d.rot, 0, TAU); ctx.fill();
-    } else if (d.t === 'grass') {
-      ctx.strokeStyle = `rgba(${d.c},0.55)`;
-      ctx.lineWidth = 1.4;
-      const sway = Math.sin(time * 1.6 + d.x * 0.01) * 2;
-      ctx.beginPath();
-      for (let k = -1; k <= 1; k++) { ctx.moveTo(d.x + k * 3, d.y); ctx.lineTo(d.x + k * 4 + sway, d.y - 8); }
-      ctx.stroke();
-    } else if (d.t === 'flower') {
-      ctx.fillStyle = `rgba(${d.c},0.85)`;
-      ctx.beginPath(); ctx.arc(d.x, d.y, 2.2, 0, TAU); ctx.fill();
-    } else {
-      ctx.fillStyle = 'rgba(0,0,0,0.25)';
-      ctx.beginPath(); ctx.arc(d.x + 1, d.y + 1, d.r, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#6a665e';
-      ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, TAU); ctx.fill();
+  // Prints in the snow, filling back in over twelve seconds.
+  if (ow.prints.length) {
+    const spr = printSprite();
+    for (const pr of ow.prints) {
+      const age = time - pr.t;
+      if (age > 12 || !inView(pr.x, pr.y, 30)) continue;
+      ctx.globalAlpha = Math.min(1, 1.3 - age / 12) * 0.9;
+      const s2 = pr.big ? 30 : 22;
+      ctx.drawImage(spr, pr.x - s2 / 2, pr.y - s2 * 0.3, s2, s2 * 0.6);
     }
-  }
-
-  // Roads: packed earth, lighter down the middle.
-  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  for (const [w, c] of [[48, 'rgba(70,58,44,0.5)'], [26, 'rgba(110,94,70,0.35)']]) {
-    ctx.strokeStyle = c; ctx.lineWidth = w;
-    for (const r of ow.roads) {
-      ctx.beginPath();
-      r.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
-      ctx.stroke();
-    }
+    ctx.globalAlpha = 1;
   }
 
   // Water, ledges, cliffs, rocks, ruins, gates, brambles.
@@ -481,6 +578,19 @@ export function drawOverworldBelow(ctx, time) {
     if (!inView(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h))) continue;
     drawObstacle(ctx, o, time);
   }
+
+  // Wildflowers, nodding in the wind.
+  for (const d of ow.decals) {
+    if (!inView(d.x, d.y, 20)) continue;
+    const nod = Math.sin(time * 1.8 + d.ph + d.x * 0.004) * 1.5;
+    ctx.strokeStyle = '#4e6a3a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(d.x, d.y + 5); ctx.lineTo(d.x + nod, d.y); ctx.stroke();
+    ctx.fillStyle = `rgba(${d.c},0.95)`;
+    ctx.beginPath(); ctx.arc(d.x + nod, d.y, 2.3, 0, TAU); ctx.fill();
+  }
+
+  // The grass field.
+  ow.grass.draw(ctx, time, { x: cx, y: cy, w: vw, h: vh });
 
   // Lanterns leading off the road.
   for (const l of ow.lanterns) {
@@ -550,12 +660,21 @@ function drawObstacle(ctx, o, time) {
       ctx.fillStyle = '#2e2a2a'; ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = '#6a625a'; ctx.fillRect(o.x, o.y, o.w, 6);
       break;
-    case 'rock':
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      roundRect(ctx, o.x + 5, o.y + 7, o.w, o.h, 12); ctx.fill();
-      ctx.fillStyle = '#6a6258'; roundRect(ctx, o.x, o.y, o.w, o.h, 12); ctx.fill();
-      ctx.fillStyle = '#8a8276'; roundRect(ctx, o.x + 4, o.y + 3, o.w - 12, o.h * 0.4, 8); ctx.fill();
+    case 'rock': {
+      // A boulder: its outline, a lit upper face, and a cap of snow up high.
+      const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+      const shape = (dx, dy, k) => {
+        ctx.beginPath();
+        o.poly.forEach(([px, py], i) => (i ? ctx.lineTo(cx + dx + px * k, cy + dy + py * k) : ctx.moveTo(cx + dx + px * k, cy + dy + py * k)));
+        ctx.closePath();
+      };
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; shape(7, 9, 1); ctx.fill();
+      ctx.fillStyle = o.snowy ? '#5e5e68' : '#645c52'; shape(0, 0, 1); ctx.fill();
+      ctx.fillStyle = o.snowy ? '#7c7c88' : '#857c6e'; shape(-o.w * 0.08, -o.h * 0.12, 0.72); ctx.fill();
+      ctx.fillStyle = o.snowy ? '#9a9aa6' : '#a0978a'; shape(-o.w * 0.14, -o.h * 0.2, 0.36); ctx.fill();
+      if (o.snowy) { ctx.fillStyle = 'rgba(236,242,250,0.95)'; shape(-o.w * 0.06, -o.h * 0.24, 0.55); ctx.fill(); }
       break;
+    }
     case 'ruin':
       ctx.fillStyle = '#5a5452'; ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
@@ -673,11 +792,17 @@ function drawPoi(ctx, q, time) {
 export function drawOverworldAbove(ctx, time) {
   if (!ow) return;
   const p = world.player;
+  // Tall grass in front of whoever stands in it: waist-deep.
+  if (p && !p.dead) ow.grass.drawFront(ctx, time, p);
+  for (const e of world.enemies) {
+    if (!e.dead && !e.z && inView(e.x, e.y, 20)) ow.grass.drawFront(ctx, time, e);
+  }
   for (const t of ow.trees) {
     if (!inView(t.x, t.y, 90)) continue;
     const under = p && dist(p.x, p.y, t.x, t.y - 10) < t.r;
     const sway = Math.sin(time * 0.9 + t.sway) * 2;
     ctx.globalAlpha = under ? 0.35 : 1;
+    if (t.pine) { drawPine(ctx, t, sway); continue; }
     const base = 40 + t.shade;
     ctx.fillStyle = `rgb(${base - 14},${base + 26},${base - 6})`;
     ctx.beginPath(); ctx.arc(t.x + sway, t.y - 16, t.r, 0, TAU); ctx.fill();
@@ -689,12 +814,36 @@ export function drawOverworldAbove(ctx, time) {
   ctx.globalAlpha = 1;
   for (const l of ow.leaves) {
     ctx.globalAlpha = Math.min(1, (l.life - l.t)) * 0.8;
+    if (l.snow) {
+      ctx.fillStyle = '#f4f8ff';
+      ctx.beginPath(); ctx.arc(l.x, l.y, l.s, 0, TAU); ctx.fill();
+      continue;
+    }
     ctx.fillStyle = l.c;
     ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.rot);
     ctx.fillRect(-3, -1.5, 6, 3);
     ctx.restore();
   }
   ctx.globalAlpha = 1;
+  // The land's light over everything (not the HUD).
+  const [gr, gg, gb, ga] = ow.grade;
+  ctx.fillStyle = `rgba(${gr | 0},${gg | 0},${gb | 0},${ga.toFixed(3)})`;
+  ctx.fillRect(camera.x - 20, camera.y - 20, view.w + 40, view.h + 40);
+}
+
+/** A snow pine: three tiers of dark needles, each with snow on its shoulders. */
+function drawPine(ctx, t, sway) {
+  for (let k = 0; k < 3; k++) {
+    const w = t.r * (0.95 - k * 0.24), base = t.y - 4 - k * t.r * 0.42, top = base - t.r * 0.85;
+    const x = t.x + sway * (0.5 + k * 0.3);
+    ctx.fillStyle = k === 0 ? '#1f3530' : k === 1 ? '#264038' : '#2d4a40';
+    ctx.beginPath(); ctx.moveTo(x - w, base); ctx.lineTo(x + w, base); ctx.lineTo(x, top); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(234,240,248,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.55, base - t.r * 0.3); ctx.lineTo(x, top);
+    ctx.lineTo(x + w * 0.3, base - t.r * 0.42); ctx.lineTo(x + w * 0.05, base - t.r * 0.33);
+    ctx.closePath(); ctx.fill();
+  }
 }
 
 /** The minimap: what you've seen of the region, its landmarks, and you. */
@@ -709,8 +858,7 @@ export function drawOverworldMap(ctx) {
   for (let j = 0; j < ow.fogH; j++) {
     for (let i = 0; i < ow.fogW; i++) {
       if (!ow.fog[j * ow.fogW + i]) continue;
-      const z = zoneAt(i * FOG + FOG / 2, j * FOG + FOG / 2);
-      ctx.fillStyle = `rgba(${z.col},0.95)`;
+      ctx.fillStyle = `rgb(${TERRAIN_RGB[ow.terrain.typeAt(i * FOG + FOG / 2, j * FOG + FOG / 2)]})`;
       ctx.fillRect(x + i * FOG * s, y + j * FOG * s, FOG * s + 0.6, FOG * s + 0.6);
     }
   }
