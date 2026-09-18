@@ -255,7 +255,7 @@ const abilitySlots = {
   grenade: { x: 0, y: 0, r: 25, label: '', pressed: false },
 };
 const ABILITY_KEYS = {
-  key: { dash: 'SPACE', special: 'K', grenade: 'G' },
+  key: { dash: 'SPACE', special: 'K', grenade: 'Q' },
   pad: { dash: '✕', special: 'L2', grenade: '○' },
 };
 const ABILITY_NAMES = { dash: 'DASH', special: 'SPECIAL', grenade: 'BOMB' };

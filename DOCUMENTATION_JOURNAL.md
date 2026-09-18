@@ -3142,7 +3142,7 @@ nothing told a new player it existed.
 
 - **Ability bar** (`drawAbilityRow` in `ui.js`, keyboard and pad only): DASH,
   SPECIAL and BOMB as the same round buttons touch players get, with their
-  names above and their key inside (`SPACE` / `K` / `G`, or `✕` / `L2` /
+  names above and their key inside (`SPACE` / `K` / `Q`, or `✕` / `L2` /
   `○` on a pad). Dash and bomb carry the segmented charge ring, special the
   cooldown sweep. It sits left of the spell row, or right of it on a narrow
   4:3 view. The old "special ready [K]" text line is gone.
@@ -3333,6 +3333,11 @@ All cosmetic; the fights play the same. Static checks only; the owner tests.
 - The owner loved the Vault's calmer light and asked for the same in the Mire:
   `light` 0.8, capped swamp-green glints (no white crests), ripple rings at
   40% alpha in a muted green.
+
+- **Controls (owner, 2026-09-18):** on keyboard the grenade moved from `G`
+  to **`Q`** (under the left hand, beside WASD). `Q` no longer triggers the
+  special, which keeps `K`, `Shift` and right-click. Title help, tutorial and
+  ability bar updated. Version 5 only.
 
 ### 16.11 Folk enemies not built yet
 

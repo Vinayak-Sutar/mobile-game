@@ -135,7 +135,7 @@ const LESSONS = [
     id: 'grenade', title: 'Grenade', goal: 2,
     say: {
       touch: 'Tap BOMB to throw at the nearest foe. Drag from BOMB to aim it yourself; drag onto ✕ to cancel.',
-      key: 'Tap G to throw at the nearest foe. Hold G and point with the mouse to aim; right-click cancels.',
+      key: 'Tap Q to throw at the nearest foe. Hold Q and point with the mouse to aim; right-click cancels.',
       pad: 'Tap ○ to throw at the nearest foe. Hold ○ and push the right stick to aim.',
     },
     note: 'The blast hits everything in it. Grenades come in charges too, and recharge slowly: watch the BOMB pips.',

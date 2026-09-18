@@ -235,8 +235,9 @@ export function initInput(canvas) {
     if (k === ' ' || k === 'shift') ev.preventDefault();
     if (k === ' ') press('dash', 'key');
     if (k === 'j' || k === 'e') press('attack', 'key');
-    if (k === 'k' || k === 'q' || k === 'shift') press('special', 'key');
-    if (k === 'g') press('grenade', 'key');
+    if (k === 'k' || k === 'shift') press('special', 'key');
+    // Q throws the grenade: it sits under the left hand, beside WASD.
+    if (k === 'q') press('grenade', 'key');
     if (k >= '1' && k <= '4') input.spellCast = Number(k) - 1;
   });
   window.addEventListener('keyup', (ev) => {
@@ -244,8 +245,8 @@ export function initInput(canvas) {
     keys.delete(k);
     if (k === ' ') unpress('dash', 'key');
     if (k === 'j' || k === 'e') unpress('attack', 'key');
-    if (k === 'k' || k === 'q' || k === 'shift') unpress('special', 'key');
-    if (k === 'g') unpress('grenade', 'key');
+    if (k === 'k' || k === 'shift') unpress('special', 'key');
+    if (k === 'q') unpress('grenade', 'key');
   });
   window.addEventListener('blur', () => {
     keys.clear();
