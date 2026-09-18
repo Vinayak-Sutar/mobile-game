@@ -38,6 +38,7 @@ import { sfx } from './audio.js';
 import { spawnHazard } from './hazards.js';
 import { breakCrate } from './projectiles.js';
 import { WESTERN_THEME } from './music-western.js';
+import { GULCH_ARENA, drawGulch, gulchDust } from './arena-gulch.js';
 
 const PI = Math.PI;
 const BRASS = '#ffd27a';
@@ -220,6 +221,8 @@ function crate(fx, fy) {
 export const VESPER = {
   // Her own music: "The Last Bullet", a spaghetti western (music-western.js).
   music: WESTERN_THEME,
+  // Dust Gulch: the frontier town square, alive with wind (arena-gulch.js).
+  arenaTick: GULCH_ARENA.tick,
   phases: [0.5],
   phaseTime: 3.4,
   roarPitch: 1.3,
@@ -511,7 +514,7 @@ export const VESPER = {
         if (!test(side)) side = -side;
         e.rollA = a + side * PI / 2 + (dist(e.x, e.y, p.x, p.y) < 160 ? -side * 0.5 : 0);
         e.rollShots = p2(e) ? 3 : 2;
-        burst(e.x, e.y + e.r * 0.6, { count: 8, color: '#c9b08a', speed: 120, size: 4, life: 0.4, drag: 3 });
+        gulchDust(e.x, e.y + e.r * 0.6, 9, 110);
         sub(e, 'tuck', 0.16);
       },
       update(e, dt, p) {
@@ -519,9 +522,9 @@ export const VESPER = {
         if (e.sub === 'roll') {
           forward(e, 640, dt, e.rollA);
           [e.x, e.y] = inArena(e.x, e.y, e.r + 12);
-          if (Math.random() < dt * 30) burst(e.x, e.y + e.r * 0.6, { count: 1, color: '#c9b08a', speed: 60, size: 4, life: 0.4, drag: 3 });
           if (e.t <= 0) {
             e.invuln = false;
+            gulchDust(e.x, e.y + e.r * 0.6, 7, 80);
             if (e.ammo > 0) {
               e.aim = angleTo(e.x, e.y, p.x, p.y);
               e.qd = addLine(e, { a: e.aim, t: 9, T: 9, w: 1.5 });
@@ -1226,41 +1229,9 @@ export const VESPER = {
     const dusk = e ? e.dusk : 0;
     const noon = e ? e.noon : 0;
     const b = arenaBounds();
-    const cx = (b.l + b.r) / 2;
 
-    // Sun-bleached sand, and wagon ruts across it.
-    ctx.fillStyle = 'rgba(255,196,120,0.08)';
-    ctx.fillRect(b.l, b.t, b.r - b.l, b.b - b.t);
-    ctx.strokeStyle = 'rgba(40,20,8,0.16)';
-    ctx.lineWidth = 9;
-    for (const off of [-28, 28]) {
-      ctx.beginPath();
-      ctx.moveTo(b.l, b.b - arena.h * 0.3 + off);
-      ctx.quadraticCurveTo(cx, b.t + arena.h * 0.35 + off, b.r, b.b - arena.h * 0.22 + off);
-      ctx.stroke();
-    }
-    // A boardwalk along the saloon front (the top wall).
-    ctx.fillStyle = 'rgba(90,56,30,0.55)';
-    ctx.fillRect(b.l, b.t, b.r - b.l, 16);
-    ctx.strokeStyle = 'rgba(30,16,6,0.5)';
-    ctx.lineWidth = 1;
-    for (let x = b.l; x < b.r; x += 26) { ctx.beginPath(); ctx.moveTo(x, b.t); ctx.lineTo(x, b.t + 16); ctx.stroke(); }
-
-    // Tumbleweeds rolling across.
-    for (let i = 0; i < 2; i++) {
-      const span = b.r - b.l + 120;
-      const x = b.l - 60 + ((t * (32 + i * 14) + i * 500) % span);
-      const y = b.t + arena.h * (0.45 + i * 0.3) + Math.abs(Math.sin(t * 3 + i)) * -10;
-      ctx.strokeStyle = 'rgba(160,120,70,0.5)';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      for (let k = 0; k < 7; k++) {
-        const a = t * 4 + k * 0.9;
-        ctx.moveTo(x + Math.cos(a) * 11, y + Math.sin(a) * 11);
-        ctx.lineTo(x + Math.cos(a + 2.4) * 11, y + Math.sin(a + 2.4) * 11);
-      }
-      ctx.stroke();
-    }
+    // Dust Gulch: the town square, its props, wind, tumbleweeds and dust.
+    drawGulch(ctx, room, t);
 
     // Dusk: the light goes red, and a sun sinks behind the rooftops.
     if (dusk > 0.01) {

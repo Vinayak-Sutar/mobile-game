@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.12. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.13. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3370,7 +3370,32 @@ original spaghetti-western piece on the Am - G - F - E cadence, 118 BPM.
   driving underneath.
 - Owner tests it; the next boss themes can follow the same pattern.
 
-### 16.12 Folk enemies not built yet
+### 16.12 Step 9 — Dust Gulch, Deadeye Vesper's arena
+
+`arena-gulch.js`, wired as Vesper's `arenaTick`; her `drawArena` now draws the
+Gulch first and keeps her own tells on top (the dusk overlay and setting sun,
+the High Noon darkening, the bell on its post).
+- **The square** (drawn once): packed dark dirt (dark enough that her brass
+  bullets stay readable), a pale worn duelling circle in the middle, wagon
+  ruts, sun-cracked mud, pebbles, dry grass, spent brass, a horseshoe; the
+  boardwalk along the top with hanging signs (SALOON, BANK, SHERIFF, HOTEL,
+  GENERAL STORE); a split-rail fence along the bottom.
+- **Props with sun shadows:** porch posts, a water trough, a hitching rail,
+  barrels, two saguaro, a cattle skull and a wagon wheel. Shadows are drawn
+  every frame from the sun: short at midday, **long and red at Sundown**, and
+  gone at **High Noon** (straight down).
+- **Wind:** streaks of blown dust and grains of sand; gustier at Sundown and
+  **dead still at High Noon**.
+- **Tumbleweeds** (3): blown by the wind, hopping, bouncing off crates and
+  walls, shoved by anyone they touch, respawning upwind.
+- **Dust devils** every 10–18 s (never at High Noon): a spinning column that
+  wanders across and drags tumbleweeds round into it.
+- **Vultures:** two circling overhead, only their shadows on the ground.
+- **No trails (owner's rule):** dust only puffs and settles. A dash puffs at
+  its start and end (`gulchDust`); Vesper's roll puffs where it starts and
+  ends, and its old per-frame dust trail is gone.
+
+### 16.13 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by
