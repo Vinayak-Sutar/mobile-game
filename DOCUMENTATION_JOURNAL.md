@@ -3513,6 +3513,17 @@ attacks.**
 - The sitar, tabla and tanpura models stay in `music-samples.js`, unused for
   now.
 
+**Round 4 (owner: still not right — "eerie / ghostly"):** the ghostliness
+came from the pure sine flute gliding between notes over a long echo and a low
+drone. Now a **warm, bright folk tune**: no meend or kan glides, the flute an
+octave up (Sa = D5) with a fuller triangle-led tone, a clear start, short
+vibrato and a breath between notes; a felt santoor **walking Sa-Pa-Sa'-Pa**
+one pluck a beat (Ga only on the way down); a **soft low pulse** on beats 1
+and 3; beat 0.48 s → 0.4 s over the phases; the flute rests one cycle in
+four in phase 1. The shared room's echo is shorter (decay 0.35 s) and
+quieter (12% send). New, more singable phrases, still in Desh (the pakad in
+the first).
+
 ### 16.15 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),

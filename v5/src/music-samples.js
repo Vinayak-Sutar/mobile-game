@@ -190,7 +190,7 @@ function makeIR(c) {
       // Darker as it fades: the smoothing grows over the tail.
       const k = 0.9 - Math.min(0.8, t * 0.5);
       lp += ((Math.random() * 2 - 1) - lp) * k;
-      d[i] = lp * Math.exp(-t / 0.65) * (i < sr * 0.02 ? i / (sr * 0.02) : 1);
+      d[i] = lp * Math.exp(-t / 0.35) * (i < sr * 0.02 ? i / (sr * 0.02) : 1);
     }
   }
   return ir;
@@ -209,7 +209,7 @@ function room(k) {
   const conv = c.createConvolver();
   conv.buffer = makeIR(c);
   const wet = c.createGain();
-  wet.gain.value = 0.26;
+  wet.gain.value = 0.12;
   mix.connect(conv);
   conv.connect(wet).connect(k.bus);
   // The gourd and the neck: a warm low resonance and a bright upper one.
