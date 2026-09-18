@@ -87,7 +87,8 @@ function build() {
 
   // The Old Quarry: a long rock shelf you can drop off, not climb - with one
   // ramp at the far east, so the drop becomes a shortcut back.
-  wall(obstacles, 2380, 1330, 1060, 26, 'ledge', { ledge: true, low: true });
+  const quarryDrop = { x: 2380, y: 1330, w: 1060, h: 44 };
+  wall(obstacles, quarryDrop.x, quarryDrop.y, quarryDrop.w, quarryDrop.h, 'face', { ledge: true, low: true });
   wall(obstacles, 2360, 1240, 22, 116, 'cliff');
   for (let k = 0; k < 7; k++) wall(obstacles, 2500 + k * 150 + rand(-20, 20), 1480 + rand(-60, 380), rand(40, 70), rand(40, 70), 'rock');
 
@@ -107,6 +108,39 @@ function build() {
   for (const [bx, by] of [[760, 300], [980, 520], [1560, 330], [1760, 520], [1920, 260]]) {
     wall(obstacles, bx + rand(-30, 30), by + rand(-30, 30), rand(50, 80), rand(40, 64), 'rock');
   }
+
+  // Higher ground, for a little 2.5D: plateaus whose south side is a cliff
+  // face seen from the front. Stairs are the only way up; anywhere else along
+  // a face you can hop down (dash off it to land in a plunge). The sides are
+  // sheer. It is all painted into the ground (terrain.js paintRaised).
+  const raised = { tops: [], faces: [quarryDrop], stairs: [], rims: [] };
+  const plateau = (x, y, w, h, faceH, stairs, sideTop, northRim) => {
+    raised.tops.push({ x, y, w, h });
+    let cx = x;
+    for (const [sx, sw] of [...stairs, [x + w, 0]]) {
+      if (sx > cx) {
+        const f = { x: cx, y: y + h, w: sx - cx, h: faceH };
+        raised.faces.push(f);
+        wall(obstacles, f.x, f.y, f.w, f.h, 'face', { ledge: true, low: true });
+      }
+      if (sw) raised.stairs.push({ x: sx, y: y + h - 8, w: sw, h: faceH + 8 });
+      cx = sx + sw;
+    }
+    for (const rx of [x, x + w - 14]) {
+      const r = { x: rx, y: sideTop, w: 14, h: y + h + faceH - sideTop, vertical: true };
+      raised.rims.push(r);
+      wall(obstacles, r.x, r.y, r.w, r.h, 'rim');
+    }
+    if (northRim) {
+      const r = { x, y, w, h: 14 };
+      raised.rims.push(r);
+      wall(obstacles, r.x, r.y, r.w, r.h, 'rim');
+    }
+  };
+  // Silverback Ridge stands above the meadow; the road climbs its stairs.
+  plateau(560, 150, 1520, 550, 56, [[1235, 80]], 0, false);
+  // Lookout Hill, a grassy knoll west of the lake road, with a view.
+  plateau(820, 1420, 300, 180, 44, [[940, 64]], 1420, true);
 
   // The hidden grove in the far north-east woods, walled by trees, entered
   // only through a bramble thicket.
@@ -129,7 +163,10 @@ function build() {
     return best;
   };
   const waters = obstacles.filter((o) => o.kind === 'water' || o.kind === 'gap');
+  const inRect = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
   const classify = (x, y) => {
+    if (raised.stairs.some((r) => inRect(r, x, y))) return TT.PAVE;
+    if (raised.faces.some((r) => inRect(r, x, y)) || raised.rims.some((r) => inRect(r, x, y))) return TT.ROCK;
     for (const o of waters) {
       const dx = Math.max(o.x - x, 0, x - o.x - o.w), dy = Math.max(o.y - y, 0, y - o.y - o.h);
       if (dx * dx + dy * dy < 75 * 75) return TT.SAND;                   // shores
@@ -149,7 +186,7 @@ function build() {
     }
   };
   for (const o of obstacles) if (o.kind === 'rock' || o.kind === 'ruin' || o.kind === 'cliff' || o.kind === 'tree-wall') o.shadow = true;
-  const terrain = createTerrain({ W: OW.W, H: OW.H, classify, roadDist: segDist, obstacles });
+  const terrain = createTerrain({ W: OW.W, H: OW.H, classify, roadDist: segDist, obstacles, raised });
 
   // Trees: thick in the woods, a scatter at the meadow's edges.
   let guard = 0;
@@ -163,6 +200,7 @@ function build() {
     if (dist(x, y, 1300, 1300) < 220 || dist(x, y, grove.x, grove.y) < 170) continue;
     const ground = terrain.typeAt(x, y);
     if (ground === TT.SAND || ground === TT.PAVE) continue;
+    if (raised.stairs.some((r) => x > r.x - 60 && x < r.x + r.w + 60 && y > r.y - 70 && y < r.y + r.h + 60)) continue;
     const r = rand(34, 54);
     wall(obstacles, x - 12, y - 8, 24, 20, 'trunk');
     // On the snow and the high ground they are pines.
@@ -205,6 +243,8 @@ function build() {
   poi('lever', 3470, 2280, { opens: 'vault' });
   poi('lore', 600, 1500, { text: 'Here the road ran to the sea, before the ash came down.' });
   poi('lore', 2320, 1270, { text: 'The quarrymen cut too deep. The kobolds say the mountain cut back.' });
+  poi('chest', 1060, 1480, { reward: 'gold' });
+  poi('lore', 870, 1480, { text: 'From the hill the shepherds watched for ash on the wind.' });
   poi('lore', 1150, 560, { text: 'Kharn keeps the high ground. Nothing climbs to him and comes down unchanged.' });
   poi('gate', 2050, 2230, { boss: 'croc', name: "Mire's Edge" });
   poi('gate', 1300, 175, { boss: 'gorilla', name: "Silverback's Summit" });
@@ -236,7 +276,7 @@ function build() {
 
   const fogW = Math.ceil(OW.W / FOG), fogH = Math.ceil(OW.H / FOG);
   return {
-    obstacles, pois, decals, trees, roads, lanterns, terrain, grass,
+    obstacles, pois, decals, trees, roads, lanterns, terrain, grass, raised,
     prints: [], stepT: 0, lastX: 0, lastY: 0, printX: 0, printY: 0,
     grade: [255, 230, 170, 0.04], printSprite: null, printEpoch: -1,
     fog: new Uint8Array(fogW * fogH), fogW, fogH,
@@ -361,7 +401,11 @@ export function updateOverworld(dt) {
   camera.x += (tx - camera.x) * f;
   camera.y += (ty - camera.y) * f;
 
-  reveal(p.x, p.y, 420);
+  // Higher ground sees further; stairs are slow going.
+  const onTop = ow.raised.tops.some((r) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h);
+  reveal(p.x, p.y, onTop ? 680 : 420);
+  const onStairs = ow.raised.stairs.some((r) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.h);
+  p.groundMult = onStairs ? 0.72 : 1;
 
   // The grass: wind, and everyone walking through it; your blows cut it.
   ow.grass.update(dt, world.runTime, { x: camera.x, y: camera.y, w: view.w, h: view.h },
@@ -864,10 +908,10 @@ export function drawOverworldMap(ctx) {
   }
   // Water and ledges you've seen.
   for (const o of ow.obstacles) {
-    if (o.kind !== 'water' && o.kind !== 'gap' && o.kind !== 'ledge') continue;
+    if (o.kind !== 'water' && o.kind !== 'gap' && o.kind !== 'face') continue;
     const fi = Math.floor((o.x + o.w / 2) / FOG) + Math.floor((o.y + o.h / 2) / FOG) * ow.fogW;
     if (!ow.fog[fi]) continue;
-    ctx.fillStyle = o.kind === 'ledge' ? '#8a7a64' : '#2a5a70';
+    ctx.fillStyle = o.kind === 'face' ? '#8a7a64' : '#2a5a70';
     ctx.fillRect(x + o.x * s, y + o.y * s, Math.max(1.5, o.w * s), Math.max(1.5, o.h * s));
   }
   // Landmarks.

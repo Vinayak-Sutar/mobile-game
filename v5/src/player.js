@@ -75,6 +75,7 @@ export function createPlayer(weapon, meta = {}) {
     holding: false,       // the maul: attack held, not yet a charge
     holdT: 0,
     leap: null,           // the maul's Skyfall Leap in flight
+    hop: null,            // hopping down off higher ground (The Wilds)
     z: 0,
     ammo: weapon.gun ? weapon.gun.shells : 0,   // the blunderbuss
     reloadT: 0,
@@ -157,7 +158,7 @@ export function updatePlayer(p, dt) {
   else p.aimAngle = aimAngle(p);
 
   // --- dash ---------------------------------------------------------------
-  if (input.dashPressed && !p.dashing && !p.leap && p.dashStock > 0) startDash(p);
+  if (input.dashPressed && !p.dashing && !p.leap && !p.hop && p.dashStock > 0) startDash(p);
   else if (input.dashPressed && !p.dashing && !p.leap) {
     // Out of charges: say no out loud rather than doing nothing.
     p.dashDenied = 0.45;
@@ -194,6 +195,7 @@ export function updatePlayer(p, dt) {
 
   updateGun(p, dt);
   updateLeap(p, dt);
+  updateHop(p, dt);
 
   // --- attacks ------------------------------------------------------------
   updateAttack(p, dt);
@@ -201,8 +203,9 @@ export function updatePlayer(p, dt) {
   updateSpells(p, dt);
 
   // --- movement -----------------------------------------------------------
-  if (!p.dashing && !p.leap) {
+  if (!p.dashing && !p.leap && !p.hop) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
+    if (p.groundMult) speed *= p.groundMult;   // The Wilds: stairs are slower going
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
     if (p.aiming) speed *= 0.45;           // a rifle to the shoulder: slow, careful steps
@@ -246,7 +249,15 @@ export function updatePlayer(p, dt) {
         if (p.x + p.r > o.x && p.x - p.r < o.x + o.w && p.y + p.r > o.y && p.y - p.r < o.y + o.h) inGap = true;
         if (p.dashing) continue;
       }
-      if (o.ledge && p.y < o.y + o.h / 2) continue;
+      if (o.ledge) {
+        // Higher ground's edge (The Wilds): walk into it from above and you
+        // hop down; dash off it and you land in a plunge. From below it is a wall.
+        if (p.hop) continue;
+        if (p.y < o.y + o.h / 2) {
+          const down = p.dashing ? Math.sin(p.dashDir) > 0.35 : input.move.y > 0.35;
+          if (down && p.y + p.r > o.y - 1 && p.x > o.x && p.x < o.x + o.w && !p.leap) { startHop(p, o); continue; }
+        }
+      }
       resolveCircleRect(p, o);
     }
     if (inGap && !p.dashing && p.safeX !== undefined) {
@@ -385,6 +396,44 @@ function aimScope(p, dt) {
   const sway = k >= 1 ? 0 : (Math.sin(A.sway * 3.1) * 0.6 + Math.sin(A.sway * 5.3) * 0.4) * 0.05 * (1 - k);
   p.aimAngle = A.angle + sway;
   p.face = p.aimAngle;
+}
+
+/** Hopping down off higher ground: a short arc over the cliff face. */
+function startHop(p, o) {
+  const plunge = p.dashing;
+  p.dashing = false;
+  p.attack = null;
+  p.hop = {
+    t: 0, T: plunge ? 0.3 : 0.36, plunge,
+    x0: p.x, y0: p.y,
+    x1: clamp(p.x + input.move.x * 26, o.x + p.r, o.x + o.w - p.r), y1: o.y + o.h + p.r + 3,
+  };
+  sfx.dash();
+}
+
+function updateHop(p, dt) {
+  const H = p.hop;
+  if (!H) return;
+  H.t += dt;
+  const k = clamp(H.t / H.T, 0, 1);
+  p.x = lerp(H.x0, H.x1, k);
+  p.y = lerp(H.y0, H.y1, k * k);                  // falls faster as it goes
+  p.z = Math.sin(k * Math.PI) * 22;
+  p.vx = p.vy = 0;
+  p.invuln = Math.max(p.invuln, 0.08);
+  if (k >= 1) {
+    p.z = 0;
+    p.hop = null;
+    burst(p.x, p.y + p.r * 0.7, { count: 8, color: '#b8ab94', speed: 110, size: 3.5, life: 0.4, drag: 4, gravity: -12 });
+    if (H.plunge) {
+      // Dashed off the edge: come down on whatever is below.
+      groundSlam(p, p.x, p.y, 90, 30, 420, 1);
+      shake(0.3);
+    } else {
+      shake(0.08);
+      sfx.thud();
+    }
+  }
 }
 
 /** Skyfall Leap: up, over and down, untouchable in the air. */

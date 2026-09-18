@@ -104,11 +104,19 @@ export function createTerrain(opts) {
   // The slow fields (border push, patches, relief, cracks) are worked out on
   // a coarse lattice per chunk and blended between (see startJob); only the
   // grain and the speckle are per pixel. Five times cheaper, same picture.
-  function paint(wx, wy, shadowRects, jxo, jyo, m, relief, crackN) {
-    // Ragged borders: look the type up a little way off, pushed by noise.
-    const t = typeAt(wx + jxo, wy + jyo);
+  function paint(wx, wy, shadowRects, jxo, jyo, m, relief, crackN, J) {
     const n = vnoise(wx * 0.11, wy * 0.11);          // grain
     const h = hash(wx, wy);                          // speckle
+    // Raised ground (see paintRaised): cliff faces, stairs and rims are
+    // painted whole; the land below a face lies in its shadow.
+    let lift = 1;
+    if (J.raised) {
+      const rv = paintRaised(wx, wy, n, h, J);
+      if (rv === true) return out;
+      lift = rv;
+    }
+    // Ragged borders: look the type up a little way off, pushed by noise.
+    const t = typeAt(wx + jxo, wy + jyo);
     let r, g, bl;
     switch (t) {
       case TT.GRASS:
@@ -190,7 +198,7 @@ export function createTerrain(opts) {
     }
 
     // Light and contact shadows.
-    let light = 1 + relief * ROUGH[t];
+    let light = (1 + relief * ROUGH[t]) * lift;
     if (shadowRects.length) {
       // Shadows fall to the lower right, soft over ~24 units.
       const sx = wx - 7, sy = wy - 9;
@@ -205,6 +213,80 @@ export function createTerrain(opts) {
     }
     out[0] = r * light; out[1] = g * light; out[2] = bl * light;
     return out;
+  }
+
+  // --- raised ground: plateaus, cliff faces, stairs -----------------------------------
+  // opts.raised = { tops, faces, stairs, rims }: rects. A face is the south
+  // wall of higher ground, seen from the front in the 3/4 view: a lip of
+  // whatever grows on top, rock strata going darker toward the foot, and a
+  // shadow thrown on the land below. Stairs are cut into faces.
+  const inR = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+
+  function paintRaised(wx, wy, n, h, J) {
+    for (const s2 of J.stairs) {
+      if (!inR(s2, wx, wy)) continue;
+      const ly = wy - s2.y, step = Math.floor(ly / 9), f = ly - step * 9;
+      const edge = Math.min(wx - s2.x, s2.x + s2.w - wx);
+      const dim = 1 - (step / Math.max(1, s2.h / 9)) * 0.25;
+      let r, g, b;
+      if (edge < 6) { r = 74; g = 70; b = 66; if (edge < 1.5) { r = 50; g = 47; b = 45; } }
+      else if (f < 3.4) { r = 158 + n * 14; g = 152 + n * 13; b = 142 + n * 12; }       // the tread, lit
+      else { const k = 1 - (f - 3.4) / 12; r = 104 * k + n * 8; g = 98 * k + n * 8; b = 92 * k + n * 7; }
+      if (h < 0.05) { r *= 0.85; g *= 0.85; b *= 0.85; }
+      out[0] = r * dim; out[1] = g * dim; out[2] = b * dim;
+      return true;
+    }
+    for (const f of J.faces) {
+      if (!inR(f, wx, wy)) continue;
+      const dy = wy - f.y, v = dy / f.h;
+      const above = typeAt(wx, f.y - 8);
+      // The lip: a ragged fringe of what grows on top, hanging over the edge.
+      const lip = 4 + vnoise(wx * 0.18, f.y * 0.01) * 8 + (h < 0.2 ? 2 : 0);
+      if (dy < lip) {
+        if (above === TT.SNOW) { out[0] = 226 + n * 20; out[1] = 232 + n * 16; out[2] = 244 + n * 10; }
+        else if (above === TT.GRASS || above === TT.TALL || above === TT.MOSS) {
+          const k = dy > lip - 2 ? 0.7 : 1;
+          out[0] = (78 + n * 22) * k; out[1] = (104 + n * 24) * k; out[2] = (58 + n * 10) * k;
+        } else { out[0] = 150 + n * 16; out[1] = 144 + n * 14; out[2] = 134 + n * 12; }
+        return true;
+      }
+      const snowy = above === TT.SNOW;
+      const streak = vnoise(wx * 0.09, wy * 0.012);
+      let r = (snowy ? 88 : 90) + streak * 34 + n * 10;
+      let g = (snowy ? 92 : 84) + streak * 30 + n * 9;
+      let b = (snowy ? 106 : 78) + streak * 28 + n * 8;
+      // Strata, bending a little along the wall.
+      if (Math.sin(wy * 0.6 + vnoise(wx * 0.02, wy * 0.05) * 7) > 0.82) { r *= 0.8; g *= 0.8; b *= 0.8; }
+      // Vertical cracks.
+      if (Math.abs(vnoise(wx * 0.06 + 11, 3.3) - 0.5) < 0.018) { r *= 0.62; g *= 0.62; b *= 0.62; }
+      if (dy < lip + 2) { r *= 0.55; g *= 0.55; b *= 0.55; }             // under the overhang
+      const k = (1.08 - v * 0.5) * (dy > f.h - 3 ? 0.6 : 1);              // darker to the foot
+      out[0] = r * k; out[1] = g * k; out[2] = b * k;
+      return true;
+    }
+    for (const r2 of J.rims) {
+      if (!inR(r2, wx, wy)) continue;
+      const e = r2.vertical ? wx - r2.x : wy - r2.y;
+      const k = e < 2.5 ? 1.35 : 0.72 - (e / 14) * 0.2;
+      out[0] = (100 + n * 16) * k; out[1] = (96 + n * 14) * k; out[2] = (90 + n * 12) * k;
+      return true;
+    }
+    let lift = 1;
+    for (const t2 of J.tops) if (inR(t2, wx, wy)) { lift = 1.08; break; }
+    // The cliff's shadow on the ground below it, and east of a plateau.
+    for (const f of J.faces) {
+      const below = wy - (f.y + f.h);
+      if (below >= 0 && below < 36 && wx > f.x - 6 && wx < f.x + f.w + 16) {
+        const k = 1 - below / 36;
+        lift *= 1 - 0.42 * k * k;
+      }
+    }
+    for (const r2 of J.rims) {
+      if (!r2.vertical) continue;
+      const east = wx - (r2.x + r2.w);
+      if (east >= 0 && east < 22 && wy > r2.y && wy < r2.y + r2.h + 20) lift *= 1 - 0.3 * (1 - east / 22);
+    }
+    return lift;
   }
 
   // --- chunks -------------------------------------------------------------------------
@@ -237,7 +319,13 @@ export function createTerrain(opts) {
         F[o + 4] = fbm(wx * 0.03 + 40, wy * 0.03 + 12);
       }
     }
-    return { key: cy * 1000 + cx, x0, y0, S, c, cc, img, shadowRects, F, P, row: 0 };
+    const R0 = opts.raised || { tops: [], faces: [], stairs: [], rims: [] };
+    const near = (r) => r.x < x0 + S + 40 && r.x + r.w > x0 - 40 && r.y < y0 + S + 40 && r.y + r.h > y0 - 40;
+    const J = {
+      tops: R0.tops.filter(near), faces: R0.faces.filter(near), stairs: R0.stairs.filter(near), rims: R0.rims.filter(near),
+    };
+    J.raised = J.tops.length + J.faces.length + J.stairs.length + J.rims.length > 0;
+    return { key: cy * 1000 + cx, x0, y0, S, c, cc, img, shadowRects, F, P, J, row: 0 };
   }
 
   /** Paint rows until the chunk is done (true) or the deadline passes. */
@@ -257,7 +345,7 @@ export function createTerrain(opts) {
         const px = paint(x0 + x, y0 + y, shadowRects,
           R[o] + (R[o + NF] - R[o]) * u, R[o + 1] + (R[o + 1 + NF] - R[o + 1]) * u,
           R[o + 2] + (R[o + 2 + NF] - R[o + 2]) * u, R[o + 3] + (R[o + 3 + NF] - R[o + 3]) * u,
-          R[o + 4] + (R[o + 4 + NF] - R[o + 4]) * u);
+          R[o + 4] + (R[o + 4 + NF] - R[o + 4]) * u, job.J);
         d[k] = px[0]; d[k + 1] = px[1]; d[k + 2] = px[2]; d[k + 3] = 255;
         k += 4;
       }

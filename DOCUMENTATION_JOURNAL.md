@@ -3786,7 +3786,56 @@ Water bodies and swimming are the next step, not this one.
   over the quarry.
 - The minimap is coloured by terrain.
 
-### 16.21 Folk enemies not built yet
+### 16.21 Step 18 — The Wilds get higher ground (2.5D)
+
+Verticality done the way A Link to the Past does it. Heights are only
+visual; what they change is where you can walk.
+- A plateau's top is ordinary ground, drawn brighter (×1.08).
+- Its south edge is a **cliff face**. That face takes up ground space below
+  the top, seen from the front.
+
+**Geometry** (`plateau()` in `overworld.js`):
+- The top rect, then the face across its south side. The face is split
+  around the **stairs**.
+- Face segments are `face` obstacles, `ledge: true` and `low: true`, so
+  shots pass over them.
+- The sides are 14-unit `rim` walls; there's an optional north rim.
+- Built:
+  - **Silverback Ridge:** top 560–2080 × 150–700, face 56 deep, stairs
+    x 1235–1315 where the road climbs. The side rims go to y 0.
+  - **Lookout Hill:** 820–1120 × 1420–1600, face 44 deep, stairs x 940–1004.
+    On top: a chest and a lore stone.
+  - The old quarry ledge is now a 44-deep face.
+
+**Painting** (`terrain.js` `paintRaised`, driven by `opts.raised`):
+- Stairs:
+  - lit treads and darker risers every 9 units;
+  - dark side walls;
+  - the lower steps are dimmer.
+- Faces:
+  - A ragged **lip** of whatever grows on top (grass, snow or rock) hanging
+    over the edge, with a dark overhang line under it.
+  - Rock with vertical streaks, strata and vertical cracks, bluish on snow.
+  - Darker toward the foot, with a contact line at the bottom.
+- Shadows:
+  - on the land below a face (36 units, quadratic falloff);
+  - east of a plateau's east side.
+- `classify()` makes faces and rims ROCK and stairs PAVE, so no grass or
+  trees grow on them. Trees also keep clear of the stairs.
+
+**Movement** (`player.js`):
+- From above, pushing down into a face starts `p.hop`: a 0.36 s arc
+  (`p.z` up to 22) to just below the face, with a landing puff.
+- **Dashing off an edge is a plunge** (0.3 s): `groundSlam` for 90 radius,
+  30 damage, 420 knockback, with a stun.
+- Sideways contact, or any contact from below, is a wall. Enemies can walk
+  down faces (the old ledge rule in `ai.js`) but can't climb them.
+- On stairs, `p.groundMult` is 0.72 (a generic speed hook in the movement
+  code).
+- Standing on a top reveals the map to 680 instead of 420: high ground sees
+  further.
+
+### 16.22 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the
