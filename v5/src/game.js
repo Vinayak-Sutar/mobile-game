@@ -1,7 +1,7 @@
 // Entry point: canvas setup, the fixed-timestep loop, the run state machine
 // and every menu screen.
 
-import { world, view, arena, arenaBounds, resetWorld, clearEntities } from './state.js';
+import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx } from './state.js';
 import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
@@ -20,7 +20,9 @@ import {
   bindTutorialSpawner, startLessons, updateTutorial, drawTutorialWorld, drawTutorialHud,
 } from './tutorial.js';
 import { updateStatuses, healPlayer } from './combat.js';
-import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
+import {
+  updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups, clearSpriteCache,
+} from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
   FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, effDepth,
@@ -30,7 +32,7 @@ import { BOSS_INFO, BOSS_POOL, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
 import { BIOMES, getBiome, initAmbient, drawAmbient, clearAmbient } from './biomes.js';
-import { biomeThumbnail } from './texture.js';
+import { biomeThumbnail, clearTextureCache } from './texture.js';
 import { offerBoons, applyBoon, describeBoon, GODS } from './boons.js';
 import {
   drawHud, drawControls, updateUi, resetUi, showToast, showOverlay, hideOverlay, overlayVisible,
@@ -313,8 +315,12 @@ function onVictory() {
 
 // --- loop ------------------------------------------------------------------
 
+let rafId = 0;
+let lastFrameAt = performance.now();
+
 function frame(now) {
-  requestAnimationFrame(frame);
+  rafId = requestAnimationFrame(frame);
+  lastFrameAt = performance.now();
 
   // Some mobile browsers (iOS Safari's collapsing URL bar, embedded webviews)
   // resize without ever firing a resize event, and a webview can boot at 0x0.
@@ -1435,10 +1441,57 @@ window.addEventListener('keydown', (ev) => {
   }
 });
 
+// --- leaving and coming back (a phone switching apps) -------------------------
+//
+// Going away: the run pauses itself (so nothing hits you while you are gone,
+// and the Resume tap on return is the gesture that wakes the sound up), every
+// held touch and key is let go (their "up" events never arrive), and the
+// audio stops.
+// Coming back: the clock restarts from now, the screen is re-measured, the
+// sound resumes, and the frame loop is restarted if the browser dropped it.
+// If the phone threw the canvases away while we were hidden, every cached
+// drawing is rebuilt.
+
+function onLeave() {
+  resetInput();
+  if (state === 'playing') showPause();
+  suspendAudio();
+}
+
+function onReturn() {
+  last = performance.now();
+  accumulator = 0;
+  resetInput();
+  resize();
+  if (audioStarted) resumeAudio();
+  // The loop should still be running; if the browser dropped it, start it again.
+  setTimeout(() => {
+    if (document.visibilityState === 'visible' && performance.now() - lastFrameAt > 250) {
+      cancelAnimationFrame(rafId);
+      last = performance.now();
+      rafId = requestAnimationFrame(frame);
+    }
+  }, 300);
+}
+
+function rebuildGraphics() {
+  gfx.epoch++;
+  clearSpriteCache();
+  clearTextureCache();
+  resize();
+}
+
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') suspendAudio();
-  else if (audioStarted) resumeAudio();
+  if (document.visibilityState === 'hidden') onLeave();
+  else onReturn();
 });
+// Android can freeze or restore the page without a visibility change.
+window.addEventListener('pagehide', onLeave);
+window.addEventListener('pageshow', (ev) => { if (ev.persisted) onReturn(); });
+document.addEventListener('freeze', onLeave);
+document.addEventListener('resume', onReturn);
+// The phone reclaimed the GPU: redraw everything cached once it is back.
+canvas.addEventListener('contextrestored', rebuildGraphics);
 
 function ensureAudio() {
   if (audioStarted) return;
@@ -1473,7 +1526,7 @@ initGamepad({
   mute: () => { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); },
 });
 showTitle();
-requestAnimationFrame((t) => { last = t; requestAnimationFrame(frame); });
+requestAnimationFrame((t) => { last = t; rafId = requestAnimationFrame(frame); });
 
 // Debug handle: lets the sim be driven without rAF, for smoke tests and for
 // poking at balance from the browser console.

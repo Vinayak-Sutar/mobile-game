@@ -27,6 +27,10 @@ export const world = {
   paused: false,
 };
 
+// Bumped when the browser throws the GPU's canvases away (a phone does this to
+// a backgrounded app). Every cached drawing keys on it, so they all rebuild.
+export const gfx = { epoch: 0 };
+
 // Logical render resolution. The canvas is scaled to fill the viewport, so
 // world units stay stable across devices and only the aspect ratio changes.
 export const view = {

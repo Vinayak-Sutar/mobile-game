@@ -250,6 +250,9 @@ function fizzle(pr) {
 const SPRITE_RES = 2;
 const spriteCache = new Map();
 
+/** Forget every pre-rendered bullet (their canvases were lost). */
+export function clearSpriteCache() { spriteCache.clear(); }
+
 function bulletSprite(shape, color, r) {
   const key = `${shape}|${color}|${r}`;
   let s = spriteCache.get(key);

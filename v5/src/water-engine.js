@@ -17,7 +17,7 @@
 // then WATER.tick / WATER.draw go on the boss spec as arenaTick / drawArena,
 // and WATER.splash / ring / wake / bubble / vortex are for its moves.
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, gfx } from './state.js';
 import { TAU, clamp, rand, dist, resolveCircleRect } from './util.js';
 
 export function createWaterArena(cfg) {
@@ -42,7 +42,7 @@ export function createWaterArena(cfg) {
 
   function ensure(room) {
     const b = arenaBounds();
-    const key = `${b.l}|${b.t}|${b.r}|${b.b}|${room.obstacles.length}`;
+    const key = `${b.l}|${b.t}|${b.r}|${b.b}|${room.obstacles.length}|${gfx.epoch}`;
     if (sim.key === key && sim.room === room && sim.hgt) return;
     sim.key = key;
     sim.room = room;

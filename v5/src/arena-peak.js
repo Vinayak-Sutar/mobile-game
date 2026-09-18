@@ -14,7 +14,7 @@
 // Like the water engine: a small image, one pixel per cell, lit by the slope
 // of the ash and scaled up smoothly. Purely cosmetic.
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, gfx } from './state.js';
 import { TAU, clamp, rand, dist } from './util.js';
 
 const CELL = 8;
@@ -35,7 +35,7 @@ const st = {
 
 function ensure(room) {
   const b = arenaBounds();
-  const key = `${b.l}|${b.t}|${b.r}|${b.b}|${room.obstacles.length}`;
+  const key = `${b.l}|${b.t}|${b.r}|${b.b}|${room.obstacles.length}|${gfx.epoch}`;
   if (st.key === key && st.room === room && st.ash) return;
   st.key = key;
   st.room = room;

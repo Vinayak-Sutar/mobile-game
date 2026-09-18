@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.13. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.14. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3395,7 +3395,33 @@ the High Noon darkening, the bell on its post).
   its start and end (`gulchDust`); Vesper's roll puffs where it starts and
   ends, and its old per-frame dust trail is gone.
 
-### 16.13 Folk enemies not built yet
+### 16.13 Step 10 — surviving an app switch on the phone
+
+Owner report: after switching to another app and back, the game froze and
+did not resume. Not reproduced here (the owner tests); fixed defensively
+against every known cause, in `game.js`:
+- **Leaving** (`visibilitychange` hidden, `pagehide`, Page Lifecycle
+  `freeze`): all held touches and keys are released (their "up" events never
+  arrive, which could leave the stick or a button stuck), a live run **pauses
+  itself** (the pause menu, or the Training/Tutorial panels), and audio
+  suspends.
+- **Returning** (`visibilitychange` visible, `pageshow` from the bfcache,
+  `resume`): the frame clock and accumulator restart from now, input is
+  cleared again, the screen is re-measured, audio resumes (the Resume tap is
+  also the gesture Android needs to wake the AudioContext), and a watchdog
+  restarts the frame loop if no frame has run 300 ms after coming back
+  (`rafId` is tracked so a restart never doubles the loop).
+- **Lost canvases:** a backgrounded Android app can lose its GPU canvases.
+  On the main canvas's `contextrestored`, `gfx.epoch` (state.js) is bumped,
+  the bullet sprite cache and floor textures are cleared and the view is
+  re-measured; the arena caches (water engine, Peak, Gulch) key on
+  `gfx.epoch`, so everything redraws from scratch.
+- **Not covered yet:** if Android kills the page outright, the run is lost
+  and the game reloads to the title. The fix for that is a run checkpoint
+  (saved at each chamber start and on leaving, offered as "Continue run" on
+  the title) — offered to the owner as the next step.
+
+### 16.14 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

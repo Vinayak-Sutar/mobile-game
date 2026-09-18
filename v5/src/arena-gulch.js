@@ -19,7 +19,7 @@
 // throws up a puff at its start and end, and every puff simply settles away.
 // Purely cosmetic.
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, gfx } from './state.js';
 import { TAU, rand, dist, resolveCircleRect } from './util.js';
 
 const st = {
@@ -33,7 +33,7 @@ const st = {
 
 function ensure(room) {
   const b = arenaBounds();
-  const key = `${b.l}|${b.t}|${b.r}|${b.b}`;
+  const key = `${b.l}|${b.t}|${b.r}|${b.b}|${gfx.epoch}`;
   if (st.key === key && st.room === room && st.floor) return;
   st.key = key;
   st.room = room;
