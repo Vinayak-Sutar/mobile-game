@@ -3421,6 +3421,10 @@ against every known cause, in `game.js`:
   (saved at each chamber start and on leaving, offered as "Continue run" on
   the title) — offered to the owner as the next step.
 
+- **Special cooldowns (owner, 2026-09-18):** cut to 40% of what they were,
+  the shield's to 50%. Heart-Seeker 4.8 → 1.92 s, Stygian Blade 4.5 → 1.8 s,
+  Eternal Spear 3.6 → 1.44 s, Shield of Chaos 4.2 → 2.1 s. Version 5 only.
+
 ### 16.14 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),

@@ -20,7 +20,7 @@ export const WEAPONS = [
       { kind: 'arrow', windup: 0.05, active: 0, recover: 0.2, damage: 12, knockback: 90, lunge: 0 },
     ],
     special: {
-      kind: 'spread', windup: 0.12, recover: 0.3, damage: 15, cooldown: 4.8,
+      kind: 'spread', windup: 0.12, recover: 0.3, damage: 15, cooldown: 1.92,
       count: 7, spread: 0.95, speed: 820, knockback: 110,
     },
     specialName: 'Arrow Volley',
@@ -39,7 +39,7 @@ export const WEAPONS = [
     ],
     special: {
       kind: 'arc', windup: 0.15, active: 0.16, recover: 0.28, arc: TAU, radius: 176,
-      damage: 44, knockback: 560, cooldown: 4.5, spin: true, lunge: 0,
+      damage: 44, knockback: 560, cooldown: 1.8, spin: true, lunge: 0,
     },
     specialName: 'Rending Spin',
   },
@@ -56,7 +56,7 @@ export const WEAPONS = [
       { kind: 'rect', windup: 0.12, active: 0.14, recover: 0.26, len: 250, wid: 56, damage: 38, knockback: 400, lunge: 460 },
     ],
     special: {
-      kind: 'boomerang', windup: 0.11, recover: 0.24, damage: 34, cooldown: 3.6,
+      kind: 'boomerang', windup: 0.11, recover: 0.24, damage: 34, cooldown: 1.44,
       speed: 820, knockback: 240,
     },
     specialName: 'Hurled Spear',
@@ -74,7 +74,7 @@ export const WEAPONS = [
       { kind: 'arc', windup: 0.13, active: 0.15, recover: 0.28, arc: 2.4, radius: 128, damage: 36, knockback: 700, lunge: 260, block: true },
     ],
     special: {
-      kind: 'bounce', windup: 0.12, recover: 0.26, damage: 30, cooldown: 4.2,
+      kind: 'bounce', windup: 0.12, recover: 0.26, damage: 30, cooldown: 2.1,
       speed: 700, bounces: 5, knockback: 260,
     },
     specialName: 'Bull Rush',
