@@ -585,6 +585,11 @@ function versionRow() {
 }
 
 /** A phone or tablet, judged by the device rather than by recent input. */
+/** On a phone or tablet, go fullscreen (and so lock landscape) if we are not already. */
+function phoneFullscreen() {
+  if (isTouchDevice() && !isFullscreen()) enterFullscreen();
+}
+
 function isTouchDevice() {
   return window.matchMedia('(pointer: coarse)').matches;
 }
@@ -1290,8 +1295,9 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'version': location.href = el.dataset.href; break;
     case 'version-here': break;
     case 'trials': showTrials(); break;
-    case 'training': showTraining(); break;
-    case 't-start': startTraining(); break;
+    // Like Begin Run, the Training Ground and the tutorial go fullscreen on a phone.
+    case 'training': phoneFullscreen(); showTraining(); break;
+    case 't-start': phoneFullscreen(); startTraining(); break;
     case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 't-leave': world.training = false; clearEntities(); showTitle(); break;
     case 't-weapon': trainingSetWeapon(idx); showTraining(); break;
@@ -1352,7 +1358,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       else showBiomeSelect();
       break;
     }
-    case 'tutorial': startTutorial(); break;
+    case 'tutorial': phoneFullscreen(); startTutorial(); break;
     case 'tut-no': save.tutorialSeen = true; writeSave(); showBiomeSelect(); break;
     case 'tut-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 'tut-skip': showTutorialEnd(false); break;
