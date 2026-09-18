@@ -328,6 +328,8 @@ const WEAPON_TRIGGER = {
   blade: TRIGGER.feedback(2, 3),          // light, fast
   spear: TRIGGER.feedback(4, 5),          // firmer thrust
   shield: TRIGGER.feedback(3, 8),         // heavy bash
+  maul: TRIGGER.feedback(6, 8),           // a heavy haft
+  gun: TRIGGER.weapon(3, 6, 8),           // a hammer that breaks
   bow: TRIGGER.weapon(2, 7, 6),           // draw resistance, then a release click
 };
 

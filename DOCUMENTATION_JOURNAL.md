@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.15. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.16. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3524,7 +3524,40 @@ four in phase 1. The shared room's echo is shorter (decay 0.35 s) and
 quieter (12% send). New, more singable phrases, still in Desh (the pakad in
 the first).
 
-### 16.15 Folk enemies not built yet
+### 16.15 Step 12 — two new weapons: the Earthbreaker Maul and Deadeye's Blunderbuss
+
+Chosen by the owner from seven proposals (the others, still open: Sudarshana
+Chakram, Twin Kris, Urumi, Ruyi Staff, Kusarigama). Both in `weapons.js`
+(data + `performStep` kinds), input handling in `player.js`. They appear in
+the weapon select and the Training Ground automatically.
+
+**Earthbreaker Maul** (`maul`, ⚒, #e0a060) — *hold, then release*.
+- Tap: two heavy arcs (30 / 40 damage, 2.6 / 2.8 rad, huge knockback). Heavy
+  steps carry `heavy`: every hit adds hit-stop (0.045 × weight), shake and a
+  thud.
+- Hold attack (after 0.2 s) winds up a **slam** over 1.1 s; the reach is drawn
+  on the floor as a growing ring, flashing white at full charge; you move at
+  40% while winding. Release: `groundSlam` at radius 90→200, damage
+  30→100, **staggers non-boss enemies** 0.3–0.9 s, big hit-stop and shake;
+  full charge says EARTHBREAKER. (Its circle hitbox also cuts enemy shots.)
+- Special **Skyfall Leap** (3 s): leaps 0.36 s to the nearest enemy within
+  280 (landing beside it) or straight ahead, untouchable and drawn lifted
+  (`p.z`), landing in a 150-radius slam for 60.
+
+**Deadeye's Blunderbuss** (`gun`, ∴, #dfe6ff) — *ammo and reload*.
+- Four shells (drawn over your head, the last one gold). Hold attack to keep
+  firing (about 3.7 shots/s): six pellets of 7, 0.5 rad spread, slowing
+  sharply (range ~260), big knockback up close, a kick back on you, muzzle
+  flash and smoke. **The last shell's pellets crit** (projectiles now pass
+  `crit` to `dealDamage`).
+- Empty: reloads in 1 s (a sweep round you, a clack). A 1.4 s pause tops it
+  up in 0.6 s. **Dashing mid-reload finishes it at once** (RELOADED). Firing
+  empty clicks.
+- Special **Fan the Hammer** (2.4 s): every shell left, at least three, fanned
+  1.1 rad wide 0.075 s apart; then a reload.
+- DualSense triggers: a heavy haft for the maul, a breaking hammer for the gun.
+
+### 16.16 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

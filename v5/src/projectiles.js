@@ -194,6 +194,7 @@ export function updateProjectiles(dt) {
           knockback: pr.knockback,
           dir: Math.atan2(pr.vy, pr.vx),
           source: 'projectile',
+          crit: !!pr.crit,            // the blunderbuss's last shell
         });
         if (pr.onHitEnemy) pr.onHitEnemy(e);      // Ice Shards slow what they hit
         if (pr.pierce > 0) pr.pierce--;

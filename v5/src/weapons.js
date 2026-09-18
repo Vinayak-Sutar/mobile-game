@@ -1,10 +1,12 @@
-// Four weapons, each defined as data: a light-attack combo chain plus a
+// Six weapons, each defined as data: a light-attack combo chain plus a
 // special on a cooldown. Order is menu order; the first is the default. `performStep` turns one step of that data into
 // hitboxes, projectiles and feedback.
 
-import { TAU } from './util.js';
+import { TAU, clamp, dist, angleTo } from './util.js';
+import { arenaBounds } from './state.js';
 import { spawnHitbox, spawnProjectile } from './spawn.js';
-import { slash, shake, burst, ring } from './fx.js';
+import { slash, shake, burst, ring, hitstop, damageText } from './fx.js';
+import { nearestEnemy } from './combat.js';
 import { sfx } from './audio.js';
 
 export const WEAPONS = [
@@ -79,7 +81,89 @@ export const WEAPONS = [
     },
     specialName: 'Bull Rush',
   },
+  {
+    // Slow and decisive. Tap for two crushing swings; hold to wind up a slam
+    // whose size and stagger grow with the charge (the ring on the floor
+    // shows its reach). The only weapon that rewards reading, not mashing.
+    id: 'maul',
+    name: 'Earthbreaker Maul',
+    glyph: '\u2692',
+    color: '#e0a060',
+    tagline: 'Tap for two crushing swings. Hold to wind up a slam that shakes the room.',
+    comboWindow: 0.55,
+    heavy: { hold: 0.2, time: 1.1, minRadius: 90, maxRadius: 200, minDamage: 30, maxDamage: 100 },
+    combo: [
+      { kind: 'arc', windup: 0.16, active: 0.12, recover: 0.3, arc: 2.6, radius: 132, damage: 30, knockback: 460, lunge: 90, heavy: 1 },
+      { kind: 'arc', windup: 0.2, active: 0.13, recover: 0.38, arc: 2.8, radius: 140, damage: 40, knockback: 640, lunge: 110, heavy: 1.4 },
+    ],
+    slam: { kind: 'slam', windup: 0.06, active: 0.1, recover: 0.42 },
+    special: {
+      kind: 'leap', windup: 0.1, active: 0.36, recover: 0.3, cooldown: 3.0,
+      damage: 60, radius: 150, range: 280, knockback: 620,
+    },
+    specialName: 'Skyfall Leap',
+  },
+  {
+    // Four shells of buckshot, brutal up close. The last shell always crits.
+    // Empty, it reloads by itself - and dashing mid-reload finishes it at once.
+    id: 'gun',
+    name: "Deadeye's Blunderbuss",
+    glyph: '\u2234',
+    color: '#dfe6ff',
+    tagline: 'Four shells of close-range buckshot. The last one crits. Dash to reload.',
+    comboWindow: 0,
+    gun: { shells: 4, reload: 1.0, idleReload: 1.4 },
+    combo: [
+      { kind: 'shotgun', windup: 0.03, active: 0, recover: 0.24, damage: 7, pellets: 6, spread: 0.5, speed: 980, knockback: 150, lunge: 0 },
+    ],
+    special: {
+      kind: 'fan', windup: 0.08, active: 0, recover: 0.1, cooldown: 2.4,
+      damage: 7, pellets: 5, spread: 1.1, speed: 950, knockback: 130,
+    },
+    specialName: 'Fan the Hammer',
+  },
 ];
+
+/** One blast of buckshot: pellets that slow and scatter, a kick, a flash. */
+export function fireShell(p, step, angle, spread, crit) {
+  const color = p.weapon.color;
+  for (let i = 0; i < step.pellets; i++) {
+    const a = angle + (i / (step.pellets - 1) - 0.5) * spread + (Math.random() - 0.5) * 0.08;
+    const sp = step.speed * (0.85 + Math.random() * 0.25);
+    spawnProjectile({
+      x: p.x + Math.cos(angle) * 26, y: p.y + Math.sin(angle) * 26,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      r: 5, damage: step.damage, knockback: step.knockback,
+      friendly: true, color: crit ? '#ffd45e' : color, shape: 'orb',
+      life: 0.3, accel: -1800, minSpeed: 260, crit, quiet: true,
+    });
+  }
+  // The kick throws you back a little; the muzzle flashes.
+  p.vx -= Math.cos(angle) * 170;
+  p.vy -= Math.sin(angle) * 170;
+  const mx = p.x + Math.cos(angle) * 30, my = p.y + Math.sin(angle) * 30;
+  burst(mx, my, { count: 10, color: '#fff3c0', speed: 320, size: 3.5, life: 0.16, dir: angle, spread: 0.6, drag: 6, shape: 'spark' });
+  burst(mx, my, { count: 5, color: '#9a948e', speed: 90, size: 7, life: 0.5, dir: angle, spread: 0.8, drag: 3 });
+  sfx.gunshot();
+  shake(crit ? 0.2 : 0.12);
+  if (crit) damageText(p.x, p.y - p.r - 24, 'LAST SHELL', { color: '#ffd45e', size: 14 });
+}
+
+/** A maul blow on the ground: a ring of force that staggers what it catches. */
+export function groundSlam(p, x, y, r, damage, knockback, power = 1) {
+  spawnHitbox({
+    shape: 'circle', x, y, radius: r, damage, knockback, life: 0.08, friendly: true,
+    onHit: (e) => { if (!e.boss) e.stunT = Math.max(e.stunT || 0, 0.3 + 0.6 * power); },
+  });
+  ring(x, y, { r0: 10, r1: r, color: '#e0a060', life: 0.32, width: 8 });
+  ring(x, y, { r0: 6, r1: r * 0.6, color: '#fff0d0', life: 0.2, width: 4 });
+  burst(x, y, { count: 18 + Math.round(18 * power), color: '#c9a878', speed: 260 + 200 * power, size: 5, life: 0.5, drag: 4, shape: 'shard' });
+  burst(x, y, { count: 8, color: '#9a8f82', speed: 120, size: 9, life: 0.7, drag: 3 });
+  shake(0.35 + 0.55 * power);
+  hitstop(0.05 + 0.08 * power);
+  sfx.explode();
+  sfx.thud();
+}
 
 export function weaponById(id) {
   return WEAPONS.find((w) => w.id === id) || WEAPONS[0];
@@ -100,6 +184,8 @@ export function performStep(p, step, angle, power = 1) {
         damage: step.damage, knockback: step.knockback,
         life: step.active, friendly: true,
         follow: step.spin ? p : null,
+        // A maul's swing: the world stops for it, and the room shakes.
+        onHit: step.heavy ? () => { hitstop(0.045 * step.heavy); shake(0.14 * step.heavy); sfx.thud(); } : null,
       });
       slash(p.x, p.y, angle, Math.min(step.arc, TAU) * 0.92, step.radius, color,
         step.active + 0.12, step.spin ? 24 : 15);
@@ -184,6 +270,52 @@ export function performStep(p, step, angle, power = 1) {
       });
       sfx.swing(1.3);
       shake(0.14);
+      break;
+    }
+
+    case 'slam': {
+      // The charged maul: a ring of force whose reach and weight follow the charge.
+      const h = p.weapon.heavy;
+      const r = h.minRadius + (h.maxRadius - h.minRadius) * power;
+      const dmg = h.minDamage + (h.maxDamage - h.minDamage) * power;
+      groundSlam(p, p.x + Math.cos(angle) * 20, p.y + Math.sin(angle) * 20, r, dmg, 380 + 420 * power, power);
+      if (power >= 0.99) damageText(p.x, p.y - p.r - 30, 'EARTHBREAKER', { color: color, size: 18 });
+      break;
+    }
+
+    case 'leap': {
+      // Skyfall Leap: up and over to the nearest foe in reach (or straight on).
+      const t = nearestEnemy(p.x, p.y, step.range);
+      let tx = t ? t.x : p.x + Math.cos(angle) * step.range * 0.8;
+      let ty = t ? t.y : p.y + Math.sin(angle) * step.range * 0.8;
+      if (t && dist(p.x, p.y, t.x, t.y) > 30) {
+        // Land just short of it, not inside it.
+        const a = angleTo(t.x, t.y, p.x, p.y);
+        tx = t.x + Math.cos(a) * (t.r + p.r);
+        ty = t.y + Math.sin(a) * (t.r + p.r);
+      }
+      const b = arenaBounds();
+      tx = clamp(tx, b.l + p.r, b.r - p.r);
+      ty = clamp(ty, b.t + p.r, b.b - p.r);
+      p.leap = { x0: p.x, y0: p.y, x1: tx, y1: ty, t: 0, T: step.active, step };
+      burst(p.x, p.y, { count: 12, color: '#c9a878', speed: 200, size: 4, life: 0.4, drag: 4 });
+      sfx.dash();
+      break;
+    }
+
+    case 'shotgun': {
+      if ((p.ammo | 0) <= 0) break;
+      const last = p.ammo === 1;
+      p.ammo--;
+      fireShell(p, step, angle, step.spread, last);
+      break;
+    }
+
+    case 'fan': {
+      // Every shell left (at least three), fanned wide, as fast as the hammer falls.
+      p.fan = { left: Math.max(3, p.ammo | 0), t: 0, step };
+      p.ammo = 0;
+      p.reloadT = 0;
       break;
     }
 

@@ -6,9 +6,9 @@ import {
   TAU, clamp, rand, dist, angleTo, angleDiff, normalize, resolveCircleRect, polygon, lerp,
 } from './util.js';
 import { input } from './input.js';
-import { performStep } from './weapons.js';
+import { performStep, fireShell, groundSlam } from './weapons.js';
 import { nearestEnemy, dealDamage, enemiesInRadius } from './combat.js';
-import { burst, ring, trail, shake, slash } from './fx.js';
+import { burst, ring, trail, shake, slash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform } from './rigs.js';
 import { updateSpells } from './spells.js';
@@ -72,6 +72,14 @@ export function createPlayer(weapon, meta = {}) {
     specialCd: 0,
     charging: false,
     charge: 0,
+    holding: false,       // the maul: attack held, not yet a charge
+    holdT: 0,
+    leap: null,           // the maul's Skyfall Leap in flight
+    z: 0,
+    ammo: weapon.gun ? weapon.gun.shells : 0,   // the blunderbuss
+    reloadT: 0,
+    idleT: 0,
+    fan: null,            // Fan the Hammer, firing
 
     blockTime: 0,
     blockAngle: 0,
@@ -144,8 +152,8 @@ export function updatePlayer(p, dt) {
   p.aimAngle = aimAngle(p);
 
   // --- dash ---------------------------------------------------------------
-  if (input.dashPressed && !p.dashing && p.dashStock > 0) startDash(p);
-  else if (input.dashPressed && !p.dashing) {
+  if (input.dashPressed && !p.dashing && !p.leap && p.dashStock > 0) startDash(p);
+  else if (input.dashPressed && !p.dashing && !p.leap) {
     // Out of charges: say no out loud rather than doing nothing.
     p.dashDenied = 0.45;
     sfx.click();
@@ -179,16 +187,19 @@ export function updatePlayer(p, dt) {
     }
   }
 
+  updateGun(p, dt);
+  updateLeap(p, dt);
+
   // --- attacks ------------------------------------------------------------
   updateAttack(p, dt);
   updateGrenade(p, dt);
   updateSpells(p, dt);
 
   // --- movement -----------------------------------------------------------
-  if (!p.dashing) {
+  if (!p.dashing && !p.leap) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
     if (p.attack) speed *= 0.34;
-    if (p.charging) speed *= 0.55;
+    if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
     if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
@@ -241,6 +252,14 @@ function startDash(p) {
   // Cancelling recovery with a dash is the core defensive tool, so let it.
   if (p.attack && p.attack.phase === 'recover') p.attack = null;
 
+  // The blunderbuss: dashing mid-reload slams the shells home at once.
+  if (p.weapon.gun && p.reloadT > 0) {
+    p.reloadT = 0;
+    p.ammo = p.weapon.gun.shells;
+    damageText(p.x, p.y - p.r - 22, 'RELOADED', { color: p.weapon.color, size: 14 });
+    sfx.clack(1.4);
+  }
+
   burst(p.x, p.y, {
     count: 12, color: p.weapon.color, speed: 260, size: 3.4, life: 0.3,
     dir: dir + Math.PI, spread: 1.4, drag: 5, shape: 'spark',
@@ -248,6 +267,57 @@ function startDash(p) {
   ring(p.x, p.y, { r0: 6, r1: 46, color: p.weapon.color, life: 0.24, width: 3 });
   sfx.dash();
   shake(0.07);
+}
+
+/** The blunderbuss's shells: reload when empty (or after a pause), and Fan the Hammer. */
+function updateGun(p, dt) {
+  const g = p.weapon.gun;
+  if (!g) return;
+  if (p.fan) {
+    p.fan.t -= dt;
+    if (p.fan.t <= 0) {
+      fireShell(p, p.fan.step, p.aimAngle, p.fan.step.spread, p.fan.left === 1);
+      p.fan.left--;
+      p.fan.t = 0.075;
+      if (p.fan.left <= 0) { p.fan = null; p.reloadT = g.reload; sfx.clack(0.8); }
+    }
+    return;
+  }
+  if (p.reloadT > 0) {
+    p.reloadT -= dt * p.stats.attackSpeed;
+    if (p.reloadT <= 0) {
+      p.reloadT = 0;
+      p.ammo = g.shells;
+      ring(p.x, p.y, { r0: 26, r1: 14, color: p.weapon.color, life: 0.2, width: 3 });
+      sfx.clack(1.2);
+    }
+  } else if (p.ammo <= 0) {
+    p.reloadT = g.reload;
+    sfx.clack(0.8);
+  } else if (p.ammo < g.shells && !p.attack && !input.attack) {
+    // A pause tops the gun back up, a little quicker than an empty reload.
+    p.idleT += dt;
+    if (p.idleT > g.idleReload) { p.idleT = 0; p.reloadT = g.reload * 0.6; }
+  }
+  if (p.attack || input.attack) p.idleT = 0;
+}
+
+/** Skyfall Leap: up, over and down, untouchable in the air. */
+function updateLeap(p, dt) {
+  const L = p.leap;
+  if (!L) return;
+  L.t += dt;
+  const k = clamp(L.t / L.T, 0, 1);
+  const s = k * k * (3 - 2 * k);
+  p.x = lerp(L.x0, L.x1, s);
+  p.y = lerp(L.y0, L.y1, s);
+  p.z = Math.sin(k * Math.PI) * 70;
+  p.invuln = Math.max(p.invuln, 0.1);
+  if (k >= 1) {
+    p.z = 0;
+    p.leap = null;
+    groundSlam(p, p.x, p.y, L.step.radius, L.step.damage, L.step.knockback, 1);
+  }
 }
 
 function stepDuration(p, step, key) {
@@ -286,13 +356,50 @@ function updateAttack(p, dt) {
         beginAttack(p, w.combo[0], 0, false, power);
       }
     }
+  } else if (w.heavy) {
+    // The maul: a tap swings, a hold winds up a slam.
+    if (!p.attack) {
+      if (input.attack && !p.holding) { p.holding = true; p.holdT = 0; }
+      if (p.holding && input.attack) {
+        p.holdT += dt;
+        if (p.holdT >= w.heavy.hold) {
+          p.charging = true;
+          p.charge = Math.min(w.heavy.time, p.charge + dt * p.stats.attackSpeed);
+          if (p.charge >= w.heavy.time && !p.chargeReady) {
+            p.chargeReady = true;
+            ring(p.x, p.y, { r0: 40, r1: 18, color: w.color, life: 0.25, width: 4 });
+            sfx.ui();
+          }
+        }
+      } else if (p.holding) {
+        p.holding = false;
+        if (p.charging) {
+          const power = clamp(p.charge / w.heavy.time, 0.2, 1);
+          p.charging = false;
+          p.chargeReady = false;
+          p.charge = 0;
+          beginAttack(p, w.slam, -1, false, power);
+        } else {
+          const idx = p.comboTimer > 0 ? p.comboIndex % w.combo.length : 0;
+          beginAttack(p, w.combo[idx], idx, false, 1);
+        }
+      }
+    }
+  } else if (w.gun) {
+    // The blunderbuss: hold to keep firing while there are shells.
+    if (!p.attack && !p.fan && p.reloadT <= 0 && input.attack && p.ammo > 0) {
+      beginAttack(p, w.combo[0], 0, false, 1);
+    } else if (input.attackPressed && p.ammo <= 0 && !p.fan) {
+      sfx.click();                                  // the dry click of an empty gun
+    }
   } else if (input.attackPressed && !p.attack) {
     const idx = p.comboTimer > 0 ? p.comboIndex % w.combo.length : 0;
     beginAttack(p, w.combo[idx], idx, false, 1);
   }
 
-  if (input.specialPressed && !p.attack && p.specialCd <= 0) {
+  if (input.specialPressed && !p.attack && !p.leap && !p.fan && p.specialCd <= 0) {
     p.charging = false;
+    p.holding = false;
     p.charge = 0;
     beginAttack(p, w.special, -1, true, 1);
   }
@@ -359,13 +466,47 @@ export function drawPlayer(p, ctx) {
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  const world = drawPlayerRig(p, ctx, { bob });
+  const lift = p.z || 0;
+  // The maul's wind-up: the slam's reach, drawn on the floor as it grows.
+  if (p.charging && p.weapon.heavy) {
+    const h = p.weapon.heavy;
+    const k = clamp(p.charge / h.time, 0, 1);
+    const r = h.minRadius + (h.maxRadius - h.minRadius) * k;
+    const full = k >= 1;
+    ctx.globalAlpha = full ? 0.55 + Math.sin(performance.now() * 0.02) * 0.2 : 0.35;
+    ctx.strokeStyle = full ? '#ffffff' : p.weapon.color;
+    ctx.lineWidth = full ? 3 : 2;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y + p.r * 0.4, r, r * 0.86, 0, 0, TAU);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
 
-  if (!p.dead) drawWeapon(p, ctx, world, bob);
+  const world = drawPlayerRig(p, ctx, { bob: bob - lift });
+
+  if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
+
+  // The blunderbuss's shells, over your head; a sweep while it reloads.
+  if (p.weapon.gun && !p.dead) {
+    const g = p.weapon.gun;
+    for (let i = 0; i < g.shells; i++) {
+      const x = p.x - (g.shells - 1) * 5 + i * 10, y = p.y - p.r - 18 - lift;
+      ctx.fillStyle = i < p.ammo ? (i === 0 && p.ammo === 1 ? '#ffd45e' : '#e8d2a8') : 'rgba(255,255,255,0.18)';
+      ctx.fillRect(x - 3, y - 5, 6, 10);
+    }
+    if (p.reloadT > 0) {
+      const k = 1 - clamp(p.reloadT / g.reload, 0, 1);
+      ctx.strokeStyle = p.weapon.color;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y - lift, p.r + 12, -Math.PI / 2, -Math.PI / 2 + k * TAU);
+      ctx.stroke();
+    }
+  }
 
   // Charge indicator
   if (p.charging && p.charge > 0.04) {
-    const c = p.weapon.charge;
+    const c = p.weapon.charge || p.weapon.heavy;
     const k = clamp(p.charge / c.time, 0, 1);
     ctx.strokeStyle = k >= 1 ? '#ffffff' : p.weapon.color;
     ctx.lineWidth = 3.5;
@@ -429,6 +570,26 @@ function drawWeapon(p, ctx, world, bob) {
       polygon(ctx, d + 10, 0, 9, 6, 0);
       ctx.fill();
       ctx.globalAlpha = 1;
+      break;
+    case 'maul':
+      // A long haft and a heavy stone head.
+      ctx.fillStyle = '#6a4a30';
+      ctx.fillRect(d - 10, -2.2, 44, 4.4);
+      ctx.fillStyle = w.color;
+      ctx.fillRect(d + 30, -11, 16, 22);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(d + 30, -11, 5, 22);
+      break;
+    case 'gun':
+      // A stubby stock and a barrel that flares at the mouth.
+      ctx.fillStyle = '#6a4a30';
+      ctx.fillRect(d - 8, -3.5, 14, 7);
+      ctx.fillStyle = w.color;
+      ctx.fillRect(d + 4, -2.6, 26, 5.2);
+      ctx.beginPath();
+      ctx.moveTo(d + 28, -3); ctx.lineTo(d + 36, -6.5); ctx.lineTo(d + 36, 6.5); ctx.lineTo(d + 28, 3);
+      ctx.closePath();
+      ctx.fill();
       break;
     case 'bow': {
       ctx.lineWidth = 3.4;
