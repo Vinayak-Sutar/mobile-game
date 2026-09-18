@@ -3466,6 +3466,32 @@ Wikipedia, Rajan Parrikar's archive): **Raag Desh**, Khamaj thaat, Sa = D.
 - `music-kit.js` now holds the shared `voice()` synth (with kan and meend) for
   both boss themes.
 
+**Round 2 (owner: "melody okay, instruments not clear; try sitar; the tabla
+should actually be nice"):** the oscillator instruments were replaced by
+**modelled samples**, `music-samples.js`, rendered in JavaScript into
+AudioBuffers the first time they are needed (a warm-up queue renders one
+per step ahead of use) and played back cheaply:
+- **Karplus-Strong strings** (noise burst in a one-period delay loop,
+  low-passed each pass; pluck position as a comb, fine tuning by an all-pass,
+  exact T60 per note). The **sitar**'s jawari buzz is an asymmetric clip in
+  the loop, plus a mizrab click; its body is two peaking filters (330 Hz,
+  2.7 kHz); **sympathetic taraf strings** answer each note an octave up.
+  The main string is monophonic (a new stroke damps the last), **kan** is a
+  playback-rate step from the grace note and **meend is a playback-rate
+  glide on the sounding string**. The **chikari** (high Sa drones) is struck
+  between notes, becoming a **jhala** in the fast phase. The **tanpura**
+  (long, buzzing), **swarmandal** and **santoor** use the same model.
+- **Modal tabla**: harmonic partials (Raman's near-harmonic dayan) with
+  per-stroke envelopes and noise clicks: na (rim, upper partials), tin (open,
+  fundamental), ti/ra (damped), three **ge** variants whose pitch rises under
+  the palm (94→146 Hz at most), ka (flat slap). Bols are built from strokes
+  (dha = na + ge, dhin = tin + ge, tirakita = ti ra ka na across a step),
+  with ±4 ms timing and weight jitter. Fills: tirakita into sam from phase
+  2, and extra tirakita and ge in the fast phase.
+- **Room:** a synthesised stereo reverb (decaying noise that darkens) on a
+  30% send, so the ensemble sits in one space.
+- The bansuri was dropped in favour of the sitar.
+
 ### 16.15 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
