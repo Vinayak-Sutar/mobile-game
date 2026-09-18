@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.17. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.18. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3583,7 +3583,30 @@ special, aimed by holding, with more wind-up and more damage.
 - Input: `w.rifle` in `updateAttack` replaces the normal special press with
   press-to-scope / release-to-fire (`p.aiming`).
 
-### 16.17 Folk enemies not built yet
+### 16.17 Step 14 — spell choices and rearranging spell slots
+
+Owner request, all in `game.js` (+ CSS in `v5/index.html`):
+- **Replacing a spell** with all four slots full: the new spell takes the
+  slot **and the level** of the one it replaces (or keeps its own
+  remembered level if that is higher). The cards say which level it arrives
+  at.
+- **Back instead of losing the tome:** the replace screen's button is now
+  "Back to the spells", which shows the **same three offers** again
+  (`showSpellSelect(true)`). The choice screen gained "Leave the tome" for
+  when none of them are wanted.
+- **Pause menu → Spell slots:** the four slots with their key (1–4, or
+  R1 + a face button on a pad), glyph, name and level pips. Three ways to
+  rearrange, following what games do per device:
+  - **drag and drop** (Pointer Events, so touch and mouse alike): a ghost
+    follows the finger, the slot under it lights up, drop to swap;
+  - **tap / click one, then another** to swap (the pad's confirm button does
+    the same through the menu focus);
+  - **PC: hover a spell and press 1–4** to send it to that key, like binding
+    an MMO action bar.
+  Swapping only reorders `p.spells`; cooldowns and levels are keyed by spell
+  id, so nothing else changes.
+
+### 16.18 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

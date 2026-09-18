@@ -162,6 +162,27 @@
   }
   .tgl.on{border-color:rgba(142,240,255,.7);background:rgba(142,240,255,.14);color:#8ef0ff}
 
+  /* Version 5 spell slots in the pause menu: drag, tap or hover-and-key to rearrange. */
+  .slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;touch-action:none}
+  .sslot{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab;
+    width:112px;padding:10px 6px 8px;border-radius:12px;user-select:none;-webkit-user-select:none;
+    border:1px solid color-mix(in srgb, var(--c, #fff) 45%, transparent);
+    background:linear-gradient(170deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+    transition:transform .12s,border-color .12s,background .12s,box-shadow .12s;
+  }
+  .sslot:hover{transform:translateY(-2px);border-color:var(--c)}
+  .sslot.sel{border-color:var(--c);box-shadow:0 0 0 2px var(--c) inset,0 0 18px color-mix(in srgb, var(--c) 40%, transparent)}
+  .sslot.over{transform:scale(1.06);border-color:#fff;background:rgba(255,255,255,.12)}
+  .sslot.lifted{opacity:.35}
+  .sslot.empty{opacity:.35;border-style:dashed;cursor:default;--c:#fff}
+  .sslot .sk{position:absolute;top:5px;left:7px;font-size:10px;font-weight:800;color:var(--dim)}
+  .sslot .sg{font-size:24px;line-height:1.1}
+  .sslot .sn{font-size:11.5px;font-weight:700;text-align:center}
+  .sslot .sl{font-size:8px;letter-spacing:2px;color:var(--c)}
+  .sslot.ghost{position:fixed;z-index:100;pointer-events:none;transform:scale(1.08) rotate(-2deg);
+    box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:.95;cursor:grabbing}
+
   /* Version 4 spell cards. */
   .spellcard{min-height:150px}
   .spellcard .desc{font-size:11.5px}

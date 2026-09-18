@@ -732,12 +732,13 @@ function showBoonSelect() {
 let pendingSpells = [];
 let pendingSpellId = null;
 
-function showSpellSelect() {
+function showSpellSelect(again = false) {
   const p = world.player;
-  pendingSpells = offerSpells(p, 3);
+  // Coming back from the replace screen shows the same three spells.
+  if (!again) pendingSpells = offerSpells(p, 3);
   if (!pendingSpells.length) { advanceRoom(); return; }
   state = 'boon';
-  sfx.boon();
+  if (!again) sfx.boon();
   const cards = pendingSpells.map((sp, i) => {
     const c = spellColor(sp);
     const el = ELEMENT_INFO[sp.element];
@@ -757,8 +758,10 @@ function showSpellSelect() {
     <div class="panel">
       <div class="eyebrow">a spell tome lies open</div>
       <h2>Choose a spell</h2>
-      <p class="sub">${p.spells.length} of ${SPELL_SLOTS} spell slots filled. Taking a spell you know levels it up (up to 3).</p>
+      <p class="sub">${p.spells.length} of ${SPELL_SLOTS} spell slots filled. Taking a spell you know levels it up (up to 3).
+      With every slot full, a new spell replaces one of yours and keeps its level.</p>
       <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="spell-skip">Leave the tome</button></div>
     </div>`);
 }
 
@@ -770,20 +773,22 @@ function showSpellReplace(id) {
   const cards = p.spells.map((sid, i) => {
     const s = spellById(sid);
     const c = spellColor(s);
+    const lv = Math.max(spellLevel(p, sid), spellLevel(p, id));
     return `
       <div class="card spellcard" data-act="spell-replace" data-idx="${i}" style="border-color:${c}88">
         <div class="glyph" style="color:${c}">${s.glyph}</div>
         <div class="name">${s.name} <span style="opacity:.6">level ${spellLevel(p, sid)}</span></div>
-        <div class="desc">Replace with ${sp.name}.</div>
+        <div class="desc">Replace with ${sp.name}, which takes its slot at <b>level ${lv}</b>.</div>
       </div>`;
   }).join('');
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">your hands are full</div>
       <h2>Replace which spell?</h2>
-      <p class="sub">${sp.name} takes its slot. A spell you drop keeps its level if you find it again.</p>
+      <p class="sub">${sp.name} takes the slot and the level of the spell it replaces. A spell you drop keeps its
+      own level if you find it again.</p>
       <div class="cards">${cards}</div>
-      <div class="row"><button class="btn ghost" data-act="spell-skip">Keep my spells</button></div>
+      <div class="row"><button class="btn ghost" data-act="spell-back">Back to the spells</button></div>
     </div>`);
 }
 
@@ -1269,11 +1274,141 @@ function showPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="abandon">Abandon Run</button>
       </div>
+      ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
       ${dualSenseRow()}
     </div>`);
+  bindSlotDrag();
 }
+
+// --- rearranging spell slots (pause menu) ----------------------------------------
+//
+// Three ways to do it, as modern games do on each device:
+//   - DRAG a spell onto another slot to swap them (touch and mouse alike);
+//   - TAP / CLICK one slot, then another (and a pad's confirm button does the
+//     same, through the menu focus);
+//   - on PC, HOVER a spell and press 1-4 to send it straight to that key, the
+//     way action bars are bound in MMOs.
+
+let slotSel = -1;          // a slot picked up by tap or click, waiting for its partner
+let slotHover = -1;
+let slotDragged = false;   // a drag just ended: ignore the click that follows it
+
+const SLOT_KEYS = { key: ['1', '2', '3', '4'], pad: ['R1+\u2715', 'R1+\u25cb', 'R1+\u25a1', 'R1+\u25b3'] };
+
+function spellSlotsRow() {
+  const p = world.player;
+  if (!p || !p.spells.length) return '';
+  const keys = input.padMode ? SLOT_KEYS.pad : SLOT_KEYS.key;
+  const slots = [];
+  for (let i = 0; i < SPELL_SLOTS; i++) {
+    const sp = spellById(p.spells[i]);
+    if (!sp) {
+      slots.push(`<div class="sslot empty"><span class="sk">${keys[i]}</span><span class="sg">\u2727</span><span class="sn">empty</span></div>`);
+      continue;
+    }
+    const c = spellColor(sp);
+    slots.push(`
+      <div class="sslot ${slotSel === i ? 'sel' : ''}" data-act="slot-pick" data-idx="${i}" data-slot="${i}" style="--c:${c}">
+        <span class="sk">${keys[i]}</span>
+        <span class="sg" style="color:${c}">${sp.glyph}</span>
+        <span class="sn">${sp.name}</span>
+        <span class="sl">${'\u25cf'.repeat(spellLevel(p, sp.id))}</span>
+      </div>`);
+  }
+  const hint = input.touchMode
+    ? 'Drag a spell onto another slot to swap them, or tap one and then the other.'
+    : input.padMode
+      ? 'Select a spell, then the slot to swap it with.'
+      : 'Drag a spell onto another slot, click two to swap, or hover one and press 1\u20134.';
+  return `
+    <div class="tgsec">Spell slots</div>
+    <div class="slots" id="spellslots">${slots.join('')}</div>
+    <p class="sub" style="margin-top:6px">${hint}</p>`;
+}
+
+function swapSlots(i, j) {
+  const p = world.player;
+  if (!p || i === j || i < 0 || j < 0 || i >= p.spells.length || j >= p.spells.length) return;
+  [p.spells[i], p.spells[j]] = [p.spells[j], p.spells[i]];
+  sfx.pickup();
+}
+
+function pickSlot(i) {
+  if (slotDragged) { slotDragged = false; return; }
+  if (slotSel < 0) slotSel = i;
+  else { swapSlots(slotSel, i); slotSel = -1; }
+  showPause();
+}
+
+/** Drag and drop on the slots, with a ghost that follows the finger or mouse. */
+function bindSlotDrag() {
+  const row = document.getElementById('spellslots');
+  if (!row) return;
+  let drag = null;
+  row.querySelectorAll('.sslot[data-slot]').forEach((el) => {
+    el.addEventListener('pointerenter', () => { slotHover = Number(el.dataset.slot); });
+    el.addEventListener('pointerleave', () => { if (slotHover === Number(el.dataset.slot)) slotHover = -1; });
+    el.addEventListener('pointerdown', (ev) => {
+      const from = Number(el.dataset.slot);
+      const r = el.getBoundingClientRect();
+      drag = { from, id: ev.pointerId, x0: ev.clientX, y0: ev.clientY, moved: false, ghost: null, dx: ev.clientX - r.left, dy: ev.clientY - r.top, el };
+    });
+  });
+  const over = (x, y) => {
+    const hit = document.elementFromPoint(x, y);
+    const slot = hit && hit.closest && hit.closest('.sslot[data-slot]');
+    return slot ? Number(slot.dataset.slot) : -1;
+  };
+  const move = (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    if (!drag.moved && Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 8) {
+      drag.moved = true;
+      drag.ghost = drag.el.cloneNode(true);
+      drag.ghost.classList.add('ghost');
+      drag.ghost.style.width = `${drag.el.offsetWidth}px`;
+      document.body.appendChild(drag.ghost);
+      drag.el.classList.add('lifted');
+    }
+    if (!drag.moved) return;
+    drag.ghost.style.left = `${ev.clientX - drag.dx}px`;
+    drag.ghost.style.top = `${ev.clientY - drag.dy}px`;
+    const to = over(ev.clientX, ev.clientY);
+    row.querySelectorAll('.sslot').forEach((s) => s.classList.toggle('over', Number(s.dataset.slot) === to && to !== drag.from));
+  };
+  const end = (ev) => {
+    if (!drag || ev.pointerId !== drag.id) return;
+    const d = drag;
+    drag = null;
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    if (!d.moved) return;                         // a tap: the click handler picks it
+    if (d.ghost) d.ghost.remove();
+    slotDragged = true;
+    slotSel = -1;
+    const to = over(ev.clientX, ev.clientY);
+    if (to >= 0 && to !== d.from) swapSlots(d.from, to);
+    showPause();
+    setTimeout(() => { slotDragged = false; }, 0);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+}
+
+// On PC: hover a spell in the pause menu and press 1-4 to send it to that key.
+window.addEventListener('keydown', (ev) => {
+  if (state !== 'paused' || slotHover < 0 || !overlayVisible()) return;
+  const k = Number(ev.key);
+  if (k >= 1 && k <= SPELL_SLOTS) {
+    swapSlots(slotHover, k - 1);
+    slotHover = -1;
+    slotSel = -1;
+    showPause();
+  }
+});
 
 // --- overlay interaction ---------------------------------------------------
 
@@ -1291,6 +1426,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
   const idx = Number(el.dataset.idx);
   if (act !== 'padcheck') stopPadCheck();
 
+  if (act !== 'slot-pick') slotSel = -1;
   switch (act) {
     case 'title': pendingTrial = null; showTitle(); break;
     case 'version': location.href = el.dataset.href; break;
@@ -1399,12 +1535,18 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'spell-replace': {
-      learnSpell(world.player, pendingSpellId, idx);
+      // The newcomer inherits the slot's level (or keeps its own, if higher).
+      const p = world.player;
+      const oldLv = spellLevel(p, p.spells[idx]);
+      learnSpell(p, pendingSpellId, idx);
+      p.spellLv[pendingSpellId] = Math.max(spellLevel(p, pendingSpellId), oldLv);
       sfx.boon();
       advanceRoom();
       break;
     }
+    case 'spell-back': showSpellSelect(true); break;
     case 'spell-skip': advanceRoom(); break;
+    case 'slot-pick': pickSlot(idx); break;
     case 'buy': {
       if (buyUpgrade(UPGRADES[idx])) { sfx.pickup(); showMirror(); }
       break;
