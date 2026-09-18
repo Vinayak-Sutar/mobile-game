@@ -173,12 +173,13 @@ function shadeVault(d, p, t, l, lap, x, y, time, solid) {
   const c1 = Math.sin(x * 0.9 + time * 1.4 + Math.sin(y * 0.6 + time) * 1.8);
   const c2 = Math.sin(y * 0.8 - time * 1.1 + Math.sin(x * 0.5 - time * 0.7) * 1.6);
   let caus = 1 - Math.abs(c1 + c2) * 0.5;
-  caus = caus * caus * caus * caus * (0.22 + t * 0.5) + Math.max(0, -lap) * 0.9;
+  caus = caus * caus * caus * caus * (0.22 + t * 0.5) + Math.max(0, -lap) * 0.35;
   r += caus * 48; g += caus * 82; b += caus * 84; a += caus * 28;
 
   if (l > 0) {
-    r += l * 66; g += l * 116; b += l * 146; a += l * 55;
-    if (l > 0.6) { const s = (l - 0.6) * 170; r += s; g += s; b += s; a += s * 0.4; }
+    // Tinted glints, capped: bright white crests read as a telegraph.
+    const q = Math.min(l, 0.7);
+    r += q * 26; g += q * 56; b += q * 80; a += q * 28;
   } else {
     const k = 1 + l * 0.45;
     r *= k; g *= k; b *= k; a -= l * 30;
@@ -375,9 +376,11 @@ const VAULT = createWaterArena({
   refract: 7,
   deco: makeVaultRim,
   swell: 0.05,
+  light: 0.8,
+  rippleAlpha: 0.4,
   drip: { min: 0.5, max: 1.2, amt: -0.35 },
   sheen: '190,235,255',
-  rippleColor: '#e6fbff',
+  rippleColor: '#9fdcf0',
   onBuild: buildLife,
   onTick: tickLife,
   onDrawFloor: drawUnder,

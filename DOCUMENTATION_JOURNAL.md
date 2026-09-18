@@ -3319,6 +3319,16 @@ unchanged. `lob()` in `boss-kit.js` now returns its hazard and takes
 
 All cosmetic; the fights play the same. Static checks only; the owner tests.
 
+**Owner feedback, first test:**
+- Peak: footprints looked unnatural for our figures (no human feet), so the
+  player and the small foes now drag a **trail**: a shallow furrow in the ash
+  grid (sides heaped) with a soft dark groove and pale lip drawn on top,
+  fading over ~30 s. Only Kharn, who has hands and feet, still leaves prints.
+- Vault: ripples caught too much light and read like attacks. The Vault now
+  uses `light` 0.8, capped blue-tinted glints instead of white crests, much
+  less wave-focused caustic, and crisp ripple rings at 40% alpha in a muted
+  blue (`rippleAlpha`, a new engine option). The Mire is unchanged.
+
 ### 16.11 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),

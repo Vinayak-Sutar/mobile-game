@@ -25,7 +25,7 @@ const st = {
   ash: null, grain: null,
   canvas: null, cx: null, img: null,
   rock: null, veins: null, rim: null, puff: null,
-  prints: [], cracks: [], puffs: [], shocks: [], flakes: [],
+  prints: [], trails: [], cracks: [], puffs: [], shocks: [], flakes: [],
   walkers: new WeakMap(),
   wind: { x: 16, y: 5 }, gustX: 0, gustY: 0,
   heat: 0, frame: 0, boss: null, bossRef: null,
@@ -76,6 +76,7 @@ function ensure(room) {
   st.rim = makeRim(b);
   st.puff = st.puff || makePuffSprite();
   st.prints = [];
+  st.trails = [];
   st.cracks = [];
   st.puffs = [];
   st.shocks = [];
@@ -376,7 +377,25 @@ function walk(e, isPlayer) {
     return;
   }
   const gor = e.type === 'gorilla';
-  const stride = isPlayer ? 30 : gor ? 58 : Math.max(24, e.r * 2.2);
+  if (!gor) {
+    // A drag trail, not footprints: our figures have no feet to print. A
+    // shallow furrow in the ash, with a soft mark on top of it.
+    w.d += step;
+    if (w.d < 7) return;
+    w.d = 0;
+    const width = isPlayer ? e.r * 0.85 : e.r * 0.75;
+    const got = take(e.x, e.y, width * 0.55, 0.14);
+    const nx = -Math.sin(a), ny = Math.cos(a);
+    heapAt(e.x + nx * width * 0.7, e.y + ny * width * 0.7, width * 0.3, got * 0.5);
+    heapAt(e.x - nx * width * 0.7, e.y - ny * width * 0.7, width * 0.3, got * 0.5);
+    if (w.lx !== undefined && dist(w.lx, w.ly, e.x, e.y) < 40) {
+      if (st.trails.length > 700) st.trails.shift();
+      st.trails.push({ x1: w.lx, y1: w.ly, x2: e.x, y2: e.y + e.r * 0.35, w: width, t: 0, life: 32 });
+    }
+    w.lx = e.x; w.ly = e.y + e.r * 0.35;
+    return;
+  }
+  const stride = 58;
   w.d += step;
   if (w.d < stride) return;
   w.d = 0;
@@ -388,10 +407,6 @@ function walk(e, isPlayer) {
     stamp(e.x + Math.cos(a) * e.r * 0.5 + nx * e.r * 0.6 * s, e.y + Math.sin(a) * e.r * 0.5 + ny * e.r * 0.6 * s, a, 'knuckle', 7);
     stamp(e.x - Math.cos(a) * e.r * 0.4 - nx * e.r * 0.45 * s, e.y - Math.sin(a) * e.r * 0.4 - ny * e.r * 0.45 * s, a, 'foot', 12);
     peakDust(e.x, e.y, 3, e.r * 0.6, 50);
-  } else if (isPlayer) {
-    stamp(e.x + nx * 5 * w.side, e.y + ny * 5 * w.side + e.r * 0.3, a, 'boot', 5);
-  } else {
-    stamp(e.x + nx * e.r * 0.4 * w.side, e.y + ny * e.r * 0.4 * w.side, a, 'paw', Math.max(3, e.r * 0.28));
   }
 }
 
@@ -468,6 +483,10 @@ function tick(room, dt) {
   for (let i = st.shocks.length - 1; i >= 0; i--) {
     st.shocks[i].t += dt;
     if (st.shocks[i].t >= st.shocks[i].life) st.shocks.splice(i, 1);
+  }
+  for (let i = st.trails.length - 1; i >= 0; i--) {
+    st.trails[i].t += dt;
+    if (st.trails[i].t >= st.trails[i].life) st.trails.splice(i, 1);
   }
   for (let i = st.prints.length - 1; i >= 0; i--) {
     st.prints[i].t += dt;
@@ -586,6 +605,20 @@ function draw(ctx, room, time) {
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(st.canvas, 0.5, 0.5, st.w - 1, st.h - 1, st.x0 + CELL / 2, st.y0 + CELL / 2, (st.w - 1) * CELL, (st.h - 1) * CELL);
 
+  // Drag trails: a soft dark groove with a pale lip, fading as ash covers it.
+  ctx.lineCap = 'round';
+  for (const tr of st.trails) {
+    const fade = tr.t < tr.life * 0.5 ? 1 : 1 - (tr.t - tr.life * 0.5) / (tr.life * 0.5);
+    ctx.globalAlpha = 0.22 * fade;
+    ctx.strokeStyle = '#e2d8cc';
+    ctx.lineWidth = tr.w + 3;
+    ctx.beginPath(); ctx.moveTo(tr.x1 - 0.8, tr.y1 - 0.8); ctx.lineTo(tr.x2 - 0.8, tr.y2 - 0.8); ctx.stroke();
+    ctx.globalAlpha = 0.34 * fade;
+    ctx.strokeStyle = '#2a2320';
+    ctx.lineWidth = tr.w;
+    ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
   for (const pr of st.prints) drawPrint(ctx, pr);
   drawCracks(ctx);
 

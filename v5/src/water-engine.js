@@ -415,7 +415,7 @@ export function createWaterArena(cfg) {
     for (const r of sim.ripples) {
       const k = r.t / r.life;
       const rr = r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k));
-      ctx.globalAlpha = r.alpha * (1 - k);
+      ctx.globalAlpha = r.alpha * (1 - k) * (cfg.rippleAlpha ?? 1);
       ctx.strokeStyle = rc;
       ctx.beginPath();
       ctx.ellipse(r.x, r.y, rr, rr * 0.82, 0, 0, TAU);
