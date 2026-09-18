@@ -53,6 +53,7 @@ import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
 import { dualsense, dualSenseSupported, connectDualSense, probe as probeDualSense } from './dualsense.js';
+import { look } from './wanderer.js';
 import { bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets } from './bake.js';
 import { PLAYER_SKELETON, PLAYER_CLIPS } from './rigs.js';
 import { resolvePose, drawSkeleton } from './anim.js';
@@ -468,6 +469,10 @@ function tick(dt) {
 
 function render() {
   const s = view.dpr * view.scale;
+  // The player's look (wanderer.js): as chosen, or by default the Wanderer
+  // in The Wilds' 3/4 world and the Hooded One in the chambers.
+  const ch = save.character;
+  look.skin = ch === 'hooded' || ch === 'wanderer' ? ch : world.overworld || world.owBoss ? 'wanderer' : 'hooded';
   ctx.setTransform(s, 0, 0, s, 0, 0);
 
   ctx.fillStyle = '#08060d';
@@ -586,6 +591,23 @@ function fullscreenRow() {
   </button></div>`;
 }
 
+const CHARACTERS = [
+  ['auto', 'Auto', 'The Wanderer in The Wilds, the Hooded One in the chambers'],
+  ['hooded', 'Hooded One', 'Seen from above, turning with the aim'],
+  ['wanderer', 'Wanderer', 'Standing, in the 3/4 view of The Wilds: a straw hat and a scarf'],
+];
+
+/** Who you play as. The same moves; only the look changes (wanderer.js). */
+function characterRow() {
+  const cur = save.character || 'auto';
+  return `
+    <div class="volrow">
+      <span class="vollabel">Character</span>
+      ${CHARACTERS.map(([id, name, tip]) => `
+        <button class="tgl ${cur === id ? 'on' : ''}" data-act="char" data-v="${id}" title="${tip}">${name}</button>`).join('')}
+    </div>`;
+}
+
 function musicVolumeRow() {
   const pct = Math.round(audio.musicVolume * 100);
   // Big +/- buttons as well as the slider: easy to hit on a phone, and the
@@ -678,6 +700,7 @@ function showTitle() {
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
       ${fullscreenRow()}
+      ${characterRow()}
       ${statBlock()}
       ${musicVolumeRow()}
       ${dualSenseRow()}
@@ -1165,6 +1188,7 @@ function showWildsIntro() {
       face its guardian. The map in the corner fills in as you explore.</p>
       <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells. Change them there first.</p>
+      ${characterRow()}
       <div class="row">
         <button class="btn" data-act="w-start">Set out</button>
         <button class="btn ghost" data-act="training">Training Ground loadout</button>
@@ -1259,6 +1283,7 @@ function showWildsPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
+      ${characterRow()}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
@@ -1604,6 +1629,15 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
     case 'wilds': showWildsIntro(); break;
+    case 'char': {
+      save.character = el.dataset.v;
+      writeSave();
+      // Redraw whichever screen the choice was made on.
+      if (state === 'paused' && (world.overworld || world.owBoss)) showWildsPause();
+      else if (state === 'training') showWildsIntro();
+      else showTitle();
+      break;
+    }
     case 'w-start': phoneFullscreen(); startWilds(); break;
     case 'w-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 'w-leave': leaveWilds(); break;

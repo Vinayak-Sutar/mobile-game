@@ -16,6 +16,7 @@ const DEFAULTS = {
   musicOn: true,
   musicVolume: 0.7,
   biome: 'ember',
+  character: 'auto',     // the player's look: auto (the Wanderer in The Wilds) | hooded | wanderer
   tutorialSeen: false,   // the tutorial is offered once, before the first run
 };
 

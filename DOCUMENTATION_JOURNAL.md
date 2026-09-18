@@ -3835,7 +3835,49 @@ visual; what they change is where you can walk.
 - Standing on a top reveals the map to 680 instead of 420: high ground sees
   further.
 
-### 16.22 Folk enemies not built yet
+### 16.22 Step 19 — a second look: the Wanderer (`wanderer.js`)
+
+The Hooded One is drawn straight from above and turns with the aim. That
+clashed with The Wilds' 3/4 art (cliff faces, standing pines).
+
+**The Wanderer** is the same player with a different drawing: an upright 3/4
+figure.
+- **Facing:** mirrored left or right by `cos(aim)`. It shows its back (hair,
+  bedroll strapped on) when `sin(aim) < -0.25`, and then the weapon is drawn
+  behind the body.
+- **Look:**
+  - a wide straw hat with a band in the weapon's colour;
+  - a rust coat, lit from the upper left (the light stays put when the
+    figure is mirrored);
+  - dark trousers and boots;
+  - a bedroll across the back;
+  - a scarf in the weapon's colour;
+  - a dark outline, so it reads on any terrain.
+
+**Animation is unchanged:** the same `PLAYER_SKELETON` and clips run as
+before, and the Wanderer reads its pose:
+- The legs' swing becomes feet stepping forward and back, lifted mid-stride.
+- The torso's `y` becomes the bob per footfall.
+- The torso's `sx`/`sy` becomes squash and stretch about the feet
+  (breathing, the dash stretch plus a forward tip, the hurt jolt).
+- The death clip's collapse topples the figure onto its side.
+- `cloakA.sx` and `cloakB` drive the scarf's length and flutter.
+- `armL` is the off arm's counter-swing.
+- The weapon arm runs from the shoulder to the rig's own hand
+  (`playerWorld()` in rigs.js). The rig is lifted by `WANDERER_LIFT` (14), so
+  weapons are drawn at chest height and swings still line up with hitboxes.
+- Ammo and shells over the head sit higher, above the hat.
+
+**The choice:** `save.character` is one of:
+- `auto` (default): the Wanderer in The Wilds and gate fights, the Hooded
+  One in the chambers;
+- `hooded`;
+- `wanderer`.
+
+A "Character" row appears on the title, in The Wilds' intro and in The Wilds'
+pause menu. `render()` sets `look.skin` each frame.
+
+### 16.23 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

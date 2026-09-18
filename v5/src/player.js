@@ -10,7 +10,8 @@ import { performStep, fireShell, groundSlam } from './weapons.js';
 import { nearestEnemy, dealDamage, enemiesInRadius } from './combat.js';
 import { burst, ring, trail, shake, slash, damageText } from './fx.js';
 import { sfx } from './audio.js';
-import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform } from './rigs.js';
+import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform, playerWorld } from './rigs.js';
+import { look, liftWorld, drawWanderer, drawWandererArm, wandererFacingAway, WANDERER_LIFT } from './wanderer.js';
 import { updateSpells } from './spells.js';
 import { updateGrenade, GRENADE } from './grenade.js';
 
@@ -644,9 +645,22 @@ export function drawPlayer(p, ctx) {
     ctx.globalAlpha = 1;
   }
 
-  const world = drawPlayerRig(p, ctx, { bob: bob - lift });
-
-  if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
+  // Two looks, one animation (wanderer.js): the Hooded One from straight
+  // above, or the Wanderer standing up in 3/4 view. Facing away, the
+  // Wanderer's weapon is behind the body.
+  const standing = look.skin === 'wanderer';
+  if (standing) {
+    const lifted = liftWorld(playerWorld(p, bob - lift));
+    const behind = wandererFacingAway(p);
+    if (behind && !p.dead) { drawWandererArm(p, ctx, lifted, bob - lift, true); drawWeapon(p, ctx, lifted, bob - lift); }
+    drawWanderer(p, ctx, lifted, bob - lift);
+    if (!behind && !p.dead) { drawWandererArm(p, ctx, lifted, bob - lift, false); drawWeapon(p, ctx, lifted, bob - lift); }
+  } else {
+    const world = drawPlayerRig(p, ctx, { bob: bob - lift });
+    if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
+  }
+  // Things shown over the head sit above the Wanderer's hat.
+  const over = standing ? WANDERER_LIFT + 6 : 0;
 
   if (p.aiming && !p.dead) drawScope(p, ctx);
 
@@ -654,14 +668,14 @@ export function drawPlayer(p, ctx) {
   if (p.weapon.gun && !p.dead) {
     const g = p.weapon.gun;
     for (let i = 0; i < g.shells; i++) {
-      const x = p.x - (g.shells - 1) * 5 + i * 10, y = p.y - p.r - 18 - lift;
+      const x = p.x - (g.shells - 1) * 5 + i * 10, y = p.y - p.r - 18 - lift - over;
       ctx.fillStyle = i < p.ammo ? (i === 0 && p.ammo === 1 && g.lastCrit ? '#ffd45e' : '#e8d2a8') : 'rgba(255,255,255,0.18)';
       ctx.fillRect(x - 3, y - 5, 6, 10);
     }
     if (p.weapon.rifle) {
       const rf = p.weapon.rifle;
       for (let i = 0; i < rf.rounds; i++) {
-        const x = p.x - (rf.rounds - 1) * 4 + i * 8, y = p.y - p.r - 31 - lift;
+        const x = p.x - (rf.rounds - 1) * 4 + i * 8, y = p.y - p.r - 31 - lift - over;
         ctx.fillStyle = p.rifleReloadT > 0
           ? (i < rf.rounds * (1 - p.rifleReloadT / rf.reload) ? 'rgba(159,224,160,0.5)' : 'rgba(255,255,255,0.12)')
           : i < p.rifleAmmo ? '#9fe0a0' : 'rgba(255,255,255,0.18)';

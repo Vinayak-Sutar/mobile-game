@@ -234,6 +234,11 @@ export function drawPlayerRig(p, ctx, { bob = 0 } = {}) {
   return world;
 }
 
+/** The rig's pose in world space without drawing it (the Wanderer reads it). */
+export function playerWorld(p, bob = 0) {
+  return resolvePose(PLAYER_SKELETON, p.anim.pose, { x: p.x, y: p.y + bob, angle: p.aimAngle, scale: RIG_SCALE });
+}
+
 export function playerHandTransform(p, world) {
   return boneAt(world, PLAYER_SKELETON, 'armR');
 }
