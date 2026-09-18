@@ -56,7 +56,8 @@ export const DUMMY = {
   update(e, dt) {
     // Sway back upright after a hit, then top the bar back up.
     e.lean *= Math.exp(-4 * dt);
-    if (world.runTime - e.lastHit > REFILL_AFTER && e.hp < e.maxHp) {
+    // Breakable ones (the tutorial's) stay broken.
+    if (!e.breakable && world.runTime - e.lastHit > REFILL_AFTER && e.hp < e.maxHp) {
       e.hp = Math.min(e.maxHp, e.hp + e.maxHp * dt * 1.6);
     }
   },

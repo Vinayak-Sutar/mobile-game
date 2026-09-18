@@ -16,6 +16,7 @@ const DEFAULTS = {
   musicOn: true,
   musicVolume: 0.7,
   biome: 'ember',
+  tutorialSeen: false,   // the tutorial is offered once, before the first run
 };
 
 export const UPGRADES = [

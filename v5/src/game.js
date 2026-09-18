@@ -16,6 +16,9 @@ import { createPlayer, updatePlayer, drawPlayer } from './player.js';
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
 import { drawCorpses } from './enemies-folk.js';
 import { drawTrainingHud, updateMeter, resetMeter } from './training.js';
+import {
+  bindTutorialSpawner, startLessons, updateTutorial, drawTutorialWorld, drawTutorialHud,
+} from './tutorial.js';
 import { updateStatuses, healPlayer } from './combat.js';
 import { updateProjectiles, drawProjectiles, updateHitboxes, updatePickups, drawPickups } from './projectiles.js';
 import {
@@ -288,7 +291,7 @@ function revivePlayer() {
 }
 
 function onDeath() {
-  if (world.training) {
+  if (world.training || world.tutorial) {
     const p = world.player;
     if (p) { p.dead = false; p.hp = p.stats.maxHp; p.invuln = 1.2; }
     showToast('BACK ON YOUR FEET', 'Nothing is lost in training');
@@ -367,6 +370,7 @@ function tick(dt) {
       updateHazards(dt);
       updatePickups(dt);
       if (world.training) updateTraining();
+      if (world.tutorial && updateTutorial(dt)) showTutorialEnd(true);
       updateRoom(dt);
       updateFx(dt);
 
@@ -435,6 +439,7 @@ function render() {
     drawObstacles(ctx);
     drawDoors(ctx, world.runTime);
     drawHazardsBelow(ctx, world.runTime);
+    if (world.tutorial) drawTutorialWorld(ctx);
     drawSpellZones(ctx, world.runTime);
     drawGrenadeAim(ctx, world.player, world.runTime);
     drawCorpses(ctx);
@@ -456,6 +461,7 @@ function render() {
   if (inRun) {
     drawHud(ctx, world.runTime);
     drawTrainingHud(ctx);
+    if (world.tutorial && state === 'playing') drawTutorialHud(ctx);
     if (state === 'playing') drawControls(ctx, world.runTime);
     drawLowHealthVignette();
   }
@@ -604,6 +610,7 @@ function showTitle() {
       <div class="row">
         <button class="btn" data-act="biome">Begin Run</button>
         <button class="btn ghost" data-act="trials">Boss Trials</button>
+        <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
@@ -1047,6 +1054,81 @@ function startTraining() {
   hideOverlay();
 }
 
+// --- tutorial chamber --------------------------------------------------------
+// Optional, offered once before the first run and always on the title screen.
+// The lessons live in tutorial.js; this is entering and leaving.
+
+bindTutorialSpawner(spawnEnemyDebug);
+
+function startTutorial() {
+  save.tutorialSeen = true;
+  writeSave();
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+
+  world.biome = getBiome(save.biome);
+  initAmbient(world.biome);
+  // The blade: the plainest weapon to learn the controls with.
+  const blade = WEAPONS.find((w) => w.id === 'blade') || WEAPONS[1] || WEAPONS[0];
+  world.player = createPlayer(blade, metaBonuses());
+  world.tutorial = true;
+  world.depth = 1;
+
+  startRoom(generateRoom(1, 0, { training: true }));
+  startLessons();
+  state = 'playing';
+  hideOverlay();
+}
+
+function showTutorialOffer() {
+  state = 'tutorial';
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">before you descend</div>
+      <h2>New to Ashfall?</h2>
+      <p class="sub">A short tutorial chamber teaches moving, attacking, dashing, your
+      weapon's special, grenades and spells, one at a time, then a small real fight.
+      About two minutes. You can skip it from the pause menu, and it is always on the
+      title screen.</p>
+      <div class="row">
+        <button class="btn" data-act="tutorial">Take the tutorial</button>
+        <button class="btn ghost" data-act="tut-no">Skip, straight to the run</button>
+      </div>
+    </div>`);
+}
+
+function showTutorialPause() {
+  state = 'paused';
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">tutorial</div>
+      <h2>Paused</h2>
+      <div class="row">
+        <button class="btn" data-act="tut-resume">Resume</button>
+        <button class="btn ghost" data-act="tut-skip">Skip the tutorial</button>
+        <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
+      </div>
+    </div>`);
+}
+
+function showTutorialEnd(finished) {
+  state = 'victory';
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">${finished ? 'tutorial complete' : 'tutorial skipped'}</div>
+      <h2>${finished ? 'You are ready' : 'Straight in, then'}</h2>
+      <p class="sub">Every guardian waits below, one in every other chamber. Clear a room,
+      pick a door, take its reward, go deeper. The Training Ground on the title screen
+      lets you try any weapon or spell whenever you like.</p>
+      <div class="row">
+        <button class="btn" data-act="tut-run">Begin Run</button>
+        <button class="btn ghost" data-act="tut-title">Title screen</button>
+      </div>
+    </div>`);
+}
+
 /** Per-frame upkeep while the Training Ground is open. */
 function updateTraining() {
   updateMeter();
@@ -1124,6 +1206,7 @@ function showTraining() {
 function showPause() {
   // In the Training Ground the pause screen is the loadout panel.
   if (world.training) { showTraining(); return; }
+  if (world.tutorial) { showTutorialPause(); return; }
 
   state = 'paused';
   showOverlay(`
@@ -1213,9 +1296,16 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'weapon': pendingTrial = null; showWeaponSelect(); break;
     case 'biome': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
-      showBiomeSelect();
+      if (!save.tutorialSeen) showTutorialOffer();
+      else showBiomeSelect();
       break;
     }
+    case 'tutorial': startTutorial(); break;
+    case 'tut-no': save.tutorialSeen = true; writeSave(); showBiomeSelect(); break;
+    case 'tut-resume': state = 'playing'; hideOverlay(); resetInput(); break;
+    case 'tut-skip': showTutorialEnd(false); break;
+    case 'tut-run': world.tutorial = false; clearEntities(); showBiomeSelect(); break;
+    case 'tut-title': world.tutorial = false; clearEntities(); showTitle(); break;
     case 'biome-pick': {
       pendingBiome = BIOMES[idx];
       save.biome = pendingBiome.id;

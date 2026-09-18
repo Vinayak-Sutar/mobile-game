@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.7. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.8. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3135,7 +3135,45 @@ pips plus one continuous fill for the next charge.
   charge, with the next arc filling in white; the ring flashes outward when a
   charge lands and turns red and shakes when a press is refused.
 
-### 16.7 Folk enemies not built yet
+### 16.7 Step 4 — the PC ability bar and the tutorial chamber (built; owner testing)
+
+The owner found that on PC the grenade was invisible as an ability, and that
+nothing told a new player it existed.
+
+- **Ability bar** (`drawAbilityRow` in `ui.js`, keyboard and pad only): DASH,
+  SPECIAL and BOMB as the same round buttons touch players get, with their
+  names above and their key inside (`SPACE` / `K` / `G`, or `✕` / `L2` /
+  `○` on a pad). Dash and bomb carry the segmented charge ring, special the
+  cooldown sweep. It sits left of the spell row, or right of it on a narrow
+  4:3 view. The old "special ready [K]" text line is gone.
+- **The tutorial chamber** (`v5/src/tutorial.js`), researched against
+  onboarding practice: learn by doing, one mechanic at a time, prompts only
+  when relevant, always skippable.
+  - Offered **once**, when Begin Run is pressed and `save.tutorialSeen` is
+    false (seeded V4 saves count as unseen). Always available from the title
+    screen. Skippable from the pause menu at any point.
+  - Seven lessons, each with a card at the top (lesson n / 7, title, progress
+    such as 1 / 2, a device-specific instruction for touch, keyboard or pad,
+    and one line of why it matters), and a pulsing ring plus bouncing arrow on
+    the relevant button and, for dash and bomb, on the HUD pip row too:
+    move to a light, break three dummies, dash twice, use the special, throw
+    two grenades at a cluster, cast Fireball (granted for the lesson), then a
+    small real fight (two wretches and a slinger at 0.8 scale).
+  - Each lesson finishes the moment it is done: a green tick, the boon sound
+    and a gold ring, then the next one after a second.
+  - Lessons detect actions by edge-watching player state (`dashing`,
+    `specialCd`, `grenadeStock`, `spellCds`), so no engine hooks were needed.
+    Breakable dummies are training dummies with `breakable` set (no refill,
+    no `hpFloor`).
+  - It runs in a training room (no doors), with the Stygian Blade.
+    `world.tutorial` marks the mode; dying stands you back up.
+  - The end screen offers Begin Run or the title screen, and points at the
+    Training Ground.
+- `hudAnchor(id)` and `chargeRowAnchor(id)` in `ui.js` report where an ability
+  is on screen right now (touch button, ability bar or spell row), for any
+  future hint that needs to point at the HUD.
+
+### 16.8 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

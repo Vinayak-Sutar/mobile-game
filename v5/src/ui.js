@@ -87,19 +87,23 @@ export function drawHud(ctx, time) {
   // filling as it recharges. A landed charge pops, a refused press shakes.
   const py = y + h + 12;
   let px = x;
+  chargeRects.dash = { x: px, y: py, w: 0, h: 10 };
   px = drawCharges(ctx, {
     x: px, y: py, label: 'DASH', color: p.weapon.color, pipW: 26,
     max: p.stats.dashCharges, have: p.dashStock,
     frac: 1 - clamp(p.dashTimer / 0.75, 0, 1),
     pop: p.dashPop || 0, deny: p.dashDenied || 0,
   });
+  chargeRects.dash.w = px - chargeRects.dash.x - 4;
   px += 16;
+  chargeRects.grenade = { x: px, y: py, w: 0, h: 10 };
   px = drawCharges(ctx, {
     x: px, y: py, label: 'BOMB', color: '#ffd45e', pipW: 22,
     max: GRENADE.maxCharges, have: p.grenadeStock,
     frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
     pop: p.grenadePop || 0, deny: p.grenadeDenied || 0,
   });
+  chargeRects.grenade.w = px - chargeRects.grenade.x - 4;
   if (!livesBeside) drawLives(ctx, p, px + 14, py + 5, time, 0.72);
 
   // --- boons --------------------------------------------------------------
@@ -226,19 +230,13 @@ export function drawHud(ctx, time) {
     ctx.fillText(boss.title.toUpperCase() + tag, view.w / 2, byy + bh + 13);
   }
 
-  // --- weapon / special (desktop readout) ---------------------------------
+  // --- weapon name, and the ability bar (keyboard and pad) ----------------
   if (!input.touchMode) {
     ctx.textAlign = 'left';
     ctx.fillStyle = p.weapon.color;
     ctx.font = `800 13px ${FONT}`;
-    ctx.fillText(p.weapon.name, 26, view.h - 44);
-    const ready = p.specialCd <= 0;
-    ctx.fillStyle = ready ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.3)';
-    ctx.font = `700 12px ${FONT}`;
-    ctx.fillText(
-      ready ? `${p.weapon.specialName} — ready [K]` : `${p.weapon.specialName} — ${p.specialCd.toFixed(1)}s`,
-      26, view.h - 26,
-    );
+    ctx.fillText(p.weapon.name, 26, view.h - 30);
+    drawAbilityRow(ctx, p);
   }
 
   drawSpellRow(ctx, p);
@@ -246,6 +244,84 @@ export function drawHud(ctx, time) {
 }
 
 /** Labels under each slot for keyboard and controller (hold R1 + a face button). */
+/**
+ * Dash, special and grenade on keyboard and pad. Touch players have these as
+ * buttons; without them the grenade was invisible on PC. They sit left of the
+ * spell row and use the same button art, so one look covers every ability.
+ */
+const abilitySlots = {
+  dash: { x: 0, y: 0, r: 25, label: '', pressed: false },
+  special: { x: 0, y: 0, r: 25, label: '', pressed: false },
+  grenade: { x: 0, y: 0, r: 25, label: '', pressed: false },
+};
+const ABILITY_KEYS = {
+  key: { dash: 'SPACE', special: 'K', grenade: 'G' },
+  pad: { dash: '✕', special: 'L2', grenade: '○' },
+};
+const ABILITY_NAMES = { dash: 'DASH', special: 'SPECIAL', grenade: 'BOMB' };
+
+function drawAbilityRow(ctx, p) {
+  const keys = input.padMode ? ABILITY_KEYS.pad : ABILITY_KEYS.key;
+  const y = view.h - 46;
+  const order = ['dash', 'special', 'grenade'];
+  // Left of the spells where there is room; on a narrow (4:3) view that would
+  // run into the weapon name, so the bar moves to the right of the spells.
+  const leftEnd = view.w / 2 - 111 - 84;         // clear of spell slot 1
+  const fitsLeft = leftEnd - 2 * 72 - 40 > 170;
+  const first = fitsLeft ? leftEnd - 2 * 72 : view.w / 2 + 111 + 84;
+  order.forEach((id, i) => {
+    const s = abilitySlots[id];
+    s.x = first + i * 72;
+    s.y = y;
+    s.label = keys[id];
+    s.pressed = id === 'dash' ? !!input.dash : id === 'special' ? !!input.special : !!input.grenade;
+  });
+
+  button(ctx, abilitySlots.dash, '#9fb8ff', p.dashStock > 0 ? 1 : 0, '»', '', {
+    max: p.stats.dashCharges, have: p.dashStock,
+    frac: 1 - clamp(p.dashTimer / 0.75, 0, 1),
+    pop: p.dashPop || 0, deny: p.dashDenied || 0,
+  });
+  button(ctx, abilitySlots.special, '#ffd45e',
+    p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1, '★');
+  button(ctx, abilitySlots.grenade, '#ff9a4d', p.grenadeStock > 0 ? 1 : 0, '◉', '', {
+    max: GRENADE.maxCharges, have: p.grenadeStock,
+    frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
+    pop: p.grenadePop || 0, deny: p.grenadeDenied || 0,
+  });
+
+  // What each one is, above it: new players have no other way to know.
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `800 9px ${FONT}`;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  for (const id of order) {
+    const s = abilitySlots[id];
+    ctx.fillText(ABILITY_NAMES[id], s.x, s.y - s.r - 16);
+  }
+}
+
+// Where the HUD drew each charge group this frame.
+const chargeRects = { dash: null, grenade: null };
+
+/**
+ * Where an ability lives on screen right now, for the tutorial to point at:
+ * the touch button on a phone, the ability bar or spell row otherwise.
+ */
+export function hudAnchor(id) {
+  if (input.touchMode) {
+    const c = id === 'spell' ? controls.spell0 : controls[id];
+    return c ? { x: c.x, y: c.y, r: c.r } : null;
+  }
+  if (id === 'spell') { const s = rowSlots[0]; return { x: s.x, y: s.y, r: s.r }; }
+  if (id === 'attack') return null;             // the mouse button: nothing to point at
+  const s = abilitySlots[id];
+  return s ? { x: s.x, y: s.y, r: s.r } : null;
+}
+
+/** The HUD pip row for dash or grenade, as a rectangle. */
+export function chargeRowAnchor(id) { return chargeRects[id] || null; }
+
 /**
  * One group of charges: a label, then a pip per charge.
  *
