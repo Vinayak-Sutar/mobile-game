@@ -40,19 +40,25 @@ export function updateCorpses(dt) {
   }
 }
 
+/**
+ * Bodies are only shown while a Vetala is in the room - they matter then, and
+ * never otherwise - and as a pale spirit outline, not a stain on the floor.
+ */
 export function drawCorpses(ctx) {
+  if (!world.corpses.length) return;
+  if (!world.enemies.some((e) => e.type === 'vetala' && !e.dead)) return;
   for (const c of world.corpses) {
     const fade = clamp(1 - c.t / CORPSE_LIFE, 0, 1);
+    const pulse = 0.5 + Math.sin(world.runTime * 3 + c.x * 0.01) * 0.5;
     ctx.save();
-    ctx.globalAlpha = 0.14 + fade * 0.2;
-    ctx.fillStyle = c.color || '#6a5f7a';
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y + c.r * 0.4, c.r * 0.92, c.r * 0.46, c.face || 0, 0, TAU);
-    ctx.fill();
-    ctx.globalAlpha = 0.1 + fade * 0.12;
-    ctx.strokeStyle = '#1a1422';
+    ctx.globalAlpha = (0.25 + pulse * 0.2) * fade;
+    ctx.strokeStyle = SPIRIT;
     ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.ellipse(c.x, c.y + c.r * 0.3, c.r * 0.9, c.r * 0.45, 0, 0, TAU);
     ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 }
@@ -262,7 +268,7 @@ export const ADZE = {
       if (bite(e, dt, e.damage, 0.7)) {
         // It feeds on blood: every bite mends it a little.
         e.hp = Math.min(e.maxHp, e.hp + Math.round(e.maxHp * 0.12));
-        burst(e.x, e.y, { count: 6, color: '#ff8fa3', speed: 150, size: 3, life: 0.3, drag: 5 });
+        burst(e.x, e.y, { count: 6, color: EMBER, speed: 150, size: 3, life: 0.3, drag: 5, shape: 'spark' });
       }
       if (e.t <= 0 || d > 260) {
         e.state = 'chase'; e.cd = rand(1.9, 2.8); e.swarmT = 0;
@@ -310,7 +316,7 @@ export const ADZE = {
       ctx.beginPath();
       ctx.ellipse(0, 0, e.r * 0.95, e.r * 0.78, e.face || 0, 0, TAU);
       ctx.fill();
-      ctx.fillStyle = e.flash > 0 ? '#ffffff' : '#ff8fa3';
+      ctx.fillStyle = e.flash > 0 ? '#ffffff' : EMBER;
       ctx.beginPath();
       ctx.ellipse(-e.r * 0.3, 0, e.r * 0.42, e.r * 0.36, e.face || 0, 0, TAU);
       ctx.fill();

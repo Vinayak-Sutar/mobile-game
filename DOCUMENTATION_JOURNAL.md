@@ -3208,6 +3208,11 @@ nothing told a new player it existed.
 - **Balance note:** this makes bullet-heavy bosses easier for melee builds.
   The owner asked for it; watch Vesper, the Peacock, the Maestro and the Bride.
 
+- **No blood (owner, 2026-09-18):** the coloured floor stains left by kills
+  read as blood and were removed. Bodies are now drawn **only while a Vetala is
+  in the room**, as a pale dashed spirit outline. The Adze's bite spray and
+  belly are ember gold instead of red.
+
 ### 16.9 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
