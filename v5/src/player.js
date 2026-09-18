@@ -283,6 +283,15 @@ function updateGun(p, dt) {
     }
     return;
   }
+  // Reload on demand: a shell short is enough, and it is a touch quicker than
+  // reloading an empty gun.
+  if (input.reloadPressed && p.reloadT <= 0 && p.ammo < g.shells && !p.attack) {
+    p.reloadT = p.ammo > 0 ? g.reload * 0.8 : g.reload;
+    p.idleT = 0;
+    sfx.clack(0.8);
+  } else if (input.reloadPressed && p.ammo >= g.shells) {
+    sfx.click();                                   // already full
+  }
   if (p.reloadT > 0) {
     p.reloadT -= dt * p.stats.attackSpeed;
     if (p.reloadT <= 0) {

@@ -253,10 +253,11 @@ const abilitySlots = {
   dash: { x: 0, y: 0, r: 25, label: '', pressed: false },
   special: { x: 0, y: 0, r: 25, label: '', pressed: false },
   grenade: { x: 0, y: 0, r: 25, label: '', pressed: false },
+  reload: { x: 0, y: 0, r: 20, label: '', pressed: false },
 };
 const ABILITY_KEYS = {
-  key: { dash: 'SPACE', special: 'K', grenade: 'Q' },
-  pad: { dash: '✕', special: 'L2', grenade: '○' },
+  key: { dash: 'SPACE', special: 'K', grenade: 'Q', reload: 'R' },
+  pad: { dash: '✕', special: 'L2', grenade: '○', reload: 'R3' },
 };
 const ABILITY_NAMES = { dash: 'DASH', special: 'SPECIAL', grenade: 'BOMB' };
 
@@ -289,6 +290,22 @@ function drawAbilityRow(ctx, p) {
     frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
     pop: p.grenadePop || 0, deny: p.grenadeDenied || 0,
   });
+
+  // The blunderbuss adds a reload slot over the bomb (the bar has no room
+  // beside it on narrow views).
+  if (p.weapon.gun) {
+    const s = abilitySlots.reload;
+    s.x = abilitySlots.grenade.x;
+    s.y = y - 72;
+    s.label = keys.reload;
+    s.pressed = false;
+    const g = p.weapon.gun;
+    button(ctx, s, p.weapon.color, p.reloadT > 0 ? 1 - clamp(p.reloadT / g.reload, 0, 1) : 1, '⟳', `${p.ammo}`);
+    ctx.textAlign = 'center';
+    ctx.font = `800 9px ${FONT}`;
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('RELOAD', s.x, s.y - s.r - 12);
+  }
 
   // What each one is, above it: new players have no other way to know.
   ctx.textAlign = 'center';
@@ -588,6 +605,13 @@ export function drawControls(ctx, time) {
   } : null);
   button(ctx, controls.special, '#ffd45e',
     p ? (p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1) : 1, '★');
+  // The blunderbuss's reload button, only while it is in hand.
+  controls.reload.enabled = !!(p && p.weapon.gun);
+  if (controls.reload.enabled) {
+    const g = p.weapon.gun;
+    const fill = p.reloadT > 0 ? 1 - clamp(p.reloadT / g.reload, 0, 1) : 1;
+    button(ctx, controls.reload, p.weapon.color, fill, '⟳', `${p.ammo}`);
+  }
   button(ctx, controls.grenade, '#ff9a4d', p ? (p.grenadeStock > 0 ? 1 : 0) : 1, '◉', '', p ? {
     max: GRENADE.maxCharges, have: p.grenadeStock,
     frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),

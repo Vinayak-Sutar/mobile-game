@@ -3556,6 +3556,12 @@ the weapon select and the Training Ground automatically.
 - Special **Fan the Hammer** (2.4 s): every shell left, at least three, fanned
   1.1 rad wide 0.075 s apart; then a reload.
 - DualSense triggers: a heavy haft for the maul, a breaking hammer for the gun.
+- **Reload button** (owner request): `R` on keyboard, `R3` on a pad, and a
+  touch button (⟳ with the shell count) in the bottom-right corner that
+  exists only while the blunderbuss is in hand (`controls.reload.enabled`,
+  set by `drawControls`). On keyboard/pad the ability bar gains a RELOAD slot
+  stacked above BOMB. Reloading with shells left takes 0.8 s instead of 1 s;
+  pressing it full just clicks. Edge flag `input.reloadPressed`.
 
 ### 16.16 Folk enemies not built yet
 

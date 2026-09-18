@@ -13,6 +13,7 @@ export const input = {
   special: false, specialPressed: false,
   dash: false, dashPressed: false,
   grenade: false, grenadePressed: false,
+  reloadPressed: false,       // the blunderbuss: reload now
   // One-frame edges: cast the spell in slot 0-3; cancel the grenade throw.
   spellCast: null,
   grenadeCancel: false,
@@ -41,6 +42,8 @@ export const controls = {
   dash: { x: 0, y: 0, r: 40, label: 'DASH', pressed: false },
   special: { x: 0, y: 0, r: 38, label: 'SPEC', pressed: false },
   grenade: { x: 0, y: 0, r: 36, label: 'BOMB', pressed: false },
+  // Only there while the blunderbuss is in hand (ui.js sets `enabled`).
+  reload: { x: 0, y: 0, r: 26, label: 'RLD', pressed: false, enabled: false },
   // The four spell slots, a row along the bottom (drawn in every mode).
   spell0: { x: 0, y: 0, r: 30, label: '', pressed: false },
   spell1: { x: 0, y: 0, r: 30, label: '', pressed: false },
@@ -82,6 +85,9 @@ export function layoutControls() {
   controls.spell1.x = w - 52;  controls.spell1.y = h - 292;
   controls.spell2.x = w - 120; controls.spell2.y = h - 322;
   controls.spell3.x = w - 190; controls.spell3.y = h - 336;
+  // Tucked into the bottom-right corner, under the right thumb, clear of ATK.
+  controls.reload.x = w - 34;
+  controls.reload.y = h - 42;
   controls.gcancel.x = w - 150;
   controls.gcancel.y = 118;
   controls.pause.x = w - 32;
@@ -102,13 +108,14 @@ function hitButton(btn, wx, wy, pad = 14) {
 
 // The action buttons, tested nearest-first (relative to size) so the tight
 // right-hand cluster never lets a neighbour steal a tap.
-const TOUCH_BUTTONS = ['attack', 'dash', 'special', 'grenade', 'spell0', 'spell1', 'spell2', 'spell3'];
+const TOUCH_BUTTONS = ['attack', 'dash', 'special', 'grenade', 'reload', 'spell0', 'spell1', 'spell2', 'spell3'];
 
 function pickButton(wx, wy) {
   let best = null, bestK = Infinity;
   for (const name of TOUCH_BUTTONS) {
     const b = controls[name];
-    const pad = name.startsWith('spell') ? 8 : 14;
+    if (name === 'reload' && !b.enabled) continue;
+    const pad = name.startsWith('spell') || name === 'reload' ? 8 : 14;
     const d = dist(wx, wy, b.x, b.y);
     if (d > b.r + pad) continue;
     const k = d / b.r;
@@ -135,6 +142,12 @@ export function initInput(canvas) {
       if (hitButton(controls.pause, x, y, 6)) { input.pausePressed = true; return; }
       const btn = pickButton(x, y);
       if (btn === 'attack' || btn === 'dash' || btn === 'special') return assign(ev.pointerId, btn);
+      if (btn === 'reload') {
+        input.reloadPressed = true;
+        controls.reload.pressed = true;
+        pointers.set(ev.pointerId, btn);
+        return;
+      }
       if (btn && btn.startsWith('spell')) {
         input.spellCast = Number(btn.slice(5));
         controls[btn].pressed = true;
@@ -238,6 +251,7 @@ export function initInput(canvas) {
     if (k === 'k' || k === 'shift') press('special', 'key');
     // Q throws the grenade: it sits under the left hand, beside WASD.
     if (k === 'q') press('grenade', 'key');
+    if (k === 'r') input.reloadPressed = true;
     if (k >= '1' && k <= '4') input.spellCast = Number(k) - 1;
   });
   window.addEventListener('keyup', (ev) => {
@@ -332,6 +346,7 @@ export function updateInput(playerPos) {
     if (pad.specialPressed) { input.specialPressed = true; pad.specialPressed = false; }
     if (pad.dashPressed) { input.dashPressed = true; pad.dashPressed = false; }
     if (pad.grenadePressed) { input.grenadePressed = true; pad.grenadePressed = false; }
+    if (pad.reloadPressed) { input.reloadPressed = true; pad.reloadPressed = false; }
     if (pad.spellPressed !== null) { input.spellCast = pad.spellPressed; pad.spellPressed = null; }
   }
 
@@ -378,6 +393,7 @@ export function endFrameInput() {
   input.specialPressed = false;
   input.dashPressed = false;
   input.grenadePressed = false;
+  input.reloadPressed = false;
   input.spellCast = null;
   input.grenadeCancel = false;
   input.pausePressed = false;

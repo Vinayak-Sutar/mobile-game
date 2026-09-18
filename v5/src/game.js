@@ -642,6 +642,7 @@ function showTitle() {
         the row at the bottom casts your spells<br>
         <b>Keyboard</b> — <kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>click</kbd>/<kbd>J</kbd> attack ·
         <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>Q</kbd> grenade (hold to aim, right-click cancels) ·
+        <kbd>R</kbd> reload (blunderbuss) ·
         <kbd>1</kbd>–<kbd>4</kbd> spells ·
         <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
         <b>Controller</b> — <kbd>L stick</kbd> move · <kbd>R stick</kbd> aim · <kbd>R2</kbd> attack ·

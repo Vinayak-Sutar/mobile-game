@@ -35,6 +35,7 @@ export const pad = {
   special: false, specialPressed: false,
   dash: false, dashPressed: false,
   grenade: false, grenadePressed: false,
+  reloadPressed: false,    // R3: reload the blunderbuss
   aimPush: 0,
   pausePressed: false,
   mutePressed: false,
@@ -172,6 +173,7 @@ export function pollGamepad(overlayOpen) {
   pad.specialPressed = pressed(gp, BTN.L2) || (!grimoire && pressed(gp, BTN.TRIANGLE));
   pad.dashPressed = pressed(gp, BTN.L1) || (!grimoire && pressed(gp, BTN.CROSS));
   pad.grenadePressed = !grimoire && pressed(gp, BTN.CIRCLE);
+  pad.reloadPressed = pressed(gp, BTN.R3);
   if (grimoire) {
     const face = [BTN.CROSS, BTN.CIRCLE, BTN.SQUARE, BTN.TRIANGLE];
     for (let i = 0; i < face.length; i++) if (pressed(gp, face[i])) pad.spellPressed = i;
