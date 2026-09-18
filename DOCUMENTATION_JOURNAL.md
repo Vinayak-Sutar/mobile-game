@@ -3244,6 +3244,8 @@ after the fight).
   walls and mangrove roots in the corners (drawn once to a canvas), drifting
   floor mist, fireflies, a slow moonlight sheen, and **wading rings** at
   everyone's feet so they stand *in* the water.
+- **Owner feedback:** loved the water physics; lily pads were distracting, so
+  there are now **two**.
 - **Cosmetic only:** no slowdown or other gameplay change; the croc's
   telegraphs are unchanged.
 - **For the next arenas:** `arenaTick` + `drawArena` on a spec is the pattern,

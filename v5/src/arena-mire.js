@@ -71,9 +71,9 @@ function ensure(room) {
   sim.cx = sim.canvas.getContext('2d');
   sim.img = sim.cx.createImageData(w, h);
 
-  // Lily pads, drifting where the water pushes them.
+  // Two lily pads, drifting where the water pushes them. More was a distraction.
   sim.pads = [];
-  for (let k = 0; k < 11; k++) {
+  for (let k = 0; k < 2; k++) {
     const pad = {
       x: rand(b.l + 40, b.r - 40), y: rand(b.t + 40, b.b - 40),
       r: rand(11, 19), rot: rand(0, TAU), spin: 0, vx: 0, vy: 0,
