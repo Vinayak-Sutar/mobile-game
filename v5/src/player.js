@@ -80,6 +80,7 @@ export function createPlayer(weapon, meta = {}) {
     reloadT: 0,
     idleT: 0,
     fan: null,            // Fan the Hammer, firing
+    aiming: null,         // the Longarm's scope, while the special is held
 
     blockTime: 0,
     blockAngle: 0,
@@ -200,6 +201,7 @@ export function updatePlayer(p, dt) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
+    if (p.aiming) speed *= 0.35;           // steadying a scope
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
     if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
@@ -251,6 +253,9 @@ function startDash(p) {
 
   // Cancelling recovery with a dash is the core defensive tool, so let it.
   if (p.attack && p.attack.phase === 'recover') p.attack = null;
+
+  // A dash drops the scope.
+  p.aiming = null;
 
   // The blunderbuss: dashing mid-reload slams the shells home at once.
   if (p.weapon.gun && p.reloadT > 0) {
@@ -406,7 +411,24 @@ function updateAttack(p, dt) {
     beginAttack(p, w.combo[idx], idx, false, 1);
   }
 
-  if (input.specialPressed && !p.attack && !p.leap && !p.fan && p.specialCd <= 0) {
+  if (w.rifle) {
+    if (!p.aiming && input.specialPressed && !p.attack && p.specialCd <= 0) {
+      p.aiming = { t: 0 };
+      sfx.click();
+    }
+    if (p.aiming) {
+      p.aiming.t += dt * p.stats.attackSpeed;
+      if (p.aiming.t >= w.rifle.steady && !p.aiming.steady) {
+        p.aiming.steady = true;
+        sfx.ui();                                  // the scope settles
+      }
+      if (!input.special) {
+        const power = clamp(p.aiming.t / w.rifle.steady, w.rifle.minPower, 1);
+        p.aiming = null;
+        beginAttack(p, w.special, -1, true, power);
+      }
+    }
+  } else if (input.specialPressed && !p.attack && !p.leap && !p.fan && p.specialCd <= 0) {
     p.charging = false;
     p.holding = false;
     p.charge = 0;
@@ -495,12 +517,14 @@ export function drawPlayer(p, ctx) {
 
   if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
 
+  if (p.aiming && !p.dead) drawScope(p, ctx);
+
   // The blunderbuss's shells, over your head; a sweep while it reloads.
   if (p.weapon.gun && !p.dead) {
     const g = p.weapon.gun;
     for (let i = 0; i < g.shells; i++) {
       const x = p.x - (g.shells - 1) * 5 + i * 10, y = p.y - p.r - 18 - lift;
-      ctx.fillStyle = i < p.ammo ? (i === 0 && p.ammo === 1 ? '#ffd45e' : '#e8d2a8') : 'rgba(255,255,255,0.18)';
+      ctx.fillStyle = i < p.ammo ? (i === 0 && p.ammo === 1 && g.lastCrit ? '#ffd45e' : '#e8d2a8') : 'rgba(255,255,255,0.18)';
       ctx.fillRect(x - 3, y - 5, 6, 10);
     }
     if (p.reloadT > 0) {
@@ -534,6 +558,53 @@ export function drawPlayer(p, ctx) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+}
+
+/** The Longarm's scope: a line to the wall, steadying from red to white. */
+function drawScope(p, ctx) {
+  const rf = p.weapon.rifle;
+  const k = clamp(p.aiming.t / rf.steady, 0, 1);
+  const steady = k >= 1;
+  // Before it settles the aim wavers a little; settled, it is dead still.
+  const a = p.aimAngle + (steady ? 0 : Math.sin(performance.now() * 0.012) * 0.04 * (1 - k));
+  const b = arenaBounds();
+  const c = Math.cos(a), s = Math.sin(a);
+  let len = 1600;
+  if (c > 0) len = Math.min(len, (b.r - p.x) / c); else if (c < 0) len = Math.min(len, (b.l - p.x) / c);
+  if (s > 0) len = Math.min(len, (b.b - p.y) / s); else if (s < 0) len = Math.min(len, (b.t - p.y) / s);
+  // The first thing on the line gets a reticle.
+  let hit = null, hitD = len;
+  for (const e of world.enemies) {
+    if (e.dead || e.spawning || e.hidden) continue;
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const along = dx * c + dy * s;
+    if (along < 0 || along > hitD) continue;
+    if (Math.abs(-dx * s + dy * c) < e.r) { hit = e; hitD = along; }
+  }
+  ctx.save();
+  ctx.globalAlpha = steady ? 0.9 : 0.35 + k * 0.4;
+  ctx.strokeStyle = steady ? '#ffffff' : '#ff6b6b';
+  ctx.lineWidth = steady ? 2 : 1.4;
+  if (!steady) ctx.setLineDash([10, 8]);
+  ctx.beginPath();
+  ctx.moveTo(p.x + c * 26, p.y + s * 26);
+  ctx.lineTo(p.x + c * len, p.y + s * len);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  if (hit) {
+    const r = hit.r + 8 + (1 - k) * 14;
+    ctx.strokeStyle = steady ? '#ffffff' : '#ff6b6b';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(hit.x, hit.y, r, 0, TAU); ctx.stroke();
+    for (let q = 0; q < 4; q++) {
+      const qa = q * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(hit.x + Math.cos(qa) * (r - 6), hit.y + Math.sin(qa) * (r - 6));
+      ctx.lineTo(hit.x + Math.cos(qa) * (r + 6), hit.y + Math.sin(qa) * (r + 6));
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 function drawWeapon(p, ctx, world, bob) {
@@ -588,6 +659,16 @@ function drawWeapon(p, ctx, world, bob) {
       ctx.fillRect(d + 30, -11, 16, 22);
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
       ctx.fillRect(d + 30, -11, 5, 22);
+      break;
+    case 'longarm':
+      // Two long barrels, a stock, and a scope on top.
+      ctx.fillStyle = '#6a4a30';
+      ctx.fillRect(d - 10, -3.5, 16, 7);
+      ctx.fillStyle = w.color;
+      ctx.fillRect(d + 4, -3.4, 34, 3);
+      ctx.fillRect(d + 4, 0.4, 34, 3);
+      ctx.fillStyle = '#2a2a30';
+      ctx.fillRect(d + 10, -7.5, 14, 3.5);
       break;
     case 'gun':
       // A stubby stock and a barrel that flares at the mouth.

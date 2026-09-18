@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.16. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.17. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3563,7 +3563,27 @@ the weapon select and the Training Ground automatically.
   stacked above BOMB. Reloading with shells left takes 0.8 s instead of 1 s;
   pressing it full just clicks. Edge flag `input.reloadPressed`.
 
-### 16.16 Folk enemies not built yet
+### 16.16 Step 13 — Marshal's Longarm (scattergun + scoped rifle)
+
+Owner request: another gun, a shotgun up close with a sniper rifle as the
+special, aimed by holding, with more wind-up and more damage.
+- `longarm` (⌖, #9fe0a0). **Primary:** a double-barrel scattergun on the
+  blunderbuss's shell system (`gun`): **2 shells**, 7 pellets of 8, tighter
+  0.42 rad spread, reload 0.9 s; the reload button, R and R3 all apply. No
+  last-shell crit — that is now an explicit `gun.lastCrit` trait of the
+  blunderbuss only (the gold shell pip follows it).
+- **Special, Deadeye Scope** (3.2 s): **hold** special and a line runs from you
+  to the wall with a reticle on the first enemy on it. It wavers, dashed red,
+  and settles over **0.8 s** to a still white line (a chime). You move at 35%
+  while scoped; a dash drops the scope. **Release** to fire after a 0.12 s
+  squeeze: a rifle round at 2600 u/s that **pierces everything** on the line
+  (and cuts every enemy shot in its way) for **150 × power**, power =
+  hold / 0.8 s, at least 0.35. A fully steadied shot crits and says DEADEYE.
+  Heavy recoil, a tracer, hit-stop.
+- Input: `w.rifle` in `updateAttack` replaces the normal special press with
+  press-to-scope / release-to-fire (`p.aiming`).
+
+### 16.17 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

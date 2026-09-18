@@ -1,4 +1,4 @@
-// Six weapons, each defined as data: a light-attack combo chain plus a
+// Seven weapons, each defined as data: a light-attack combo chain plus a
 // special on a cooldown. Order is menu order; the first is the default. `performStep` turns one step of that data into
 // hitboxes, projectiles and feedback.
 
@@ -112,7 +112,7 @@ export const WEAPONS = [
     color: '#dfe6ff',
     tagline: 'Four shells of close-range buckshot. The last one crits. Dash to reload.',
     comboWindow: 0,
-    gun: { shells: 4, reload: 1.0, idleReload: 1.4 },
+    gun: { shells: 4, reload: 1.0, idleReload: 1.4, lastCrit: true },
     combo: [
       { kind: 'shotgun', windup: 0.03, active: 0, recover: 0.24, damage: 7, pellets: 6, spread: 0.5, speed: 980, knockback: 150, lunge: 0 },
     ],
@@ -121,6 +121,28 @@ export const WEAPONS = [
       damage: 7, pellets: 5, spread: 1.1, speed: 950, knockback: 130,
     },
     specialName: 'Fan the Hammer',
+  },
+  {
+    // A lawman's two-barrel scattergun with a scope bolted on. Up close it
+    // is buckshot; hold the special and the scope comes up - a line that
+    // steadies as you hold it - and on release a rifle round goes through
+    // everything along it. The longer you hold, the harder it hits.
+    id: 'longarm',
+    name: "Marshal's Longarm",
+    glyph: '\u2316',
+    color: '#9fe0a0',
+    tagline: 'Two barrels of buckshot up close. Hold special to scope in and fire a rifle round through the room.',
+    comboWindow: 0,
+    gun: { shells: 2, reload: 0.9, idleReload: 1.2 },
+    combo: [
+      { kind: 'shotgun', windup: 0.04, active: 0, recover: 0.3, damage: 8, pellets: 7, spread: 0.42, speed: 1000, knockback: 170, lunge: 0 },
+    ],
+    rifle: { steady: 0.8, minPower: 0.35 },
+    special: {
+      kind: 'rifle', windup: 0.12, active: 0, recover: 0.32, cooldown: 3.2,
+      damage: 150, speed: 2600, knockback: 520,
+    },
+    specialName: 'Deadeye Scope',
   },
 ];
 
@@ -305,9 +327,40 @@ export function performStep(p, step, angle, power = 1) {
 
     case 'shotgun': {
       if ((p.ammo | 0) <= 0) break;
-      const last = p.ammo === 1;
+      const last = p.ammo === 1 && !!p.weapon.gun.lastCrit;
       p.ammo--;
       fireShell(p, step, angle, step.spread, last);
+      break;
+    }
+
+    case 'rifle': {
+      // One round, straight through everything on the line (and any shots
+      // in its way). A steady aim crits.
+      const full = power >= 0.999;
+      spawnProjectile({
+        x: p.x + Math.cos(angle) * 30, y: p.y + Math.sin(angle) * 30,
+        vx: Math.cos(angle) * step.speed, vy: Math.sin(angle) * step.speed,
+        r: 7, damage: Math.round(step.damage * power), knockback: step.knockback * power,
+        friendly: true, color: full ? '#ffffff' : color, shape: 'bullet', rot: angle,
+        pierce: 99, life: 0.7, crit: full, trailEvery: 0.004,
+      });
+      // The tracer and the muzzle.
+      for (let k = 1; k <= 14; k++) {
+        const d = k * 60;
+        burst(p.x + Math.cos(angle) * d, p.y + Math.sin(angle) * d, {
+          count: 1, color: full ? '#ffffff' : color, speed: 20, size: 2.6, life: 0.25, drag: 4, shape: 'spark',
+        });
+      }
+      const mx = p.x + Math.cos(angle) * 32, my = p.y + Math.sin(angle) * 32;
+      burst(mx, my, { count: 14, color: '#fff3c0', speed: 380, size: 3.5, life: 0.18, dir: angle, spread: 0.4, drag: 6, shape: 'spark' });
+      ring(mx, my, { r0: 4, r1: 34, color: '#ffffff', life: 0.18, width: 3 });
+      p.vx -= Math.cos(angle) * 260;
+      p.vy -= Math.sin(angle) * 260;
+      sfx.gunshot();
+      sfx.thud();
+      shake(0.2 + power * 0.2);
+      hitstop(0.03 + power * 0.04);
+      if (full) damageText(p.x, p.y - p.r - 26, 'DEADEYE', { color: '#ffffff', size: 16 });
       break;
     }
 
