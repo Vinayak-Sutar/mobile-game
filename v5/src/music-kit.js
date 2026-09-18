@@ -19,6 +19,7 @@ export const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
  *   vib / vibRate / vibDelay     vibrato depth (ratio), speed, fade-in delay
  *   attack / release / sustain   envelope (sustain:false = a pluck that decays)
  *   filter [f0, f1, sweepTime], q  a low-pass, optionally sweeping f0 -> f1
+ *   out                          where it goes (default: the music bus)
  */
 export function voice(k, o) {
   if (!k.ctx || k.muted() || !k.bus) return;
@@ -70,7 +71,7 @@ export function voice(k, o) {
     head.connect(fl);
     head = fl;
   }
-  head.connect(g).connect(k.bus);
+  head.connect(g).connect(o.out || k.bus);
   osc.start(t);
   osc.stop(t + dur + 0.05);
 }

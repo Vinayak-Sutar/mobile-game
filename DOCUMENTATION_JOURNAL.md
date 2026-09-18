@@ -3492,6 +3492,27 @@ per step ahead of use) and played back cheaply:
   30% send, so the ensemble sits in one space.
 - The bansuri was dropped in favour of the sitar.
 
+**Round 3 (owner: "it feels like my ears are under attack — make it
+soothing, melody in the background; no need for tabla or sitar"):** the piece
+is now a calm night piece. **No percussion, no buzzing strings, no sharp
+attacks.**
+- A **drone** like a harmonium/shruti box (Sa below, Pa, Sa; triangle through
+  an 850 Hz low-pass), renewed every eight beats with 2.4 s swells so it
+  breathes.
+- A soft **bansuri** carries the melody at low volume: sine with a 0.16 s swell,
+  a quiet triangle layer, low-passed at 1.9 kHz, a light kan on long Re and
+  the Ma->Re meend. Phase 1 rests every other cycle.
+- A **santoor struck with felt** (`softPluck`: a dark Karplus-Strong string,
+  no click, no buzz) ripples the raga's notes from phase 2, every beat in
+  phase 3; a slow soft run up the santoor at each new phase and when she
+  spreads her tail.
+- The phases change the texture, not the calm: the beat eases only from
+  0.62 s to 0.5 s.
+- The shared room is longer and darker (decay 0.65 s), with a 2.6 kHz
+  low-pass on its output; `voice()` can now play into it (`out`).
+- The sitar, tabla and tanpura models stay in `music-samples.js`, unused for
+  now.
+
 ### 16.15 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),

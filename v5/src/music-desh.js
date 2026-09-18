@@ -1,4 +1,10 @@
-// "Mor Chowk" - Solenne the Hundred-Eyed's theme, in Raag Desh.
+// "Mor Chowk" - Solenne the Hundred-Eyed's theme, in Raag Desh. A night
+// piece: soft, slow, in the background.
+//
+// The owner's brief after the second try: soothing, never harsh, the melody
+// behind the fight rather than on top of it. So there is no percussion, no
+// buzzing strings and no sharp attacks; every voice swells in and fades out,
+// and all of it passes through one warm, muffled room.
 //
 // The raga's grammar, followed here:
 //   - Khamaj thaat. Sa is D (midi 62).
@@ -8,158 +14,137 @@
 //   - Re is the vadi (the centre of gravity, a resting note) and Pa the
 //     samvadi; the Re-Pa pull runs through every phrase.
 //   - The signature gesture: a meend from Ma sliding down to Re, grazing Ga
-//     on the way (D -> M -> G -> R, P M G R).
+//     on the way.
 //   - Pakad: Re, Ma Pa Ni, Sa Re ni Dha Pa, Ma Ga Re.
 // The phrases themselves were composed for this game.
 //
-// The ensemble, modelled rather than faked (music-samples.js):
-//   - SITAR on the melody: a buzzing plucked string (the jawari bridge), its
-//     sympathetic strings answering, kan grace notes and meend pulls done by
-//     bending the sounding string - no new stroke - as a sitarist does. The
-//     chikari drone strings are struck between phrases for rhythm, and in the
-//     fast phase they drive the jhala.
-//   - TABLA in teentaal: modelled strokes (na, tin, ti, ra, ge, ka) combined
-//     into bols, the left drum's pitch sliding up under the palm, a little
-//     human in timing and weight. The khali (beats 9-12) drops the bass drum,
-//     and fills (tirakita) grow denser as the tempo rises.
-//   - TANPURA drone, buzzing: Pa, Sa, Sa, low Sa, round and round.
-//   - SWARMANDAL sweep up the raga at every new phase; SANTOOR tremolo while
-//     she spreads her tail.
-//   - All in one small room (a synthesised reverb).
+// The ensemble:
+//   - A DRONE like a harmonium or shruti box: Sa and Pa, breathing slowly in
+//     and out, always there underneath.
+//   - A soft BANSURI (bamboo flute) with the melody - rounded tone, a slow
+//     swell into each note, a light grace note and the Ma -> Re glide - played
+//     with space between the phrases.
+//   - A SANTOOR struck with felt: gentle ripples of the raga's notes under
+//     the flute, like water in the courtyard's channels.
 //
-// Like a real performance, the laya (tempo) quickens with her three phases.
-// In the fast phase every other cycle is taans - runs up the aroha, down the
-// avaroha - closing with a TIHAI whose last note lands exactly on sam.
+// Her phases change the texture, not the calm: the first is flute and drone
+// with rests, the second adds the santoor ripple, the third a little more
+// motion and a slightly quicker pulse - never a rush.
 
-import {
-  sitar, chikari, tanpura, tabla, swarmandal, santoor, prewarm, warmSitar, warmStroke,
-} from './music-samples.js';
+import { voice } from './music-kit.js';
+import { softPluck, roomIn, prewarm, warmSoft } from './music-samples.js';
 
 const SA = 62;
 const SW = { 'N.': -1, S: 0, R: 2, G: 4, M: 5, P: 7, D: 9, n: 10, N: 11, "S'": 12, "R'": 14, "G'": 16, "M'": 17 };
 const note = (sw) => SA + SW[sw];
 
-// Four cycles of teentaal, as [swar, matras, options]. Each sums to 16.
+// Four phrases of sixteen beats, as [swar, beats, options].
 const CYCLES = [
   // The pakad, opened out: Re, Ma Pa Ni Sa', Re' ni Dha Pa.
   [['R', 2], ['M', 1], ['P', 1], ['N', 1], ["S'", 3], ["R'", 1], ['n', 1], ['D', 1], ['P', 5]],
   // Down through Dha to the meend Ma -> (Ga) -> Re, then home by Ga Ni Sa.
   [['M', 1], ['P', 1], ['D', 1], ['M', 2, { meend: 'R' }], ['R', 3], ['G', 1], ['N.', 1], ['S', 6]],
-  // Up into the upper octave, the same meend there, back down to Pa.
-  [['M', 1], ['P', 1], ['N', 2], ["S'", 2], ["S'", 1], ["R'", 1], ["M'", 2, { meend: "R'" }], ["R'", 2], ["S'", 1], ['n', 1], ['D', 1], ['P', 1]],
+  // Up to the high Sa and back down to Pa.
+  [['M', 1], ['P', 1], ['N', 2], ["S'", 3], ["R'", 1], ["S'", 2], ['n', 1], ['D', 1], ['P', 4]],
   // Re and Pa answering each other, and the cadence home.
   [['P', 1], ['D', 1], ['M', 2, { meend: 'R' }], ['R', 2], ['P', 2], ['M', 1], ['G', 1], ['R', 2], ['G', 1], ['N.', 1], ['S', 2]],
 ];
 
-// Fast taans: up the aroha, down the avaroha (half a matra per note).
-const TAAN_UP = ['N.', 'S', 'R', 'M', 'P', 'N', "S'", "R'"];
-const TAAN_DOWN = ["S'", 'n', 'D', 'P', 'M', 'G', 'R', 'S'];
-const TIHAI = ['P', 'M', 'G', 'R'];
+// The santoor's ripples: gentle figures on the drone's notes and the raga's.
+const RIPPLES = [
+  ['S', 'P', "S'", 'P', 'R', 'P', "S'", 'P'],
+  ["S'", 'n', 'D', 'P', 'M', 'P', 'R', 'P'],
+  ['S', 'R', 'M', 'P', 'N', "S'", 'P', 'M'],
+  ['P', 'M', 'G', 'R', 'S', 'R', 'P', "S'"],
+];
 
-// Teentaal's theka, one bol per matra.
-const THEKA = ['dha', 'dhin', 'dhin', 'dha', 'dha', 'dhin', 'dhin', 'dha', 'dha', 'tin', 'tin', 'ta', 'ta', 'dhin', 'dhin', 'dha'];
-const TANPURA = [SA - 5, SA, SA, SA - 12];
-const SWEEP = ['N.', 'S', 'R', 'M', 'P', 'N', "S'", "R'", "M'"].map((sw) => note(sw) + 12);
-
-/** Turn a cycle into note events, in half-matra steps. */
 function events(cycle) {
   const out = [];
   let at = 0;
-  for (const [sw, matras, opt] of cycle) {
-    out.push({ at, sw, steps: matras * 2, opt: opt || {} });
-    at += matras * 2;
+  for (const [sw, beats, opt] of cycle) {
+    out.push({ at, sw, steps: beats * 2, opt: opt || {} });
+    at += beats * 2;
   }
   return out;
 }
 const MELODY = CYCLES.map(events);
 
-// Everything the piece will need, rendered ahead one piece per step.
-const WARMUP = [
-  ...['na', 'tin', 'ge1', 'ge0', 'ge2', 'ti', 'ra', 'ka'].map(warmStroke),
-  ...['R', 'M', 'P', 'N', "S'", "R'", 'n', 'D', 'G', 'N.', 'S', "M'"].map((sw) => warmSitar(note(sw))),
-];
+const WARMUP = ['S', 'R', 'M', 'P', 'N', "S'", 'n', 'D', 'G', "R'"].map((sw) => warmSoft(note(sw)));
 
-/** A sitar stroke on a swar, with the raga's ornaments. */
-function play(k, sw, dur, t, opt = {}, vol) {
+/** The flute: a soft, round tone that swells in, with a breath of air. */
+function flute(k, sw, dur, t, opt = {}) {
+  const out = roomIn(k);
+  if (!out) return;
   const m = note(sw);
-  const o = { vol };
-  // Kan: Re is touched from Ga, the upper Sa from Re - the raga's colours.
-  if (sw === 'R' && dur > 0.35) o.kan = note('G');
-  if (sw === "S'" && dur > 0.35) o.kan = note("R'");
-  if (opt.meend) o.meend = note(opt.meend);
-  sitar(k, m, t, dur, o);
+  const o = {
+    m, at: t, dur: dur + 0.25, vol: 0.042, type: 'sine', attack: 0.16, release: 0.4,
+    vib: 0.0035, vibRate: 4.6, vibDelay: 0.45, filter: [1900], q: 0.5, out,
+  };
+  if (sw === 'R' && dur > 0.7) { o.kan = note('G'); o.kanTime = 0.09; }
+  if (opt.meend) { o.glideTo = note(opt.meend); o.glideFrom = 0.35; }
+  voice(k, o);
+  voice(k, { ...o, type: 'triangle', vol: 0.008, vib: 0, filter: [1200] });
+  k.noise({ dur: 0.25, vol: 0.004, freq: 1100, type: 'bandpass', q: 0.8, at: t, out });
 }
 
-// --- the piece ------------------------------------------------------------------------
+/** The drone: Sa and Pa like a harmonium's reeds, breathing in and out. */
+function drone(k, t, len) {
+  const out = roomIn(k);
+  if (!out) return;
+  for (const [m, v] of [[SA - 12, 0.03], [SA - 5, 0.018], [SA, 0.014]]) {
+    voice(k, { m, at: t, dur: len + 2.6, vol: v, type: 'triangle', attack: 2.4, release: 2.6, filter: [850], q: 0.4, out });
+  }
+}
 
-const mem = { phase: 0, lastN: -1 };
+function ripple(k, list, t, gap, vol) {
+  list.forEach((sw, i) => softPluck(k, note(sw) + 12, t + i * gap, vol));
+}
+
+// --- the piece ---------------------------------------------------------------------
+
+const mem = { phase: 0, lastN: -1, display: false };
 
 export const DESH_THEME = {
-  // One step is half a matra: slow, medium and fast laya for her three phases.
+  // One step is half a beat; the beat eases from 0.62 s to 0.5 s over her phases.
   tempo(k) {
     const ph = k.boss ? k.boss.phase || 1 : 1;
-    const matra = ph >= 3 ? 0.32 : ph >= 2 ? 0.4 : 0.5;
-    return 60 / (matra / 2) / 4;
+    const beat = ph >= 3 ? 0.5 : ph >= 2 ? 0.56 : 0.62;
+    return 60 / (beat / 2) / 4;
   },
 
   step(n, t, k) {
     const e = k.boss;
-    if (n < mem.lastN) mem.phase = 0;
+    if (n < mem.lastN) { mem.phase = 0; mem.display = false; }
     mem.lastN = n;
     prewarm(k, WARMUP);
     const ph = e ? e.phase || 1 : 1;
     const step = 60 / this.tempo(k) / 4;
-    const s = n % 32;                        // 16 matras = 32 half-matra steps
+    const s = n % 32;
     const cycle = Math.floor(n / 32);
 
-    // A new phase opens with a sweep of the swarmandal.
-    if (ph !== mem.phase) { mem.phase = ph; swarmandal(k, SWEEP, t); }
+    // The drone, renewed every eight beats, the old one fading as the new swells.
+    if (s % 16 === 0) drone(k, t, step * 16);
 
-    // Tanpura: one string per matra, round and round.
-    if (s % 2 === 0) tanpura(k, TANPURA[(s / 2) % 4], t);
+    // A new phase, or her tail spreading: a slow, soft run up the santoor.
+    const display = !!e && e.action === 'display';
+    if (ph !== mem.phase || (display && !mem.display)) {
+      ripple(k, ['S', 'R', 'M', 'P', 'N', "S'"], t, 0.11, 0.022);
+    }
+    mem.phase = ph;
+    mem.display = display;
 
-    // Tabla: the theka on every matra; fills between as the tempo rises.
-    if (s % 2 === 0) tabla(k, THEKA[s / 2], t, s === 0, step);
-    else if (ph >= 2 && s === 31) tabla(k, 'tirakita', t, false, step);        // into sam
-    else if (ph >= 3 && (s === 7 || s === 15 || s === 23)) tabla(k, 'tirakita', t, false, step);
-    else if (ph >= 3 && s % 4 === 1) tabla(k, 'ge', t, false, step);
-
-    // Her Display: the santoor trembles between Sa and Pa.
-    if (e && e.action === 'display' && e.sub === 'fire') santoor(k, note(s % 2 ? 'P' : "S'") + 12, t);
-
-    // --- the melody ----------------------------------------------------------------
-    if (ph >= 3 && cycle % 2 === 1) {
-      // Taans on the sitar, then a tihai landing on sam; chikari between.
-      if (s < 8) play(k, TAAN_UP[s], step, t, {}, 0.12);
-      else if (s < 16) play(k, TAAN_DOWN[s - 8], step, t, {}, 0.12);
-      else if (s < 18) chikari(k, t, 0.05);
-      else {
-        const slot = (s - 18) % 5;              // three phrases of four, a rest between
-        if (slot < 4) play(k, TIHAI[slot], step, t, {}, 0.13);
-        else chikari(k, t, 0.05);
-      }
-      return;
+    // The santoor's ripple, from the second phase: every other beat, then every beat.
+    const rippleEvery = ph >= 3 ? 2 : ph >= 2 ? 4 : 0;
+    if (rippleEvery && s % rippleEvery === 0) {
+      const fig = RIPPLES[cycle % RIPPLES.length];
+      softPluck(k, note(fig[(s / rippleEvery) % fig.length]) + 12, t, 0.02);
     }
 
-    // The tihai's last note: Sa, on sam - it takes the place of the phrase's first.
-    const landing = ph >= 3 && cycle > 0 && s === 0;
-    if (landing) play(k, 'S', step * 4, t, {}, 0.15);
-
-    // In fast laya only every other cycle is a composed phrase; walk them all.
-    const idx = ph >= 3 ? Math.floor(cycle / 2) : cycle;
-    const phrase = MELODY[idx % MELODY.length];
-    let struck = landing;
-    for (const ev of phrase) {
-      if (ev.at !== s || (landing && s === 0)) continue;
-      play(k, ev.sw, ev.steps * step, t, ev.opt);
-      struck = true;
-    }
-
-    // The chikari fills the space between notes: sparse when slow, a jhala
-    // on every free half-beat when fast.
-    if (!struck) {
-      const every = ph >= 3 ? 1 : ph >= 2 ? 2 : 4;
-      if (s % every === every - 1 || (ph >= 3 && s % 2 === 1)) chikari(k, t, ph >= 3 ? 0.04 : 0.035);
+    // The flute. In the first phase every other cycle rests: space is the point.
+    if (ph === 1 && cycle % 2 === 1) return;
+    const idx = ph === 1 ? Math.floor(cycle / 2) : cycle;
+    for (const ev of MELODY[idx % MELODY.length]) {
+      if (ev.at === s) flute(k, ev.sw, ev.steps * step, t, ev.opt);
     }
   },
 };

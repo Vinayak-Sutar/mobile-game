@@ -190,7 +190,7 @@ function makeIR(c) {
       // Darker as it fades: the smoothing grows over the tail.
       const k = 0.9 - Math.min(0.8, t * 0.5);
       lp += ((Math.random() * 2 - 1) - lp) * k;
-      d[i] = lp * Math.exp(-t / 0.42) * (i < sr * 0.012 ? i / (sr * 0.012) : 1);
+      d[i] = lp * Math.exp(-t / 0.65) * (i < sr * 0.02 ? i / (sr * 0.02) : 1);
     }
   }
   return ir;
@@ -202,11 +202,14 @@ function room(k) {
   if (b.room && b.room.bus === k.bus) return b.room;
   const c = k.ctx;
   const mix = c.createGain();
-  mix.connect(k.bus);
+  // Muffled a little on the way out: nothing in the room is allowed to bite.
+  const soften = c.createBiquadFilter();
+  soften.type = 'lowpass'; soften.frequency.value = 2600; soften.Q.value = 0.5;
+  mix.connect(soften).connect(k.bus);
   const conv = c.createConvolver();
   conv.buffer = makeIR(c);
   const wet = c.createGain();
-  wet.gain.value = 0.3;
+  wet.gain.value = 0.26;
   mix.connect(conv);
   conv.connect(wet).connect(k.bus);
   // The gourd and the neck: a warm low resonance and a bright upper one.
@@ -233,6 +236,9 @@ function play(k, buf, t, vol, out, rate = null) {
 }
 
 const ready = (k) => k.ctx && k.bus && !k.muted();
+
+/** The room's input, for synthesised voices that should sit in it too. */
+export function roomIn(k) { return ready(k) ? room(k).mix : null; }
 
 /**
  * Render ahead: called every step, it builds one not-yet-made sound from the
@@ -310,6 +316,14 @@ export function santoor(k, m, t, vol = 0.04) {
   const buf = cached(k.ctx, `sant${m}`, (sr) => renderString(sr, midi(m), 1.5, { t60: 1.2, damp: 0.22, bright: 1, pick: 0.05, click: 0.3 }));
   play(k, buf, t, vol, room(k).mix);
 }
+
+/** A santoor struck softly with felt: warm, round, no click and no buzz. */
+export function softPluck(k, m, t, vol = 0.03) {
+  if (!ready(k)) return;
+  const buf = cached(k.ctx, `soft${m}`, (sr) => renderString(sr, midi(m), 3.0, { t60: 2.6, damp: 0.5, bright: 0.22, pick: 0.22 }));
+  play(k, buf, t, vol * rand(0.9, 1.05), room(k).mix);
+}
+export const warmSoft = (m) => (c) => cached(c, `soft${m}`, (sr) => renderString(sr, midi(m), 3.0, { t60: 2.6, damp: 0.5, bright: 0.22, pick: 0.22 }));
 
 /** One tabla bol, built from its strokes, a little human in time and weight. */
 export function tabla(k, bol, t, accent = false, step = 0.25) {
