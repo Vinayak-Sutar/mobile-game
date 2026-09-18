@@ -21,6 +21,8 @@ export const input = {
   // How a held throw is aimed. `grenadeVec` is a direction plus how far it
   // is pushed (stick or drag); `grenadeAbs` is an absolute point (mouse).
   grenadeVec: { x: 0, y: 0 },
+  // Touch: a drag from SPEC aims the Longarm's scope (a direction, 0..1).
+  specialVec: { x: 0, y: 0 },
   grenadeAbs: null,
   pausePressed: false,
   touchMode: false,
@@ -57,6 +59,7 @@ export const controls = {
 // Drag distance, in world units, that pushes a throw out to full range.
 const GRENADE_DRAG = 78;
 let grenadeDrag = null;
+let specialDrag = null;
 
 const keys = new Set();
 const pointers = new Map();     // pointerId -> role
@@ -141,7 +144,13 @@ export function initInput(canvas) {
       // stray pause mid-fight is worse than a missed one.
       if (hitButton(controls.pause, x, y, 6)) { input.pausePressed = true; return; }
       const btn = pickButton(x, y);
-      if (btn === 'attack' || btn === 'dash' || btn === 'special') return assign(ev.pointerId, btn);
+      if (btn === 'special') {
+        specialDrag = { id: ev.pointerId, ox: x, oy: y };
+        input.specialVec.x = 0;
+        input.specialVec.y = 0;
+        return assign(ev.pointerId, btn);
+      }
+      if (btn === 'attack' || btn === 'dash') return assign(ev.pointerId, btn);
       if (btn === 'reload') {
         input.reloadPressed = true;
         controls.reload.pressed = true;
@@ -201,6 +210,12 @@ export function initInput(canvas) {
     if (role === 'stick') {
       controls.stick.x = x;
       controls.stick.y = y;
+    } else if (role === 'special' && specialDrag && specialDrag.id === ev.pointerId) {
+      const dx = x - specialDrag.ox, dy = y - specialDrag.oy;
+      const m = Math.hypot(dx, dy);
+      const k = Math.min(1, m / GRENADE_DRAG);
+      input.specialVec.x = m > 0.001 ? (dx / m) * k : 0;
+      input.specialVec.y = m > 0.001 ? (dy / m) * k : 0;
     } else if (role === 'grenade' && grenadeDrag && grenadeDrag.id === ev.pointerId) {
       const dx = x - grenadeDrag.ox;
       const dy = y - grenadeDrag.oy;
@@ -221,6 +236,11 @@ export function initInput(canvas) {
       controls[role] && (controls[role].pressed = false);
       unpress(role, 'touch');
       unpress(role, 'key');       // mouse buttons register under the key source
+      if (role === 'special') {
+        specialDrag = null;
+        input.specialVec.x = 0;
+        input.specialVec.y = 0;
+      }
       if (role === 'grenade') {
         // Let go over the ✕: the throw is called off.
         if (input.grenadeInCancel) input.grenadeCancel = true;

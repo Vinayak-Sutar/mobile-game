@@ -45,6 +45,15 @@ export function drawHud(ctx, time) {
   const p = world.player;
   if (!p) return;
 
+  // Looking down a scope: the edges of the world close in a little.
+  if (p.aiming) {
+    const g = ctx.createRadialGradient(view.w / 2, view.h / 2, view.h * 0.35, view.w / 2, view.h / 2, view.w * 0.62);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, view.w, view.h);
+  }
+
   ctx.textBaseline = 'middle';
 
   // --- health -------------------------------------------------------------

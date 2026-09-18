@@ -152,8 +152,9 @@ export function updatePlayer(p, dt) {
     }
   }
 
-  // Scoped with a manual aim: keep it where it was put, don't snap to a foe.
-  if (!(p.aiming && p.aiming.manual && !input.aimActive)) p.aimAngle = aimAngle(p);
+  // The Longarm's scope is aimed by hand only - no auto-aim - and aims heavy.
+  if (p.aiming && p.weapon.rifle) aimScope(p, dt);
+  else p.aimAngle = aimAngle(p);
 
   // --- dash ---------------------------------------------------------------
   if (input.dashPressed && !p.dashing && !p.leap && p.dashStock > 0) startDash(p);
@@ -204,7 +205,7 @@ export function updatePlayer(p, dt) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
-    if (p.aiming) speed *= 0.6;            // steadying a scope
+    if (p.aiming) speed *= 0.45;           // a rifle to the shoulder: slow, careful steps
     if ((p.heldUntil || 0) > world.runTime) speed = 0;   // held by a Kappa: dash to break free
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
@@ -337,6 +338,35 @@ function updateGun(p, dt) {
   if (p.attack || input.attack) p.idleT = 0;
 }
 
+/**
+ * Aiming the Longarm's scope by hand. The rifle is heavy: the line turns
+ * toward where you point at a limited rate, it sways until it settles, and
+ * swinging it hard throws the steadiness off - so a good shot is lined up,
+ * not flicked.
+ *   PC: the mouse.  Pad: the right stick.  Touch: drag from the SPEC button.
+ * Nothing is pointed at: it stays where it was.
+ */
+const SCOPE_TURN = 3.2;          // rad/s at most
+function aimScope(p, dt) {
+  const A = p.aiming;
+  let want = null;
+  if (input.aimActive) want = Math.atan2(input.aim.y, input.aim.x);
+  else if (Math.hypot(input.specialVec.x, input.specialVec.y) > 0.2) want = Math.atan2(input.specialVec.y, input.specialVec.x);
+  const before = A.angle;
+  if (want !== null) {
+    const d = angleDiff(A.angle, want);
+    A.angle += clamp(d, -SCOPE_TURN * dt, SCOPE_TURN * dt);
+  }
+  // A hard swing unsettles the rifle.
+  const swing = Math.abs(angleDiff(before, A.angle)) / Math.max(dt, 1e-4);
+  if (swing > 1.4) A.t = Math.max(0, A.t - dt * 2.5);
+  const k = clamp(A.t / p.weapon.rifle.steady, 0, 1);
+  A.sway += dt;
+  const sway = k >= 1 ? 0 : (Math.sin(A.sway * 3.1) * 0.6 + Math.sin(A.sway * 5.3) * 0.4) * 0.05 * (1 - k);
+  p.aimAngle = A.angle + sway;
+  p.face = p.aimAngle;
+}
+
 /** Skyfall Leap: up, over and down, untouchable in the air. */
 function updateLeap(p, dt) {
   const L = p.leap;
@@ -438,17 +468,21 @@ function updateAttack(p, dt) {
     if (!p.aiming && input.specialPressed && p.specialCd <= 0) {
       if (p.rifleAmmo > 0 && p.rifleReloadT <= 0) {
         if (p.attack && p.attack.phase === 'recover') p.attack = null;   // cut a swing short
-        p.aiming = { t: 0, manual: false };
+        // The scope comes up where you are pointing (mouse, stick), else where
+        // you are facing - never snapped onto the nearest enemy.
+        const start = input.aimActive ? Math.atan2(input.aim.y, input.aim.x) : p.face;
+        p.aiming = { t: 0, angle: start, sway: Math.random() * 10 };
       } else {
         sfx.click();                                 // empty, or reloading
       }
     }
     if (p.aiming) {
       p.aiming.t += dt * p.stats.attackSpeed;
-      if (input.aimActive) p.aiming.manual = true;
       if (p.aiming.t >= w.rifle.steady && !p.aiming.steady) {
         p.aiming.steady = true;
         sfx.ui();                                  // the scope settles
+      } else if (p.aiming.t < w.rifle.steady) {
+        p.aiming.steady = false;                   // swung off the mark
       }
       if (!input.special && !p.attack) {
         const power = p.aiming.steady ? 1 : 0.9;
@@ -604,7 +638,7 @@ function drawScope(p, ctx) {
   const k = clamp(p.aiming.t / rf.steady, 0, 1);
   const steady = k >= 1;
   // Before it settles the aim wavers a little; settled, it is dead still.
-  const a = p.aimAngle + (steady ? 0 : Math.sin(performance.now() * 0.012) * 0.04 * (1 - k));
+  const a = p.aimAngle;
   const b = arenaBounds();
   const c = Math.cos(a), s = Math.sin(a);
   let len = 1600;

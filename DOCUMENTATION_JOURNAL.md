@@ -3593,6 +3593,16 @@ special, aimed by holding, with more wind-up and more damage.
   **right stick** and, once aimed by hand, stays where it was put instead of
   snapping to the nearest foe. You move at 60% while scoped. It can cut a
   shotgun swing's recovery short.
+- **Hand-aimed scope (owner: "auto-aim limits freedom; it should feel like a
+  sniper"):** while scoped there is **no auto-aim at all** (`aimScope` in
+  `player.js`). The scope comes up where you point (mouse / right stick) or
+  where you face, and turns toward where you point at **3.2 rad/s at most**
+  — heavy. It **sways** (two slow sines, up to 0.05 rad) until it settles;
+  a hard swing (> 1.4 rad/s) bleeds the steadiness away, so good shots are
+  lined up, not flicked. The round flies along the swaying aim. Nothing
+  pointed at: the line stays put. **Touch:** drag from the SPEC button to aim
+  (`input.specialVec`, like BOMB's drag). You walk at 45% scoped, and the
+  screen edges darken (a scope's field, drawn by `drawHud`).
 
 ### 16.17 Step 14 — spell choices and rearranging spell slots
 
