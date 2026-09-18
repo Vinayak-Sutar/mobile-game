@@ -25,7 +25,7 @@ const st = {
   ash: null, grain: null,
   canvas: null, cx: null, img: null,
   rock: null, veins: null, rim: null, puff: null,
-  prints: [], trails: [], cracks: [], puffs: [], shocks: [], flakes: [],
+  prints: [], cracks: [], puffs: [], shocks: [], flakes: [],
   walkers: new WeakMap(),
   wind: { x: 16, y: 5 }, gustX: 0, gustY: 0,
   heat: 0, frame: 0, boss: null, bossRef: null,
@@ -76,7 +76,6 @@ function ensure(room) {
   st.rim = makeRim(b);
   st.puff = st.puff || makePuffSprite();
   st.prints = [];
-  st.trails = [];
   st.cracks = [];
   st.puffs = [];
   st.shocks = [];
@@ -315,12 +314,12 @@ export function peakPound(x, y, angle = rand(0, TAU)) {
 }
 
 /** A furrow: the ash shoved aside down both flanks (a charge, a dash). */
-export function peakPlough(x, y, angle, width) {
-  const got = take(x, y, width * 0.6, 0.6);
+export function peakPlough(x, y, angle, width, depth = 0.6) {
+  const got = take(x, y, width * 0.6, depth);
   const nx = -Math.sin(angle), ny = Math.cos(angle);
   heapAt(x + nx * width * 0.85, y + ny * width * 0.85, width * 0.4, got * 0.5);
   heapAt(x - nx * width * 0.85, y - ny * width * 0.85, width * 0.4, got * 0.5);
-  if (Math.random() < 0.5) {
+  if (Math.random() < depth * 0.8) {
     const s = Math.random() < 0.5 ? 1 : -1;
     addPuff(x + nx * width * 0.7 * s, y + ny * width * 0.7 * s, nx * s * rand(40, 90), ny * s * rand(40, 90), rand(8, 16), rand(0.5, 0.9), 0.45);
   }
@@ -378,21 +377,13 @@ function walk(e, isPlayer) {
   }
   const gor = e.type === 'gorilla';
   if (!gor) {
-    // A drag trail, not footprints: our figures have no feet to print. A
-    // shallow furrow in the ash, with a soft mark on top of it.
+    // A soft trail, not footprints (our figures have no feet to print): the
+    // same furrow a dash leaves, only shallower - drawn by the ash itself, no
+    // hard edges.
     w.d += step;
-    if (w.d < 7) return;
+    if (w.d < 6) return;
     w.d = 0;
-    const width = isPlayer ? e.r * 0.85 : e.r * 0.75;
-    const got = take(e.x, e.y, width * 0.55, 0.14);
-    const nx = -Math.sin(a), ny = Math.cos(a);
-    heapAt(e.x + nx * width * 0.7, e.y + ny * width * 0.7, width * 0.3, got * 0.5);
-    heapAt(e.x - nx * width * 0.7, e.y - ny * width * 0.7, width * 0.3, got * 0.5);
-    if (w.lx !== undefined && dist(w.lx, w.ly, e.x, e.y) < 40) {
-      if (st.trails.length > 700) st.trails.shift();
-      st.trails.push({ x1: w.lx, y1: w.ly, x2: e.x, y2: e.y + e.r * 0.35, w: width, t: 0, life: 32 });
-    }
-    w.lx = e.x; w.ly = e.y + e.r * 0.35;
+    peakPlough(e.x, e.y + e.r * 0.3, a, isPlayer ? 12 : e.r * 0.8, 0.3);
     return;
   }
   const stride = 58;
@@ -483,10 +474,6 @@ function tick(room, dt) {
   for (let i = st.shocks.length - 1; i >= 0; i--) {
     st.shocks[i].t += dt;
     if (st.shocks[i].t >= st.shocks[i].life) st.shocks.splice(i, 1);
-  }
-  for (let i = st.trails.length - 1; i >= 0; i--) {
-    st.trails[i].t += dt;
-    if (st.trails[i].t >= st.trails[i].life) st.trails.splice(i, 1);
   }
   for (let i = st.prints.length - 1; i >= 0; i--) {
     st.prints[i].t += dt;
@@ -605,20 +592,6 @@ function draw(ctx, room, time) {
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(st.canvas, 0.5, 0.5, st.w - 1, st.h - 1, st.x0 + CELL / 2, st.y0 + CELL / 2, (st.w - 1) * CELL, (st.h - 1) * CELL);
 
-  // Drag trails: a soft dark groove with a pale lip, fading as ash covers it.
-  ctx.lineCap = 'round';
-  for (const tr of st.trails) {
-    const fade = tr.t < tr.life * 0.5 ? 1 : 1 - (tr.t - tr.life * 0.5) / (tr.life * 0.5);
-    ctx.globalAlpha = 0.22 * fade;
-    ctx.strokeStyle = '#e2d8cc';
-    ctx.lineWidth = tr.w + 3;
-    ctx.beginPath(); ctx.moveTo(tr.x1 - 0.8, tr.y1 - 0.8); ctx.lineTo(tr.x2 - 0.8, tr.y2 - 0.8); ctx.stroke();
-    ctx.globalAlpha = 0.34 * fade;
-    ctx.strokeStyle = '#2a2320';
-    ctx.lineWidth = tr.w;
-    ctx.beginPath(); ctx.moveTo(tr.x1, tr.y1); ctx.lineTo(tr.x2, tr.y2); ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
   for (const pr of st.prints) drawPrint(ctx, pr);
   drawCracks(ctx);
 

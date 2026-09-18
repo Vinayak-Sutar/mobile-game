@@ -3321,9 +3321,11 @@ All cosmetic; the fights play the same. Static checks only; the owner tests.
 
 **Owner feedback, first test:**
 - Peak: footprints looked unnatural for our figures (no human feet), so the
-  player and the small foes now drag a **trail**: a shallow furrow in the ash
-  grid (sides heaped) with a soft dark groove and pale lip drawn on top,
-  fading over ~30 s. Only Kharn, who has hands and feet, still leaves prints.
+  player and the small foes now leave a **trail**. After a second round of
+  feedback ("too sharp, make it like the dash trail") it is exactly the dash
+  furrow, `peakPlough` at depth 0.3 instead of 0.6, every 6 units: soft,
+  drawn only by the ash grid, no hard-edged decal, and it fills back in as ash
+  falls. Only Kharn, who has hands and feet, still leaves prints.
 - Vault: ripples caught too much light and read like attacks. The Vault now
   uses `light` 0.8, capped blue-tinted glints instead of white crests, much
   less wave-focused caustic, and crisp ripple rings at 40% alpha in a muted
