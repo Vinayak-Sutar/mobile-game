@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.11. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.12. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3339,7 +3339,38 @@ All cosmetic; the fights play the same. Static checks only; the owner tests.
   special, which keeps `K`, `Shift` and right-click. Title help, tutorial and
   ability bar updated. Version 5 only.
 
-### 16.11 Folk enemies not built yet
+### 16.11 Step 8 — boss themes: "The Last Bullet" for Deadeye Vesper
+
+**Engine:** `setBossTheme(theme, boss)` in `audio.js`, called every frame from
+`game.js` with the boss in the room. When the spec has a `music` theme and
+the music intensity is 2 (a boss is up), the scheduler plays
+`theme.step(n, t, kit)` on every 16th instead of the regular track, advancing
+by `60 / theme.tempo(kit) / 4`. The kit carries the AudioContext, the music
+bus (so the theme obeys the music toggle and slider), `tone`, `noise`,
+`midi`, `muted()` and **`boss`**, so a theme can follow the fight. A new theme
+starts on its own downbeat; when the boss is gone the regular track returns.
+The Maestro still silences the scheduler with `band.takeStage()`.
+
+**"The Last Bullet"** (`music-western.js`, Vesper's spec `music`): an
+original spaghetti-western piece on the Am - G - F - E cadence, 118 BPM.
+- Band: a **whistle** carrying the tune (slides up into each note, vibrato
+  warming in, a breath of air at the front); a **twangy guitar** (plucked saw
+  with a pitch bend and a slapback echo) strumming 2 and 4 and taking the tune
+  an octave down on the second pass while the whistle holds long notes; a
+  boom-chick **bass** (root, fifth, a walk down on the E bar); a **gallop** of
+  hoof-clops (clip . clip-clop on every beat); a snare roll into each eighth
+  bar.
+- **Sundown** (her phase 2): 132 BPM, **mariachi trumpets in thirds** carry
+  the tune, the guitar adds upstrokes, a **whip crack** every four bars and a
+  snare roll before each turnaround.
+- **High Noon:** the band drops out. A heartbeat, a church bell (again every
+  two bars) and one long held whistle. When the duel ends: a whip crack, a
+  cymbal, and the band crashes back in.
+- Her barrages (Deadeye, Sundown, Fan the Hammer) get a tremolo-picked guitar
+  driving underneath.
+- Owner tests it; the next boss themes can follow the same pattern.
+
+### 16.12 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

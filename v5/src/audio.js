@@ -439,13 +439,45 @@ function scheduleStep(n, t) {
   }
 }
 
+// --- boss themes ------------------------------------------------------------------
+//
+// A guardian can bring its own piece (Deadeye Vesper's western, in
+// music-western.js). While it is in the room the scheduler plays the theme
+// instead of the regular track: `theme.step(n, t, kit)` on every 16th note at
+// its exact time, `theme.tempo(kit)` setting the pace. The kit hands the theme
+// the synth, the music bus (so it follows the music setting and slider) and
+// the boss itself, so the music can follow the fight.
+
+let bossTheme = null;
+const themeKit = {
+  get ctx() { return ctx; },
+  get bus() { return musicBus; },
+  muted: () => audio.muted,
+  tone, noise, midi,
+  boss: null,
+};
+
+/** Called every frame with the boss in the room (or nulls). */
+export function setBossTheme(theme, boss = null) {
+  themeKit.boss = boss;
+  if (theme === bossTheme) return;
+  bossTheme = theme;
+  // A new piece starts on its own downbeat.
+  stepIndex = 0;
+  if (ctx) nextNoteTime = Math.max(nextNoteTime, ctx.currentTime + 0.05);
+}
+
 function scheduler() {
   if (!ctx) return;
   // After a suspend the clock has moved on; never try to "catch up" a backlog.
   if (nextNoteTime < ctx.currentTime - 0.2) nextNoteTime = ctx.currentTime + 0.05;
   while (nextNoteTime < ctx.currentTime + LOOKAHEAD) {
-    if (!audio.muted && !(performance.now() < audio.bossTrackUntil)) scheduleStep(stepIndex, nextNoteTime);
-    nextNoteTime += STEP;
+    const theme = intensity === 2 ? bossTheme : null;
+    if (!audio.muted && !(performance.now() < audio.bossTrackUntil)) {
+      if (theme) theme.step(stepIndex, nextNoteTime, themeKit);
+      else scheduleStep(stepIndex, nextNoteTime);
+    }
+    nextNoteTime += theme ? 60 / theme.tempo(themeKit) / 4 : STEP;
     stepIndex++;
   }
 }

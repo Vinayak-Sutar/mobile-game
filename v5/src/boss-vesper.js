@@ -37,6 +37,7 @@ import { burst, ring, shake, flash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { spawnHazard } from './hazards.js';
 import { breakCrate } from './projectiles.js';
+import { WESTERN_THEME } from './music-western.js';
 
 const PI = Math.PI;
 const BRASS = '#ffd27a';
@@ -217,6 +218,8 @@ function crate(fx, fy) {
 // --- the moveset --------------------------------------------------------------------
 
 export const VESPER = {
+  // Her own music: "The Last Bullet", a spaghetti western (music-western.js).
+  music: WESTERN_THEME,
   phases: [0.5],
   phaseTime: 3.4,
   roarPitch: 1.3,

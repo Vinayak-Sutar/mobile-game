@@ -5,7 +5,7 @@ import { world, view, arena, arenaBounds, resetWorld, clearEntities } from './st
 import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
-  setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, unlockAudio,
+  setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, setBossTheme, unlockAudio,
   setMusicVolume, previewMusic, outputLevel,
 } from './audio.js';
 import {
@@ -377,6 +377,12 @@ function tick(dt) {
       // Music follows the fight: calm between waves, full kit in combat,
       // a harder variation once the Warden is up.
       setMusicIntensity(bossInRoom() ? 2 : world.enemies.some((e) => !e.dead) ? 1 : 0);
+      // A guardian with its own theme (Vesper's western) plays it instead.
+      {
+        const guard = bossInRoom();
+        const spec = guard && guard.def && guard.def.spec;
+        setBossTheme(spec && spec.music ? spec.music : null, guard);
+      }
 
       const room = world.room;
       if (room && room.chosen) {
