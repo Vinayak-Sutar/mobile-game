@@ -284,7 +284,8 @@ function drawAbilityRow(ctx, p) {
     pop: p.dashPop || 0, deny: p.dashDenied || 0,
   });
   button(ctx, abilitySlots.special, '#ffd45e',
-    p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1, '★');
+    p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1, '★',
+    p.weapon.rifle ? `${p.rifleAmmo}` : '');
   button(ctx, abilitySlots.grenade, '#ff9a4d', p.grenadeStock > 0 ? 1 : 0, '◉', '', {
     max: GRENADE.maxCharges, have: p.grenadeStock,
     frac: 1 - clamp(p.grenadeTimer / GRENADE.recharge, 0, 1),
@@ -604,7 +605,8 @@ export function drawControls(ctx, time) {
     pop: p.dashPop || 0, deny: p.dashDenied || 0,
   } : null);
   button(ctx, controls.special, '#ffd45e',
-    p ? (p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1) : 1, '★');
+    p ? (p.specialCd > 0 ? 1 - p.specialCd / (p.weapon.special.cooldown || 1) : 1) : 1, '★',
+    p && p.weapon.rifle ? `${p.rifleAmmo}` : '');
   // The blunderbuss's reload button, only while it is in hand.
   controls.reload.enabled = !!(p && p.weapon.gun);
   if (controls.reload.enabled) {

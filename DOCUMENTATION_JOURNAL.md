@@ -3582,6 +3582,17 @@ special, aimed by holding, with more wind-up and more damage.
   Heavy recoil, a tracer, hit-stop.
 - Input: `w.rifle` in `updateAttack` replaces the normal special press with
   press-to-scope / release-to-fire (`p.aiming`).
+- **Rework (owner):** the rifle is now **instant, on its own magazine**
+  instead of a long cooldown: **5 rounds** (`p.rifleAmmo`, drawn as thin green
+  rounds above the shells and as the badge on the special button), cooldown
+  0.15 s, windup 0.02 s, reload 1.6 s by itself when empty (R also tops it
+  up; a dash mid-reload finishes it). **60** damage a round, piercing. Press
+  the special (right click / L2 / touch SPEC) and the scope appears at once;
+  release fires — a tap is an instant shot. Held **0.5 s** until the line
+  steadies, the round crits. The scope's aim follows the **mouse** or the
+  **right stick** and, once aimed by hand, stays where it was put instead of
+  snapping to the nearest foe. You move at 60% while scoped. It can cut a
+  shotgun swing's recovery short.
 
 ### 16.17 Step 14 — spell choices and rearranging spell slots
 

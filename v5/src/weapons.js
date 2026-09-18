@@ -123,24 +123,25 @@ export const WEAPONS = [
     specialName: 'Fan the Hammer',
   },
   {
-    // A lawman's two-barrel scattergun with a scope bolted on. Up close it
-    // is buckshot; hold the special and the scope comes up - a line that
-    // steadies as you hold it - and on release a rifle round goes through
-    // everything along it. The longer you hold, the harder it hits.
+    // A lawman's two-barrel scattergun with a rifle bolted under it. Up close
+    // it is buckshot. The special fires the rifle at once - it has its own
+    // five-round magazine instead of a cooldown. Hold the special (right
+    // click, L2) and the scope's line appears, aimed with the mouse or the
+    // right stick; let go to fire. Held until the line steadies, it crits.
     id: 'longarm',
     name: "Marshal's Longarm",
     glyph: '\u2316',
     color: '#9fe0a0',
-    tagline: 'Two barrels of buckshot up close. Hold special to scope in and fire a rifle round through the room.',
+    tagline: 'Two barrels of buckshot up close, and a five-round rifle on the special: tap to fire, hold to aim.',
     comboWindow: 0,
     gun: { shells: 2, reload: 0.9, idleReload: 1.2 },
     combo: [
       { kind: 'shotgun', windup: 0.04, active: 0, recover: 0.3, damage: 8, pellets: 7, spread: 0.42, speed: 1000, knockback: 170, lunge: 0 },
     ],
-    rifle: { steady: 0.8, minPower: 0.35 },
+    rifle: { rounds: 5, reload: 1.6, steady: 0.5 },
     special: {
-      kind: 'rifle', windup: 0.12, active: 0, recover: 0.32, cooldown: 3.2,
-      damage: 150, speed: 2600, knockback: 520,
+      kind: 'rifle', windup: 0.02, active: 0, recover: 0.12, cooldown: 0.15,
+      damage: 60, speed: 2600, knockback: 360,
     },
     specialName: 'Deadeye Scope',
   },
@@ -335,12 +336,14 @@ export function performStep(p, step, angle, power = 1) {
 
     case 'rifle': {
       // One round, straight through everything on the line (and any shots
-      // in its way). A steady aim crits.
+      // in its way). A steadied aim crits.
+      if ((p.rifleAmmo | 0) <= 0) break;
+      p.rifleAmmo--;
       const full = power >= 0.999;
       spawnProjectile({
         x: p.x + Math.cos(angle) * 30, y: p.y + Math.sin(angle) * 30,
         vx: Math.cos(angle) * step.speed, vy: Math.sin(angle) * step.speed,
-        r: 7, damage: Math.round(step.damage * power), knockback: step.knockback * power,
+        r: 7, damage: step.damage, knockback: step.knockback,
         friendly: true, color: full ? '#ffffff' : color, shape: 'bullet', rot: angle,
         pierce: 99, life: 0.7, crit: full, trailEvery: 0.004,
       });
@@ -358,8 +361,8 @@ export function performStep(p, step, angle, power = 1) {
       p.vy -= Math.sin(angle) * 260;
       sfx.gunshot();
       sfx.thud();
-      shake(0.2 + power * 0.2);
-      hitstop(0.03 + power * 0.04);
+      shake(full ? 0.3 : 0.18);
+      hitstop(full ? 0.06 : 0.03);
       if (full) damageText(p.x, p.y - p.r - 26, 'DEADEYE', { color: '#ffffff', size: 16 });
       break;
     }

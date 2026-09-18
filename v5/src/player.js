@@ -81,6 +81,8 @@ export function createPlayer(weapon, meta = {}) {
     idleT: 0,
     fan: null,            // Fan the Hammer, firing
     aiming: null,         // the Longarm's scope, while the special is held
+    rifleAmmo: weapon.rifle ? weapon.rifle.rounds : 0,
+    rifleReloadT: 0,
 
     blockTime: 0,
     blockAngle: 0,
@@ -150,7 +152,8 @@ export function updatePlayer(p, dt) {
     }
   }
 
-  p.aimAngle = aimAngle(p);
+  // Scoped with a manual aim: keep it where it was put, don't snap to a foe.
+  if (!(p.aiming && p.aiming.manual && !input.aimActive)) p.aimAngle = aimAngle(p);
 
   // --- dash ---------------------------------------------------------------
   if (input.dashPressed && !p.dashing && !p.leap && p.dashStock > 0) startDash(p);
@@ -201,7 +204,7 @@ export function updatePlayer(p, dt) {
     let speed = BASE_SPEED * p.stats.moveSpeed;
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
-    if (p.aiming) speed *= 0.35;           // steadying a scope
+    if (p.aiming) speed *= 0.6;            // steadying a scope
     if ((p.heldUntil || 0) > world.runTime) speed = 0;   // held by a Kappa: dash to break free
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
@@ -260,6 +263,10 @@ function startDash(p) {
   p.heldUntil = 0;
 
   // The blunderbuss: dashing mid-reload slams the shells home at once.
+  if (p.weapon.rifle && p.rifleReloadT > 0) {
+    p.rifleReloadT = 0;
+    p.rifleAmmo = p.weapon.rifle.rounds;
+  }
   if (p.weapon.gun && p.reloadT > 0) {
     p.reloadT = 0;
     p.ammo = p.weapon.gun.shells;
@@ -280,6 +287,18 @@ function startDash(p) {
 function updateGun(p, dt) {
   const g = p.weapon.gun;
   if (!g) return;
+  const rf = p.weapon.rifle;
+  if (rf) {
+    if (p.rifleReloadT > 0) {
+      p.rifleReloadT -= dt * p.stats.attackSpeed;
+      if (p.rifleReloadT <= 0) { p.rifleReloadT = 0; p.rifleAmmo = rf.rounds; sfx.clack(1.5); }
+    } else if (p.rifleAmmo <= 0 && !p.aiming) {
+      p.rifleReloadT = rf.reload;
+      sfx.clack(0.7);
+    } else if (input.reloadPressed && p.rifleAmmo < rf.rounds && !p.aiming) {
+      p.rifleReloadT = rf.reload * 0.8;
+    }
+  }
   if (p.fan) {
     p.fan.t -= dt;
     if (p.fan.t <= 0) {
@@ -414,18 +433,25 @@ function updateAttack(p, dt) {
   }
 
   if (w.rifle) {
-    if (!p.aiming && input.specialPressed && !p.attack && p.specialCd <= 0) {
-      p.aiming = { t: 0 };
-      sfx.click();
+    // Press: the scope comes up at once. Release: the round goes. A tap is an
+    // instant shot; a hold lets you aim (mouse, right stick) and steady it.
+    if (!p.aiming && input.specialPressed && p.specialCd <= 0) {
+      if (p.rifleAmmo > 0 && p.rifleReloadT <= 0) {
+        if (p.attack && p.attack.phase === 'recover') p.attack = null;   // cut a swing short
+        p.aiming = { t: 0, manual: false };
+      } else {
+        sfx.click();                                 // empty, or reloading
+      }
     }
     if (p.aiming) {
       p.aiming.t += dt * p.stats.attackSpeed;
+      if (input.aimActive) p.aiming.manual = true;
       if (p.aiming.t >= w.rifle.steady && !p.aiming.steady) {
         p.aiming.steady = true;
         sfx.ui();                                  // the scope settles
       }
-      if (!input.special) {
-        const power = clamp(p.aiming.t / w.rifle.steady, w.rifle.minPower, 1);
+      if (!input.special && !p.attack) {
+        const power = p.aiming.steady ? 1 : 0.9;
         p.aiming = null;
         beginAttack(p, w.special, -1, true, power);
       }
@@ -528,6 +554,16 @@ export function drawPlayer(p, ctx) {
       const x = p.x - (g.shells - 1) * 5 + i * 10, y = p.y - p.r - 18 - lift;
       ctx.fillStyle = i < p.ammo ? (i === 0 && p.ammo === 1 && g.lastCrit ? '#ffd45e' : '#e8d2a8') : 'rgba(255,255,255,0.18)';
       ctx.fillRect(x - 3, y - 5, 6, 10);
+    }
+    if (p.weapon.rifle) {
+      const rf = p.weapon.rifle;
+      for (let i = 0; i < rf.rounds; i++) {
+        const x = p.x - (rf.rounds - 1) * 4 + i * 8, y = p.y - p.r - 31 - lift;
+        ctx.fillStyle = p.rifleReloadT > 0
+          ? (i < rf.rounds * (1 - p.rifleReloadT / rf.reload) ? 'rgba(159,224,160,0.5)' : 'rgba(255,255,255,0.12)')
+          : i < p.rifleAmmo ? '#9fe0a0' : 'rgba(255,255,255,0.18)';
+        ctx.fillRect(x - 1.5, y - 5, 3, 10);
+      }
     }
     if (p.reloadT > 0) {
       const k = 1 - clamp(p.reloadT / g.reload, 0, 1);
