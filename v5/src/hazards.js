@@ -5,13 +5,15 @@
 //   shockring  an expanding ring with gaps; walk through a gap or dash through
 //   beam       a warning line, then a damaging (optionally sweeping) beam
 //   cone       a telegraph-only wedge; the owner applies the hit itself
+//   charge     a lobbed bomb that lands, fizzes on a fuse, then blows; a hit
+//              kicks it away, and a kicked charge blows up on enemies instead
 //
 // Everything here is drawn *before* it can hurt, and all damage goes through
 // damagePlayer (rule 1), so dash i-frames and hit invulnerability apply.
 
 import { world } from './state.js';
 import { TAU, clamp, dist, angleTo, angleDiff } from './util.js';
-import { damagePlayer } from './combat.js';
+import { damagePlayer, explode, nearestEnemy } from './combat.js';
 import { spawnProjectile } from './spawn.js';
 import { burst, ring, shake } from './fx.js';
 import { sfx } from './audio.js';
@@ -38,6 +40,10 @@ export function spawnHazard(o) {
   if (h.kind === 'lob') {
     h.x = h.x1; h.y = h.y1;
     h.delay = h.flight;
+  }
+  if (h.kind === 'charge') {
+    h.x = h.x1; h.y = h.y1;
+    h.delay = h.flight + h.fuse;    // the floor marker fills until it blows
   }
   if (h.kind === 'shockring') {
     h.radius = h.r0 || 0;
@@ -67,7 +73,7 @@ export function updateHazards(dt) {
   const p = world.player;
   for (let i = world.hazards.length - 1; i >= 0; i--) {
     const h = world.hazards[i];
-    if (h.dead || (h.owner && h.owner.dead && h.kind !== 'lob')) {
+    if (h.dead || (h.owner && h.owner.dead && h.kind !== 'lob' && h.kind !== 'charge')) {
       world.hazards.splice(i, 1);
       continue;
     }
@@ -79,6 +85,26 @@ export function updateHazards(dt) {
       case 'lob': {
         if (h.t >= h.delay) {
           detonate(h, p);
+          world.hazards.splice(i, 1);
+        }
+        break;
+      }
+      case 'charge': {
+        // Landing: a bounce of dust, then the fuse fizzes where it sits.
+        if (!h.landed && h.t >= h.flight) {
+          h.landed = true;
+          burst(h.x, h.y, { count: 6, color: '#b8a58a', speed: 90, size: 3, life: 0.3, drag: 5 });
+          sfx.thud();
+        }
+        if (h.landed && Math.random() < dt * 30) {
+          burst(h.x + 4, h.y - 12, { count: 1, color: '#ffd45e', speed: 60, size: 2.4, life: 0.25, gravity: -60, drag: 2, shape: 'spark' });
+        }
+        if (h.t >= h.delay) {
+          if (h.friendly) {
+            explode(h.x, h.y, h.r, h.kickDamage, null, '#ffd45e', false, 'charge');
+          } else {
+            detonate(h, p);
+          }
           world.hazards.splice(i, 1);
         }
         break;
@@ -173,6 +199,49 @@ function detonate(h, p) {
   if (h.onDetonate) h.onDetonate(h);
 }
 
+/** Where a charge is on the floor right now (in flight: under its shell). */
+function chargePos(h) {
+  if (h.t >= h.flight) return { x: h.x1, y: h.y1 };
+  const k = clamp(h.t / h.flight, 0, 1);
+  return { x: h.x0 + (h.x1 - h.x0) * k, y: h.y0 + (h.y1 - h.y0) * k };
+}
+
+/**
+ * Strike every hostile charge `hits` accepts: each one is kicked, flying off
+ * to the nearest foe along the strike (or straight on) and blowing up there,
+ * on enemies and not on the player. Returns how many were kicked.
+ */
+export function strikeCharges(hits, angle) {
+  let n = 0;
+  for (const h of world.hazards) {
+    if (h.kind !== 'charge' || h.friendly || h.dead) continue;
+    const at = chargePos(h);
+    if (!hits(at.x, at.y, 14)) continue;
+    const t = nearestEnemy(at.x, at.y, 420);
+    const aim = t && Math.abs(angleDiff(angle, angleTo(at.x, at.y, t.x, t.y))) < 1.2 ? t : null;
+    h.x0 = at.x;
+    h.y0 = at.y;
+    h.x1 = aim ? aim.x : at.x + Math.cos(angle) * 260;
+    h.y1 = aim ? aim.y : at.y + Math.sin(angle) * 260;
+    h.x = h.x1;
+    h.y = h.y1;
+    h.t = 0;
+    h.flight = 0.42;
+    h.fuse = 0;
+    h.delay = h.flight;
+    h.landed = false;
+    h.friendly = true;
+    h.height = 90;
+    h.color = '#ffd45e';
+    h.kickDamage = Math.max(30, Math.round(h.damage * 2.5));
+    ring(at.x, at.y, { r0: 4, r1: 40, color: '#ffd45e', life: 0.25, width: 3 });
+    burst(at.x, at.y, { count: 10, color: '#ffd45e', speed: 260, size: 3, life: 0.3, drag: 5, shape: 'spark' });
+    sfx.block();
+    n++;
+  }
+  return n;
+}
+
 // --- drawing -----------------------------------------------------------------
 
 /** Floor markers: drawn under every entity so they never hide an attacker. */
@@ -180,7 +249,8 @@ export function drawHazardsBelow(ctx, time) {
   for (const h of world.hazards) {
     switch (h.kind) {
       case 'blast':
-      case 'lob': drawMarker(ctx, h, time); break;
+      case 'lob':
+      case 'charge': drawMarker(ctx, h, time); break;
       case 'cone': drawCone(ctx, h); break;
       case 'lane': drawLane(ctx, h, time); break;
       case 'shockring': drawShockring(ctx, h); break;
@@ -195,6 +265,7 @@ export function drawHazardsBelow(ctx, time) {
 export function drawHazardsAbove(ctx) {
   for (const h of world.hazards) {
     if (h.kind === 'lob') drawShell(ctx, h);
+    else if (h.kind === 'charge') drawCharge(ctx, h);
     else if (h.kind === 'beam' && h.t >= h.warn) drawBeam(ctx, h);
   }
   ctx.globalAlpha = 1;
@@ -363,6 +434,27 @@ function drawBeam(ctx, h) {
   ctx.stroke();
   ctx.lineCap = 'butt';
   ctx.globalAlpha = 1;
+}
+
+/** A blasting charge: a shell in the air, then a bomb with a lit fuse. */
+function drawCharge(ctx, h) {
+  if (h.t < h.flight) { drawShell(ctx, h); return; }
+  const fuseK = h.fuse > 0 ? clamp((h.t - h.flight) / h.fuse, 0, 1) : 1;
+  const blink = Math.sin(h.t * (14 + fuseK * 40)) > 0;
+  ctx.fillStyle = '#0b0712';
+  ctx.beginPath();
+  ctx.arc(h.x, h.y - 6, 13, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = blink ? '#ff5e3d' : '#6a4a3a';
+  ctx.beginPath();
+  ctx.arc(h.x, h.y - 6, 11, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = '#d8c8a8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(h.x + 4, h.y - 15);
+  ctx.quadraticCurveTo(h.x + 9, h.y - 22, h.x + 5, h.y - 26 + fuseK * 8);
+  ctx.stroke();
 }
 
 function drawShell(ctx, h) {

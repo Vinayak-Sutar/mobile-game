@@ -8,12 +8,13 @@
 
 import { world, view } from './state.js';
 import { TAU, clamp, roundRect } from './util.js';
+import { damageText } from './fx.js';
 
 const DUMMY_HP = 5000;
 const REFILL_AFTER = 1.4;
 const DPS_WINDOW = 5;
 
-export const meter = { total: 0, hits: 0, best: 0, dps: 0, log: [] };
+export const meter = { total: 0, hits: 0, best: 0, dps: 0, log: [], lastKill: 0 };
 
 export function resetMeter() {
   meter.total = 0;
@@ -21,6 +22,14 @@ export function resetMeter() {
   meter.best = 0;
   meter.dps = 0;
   meter.log.length = 0;
+  meter.lastKill = 0;
+}
+
+/** A dummy with a set health was broken: how long did it take? */
+export function noteBroken(e) {
+  const ttk = e.firstHit !== undefined ? world.runTime - e.firstHit : 0;
+  meter.lastKill = ttk;
+  damageText(e.x, e.y - e.r - 26, `BROKEN in ${ttk.toFixed(1)}s`, { color: '#8ef0ff', size: 16 });
 }
 
 /** Called from dealDamage through the enemy's `onHurt` hook. */
@@ -42,12 +51,14 @@ export function updateMeter() {
 export const DUMMY = {
   r: 22, hp: DUMMY_HP, speed: 0, mass: 40, cost: 999, minDepth: 99,
   color: '#e3cf9e', role: 'dummy', damageBase: 0, noBar: false,
+  noCorpse: true,                        // a Vetala has no use for straw
   init(e) {
     e.noPush = true;
     e.hpFloor = 1;                       // it can be worn down but never killed
     e.lean = 0;
     e.lastHit = -99;
     e.onHurt = (self, dmg) => {
+      if (self.firstHit === undefined) self.firstHit = world.runTime;
       self.lastHit = world.runTime;
       self.lean = clamp(self.lean + dmg * 0.004, 0, 0.5);
       noteHit(dmg);
@@ -106,7 +117,7 @@ const FONT = '"Segoe UI", Roboto, system-ui, sans-serif';
 /** The meter, top right, only while training. */
 export function drawTrainingHud(ctx) {
   if (!world.training) return;
-  const w = 186, h = 86;
+  const w = 186, h = 100;
   // Below the gold counter and the mute line, clear of the boss bar.
   const x = view.w - w - 22, y = 76;
 
@@ -138,8 +149,11 @@ export function drawTrainingHud(ctx) {
   ctx.fillText(`total ${Math.round(meter.total).toLocaleString()}`, x + w - 12, y + 52);
 
   ctx.textAlign = 'left';
+  ctx.fillStyle = meter.lastKill > 0 ? '#8ef0ff' : 'rgba(255,255,255,0.35)';
+  ctx.font = `800 11px ${FONT}`;
+  ctx.fillText(meter.lastKill > 0 ? `last break: ${meter.lastKill.toFixed(1)}s` : 'last break: -', x + 12, y + 72);
   ctx.fillStyle = 'rgba(255,255,255,0.45)';
   ctx.font = `700 9px ${FONT}`;
-  ctx.fillText('PAUSE to change loadout', x + 12, y + 72);
+  ctx.fillText('PAUSE to change loadout', x + 12, y + 88);
   ctx.textAlign = 'left';
 }

@@ -15,7 +15,7 @@ import { input, initInput, updateInput, endFrameInput, layoutControls, resetInpu
 import { createPlayer, updatePlayer, drawPlayer } from './player.js';
 import { updateEnemies, drawEnemies, bossInRoom, spawnEnemy as spawnEnemyRef } from './enemies.js';
 import { drawCorpses } from './enemies-folk.js';
-import { drawTrainingHud, updateMeter, resetMeter } from './training.js';
+import { drawTrainingHud, updateMeter, resetMeter, noteBroken } from './training.js';
 import {
   bindTutorialSpawner, startLessons, updateTutorial, drawTutorialWorld, drawTutorialHud,
 } from './tutorial.js';
@@ -369,7 +369,7 @@ function tick(dt) {
       updateProjectiles(dt);
       updateHazards(dt);
       updatePickups(dt);
-      if (world.training) updateTraining();
+      if (world.training) updateTraining(dt);
       if (world.tutorial && updateTutorial(dt)) showTutorialEnd(true);
       updateRoom(dt);
       updateFx(dt);
@@ -969,12 +969,16 @@ const training = {
   levels: {},           // id -> 1..3
   invincible: true,
   freeCasts: false,
+  dummyHp: 1000,        // 0 = endless (never breaks, refills)
+  respawns: [],         // broken dummies waiting to stand back up
 };
+
+const DUMMY_HP_CHOICES = [100, 500, 1000, 3000, 0];
 
 /** What can be called into the ring, in the order they appear in a run. */
 const TRAINING_FOES = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
-  'adze', 'chinthe', 'vetala',
+  'adze', 'chinthe', 'vetala', 'sapper',
 ];
 
 function trainingLoadout() {
@@ -1015,16 +1019,34 @@ function trainingToggleSpell(id) {
   if (world.training) trainingLoadout();
 }
 
+/**
+ * One dummy. With a set health it can be broken: it reports how long that
+ * took and stands back up where it was a moment later. Endless ones refill.
+ */
+function trainingDummy(x, y) {
+  const e = spawnEnemyDebug('dummy', x, y);
+  if (training.dummyHp > 0) {
+    e.breakable = true;
+    e.hpFloor = undefined;
+    e.maxHp = training.dummyHp;
+    e.hp = training.dummyHp;
+    e.onDeath = (self) => {
+      noteBroken(self);
+      training.respawns.push({ x, y, t: 1.5 });
+    };
+  }
+  return e;
+}
+
 function trainingDummies(n = 3) {
   const b = arenaBounds();
   const cx = b.l + (b.r - b.l) / 2;
   const y = b.t + (b.b - b.t) * 0.3;
-  for (let i = 0; i < n; i++) {
-    spawnEnemyDebug('dummy', cx + (i - (n - 1) / 2) * 130, y);
-  }
+  for (let i = 0; i < n; i++) trainingDummy(cx + (i - (n - 1) / 2) * 130, y);
 }
 
 function trainingClear() {
+  training.respawns.length = 0;
   clearEntities();
   clearFx();
   resetMeter();
@@ -1130,8 +1152,13 @@ function showTutorialEnd(finished) {
 }
 
 /** Per-frame upkeep while the Training Ground is open. */
-function updateTraining() {
+function updateTraining(dt) {
   updateMeter();
+  for (let i = training.respawns.length - 1; i >= 0; i--) {
+    const r = training.respawns[i];
+    r.t -= dt;
+    if (r.t <= 0) { training.respawns.splice(i, 1); trainingDummy(r.x, r.y); }
+  }
   const p = world.player;
   if (!p || !training.freeCasts) return;
   // Practice mode: everything is always ready, so a rotation can be drilled.
@@ -1184,6 +1211,11 @@ function showTraining() {
 
       <div class="tgsec">Spells &mdash; ${training.spells.length}/${SPELL_SLOTS} equipped (tap Lv to rank up)</div>
       <div class="chips">${spells}</div>
+
+      <div class="tgsec">Dummy health</div>
+      <div class="chips">${DUMMY_HP_CHOICES.map((hp) => `
+        <button class="tgl ${training.dummyHp === hp ? 'on' : ''}" data-act="t-hp" data-hp="${hp}">${hp || 'Endless'}</button>`).join('')}
+      </div>
 
       <div class="tgsec">Room</div>
       <div class="chips">
@@ -1269,14 +1301,22 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 't-spawn': {
       if (!world.training) startTraining();
       const b = arenaBounds();
-      spawnEnemyDebug(el.dataset.type, b.l + (b.r - b.l) * (0.3 + Math.random() * 0.4),
-        b.t + (b.b - b.t) * (0.25 + Math.random() * 0.3));
+      const sx = b.l + (b.r - b.l) * (0.3 + Math.random() * 0.4);
+      const sy = b.t + (b.b - b.t) * (0.25 + Math.random() * 0.3);
+      if (el.dataset.type === 'dummy') trainingDummy(sx, sy);
+      else spawnEnemyDebug(el.dataset.type, sx, sy);
       state = 'playing';
       hideOverlay();
       resetInput();
       break;
     }
     case 't-clear': trainingClear(); showTraining(); break;
+    case 't-hp': {
+      training.dummyHp = Number(el.dataset.hp) || 0;
+      if (world.training) trainingClear();
+      showTraining();
+      break;
+    }
     case 'trial-pick': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       pendingTrial = el.dataset.boss;

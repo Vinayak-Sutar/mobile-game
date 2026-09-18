@@ -9,6 +9,7 @@ import {
 import { dealDamage, damagePlayer, healPlayer, nearestEnemy } from './combat.js';
 import { burst, ring, trail, damageText, shake } from './fx.js';
 import { sfx } from './audio.js';
+import { strikeCharges } from './hazards.js';
 
 // --- projectiles -----------------------------------------------------------
 
@@ -175,7 +176,14 @@ export function updateProjectiles(dt) {
     // --- entity collision ---
     if (pr.friendly) {
       let consumed = false;
-      for (const e of world.enemies) {
+      for (const q of world.projectiles) {
+        if (q.friendly || q.cleared || q.dead || q.unbreakable) continue;
+        if (dist(pr.x, pr.y, q.x, q.y) > pr.r + q.r) continue;
+        cutShot(q);
+        if (pr.pierce > 0) pr.pierce--;
+        else { consumed = true; break; }
+      }
+      if (!consumed) for (const e of world.enemies) {
         if (e.dead || e.spawning || e.invuln) continue;
         if (pr.hits && pr.hits.has(e)) continue;
         if (dist(pr.x, pr.y, e.x, e.y) > pr.r + e.r) continue;
@@ -491,7 +499,39 @@ export function updateHitboxes(dt) {
       });
       if (h.onHit) h.onHit(e, h);
     }
+
+    // Any enemy shot the swing passes through is struck out of the air, boss
+    // shots included, and a blasting charge is kicked away.
+    const inSwing = (x, y, r) => {
+      if (h.shape === 'arc') return circleArc(x, y, r, h.x, h.y, h.angle, h.arc, h.radius);
+      if (h.shape === 'rect') return circleOrientedRect(x, y, r, h.x, h.y, h.angle, h.len, h.wid);
+      return dist(h.x, h.y, x, y) < h.radius + r;
+    };
+    let cut = 0;
+    for (const pr of world.projectiles) {
+      if (pr.friendly || pr.cleared || pr.dead || pr.unbreakable) continue;
+      if (!inSwing(pr.x, pr.y, pr.r)) continue;
+      cutShot(pr);
+      cut++;
+    }
+    strikeCharges(inSwing, h.angle);
+    if (cut > 0 && (world.runTime - lastCutSound) > 0.08) {
+      lastCutSound = world.runTime;
+      sfx.block();
+    }
   }
+}
+
+let lastCutSound = -1;
+
+/**
+ * Strike a hostile shot out of the air. It is removed as if a boss had wiped
+ * it (no expiry effect: a splitting orb does not split), with its own spark.
+ */
+function cutShot(pr) {
+  pr.cleared = true;
+  burst(pr.x, pr.y, { count: pr.quiet ? 3 : 6, color: pr.color, speed: 200, size: 3, life: 0.24, drag: 6, shape: 'spark' });
+  burst(pr.x, pr.y, { count: 2, color: '#ffffff', speed: 140, size: 2.4, life: 0.18, drag: 6, shape: 'spark' });
 }
 
 // --- pickups ---------------------------------------------------------------

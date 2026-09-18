@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.8. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.9. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3173,7 +3173,42 @@ nothing told a new player it existed.
   is on screen right now (touch button, ability bar or spell row), for any
   future hint that needs to point at the HUD.
 
-### 16.8 Folk enemies not built yet
+### 16.8 Step 5 — dummy health, the Kobold Sapper, and cutting shots (built; owner testing)
+
+- **Dummy health** (Training Ground panel): 100 / 500 / 1000 (default) / 3000 /
+  Endless. A dummy with a set health can be broken: it pops "BROKEN in 3.2s"
+  (time from its first hit), the meter keeps it as *last break*, and it stands
+  back up where it was 1.5 s later. Endless dummies behave as before. The
+  dummy def has `noCorpse` (checked in `killEnemy`), so a Vetala never raises
+  straw.
+- **Kobold Sapper** (`sapper` in `enemies-folk.js`) — role **artillery**, a
+  Hades-style bomber from German mining lore. r 16, hp 48, cost 4,
+  `minDepth` 2, damage 13, at most 2 a wave (`ROLE_CAP.artillery` 2).
+  - Holds 260–440 units off, strafes, and scuttles back (0.26 s hop, 3.2 s
+    cooldown) when you get inside 150.
+  - Every 2.6–3.4 s: 0.55 s wind-up with the charge raised overhead, then a
+    lobbed **blasting charge** at your position (elites throw three in a
+    spread).
+- **Blasting charge** (new hazard kind `charge`, `hazards.js`): a shell in the
+  air for 0.8 s, then a bomb with a fizzing fuse for 0.9 s, then a 74-radius
+  blast. The floor marker fills over the whole 1.7 s. **Strike it** (in the
+  air or on the ground) and it is kicked: it flies 0.42 s to the nearest enemy
+  roughly along the strike (or 260 units straight on) and blows up on enemies
+  only, for `max(30, 2.5 x damage)`. `strikeCharges(hits, angle)` is exported
+  for any future kickable bomb.
+- **Cutting shots:** every player melee hitbox now strikes any **hostile
+  projectile** it touches out of the air — boss shots included. The shot is
+  removed like a boss wipe (`pr.cleared`, so no expiry effect: a splitting orb
+  does not split) with a spark in its colour and a throttled block sound.
+  Friendly projectiles (arrows, spells) break hostile ones too, spending
+  themselves unless they pierce. A projectile flagged `unbreakable` is exempt
+  (nothing sets it yet; it is there for a future mechanic that must not be
+  cut). Hazards (lanes, rings, beams, blasts) are not projectiles and still
+  have to be dodged.
+- **Balance note:** this makes bullet-heavy bosses easier for melee builds.
+  The owner asked for it; watch Vesper, the Peacock, the Maestro and the Bride.
+
+### 16.9 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

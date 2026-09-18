@@ -222,7 +222,7 @@ export function killEnemy(e, opts = {}) {
 
   // A body for the Vetala to ride (enemies-folk.js). Bosses, boss parts,
   // summons and the already-risen leave nothing behind.
-  if (!e.boss && !e.risen && !e.isSpawn && !e.summoner && !e.def.boss && !e.def.fixed && !e.def.invisible) {
+  if (!e.boss && !e.risen && !e.isSpawn && !e.summoner && !e.def.boss && !e.def.fixed && !e.def.invisible && !e.def.noCorpse) {
     world.corpses.push({
       type: e.type, x: e.x, y: e.y, r: e.r, face: e.face || 0,
       scale: e.scale || 1, color: e.color, t: 0, claim: null,

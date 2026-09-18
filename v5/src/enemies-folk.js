@@ -5,6 +5,7 @@
 //   Chinthe (Myanmar)           shield   guards its front, open from behind
 //   Adze    (Ewe: Ghana, Togo)  swarm    fireflies, solid only while feeding
 //   Vetala  (India)             support  rides the corpses of your kills
+//   Kobold  (German mines)      artillery lobs blasting charges you can kick back
 //
 // The fairness rules still hold: nothing hurts the player without a telegraph
 // first, and every defence has an opening that can be found on purpose.
@@ -18,6 +19,7 @@ import {
   player, stepToward, stepAway, strafe, contactDamage, telegraphRing, collideWorld,
 } from './ai.js';
 import { spawnProjectile } from './spawn.js';
+import { spawnHazard } from './hazards.js';
 
 const STONE = '#e9d39a';
 const EMBER = '#ffe27a';
@@ -537,4 +539,135 @@ function break_(e) {
   for (const c of world.corpses) if (c.claim === e) c.claim = null;
 }
 
-export const FOLK_DEFS = { chinthe: CHINTHE, adze: ADZE, vetala: VETALA };
+// --- the Kobold Sapper -----------------------------------------------------
+// The kobolds of German mining lore knocked in the dark shafts, played tricks
+// and blasted rock; miners blamed them for the poisonous ore they named
+// cobalt. This one keeps its distance and lobs blasting charges, like the
+// bombers of Hades: the landing spot is marked the whole way down, the charge
+// sits on a fuse, and a strike kicks it away to blow up on whatever it reaches.
+
+const CHARGE_RED = '#ff7a3d';
+
+function throwCharges(e, p) {
+  const n = e.elite ? 3 : 1;
+  const across = angleTo(e.x, e.y, p.x, p.y) + Math.PI / 2;
+  for (let k = 0; k < n; k++) {
+    const off = n === 1 ? 0 : (k - 1) * 80;
+    spawnHazard({
+      kind: 'charge',
+      x0: e.x, y0: e.y - e.r * 0.4,
+      x1: p.x + Math.cos(across) * off, y1: p.y + Math.sin(across) * off,
+      flight: 0.8, fuse: 0.9, r: 74, height: 150, shellR: 8,
+      damage: e.damage, color: CHARGE_RED, source: 'sapper', owner: e,
+    });
+  }
+  sfx.swing(0.6);
+}
+
+export const SAPPER = {
+  r: 16, hp: 48, speed: 125, mass: 1, cost: 4, minDepth: 2, color: '#d9a35e',
+  role: 'artillery', damageBase: 13, maxPerWave: 2,
+  init(e) {
+    e.cd = rand(1.2, 2.2);
+    e.hopCd = 0;
+    e.sign = Math.random() < 0.5 ? 1 : -1;
+  },
+  update(e, dt) {
+    const p = player();
+    if (!p) return;
+    const d = dist(e.x, e.y, p.x, p.y);
+    e.cd = Math.max(0, e.cd - dt);
+    e.hopCd = Math.max(0, e.hopCd - dt);
+
+    if (e.state === 'wind') {
+      // Charge held overhead, fuse lit: the tell.
+      e.t -= dt;
+      e.face = angleTo(e.x, e.y, p.x, p.y);
+      if (e.t <= 0) {
+        throwCharges(e, p);
+        e.state = 'chase';
+        e.cd = rand(2.6, 3.4);
+      }
+      return;
+    }
+    if (e.state === 'hop') {
+      // A scuttle backwards when crowded: slippery, never untouchable.
+      e.t -= dt;
+      e.x += Math.cos(e.aim) * 400 * dt;
+      e.y += Math.sin(e.aim) * 400 * dt;
+      if (e.t <= 0) e.state = 'chase';
+      return;
+    }
+
+    e.state = 'chase';
+    e.face = angleTo(e.x, e.y, p.x, p.y);
+    if (d < 260) stepAway(e, p.x, p.y, e.speed, dt);
+    else if (d > 440) stepToward(e, p.x, p.y, e.speed * 0.85, dt);
+    strafe(e, p.x, p.y, e.speed * 0.45, dt, e.sign);
+    if (Math.random() < dt * 0.4) e.sign *= -1;
+
+    if (d < 150 && e.hopCd <= 0) {
+      e.state = 'hop'; e.t = 0.26; e.hopCd = 3.2;
+      e.aim = angleTo(p.x, p.y, e.x, e.y) + rand(-0.5, 0.5);
+      sfx.dash();
+      return;
+    }
+    if (e.cd <= 0 && d < 560) {
+      e.state = 'wind'; e.t = 0.55;
+      sfx.telegraph();
+    }
+  },
+  draw(e, ctx) {
+    const wind = e.state === 'wind' ? 1 - e.t / 0.55 : 0;
+    const bob = Math.sin(world.runTime * 7 + e.seed) * 1.5;
+    ctx.save();
+    ctx.translate(e.x, e.y + bob);
+
+    // Squat body and a hooded head.
+    ctx.fillStyle = e.tint;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, e.r * 0.95, e.r * 0.8, 0, 0, TAU);
+    ctx.fill();
+    ctx.fillStyle = '#5a3f2a';
+    ctx.beginPath();
+    ctx.arc(0, -e.r * 0.45, e.r * 0.62, Math.PI, TAU);
+    ctx.fill();
+    // Miner's candle on the hood, the thing you spot across the room.
+    ctx.fillStyle = '#fff2b0';
+    ctx.beginPath();
+    ctx.arc(0, -e.r * 1.15, 3.2 + Math.sin(world.runTime * 20) * 0.6, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 0.25;
+    ctx.beginPath();
+    ctx.arc(0, -e.r * 1.15, 9, 0, TAU);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Eyes toward the player.
+    const fx = Math.cos(e.face || 0) * 3, fy = Math.sin(e.face || 0) * 2;
+    ctx.fillStyle = '#ffd45e';
+    for (let i = -1; i <= 1; i += 2) {
+      ctx.beginPath();
+      ctx.arc(i * e.r * 0.3 + fx, -e.r * 0.1 + fy, 2.3, 0, TAU);
+      ctx.fill();
+    }
+    // The charge, raised overhead while it winds up.
+    if (wind > 0) {
+      const hy = -e.r * (1.1 + wind * 0.9);
+      ctx.fillStyle = '#0b0712';
+      ctx.beginPath();
+      ctx.arc(e.r * 0.5, hy, 8, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = CHARGE_RED;
+      ctx.beginPath();
+      ctx.arc(e.r * 0.5, hy, 6.5, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#ffd45e';
+      ctx.beginPath();
+      ctx.arc(e.r * 0.5 + 5, hy - 8, 2 + Math.random() * 1.5, 0, TAU);
+      ctx.fill();
+    }
+    ctx.restore();
+  },
+};
+
+export const FOLK_DEFS = { chinthe: CHINTHE, adze: ADZE, vetala: VETALA, sapper: SAPPER };
