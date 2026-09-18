@@ -26,6 +26,8 @@ import { sfx } from './audio.js';
 import { player, strafe, collideWorld, contactDamage } from './ai.js';
 import { MIRE_ARENA, mireSplash, mireRing, mireWake, mireBubble } from './arena-mire.js';
 import { VAULT_ARENA, vaultSplash, vaultRing, vaultWake, vaultVortex, vaultBubbles } from './arena-vault.js';
+import { PALACE_ARENA } from './arena-palace.js';
+import { DESH_THEME } from './music-desh.js';
 import { PEAK_ARENA, peakSlam, peakPound, peakPlough, peakCrack, peakGust, peakCone, peakDust } from './arena-peak.js';
 import { spawnHazard, clearHazards } from './hazards.js';
 
@@ -854,6 +856,11 @@ const PEACOCK = {
   phases: [0.66, 0.33],
   opening: { display: 6, beams: 4, eyes: 3 },
   roarPitch: 1.6,
+  // The Peacock Court, a moonlit palace courtyard (arena-palace.js), and her
+  // music in Raag Desh (music-desh.js).
+  drawArena: PALACE_ARENA.draw,
+  arenaTick: PALACE_ARENA.tick,
+  music: DESH_THEME,
   idle(e, dt, p) {
     const d = dist(e.x, e.y, p.x, p.y);
     turnToward(e, angleTo(e.x, e.y, p.x, p.y), 6 * dt);

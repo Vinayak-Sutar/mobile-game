@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.14. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.15. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3425,7 +3425,48 @@ against every known cause, in `game.js`:
   the shield's to 50%. Heart-Seeker 4.8 → 1.92 s, Stygian Blade 4.5 → 1.8 s,
   Eternal Spear 3.6 → 1.44 s, Shield of Chaos 4.2 → 2.1 s. Version 5 only.
 
-### 16.14 Folk enemies not built yet
+### 16.14 Step 11 — the Peacock Court and a theme in Raag Desh (Solenne)
+
+**Arena** (`arena-palace.js`, Solenne's `drawArena` + `arenaTick`): a moonlit
+palace courtyard after the Mor Chowk of Udaipur's City Palace and the Mughal
+charbagh. Deliberately **dark and low-contrast** — she is the bullet-hell
+boss and her shots are teal and gold, so nothing on the floor may compete
+(lamp flames are orange, the mosaics muted).
+- Night marble with pietra-dura inlay (gold-lined slabs, an eight-pointed
+  star in each), a lotus-inlay border; two water channels crossing in a
+  charbagh to an octagonal fountain with a stone lotus; a great 16-point star
+  inlaid around it.
+- Along the top: cusped arches with jali lattice screens and glass-mosaic
+  peacocks between them; domed chhatris in the corners; moonlight falling
+  through the jali as a lattice of light on the floor.
+- Alive: diya lamps flicker and lean away from (and gutter at) anything
+  rushing past; marigold and rose petals drift down, settle, fade, and are
+  thrown about by her swoops and Display; light runs along the channels and
+  lotus flowers float in them; the fountain plays and **surges during her
+  Display**, when the great star also lights up and turns; when she calls her
+  watching eyes, the mosaic peacocks' eyes open too.
+
+**Music** (`music-desh.js`, Solenne's `music`), researched (SwarGanga,
+Wikipedia, Rajan Parrikar's archive): **Raag Desh**, Khamaj thaat, Sa = D.
+- Grammar kept: audav-sampurna (ascent N S R M P N S', no Ga or Dha;
+  descent S' n D P, D M G R, G N S); shuddha Ni up, komal ni down; Re the
+  vadi (a resting note), Pa the samvadi, the Re-Pa pull; the signature
+  **meend Ma -> (Ga) -> Re**; the pakad R, M P N S', R' n D P, M G R.
+  Phrases composed for the game.
+- A small recital: **tanpura** drone (Pa Sa Sa low-Sa), **bansuri** melody with
+  kan (Re graced from Ga, upper Sa from Re) and meend (glides via the new
+  `glideTo` in `music-kit.js`), **tabla** in teentaal (16 matras, the khali
+  without the bass drum, synthesised dayan tuned to Sa and a bending bayan),
+  a **swarmandal** sweep up the raga at every new phase, a **santoor**
+  tremolo during her Display.
+- The **laya quickens with her phases** (matra 0.5 s, 0.4 s, 0.32 s), as a
+  performance moves from slow to fast. In the fast phase every other cycle is
+  taans (runs up the aroha, down the avaroha) closing with a **tihai** landing
+  on sam.
+- `music-kit.js` now holds the shared `voice()` synth (with kan and meend) for
+  both boss themes.
+
+### 16.15 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

@@ -21,6 +21,8 @@
 // setBossTheme): `step(n, t, kit)` is called on every 16th note with its
 // exact start time, `tempo(kit)` sets the pace, and `kit.boss` is Vesper.
 
+import { voice, midi } from './music-kit.js';
+
 const PROG = [
   { root: 45, fifth: 52, strum: [57, 60, 64] },   // Am
   { root: 43, fifth: 50, strum: [55, 59, 62] },   // G
@@ -40,7 +42,6 @@ const TUNE = [
   [[0, 76, 12], [12, 68, 4]],
 ];
 
-const midi = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 /** A diatonic third below, in A minor (with the raised G# of the E chord). */
 function thirdBelow(m) {
@@ -49,55 +50,6 @@ function thirdBelow(m) {
 }
 
 // --- voices ---------------------------------------------------------------------
-
-/**
- * One synthesised note: an oscillator with an optional pitch slide into the
- * note, vibrato that fades in, a filter sweep and an attack/release envelope.
- */
-function voice(k, o) {
-  if (!k.ctx || k.muted() || !k.bus) return;
-  const c = k.ctx, t = o.at, dur = Math.max(0.05, o.dur);
-  const f = midi(o.m);
-  const osc = c.createOscillator();
-  osc.type = o.type || 'sine';
-  if (o.slide) {
-    osc.frequency.setValueAtTime(f * Math.pow(2, -o.slide / 12), t);
-    osc.frequency.exponentialRampToValueAtTime(f, t + (o.slideTime || 0.06));
-  } else {
-    osc.frequency.setValueAtTime(f * (o.bendFrom || 1), t);
-    if (o.bendFrom) osc.frequency.exponentialRampToValueAtTime(f, t + 0.04);
-  }
-  if (o.vib) {
-    const lfo = c.createOscillator();
-    const depth = c.createGain();
-    lfo.frequency.value = o.vibRate || 5.5;
-    depth.gain.setValueAtTime(0, t);
-    depth.gain.linearRampToValueAtTime(0, t + (o.vibDelay ?? 0.15));
-    depth.gain.linearRampToValueAtTime(f * o.vib, t + (o.vibDelay ?? 0.15) + 0.25);
-    lfo.connect(depth).connect(osc.frequency);
-    lfo.start(t);
-    lfo.stop(t + dur + 0.3);
-  }
-  const g = c.createGain();
-  const a = o.attack ?? 0.01;
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(o.vol, t + a);
-  if (o.sustain !== false) g.gain.setValueAtTime(o.vol, t + Math.max(a, dur - (o.release ?? 0.12)));
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  let head = osc;
-  if (o.filter) {
-    const fl = c.createBiquadFilter();
-    fl.type = 'lowpass';
-    fl.frequency.setValueAtTime(o.filter[0], t);
-    if (o.filter[1]) fl.frequency.exponentialRampToValueAtTime(o.filter[1], t + Math.min(dur, o.filter[2] || dur));
-    fl.Q.value = o.q || 1;
-    head.connect(fl);
-    head = fl;
-  }
-  head.connect(g).connect(k.bus);
-  osc.start(t);
-  osc.stop(t + dur + 0.05);
-}
 
 /** The whistle: slides up into the note, vibrato warming in as it holds. */
 function whistle(k, m, dur, t, vol = 0.075) {
