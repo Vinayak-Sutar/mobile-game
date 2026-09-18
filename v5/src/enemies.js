@@ -15,6 +15,7 @@ import {
 import { BOSS_DEFS, bindBossSpawner, clearHostiles, clearBullets, drawBossExtras } from './bosses.js';
 import { FOLK_DEFS, bindFolkSpawner, updateCorpses } from './enemies-folk.js';
 import { TRAINING_DEFS } from './training.js';
+import { FOLK_DEFS2, tickHidden } from './enemies-folk2.js';
 
 const SPAWN_TIME = 0.75;
 
@@ -612,7 +613,7 @@ export const ENEMY_DEFS = {
 
 // The four creature bosses and their minions live in bosses.js, and the
 // folk enemies (Chinthe, Adze, Vetala) in enemies-folk.js.
-Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, TRAINING_DEFS);
+Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, FOLK_DEFS2, TRAINING_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -703,6 +704,7 @@ function defaultDamage(type) {
 
 export function updateEnemies(dt) {
   updateCorpses(dt);
+  tickHidden();
   for (let i = world.enemies.length - 1; i >= 0; i--) {
     const e = world.enemies[i];
     if (e.dead) { world.enemies.splice(i, 1); continue; }

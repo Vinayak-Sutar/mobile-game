@@ -1001,7 +1001,7 @@ const DUMMY_HP_CHOICES = [100, 500, 1000, 3000, 0];
 /** What can be called into the ring, in the order they appear in a run. */
 const TRAINING_FOES = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
-  'adze', 'chinthe', 'vetala', 'sapper',
+  'adze', 'chinthe', 'vetala', 'sapper', 'kappa', 'preta', 'draugr', 'duende',
 ];
 
 function trainingLoadout() {

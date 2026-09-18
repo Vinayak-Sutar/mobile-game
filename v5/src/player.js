@@ -202,6 +202,7 @@ export function updatePlayer(p, dt) {
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;
     if (p.aiming) speed *= 0.35;           // steadying a scope
+    if ((p.heldUntil || 0) > world.runTime) speed = 0;   // held by a Kappa: dash to break free
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
     if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
@@ -254,8 +255,9 @@ function startDash(p) {
   // Cancelling recovery with a dash is the core defensive tool, so let it.
   if (p.attack && p.attack.phase === 'recover') p.attack = null;
 
-  // A dash drops the scope.
+  // A dash drops the scope, and breaks any hold on you.
   p.aiming = null;
+  p.heldUntil = 0;
 
   // The blunderbuss: dashing mid-reload slams the shells home at once.
   if (p.weapon.gun && p.reloadT > 0) {

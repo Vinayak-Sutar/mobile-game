@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.18. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.19. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3606,11 +3606,41 @@ Owner request, all in `game.js` (+ CSS in `v5/index.html`):
   Swapping only reorders `p.spells`; cooldowns and levels are keyed by spell
   id, so nothing else changes.
 
-### 16.18 Folk enemies not built yet
+### 16.18 Step 15 — four more folk enemies (`enemies-folk2.js`)
 
-Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
-Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by
-itself). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the
+Each teaches a skill the roster did not ask for yet; each has one tell and a
+counter a player can find on purpose. Folklore checked (Wikipedia and
+folklore sites; kappa's dish and bow, the draugr's restless mound, the
+preta's needle mouth, the duende who hides things).
+- **Kappa** (grappler, r 17, hp 64, cost 4, `minDepth` 2, max 2): circles,
+  then **crouches** 0.5 s (a ring tightens, the dish glints) and **leaps**
+  0.42 s to where you stood. Caught: you are **held** 1 s (`p.heldUntil`,
+  movement 0) and squeezed three times — **a dash breaks free** and leaves it
+  reeling. Missed: the dish **spills** and it is helpless and exposed 1.8 s.
+  *Skill: bait the leap, dodge late.*
+- **Preta** (glutton, r 20, hp 92, cost 5, `minDepth` 3, max 1): drifts after
+  you; **friendly projectiles are swallowed** (new `e.eats` hook in
+  `projectiles.js`; spells' expiry bursts are cancelled), the belly grows and
+  glows with them; at six (or 3.5 s after the first) it **bloats** 0.7 s and
+  **heaves them back** as a fan of shots. Melee and dash hits deal ×1.5.
+  *Skill: stop shooting, walk in and strike.*
+- **Draugr** (heavy, r 22, hp 104, cost 5, `minDepth` 3, max 2): axe swings
+  down a marked 1.6 rad cone. Struck down, it falls into a **grave mound**
+  (via `hpFloor` 1) with a ring running out over 2.8 s: **one more hit lays
+  it to rest**, otherwise **it rises** at half health, faster, and won't fall
+  twice. *Skill: finish what you started.*
+- **Duende** (thief, r 12, hp 36, cost 3, `minDepth` 2.5, max 1): does no
+  damage; darts in and **lifts your gold** (12 + 2 × depth), then flees,
+  weaving, with a sack. **Catch it** and it drops the gold ×1.5
+  (RECOVERED); let it get away (7 s) and it **hides the gold somewhere in the
+  room**, where it turns up 5 s later (FOUND IT). *Skill: chase priorities.*
+- Roles added to `ROLE_CAP`: grappler 2, glutton 1, thief 1 (the Draugr is a
+  heavy). All four are in the spawn list and the Training Ground.
+
+### 16.19 Folk enemies not built yet
+
+Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
+Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the
 Hundred-Demon Parade, Kikimora of the Rafters, Baba Yaga's Hut, the Clay
 Guardian.
 

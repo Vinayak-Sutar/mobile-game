@@ -187,6 +187,8 @@ export function updateProjectiles(dt) {
         if (e.dead || e.spawning || e.invuln) continue;
         if (pr.hits && pr.hits.has(e)) continue;
         if (dist(pr.x, pr.y, e.x, e.y) > pr.r + e.r) continue;
+        // Something that swallows shots whole (the Preta) eats it instead.
+        if (e.eats && e.eats(e, pr)) { consumed = true; break; }
 
         if (!pr.hits) pr.hits = new Set();
         pr.hits.add(e);

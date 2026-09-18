@@ -50,11 +50,11 @@ export function effDepth(depth) { return 1 + (depth - 1) * (EFF_MAX - 1) / Math.
 
 const SPAWNABLE = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
-  'adze', 'chinthe', 'vetala', 'sapper',
+  'adze', 'chinthe', 'vetala', 'sapper', 'kappa', 'preta', 'draugr', 'duende',
 ];
 
 /** How many of a role a single wave may hold. */
-const ROLE_CAP = { rusher: 4, shooter: 3, swarm: 4, bomber: 3, heavy: 2, shield: 2, support: 1, artillery: 2 };
+const ROLE_CAP = { rusher: 4, shooter: 3, swarm: 4, bomber: 3, heavy: 2, shield: 2, support: 1, artillery: 2, grappler: 2, glutton: 1, thief: 1 };
 
 /** Which boss guards a boss chamber this run. */
 export function bossForDepth(depth) {
