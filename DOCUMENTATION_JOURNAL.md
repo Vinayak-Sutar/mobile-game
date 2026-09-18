@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.9. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.10. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3213,7 +3213,44 @@ nothing told a new player it existed.
   in the room**, as a pale dashed spirit outline. The Adze's bite spray and
   belly are ember gold instead of red.
 
-### 16.9 Folk enemies not built yet
+### 16.9 Step 6 — custom boss arenas: the Mire (Mawgrim, the crocodile)
+
+The owner wants a custom arena for every guardian, starting with the croc.
+`v5/src/arena-mire.js`, wired as the croc spec's `drawArena` and a new
+**`arenaTick(room, dt)`** hook that `updateRoom` calls every frame for the
+room's boss spec (from the intro until you leave, so the water keeps moving
+after the fight).
+
+- **Live water:** a height field on a 10-unit grid, the 2D wave equation
+  (`vel += C2 * laplacian`, `C2` 0.24, damping 0.984 per step, ~300 u/s wave
+  speed). Pillars pin the surface so ripples **reflect** off them and the walls.
+  Painted one pixel per cell into a small `ImageData`, lit by the surface
+  slope (light from the top left, a specular kick on steep crests, a gentle
+  time-based swell), then scaled up with smoothing over the floor. Cheap on
+  phones: ~6k cells.
+- **Everything disturbs it:** the player's steps and dashes (by speed, plus a
+  crisp ring every step, faster while dashing), every enemy's wake (by speed
+  and size), and ambient drips so the swamp is never still.
+- **Mawgrim's moves on the water:** jaw snap slams a splash ahead of him; tail
+  sweep throws a ring out and churns behind the tail as it spins; the death
+  roll ploughs a bow wave down the lane and crashes at the wall; phase change
+  and death are huge upheavals.
+  - **Submerge**, the set piece: the water closes over him as he sinks, a
+    **bow wave** heaps up over him as he glides beneath (the surface shows
+    where he is), bubbles boil up faster and faster over the marked spot, then
+    he erupts in a column of spray with rings racing outward.
+- **Dressing:** lily pads that ride the waves (they slide off crests, bob, spin
+  and get shoved aside by anyone wading through), reeds and cattails along the
+  walls and mangrove roots in the corners (drawn once to a canvas), drifting
+  floor mist, fireflies, a slow moonlight sheen, and **wading rings** at
+  everyone's feet so they stand *in* the water.
+- **Cosmetic only:** no slowdown or other gameplay change; the croc's
+  telegraphs are unchanged.
+- **For the next arenas:** `arenaTick` + `drawArena` on a spec is the pattern,
+  and `mireSplash / mireRing / mireWake / mireBubble` show how a boss's moves
+  can talk to its arena.
+
+### 16.10 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by

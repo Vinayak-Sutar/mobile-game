@@ -24,6 +24,7 @@ import { damagePlayer } from './combat.js';
 import { burst, ring, shake, flash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { player, strafe, collideWorld, contactDamage } from './ai.js';
+import { MIRE_ARENA, mireSplash, mireRing, mireWake, mireBubble } from './arena-mire.js';
 import { spawnHazard, clearHazards } from './hazards.js';
 
 import {
@@ -283,6 +284,9 @@ const CROC = {
   phases: [0.55],
   opening: { spray: 8, submerge: 3, hatch: 3 },
   roarPitch: 1.2,
+  // The Mire: a flooded arena whose water answers every move (arena-mire.js).
+  drawArena: MIRE_ARENA.draw,
+  arenaTick: MIRE_ARENA.tick,
   idle(e, dt, p) {
     const d = dist(e.x, e.y, p.x, p.y);
     turnToward(e, angleTo(e.x, e.y, p.x, p.y), 3 * dt);
@@ -298,7 +302,11 @@ const CROC = {
     if (e.phase >= 2 && minionCount(e) < 2) pool.push(['hatch', 2]);
     return pool;
   },
-  afterPhase(e) { ringShot(e, 20, 190 * tm(e), rand(0, TAU), { shape: 'mud', r: 8, color: MUD, dmg: 0.4 }); },
+  afterPhase(e) {
+    ringShot(e, 20, 190 * tm(e), rand(0, TAU), { shape: 'mud', r: 8, color: MUD, dmg: 0.4 });
+    mireSplash(e.x, e.y, e.r * 2, 4, 4);
+    mireRing(e.x, e.y, 160, -2);
+  },
   moves: {
     // Jaw Snap: a long cone, then a lunge. Twice in a row once it's angry.
     snap: {
@@ -316,6 +324,7 @@ const CROC = {
             sub(e, 'bite', 0.16);
             e.snapX = e.x; e.snapY = e.y; e.snapA = e.face; e.snapHit = false;
             sfx.swing(1.3);
+            mireSplash(e.x + Math.cos(e.face) * e.r * 1.8, e.y + Math.sin(e.face) * e.r * 1.8, 34, 1.6, 2);
           }
         } else if (e.sub === 'bite') {
           forward(e, 820, dt);
@@ -354,9 +363,14 @@ const CROC = {
       },
       update(e, dt) {
         if (e.sub === 'wind') {
-          if (e.t <= 0) { sub(e, 'spin', 0.45); e.spinA = 0; sfx.swing(1.5); shake(0.4); }
+          if (e.t <= 0) {
+            sub(e, 'spin', 0.45); e.spinA = 0; sfx.swing(1.5); shake(0.4);
+            mireRing(e.x, e.y, 150, -1.8);
+          }
         } else {
           e.spinA = Math.min(TAU, (e.spinA || 0) + dt * TAU / 0.35);
+          const ta = e.face + PI + (e.spinA || 0);
+          mireSplash(e.x + Math.cos(ta) * e.r * 1.9, e.y + Math.sin(ta) * e.r * 1.9, 26, -0.7, 0);
           if (e.t <= 0) { e.spinA = 0; idle(e, 0.55); }
         }
       },
@@ -379,6 +393,7 @@ const CROC = {
         forward(e, sp, dt, e.aim);
         e.rollA += dt * 22;
         e.dropD += sp * dt;
+        mireWake(e.x, e.y, e.aim, e.r, 0.9);
         while (e.dropD >= 36) {
           e.dropD -= 36;
           for (const s of [-1, 1]) {
@@ -393,6 +408,7 @@ const CROC = {
           shake(0.6);
           sfx.thud();
           burst(e.x, e.y, { count: 18, color: MUD, speed: 300, size: 4, life: 0.4, drag: 4, shape: 'shard' });
+          mireSplash(e.x, e.y, e.r * 1.6, 3, 3);
           e.rolls--;
           if (e.rolls > 0) crocRollWind(e, p, 0.45);
           else expose(e, 1.6);
@@ -407,10 +423,14 @@ const CROC = {
         sub(e, 'sink', 0.6);
         sfx.splash();
         ring(e.x, e.y, { r0: e.r, r1: e.r * 2.4, color: MIRE, life: 0.5, width: 4 });
+        mireSplash(e.x, e.y, e.r * 1.4, -2.2, 3);
       },
       update(e, dt, p) {
         if (e.sub === 'sink') {
+          // Going down: the water closes over it.
+          mireSplash(e.x, e.y, e.r, -0.16, 0);
           if (e.t <= 0) {
+            mireSplash(e.x, e.y, e.r * 1.2, -1.4, 2);
             sub(e, 'under', e.phase >= 2 ? 1.6 : 2.0);
             e.hidden = true;
             e.invuln = true;
@@ -422,6 +442,8 @@ const CROC = {
             turnToward(e, angleTo(e.x, e.y, p.x, p.y), 6 * dt);
             forward(e, 300 * tm(e), dt);
           }
+          // A bow wave heaped over it as it glides beneath: the surface shows the way.
+          mireWake(e.x, e.y, e.face, e.r * 0.9, 0.32);
           if (Math.random() < dt * 20) {
             burst(e.x + rand(-14, 14), e.y + rand(-14, 14), {
               count: 1, color: MIRE, speed: 20, size: 3, life: 0.5, gravity: -30, drag: 1,
@@ -436,6 +458,8 @@ const CROC = {
             sfx.telegraph();
           }
         } else if (e.sub === 'mark') {
+          // Bubbles boil up faster and faster over the marked spot.
+          if (Math.random() < dt * (10 + (e.st / 0.7) * 40)) mireBubble(e.x, e.y, 60, 0.4 + (e.st / 0.7) * 0.8);
           if (e.t <= 0) {
             e.hidden = false;
             e.invuln = false;
@@ -443,6 +467,9 @@ const CROC = {
             sub(e, 'rise', 0.5);
             sfx.splash();
             shake(0.5);
+            // Up through the surface: a column of water thrown out in rings.
+            mireSplash(e.x, e.y, e.r * 1.7, 5, 4);
+            burst(e.x, e.y, { count: 26, color: '#d8f5e8', speed: 380, size: 3.5, life: 0.6, drag: 3, gravity: 260, shape: 'spark' });
             ringShot(e, e.phase >= 2 ? 24 : 18, 200 * tm(e), rand(0, TAU), {
               shape: 'mud', r: 8, color: MUD, dmg: 0.4,
             });

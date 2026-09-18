@@ -230,6 +230,10 @@ export function updateRoom(dt) {
   const room = world.room;
   if (!room) return;
   updateAmbient(dt, world.biome);
+  // A boss arena with a life of its own (the Mire's water) runs every frame,
+  // from the intro to after the guardian falls.
+  const arenaSpec = bossSpec(room);
+  if (arenaSpec && arenaSpec.arenaTick) arenaSpec.arenaTick(room, dt);
 
   if (room.intro > 0) {
     room.intro -= dt;
