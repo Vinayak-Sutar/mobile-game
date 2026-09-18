@@ -74,8 +74,10 @@ function shadeMire(d, p, t, l, lap, x, y, time, solid) {
   let r = 10 + t * 24, g = 27 + t * 34, b = 28 + t * 18;
   if (solid) { d[p] = r * 0.5; d[p + 1] = g * 0.5; d[p + 2] = b * 0.5; d[p + 3] = 255; return; }
   if (l > 0) {
-    r += l * 80; g += l * 118; b += l * 104;
-    if (l > 0.65) { const s = (l - 0.65) * 150; r += s; g += s; b += s; }
+    // Soft, capped glints tinted with the swamp, as in the Drowned Vault:
+    // white crests read as attacks.
+    const q = Math.min(l, 0.7);
+    r += q * 28; g += q * 54; b += q * 44;
   } else {
     const k = 1 + l * 0.5;
     r *= k; g *= k; b *= k;
@@ -91,7 +93,9 @@ const MIRE = createWaterArena({
   mists: 5,
   drip: { min: 0.18, max: 0.5, amt: -0.5 },
   sheen: '180,230,220',
-  rippleColor: '#d8f5e8',
+  light: 0.8,
+  rippleAlpha: 0.4,
+  rippleColor: '#8fc4a8',
 });
 
 /** Hooks for the crocodile's spec: `drawArena` and `arenaTick`. */

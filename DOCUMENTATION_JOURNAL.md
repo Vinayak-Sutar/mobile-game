@@ -3329,7 +3329,10 @@ All cosmetic; the fights play the same. Static checks only; the owner tests.
 - Vault: ripples caught too much light and read like attacks. The Vault now
   uses `light` 0.8, capped blue-tinted glints instead of white crests, much
   less wave-focused caustic, and crisp ripple rings at 40% alpha in a muted
-  blue (`rippleAlpha`, a new engine option). The Mire is unchanged.
+  blue (`rippleAlpha`, a new engine option).
+- The owner loved the Vault's calmer light and asked for the same in the Mire:
+  `light` 0.8, capped swamp-green glints (no white crests), ripple rings at
+  40% alpha in a muted green.
 
 ### 16.11 Folk enemies not built yet
 
