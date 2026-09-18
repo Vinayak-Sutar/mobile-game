@@ -1,7 +1,7 @@
 // Unified input: a floating virtual stick plus action buttons on touch,
 // WASD + mouse on desktop. Both feed the same `input` object.
 
-import { view } from './state.js';
+import { view, camera } from './state.js';
 import { clamp, dist, normalize } from './util.js';
 import { pad } from './gamepad.js';
 
@@ -354,7 +354,7 @@ export function updateInput(playerPos) {
     input.grenadeVec.y = pad.aim.y * pad.aimPush;
     input.grenadeAbs = null;
   } else if (!grenadeDrag && !input.touchMode && mouseSeen) {
-    input.grenadeAbs = { x: mouseWorld.x, y: mouseWorld.y };
+    input.grenadeAbs = { x: mouseWorld.x + camera.x, y: mouseWorld.y + camera.y };
   } else if (!grenadeDrag && !padOn) {
     input.grenadeAbs = null;
   }
@@ -382,8 +382,8 @@ export function updateInput(playerPos) {
     input.aim.y = pad.aim.y;
     input.aimActive = true;
   } else if (!input.touchMode && !input.padMode && mouseSeen && playerPos) {
-    const dx = mouseWorld.x - playerPos.x;
-    const dy = mouseWorld.y - playerPos.y;
+    const dx = mouseWorld.x + camera.x - playerPos.x;
+    const dy = mouseWorld.y + camera.y - playerPos.y;
     if (Math.hypot(dx, dy) > 6) {
       const [nx, ny] = normalize(dx, dy);
       input.aim.x = nx;

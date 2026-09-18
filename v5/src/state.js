@@ -12,6 +12,8 @@ export const world = {
   corpses: [],      // bodies left by kills, for the Vetala (enemies-folk.js)
   training: false,  // the Training Ground, not a run
   tutorial: false,  // the tutorial chamber (tutorial.js)
+  overworld: false, // The Wilds, the open-world prototype (overworld.js)
+  owBoss: null,     // a guardian fought from one of The Wilds' gates
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
@@ -40,6 +42,10 @@ export const view = {
   dpr: 1,
 };
 
+// The top-left of the view in world units. Always 0,0 in the chambers (the
+// whole room is on screen); The Wilds scroll it after the player.
+export const camera = { x: 0, y: 0 };
+
 // The playable floor, inset from the view so the HUD has breathing room.
 export const arena = { x: 0, y: 0, w: 0, h: 0 };
 
@@ -64,6 +70,10 @@ export function resetWorld() {
   world.trial = null;
   world.training = false;
   world.tutorial = false;
+  world.overworld = false;
+  world.owBoss = null;
+  camera.x = 0;
+  camera.y = 0;
   world.gold = 0;
   world.kills = 0;
   world.runTime = 0;

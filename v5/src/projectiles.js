@@ -120,6 +120,7 @@ export function updateProjectiles(dt) {
 
     if (world.room) {
       for (const o of world.room.obstacles) {
+        if (o.low) continue;                  // water, gaps and ledges: shots fly over
         if (circleRect(pr.x, pr.y, pr.r, o)) {
           // Breakable cover (crates) chips with every hit; big shots smash it.
           if (o.crate && !o.broken) {

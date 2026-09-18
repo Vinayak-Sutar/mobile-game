@@ -36,6 +36,7 @@ export function collideWorld(e) {
   if (e.y > b.b - e.r) { e.y = b.b - e.r; bumped = true; }
   if (world.room) {
     for (const o of world.room.obstacles) {
+      if (o.ledge && e.y < o.y + o.h / 2) continue;      // The Wilds: they drop down too
       if (resolveCircleRect(e, o)) bumped = true;
     }
   }

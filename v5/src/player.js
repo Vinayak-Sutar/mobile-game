@@ -239,7 +239,27 @@ export function updatePlayer(p, dt) {
   p.x = clamp(p.x, b.l + p.r, b.r - p.r);
   p.y = clamp(p.y, b.t + p.r, b.b - p.r);
   if (world.room) {
-    for (const o of world.room.obstacles) resolveCircleRect(p, o);
+    let inGap = false;
+    for (const o of world.room.obstacles) {
+      // A gap of water is crossed only mid-dash; a ledge only downward.
+      if (o.gap) {
+        if (p.x + p.r > o.x && p.x - p.r < o.x + o.w && p.y + p.r > o.y && p.y - p.r < o.y + o.h) inGap = true;
+        if (p.dashing) continue;
+      }
+      if (o.ledge && p.y < o.y + o.h / 2) continue;
+      resolveCircleRect(p, o);
+    }
+    if (inGap && !p.dashing && p.safeX !== undefined) {
+      // The dash fell short: a splash, and back on the bank.
+      burst(p.x, p.y, { count: 14, color: '#9fd8f0', speed: 200, size: 3, life: 0.4, drag: 4 });
+      p.x = p.safeX;
+      p.y = p.safeY;
+      p.hp = Math.max(1, p.hp - 5);
+      p.invuln = Math.max(p.invuln, 0.6);
+    } else if (!inGap) {
+      p.safeX = p.x;
+      p.safeY = p.y;
+    }
   }
 
   updatePlayerAnim(p, dt);

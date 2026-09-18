@@ -3658,7 +3658,71 @@ preta's needle mouth, the duende who hides things).
 - Roles added to `ROLE_CAP`: grappler 2, glutton 1, thief 1 (the Draugr is a
   heavy). All four are in the spawn list and the Training Ground.
 
-### 16.19 Folk enemies not built yet
+### 16.19 Step 16 — The Wilds, an open-world prototype (`overworld.js`)
+
+A test of how Ashfall feels open-world. Title → **The Wilds (open world)**.
+It uses the Training Ground's weapon and spells. Nothing is banked.
+
+**The engine hooks** (all inert outside The Wilds):
+- `camera` (state.js) is 0,0 in the chambers.
+  - `render()` translates by it when `world.overworld` is set.
+  - `input.js` adds it to the mouse aim and the mouse grenade point.
+- `arena` becomes the whole region (3600×2400) via `applyOverworldBounds()`.
+  - `resize()` calls that instead of `chamberArena()` + `clampObstacles()`.
+- Obstacle flags:
+  - `low`: water, gaps and ledges. Projectiles ignore them.
+  - `gap`: passable only mid-dash. A short dash splashes you back to the last
+    safe spot for −5 HP.
+  - `ledge`: blocks only from below, so you can drop down but not climb.
+    Enemies follow the same rule.
+- `e.asleep(e)` (enemies.js): skips `def.update` while it returns true.
+  Camps doze until you come within 430, or hit one. They sleep again beyond 1100.
+- Death in The Wilds → wake at the last kindled shrine (no lives spent).
+- **Boss gates:** stand in one for 1.2 s and you enter a gate fight.
+  - The fight: `world.owBoss` is set, and `generateRoom(..., { bossType, slot 1, tier 1 })`
+    runs in the normal arena.
+  - Win: 2.2 s after the room clears, you return to The Wilds. The gate goes
+    grey ("conquered"). Doors are ignored.
+  - Loss: you return at full health, and the gate still waits.
+
+**The region:**
+- Six zones, each with its own ground colour: Ashen Meadow (centre), Whispering
+  Woods (NE), Old Quarry (SE), Mirror Lake (S), The Broken Road (W),
+  Silverback Ridge (N).
+- Roads run from the meadow shrine to each zone.
+
+**Things in it:**
+- 2 shrines: heal, respawn point, toast.
+- A watchtower: reveals every landmark and a wide radius of the map.
+- Chests: gold, a heart, an ember (+8% damage).
+- 4 heart fragments: four make +20 max HP.
+- 3 lore stones.
+- A quarry lever that opens the Broken Road vault's portcullis (lock and key
+  across the map).
+- A bramble thicket (5 hits) into a hidden grove, and a lantern trail off the
+  woods road that leads toward it.
+- A dash-gap onto the Mirror Lake island.
+- A one-way quarry ledge.
+- 3 enemy camps: a chest when cleared.
+- 3 wanderers (Duende, Adze, charger).
+- 2 boss gates: croc at Mire's Edge, gorilla at Silverback's Summit.
+
+**Presentation:**
+- Tree canopies draw over everything and fade to 35% while you are under one.
+- Drifting leaves and dust.
+- A minimap (top right) with fog of war on 100-unit cells, landmark icons, you,
+  and the view rectangle.
+- A zone-name toast when you cross into a zone.
+
+**Not done / next if it sticks:**
+- Arenas placed in the world instead of teleporting.
+- Saving progress.
+- More gates, and fast travel between shrines.
+- Traversal items (grapple, glide).
+- Hand-painted ground textures.
+- Region music.
+
+### 16.20 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

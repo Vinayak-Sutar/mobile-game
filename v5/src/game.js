@@ -1,7 +1,11 @@
 // Entry point: canvas setup, the fixed-timestep loop, the run state machine
 // and every menu screen.
 
-import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx } from './state.js';
+import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera } from './state.js';
+import {
+  enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
+  bindOverworldSpawner, drawOverworldBelow, drawOverworldAbove, drawOverworldMap,
+} from './overworld.js';
 import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
@@ -102,15 +106,22 @@ function resize() {
   canvas.style.width = cw + 'px';
   canvas.style.height = ch + 'px';
 
+  layoutControls();
+  if (world.overworld) applyOverworldBounds();
+  else {
+    chamberArena();
+    clampObstacles();
+  }
+  checkOrientation();
+}
+
+/** The chambers' floor: the view, inset for the HUD. */
+function chamberArena() {
   const mx = 38, top = 74, bottom = 38;
   arena.x = mx;
   arena.y = top;
   arena.w = view.w - mx * 2;
   arena.h = view.h - top - bottom;
-
-  layoutControls();
-  clampObstacles();
-  checkOrientation();
 }
 
 /** A phone held upright. Gameplay is landscape-only. */
@@ -293,6 +304,19 @@ function revivePlayer() {
 }
 
 function onDeath() {
+  if (world.owBoss) { leaveGateFight(false); return; }
+  if (world.overworld) {
+    const p = world.player;
+    const at = overworldRespawn();
+    p.dead = false; p.hp = p.stats.maxHp; p.invuln = 2;
+    p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
+    p.attack = null; p.dashing = false;
+    clearBullets();
+    snapCamera();
+    showToast('YOU WAKE BY THE SHRINE', 'The Wilds keep what they took, nothing more');
+    state = 'playing';
+    return;
+  }
   if (world.training || world.tutorial) {
     const p = world.player;
     if (p) { p.dead = false; p.hp = p.stats.maxHp; p.invuln = 1.2; }
@@ -376,6 +400,15 @@ function tick(dt) {
       updateHazards(dt);
       updatePickups(dt);
       if (world.training) updateTraining(dt);
+      if (world.overworld) {
+        const act = updateOverworld(dt);
+        if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.6);
+        if (act && act.boss) enterGateFight(act.boss, act.name);
+      }
+      if (world.owBoss && world.room && world.room.cleared) {
+        owBossT += dt;
+        if (owBossT > 2.2) leaveGateFight(true);
+      }
       if (world.tutorial && updateTutorial(dt)) showTutorialEnd(true);
       updateRoom(dt);
       updateFx(dt);
@@ -391,6 +424,7 @@ function tick(dt) {
       }
 
       const room = world.room;
+      if (room && room.chosen && world.owBoss) room.chosen = null;   // no doors out of a gate fight
       if (room && room.chosen) {
         const door = room.chosen;
         room.chosen = null;
@@ -414,7 +448,7 @@ function tick(dt) {
     updateHazards(dt);
     deathTimer -= dt;
     if (deathTimer <= 0) {
-      if (world.player.lives > 1) revivePlayer();
+      if (world.player.lives > 1 && !world.overworld && !world.owBoss) revivePlayer();
       else onDeath();
     }
   } else {
@@ -444,12 +478,20 @@ function render() {
   ctx.save();
   ctx.translate(fx.shakeX, fx.shakeY);
 
+  const wilds = inRun && world.overworld;
+  if (wilds) ctx.translate(-Math.round(camera.x), -Math.round(camera.y));
+
   if (inRun && world.room) {
-    drawFloor(ctx, world.runTime);
-    drawAmbient(ctx, world.biome);
-    drawFxBelow(ctx);
-    drawObstacles(ctx);
-    drawDoors(ctx, world.runTime);
+    if (wilds) {
+      drawOverworldBelow(ctx, world.runTime);
+      drawFxBelow(ctx);
+    } else {
+      drawFloor(ctx, world.runTime);
+      drawAmbient(ctx, world.biome);
+      drawFxBelow(ctx);
+      drawObstacles(ctx);
+      drawDoors(ctx, world.runTime);
+    }
     drawHazardsBelow(ctx, world.runTime);
     if (world.tutorial) drawTutorialWorld(ctx);
     drawSpellZones(ctx, world.runTime);
@@ -462,8 +504,9 @@ function render() {
     drawProjectiles(ctx);
     drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
+    if (wilds) drawOverworldAbove(ctx, world.runTime);
     drawFxAbove(ctx);
-    drawRoomIntro(ctx, world.room, world.runTime);
+    if (!wilds) drawRoomIntro(ctx, world.room, world.runTime);
   } else {
     drawMenuBackdrop();
   }
@@ -472,6 +515,7 @@ function render() {
 
   if (inRun) {
     drawHud(ctx, world.runTime);
+    if (world.overworld) drawOverworldMap(ctx);
     drawTrainingHud(ctx);
     if (world.tutorial && state === 'playing') drawTutorialHud(ctx);
     if (state === 'playing') drawControls(ctx, world.runTime);
@@ -629,6 +673,7 @@ function showTitle() {
         <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
+        <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -1099,6 +1144,128 @@ function startTraining() {
   hideOverlay();
 }
 
+// --- The Wilds: the open-world prototype -----------------------------------------------
+// A region to walk around in rather than a run of rooms (overworld.js). It uses
+// the Training Ground's weapon and spells, so a build is set up there first.
+// Nothing is banked. Two gates lead to guardians and back out again.
+
+bindOverworldSpawner(spawnEnemyDebug);
+let owBossT = 0;
+
+function showWildsIntro() {
+  state = 'training';
+  const w = WEAPONS[training.weapon];
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">prototype &middot; nothing is banked</div>
+      <h2>The Wilds</h2>
+      <p class="sub">A small open region instead of a run of chambers. Follow the roads or
+      leave them: kindle shrines, climb the watchtower, cut through brambles, dash across
+      water, find heart fragments and hidden chests, clear camps, and step into a gate to
+      face its guardian. The map in the corner fills in as you explore.</p>
+      <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
+      Ground's spells. Change them there first.</p>
+      <div class="row">
+        <button class="btn" data-act="w-start">Set out</button>
+        <button class="btn ghost" data-act="training">Training Ground loadout</button>
+        <button class="btn ghost" data-act="title">Back</button>
+      </div>
+    </div>`);
+}
+
+function startWilds() {
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+  world.biome = getBiome(save.biome);
+  world.player = createPlayer(WEAPONS[training.weapon], metaBonuses());
+  world.depth = FIRST_BOSS_DEPTH + BOSS_GAP;
+  trainingLoadout();
+  world.player.invincible = false;
+  world.overworld = true;
+  const room = enterOverworld(true);
+  world.room = room;
+  const at = overworldRespawn();
+  const p = world.player;
+  p.x = at.x; p.y = at.y;
+  snapCamera();
+  showToast('THE WILDS', 'Go where the land draws you', 3);
+  state = 'playing';
+  hideOverlay();
+}
+
+function snapCamera() {
+  const p = world.player;
+  camera.x = clamp(p.x - view.w / 2, 0, Math.max(0, arena.w - view.w));
+  camera.y = clamp(p.y - view.h / 2, 0, Math.max(0, arena.h - view.h));
+}
+
+/** Stepping through a gate: that guardian's own arena, as a Boss Trial plays it. */
+function enterGateFight(bossType, name) {
+  world.overworld = false;
+  world.owBoss = bossType;
+  owBossT = 0;
+  camera.x = 0;
+  camera.y = 0;
+  chamberArena();
+  clearEntities();
+  clearFx();
+  startRoom(generateRoom(world.depth, 0, { bossType, slot: 1, tier: 1 }));
+  showToast(name.toUpperCase(), BOSS_INFO[bossType] ? BOSS_INFO[bossType].animal : '');
+}
+
+function leaveGateFight(won) {
+  const bossType = world.owBoss;
+  world.owBoss = null;
+  world.overworld = true;
+  clearEntities();
+  clearFx();
+  clearBullets();
+  world.room = enterOverworld(false);
+  const at = overworldReturn(bossType, won);
+  const p = world.player;
+  p.dead = false;
+  p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
+  p.attack = null; p.dashing = false; p.aiming = null;
+  p.invuln = 1.5;
+  if (!won) p.hp = p.stats.maxHp;
+  snapCamera();
+  if (won) showToast('THE GUARDIAN FALLS', 'The gate goes quiet', 3);
+  else showToast('THROWN BACK OUT', 'The gate still waits', 3);
+  state = 'playing';
+}
+
+function leaveWilds() {
+  world.overworld = false;
+  world.owBoss = null;
+  camera.x = 0;
+  camera.y = 0;
+  clearEntities();
+  world.room = null;
+  chamberArena();
+  showTitle();
+}
+
+function showWildsPause() {
+  state = 'paused';
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the wilds &middot; prototype</div>
+      <h2>Paused</h2>
+      <div class="row">
+        <button class="btn" data-act="w-resume">Resume</button>
+        <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
+        <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
+        <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
+      </div>
+      ${spellSlotsRow()}
+      ${musicVolumeRow()}
+      ${fullscreenRow()}
+    </div>`);
+  bindSlotDrag();
+}
+
 // --- tutorial chamber --------------------------------------------------------
 // Optional, offered once before the first run and always on the title screen.
 // The lessons live in tutorial.js; this is entering and leaving.
@@ -1262,6 +1429,7 @@ function showPause() {
   // In the Training Ground the pause screen is the loadout panel.
   if (world.training) { showTraining(); return; }
   if (world.tutorial) { showTutorialPause(); return; }
+  if (world.overworld || world.owBoss) { showWildsPause(); return; }
 
   state = 'paused';
   showOverlay(`
@@ -1435,6 +1603,10 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     // Like Begin Run, the Training Ground and the tutorial go fullscreen on a phone.
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
+    case 'wilds': showWildsIntro(); break;
+    case 'w-start': phoneFullscreen(); startWilds(); break;
+    case 'w-resume': state = 'playing'; hideOverlay(); resetInput(); break;
+    case 'w-leave': leaveWilds(); break;
     case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 't-leave': world.training = false; clearEntities(); showTitle(); break;
     case 't-weapon': trainingSetWeapon(idx); showTraining(); break;
