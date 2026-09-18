@@ -25,6 +25,8 @@ import { burst, ring, shake, flash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { player, strafe, collideWorld, contactDamage } from './ai.js';
 import { MIRE_ARENA, mireSplash, mireRing, mireWake, mireBubble } from './arena-mire.js';
+import { VAULT_ARENA, vaultSplash, vaultRing, vaultWake, vaultVortex, vaultBubbles } from './arena-vault.js';
+import { PEAK_ARENA, peakSlam, peakPound, peakPlough, peakCrack, peakGust, peakCone, peakDust } from './arena-peak.js';
 import { spawnHazard, clearHazards } from './hazards.js';
 
 import {
@@ -59,6 +61,9 @@ const TURTLE = {
   phases: [0.5],
   opening: { tide: 7 },
   roarPitch: 0.8,
+  // The Drowned Vault: clear water over a sunken treasury (arena-vault.js).
+  drawArena: VAULT_ARENA.draw,
+  arenaTick: VAULT_ARENA.tick,
   idle(e, dt, p) {
     const d = dist(e.x, e.y, p.x, p.y);
     turnToward(e, angleTo(e.x, e.y, p.x, p.y), 2.2 * dt);
@@ -71,7 +76,11 @@ const TURTLE = {
     else pool.push(['spin', 2], ['mortar', 3]);
     return pool;
   },
-  afterPhase(e) { shockwave(e, { color: SHELL }); },
+  afterPhase(e) {
+    shockwave(e, { color: SHELL });
+    vaultSplash(e.x, e.y, e.r * 2, 4.5, 4);
+    vaultBubbles(e.x, e.y, 30, e.r * 1.4);
+  },
   moves: {
     // Snapping beak: short range, telegraphed by a cone on the floor.
     bite: {
@@ -90,6 +99,7 @@ const TURTLE = {
           if (e.t <= 0) {
             sub(e, 'snap', 0.3);
             sfx.swing(1.2);
+            vaultSplash(e.x + Math.cos(e.face) * e.r * 1.5, e.y + Math.sin(e.face) * e.r * 1.5, 30, 1.6, 2);
             if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.face, 1.3, 150)) {
               damagePlayer(e.damage, e.x, e.y, e.type);
             }
@@ -122,6 +132,8 @@ const TURTLE = {
             shockwave(e, { color: SHELL });
             e.rings--;
             shake(0.6);
+            vaultSplash(e.x, e.y, e.r * 1.7, -4, 3);
+            vaultBubbles(e.x, e.y, 16, e.r * 1.2);
           }
         } else if (e.rings > 0 && e.st >= 0.45) {
           sub(e, 'slam', 0.5);
@@ -129,6 +141,7 @@ const TURTLE = {
           e.rings--;
           sfx.thud();
           shake(0.4);
+          vaultSplash(e.x, e.y, e.r * 1.5, -3, 2);
         } else if (e.t <= 0 && e.rings <= 0) {
           idle(e, 0.6);
         }
@@ -144,6 +157,8 @@ const TURTLE = {
         e.bounces = e.phase >= 2 ? 6 : 4;
         e.aim = angleTo(e.x, e.y, p.x, p.y);
         lane(e, e.t, 700, e.r * 2, SHELL);
+        // The shell churns the water into a whirlpool that follows him.
+        vaultVortex(e.x, e.y, e.r * 3.6, e.phase >= 2 ? 1.3 : 1, { follow: e, until: () => e.action !== 'spin' });
       },
       update(e, dt, p) {
         e.spinA = (e.spinA || 0) + dt * (e.sub === 'wind' ? 3 + e.st * 16 : 24);
@@ -160,6 +175,7 @@ const TURTLE = {
         }
         e.x += e.mx * dt;
         e.y += e.my * dt;
+        vaultWake(e.x, e.y, Math.atan2(e.my, e.mx), e.r, 0.8);
         contactDamage(e, dt, e.damage, 0.8);
         if (Math.random() < dt * 30) {
           burst(e.x, e.y, { count: 1, color: SHELL, speed: 60, size: 4, life: 0.3, drag: 3 });
@@ -168,6 +184,8 @@ const TURTLE = {
           e.bounces--;
           shake(0.25);
           sfx.thud();
+          vaultSplash(e.x, e.y, e.r * 1.3, 3, 2);
+          vaultBubbles(e.x, e.y, 10, e.r);
           burst(e.x, e.y, { count: 10, color: '#ffffff', speed: 260, size: 3, life: 0.3, drag: 5, shape: 'spark' });
           ringShot(e, e.phase >= 2 ? 8 : 6, 165 * tm(e), rand(0, TAU), {
             shape: 'bubble', r: 10, color: BUBBLE, dmg: 0.4, off: e.r,
@@ -203,6 +221,7 @@ const TURTLE = {
           [tx, ty] = inArena(tx, ty, 30);
           lob(e, tx, ty, {
             color: SHELL, dmg: 0.65,
+            onDetonate: (h) => { vaultSplash(h.x, h.y, 40, 2.6, 2); vaultBubbles(h.x, h.y, 6, 20); },
             shards: e.phase >= 2 ? { n: 4, speed: 140, color: BUBBLE, r: 7 } : null,
             shardShape: 'bubble', shardDamage: Math.round(e.damage * 0.35),
           });
@@ -248,6 +267,7 @@ const TURTLE = {
         });
         e.gapA += 0.22 * e.gapDir;
         ring(e.x, e.y, { r0: e.r, r1: e.r * 1.6, color: BUBBLE, life: 0.25, width: 4 });
+        vaultRing(e.x, e.y, e.r * 1.4, 0.9);
         sfx.shoot();
       },
     },
@@ -546,7 +566,7 @@ const DUST = '#ffb35e', ROCKC = '#c9b8a0', ROCKB = '#d9c7a8';
 
 function gorillaRage(e) { return e.enraged ? 1.25 : 1; }
 
-function gorillaCrouch(e, t) { sub(e, 'crouch', t); sfx.telegraph(); }
+function gorillaCrouch(e, t) { sub(e, 'crouch', t); sfx.telegraph(); peakDust(e.x, e.y, 6, e.r, 70); }
 
 function gorillaTakeoff(e, p) {
   e.leaps--;
@@ -554,6 +574,7 @@ function gorillaTakeoff(e, p) {
   sub(e, 'air', e.air);
   e.invuln = true;
   e.lx0 = e.x; e.ly0 = e.y;
+  peakPound(e.x, e.y, e.face + PI);      // the push-off dents the ash
   [e.lx1, e.ly1] = inArena(p.x, p.y, e.r);
   e.mark = spawnHazard({
     kind: 'blast', x: e.lx1, y: e.ly1, r: 130, delay: e.air, damage: Math.round(e.damage * 1.1),
@@ -587,6 +608,7 @@ function gorillaThrow(e, p) {
       burst(pr.x, pr.y, { count: 16, color: ROCKC, speed: 260, size: 4.5, life: 0.4, drag: 4, shape: 'shard' });
       shake(0.3);
       sfx.thud();
+      peakPound(pr.x, pr.y);
     },
   });
   sfx.swing(1.5);
@@ -606,12 +628,16 @@ function gorillaPound(e) {
   burst(fx, fy, { count: 6, color: ROCKC, speed: 200, size: 4, life: 0.3, drag: 4, shape: 'shard' });
   shake(0.25);
   sfx.thud();
+  peakPound(fx, fy, e.face + side * 0.6);
 }
 
 const GORILLA = {
   phases: [0.6, 0.3],
   opening: { pound: 9 },
   roarPitch: 0.7,
+  // The Broken Peak: ash that keeps every footprint, rock that cracks molten.
+  drawArena: PEAK_ARENA.draw,
+  arenaTick: PEAK_ARENA.tick,
   idle(e, dt, p) {
     const d = dist(e.x, e.y, p.x, p.y);
     turnToward(e, angleTo(e.x, e.y, p.x, p.y), 3.5 * dt);
@@ -633,6 +659,7 @@ const GORILLA = {
   afterPhase(e) {
     shockwave(e, { color: DUST });
     shockwave(e, { color: DUST, wait: 0.4, spread: [1.0, 1.5] });
+    peakSlam(e.x, e.y, 170, { cracks: 10, heat: 1.4 });
   },
   moves: {
     // Leap Slam: the landing marker follows you for 40% of the flight, then
@@ -665,6 +692,7 @@ const GORILLA = {
             e.mark = null;
             sub(e, 'land', 0.5);
             shake(0.7);
+            peakSlam(e.x, e.y, 130, { cracks: e.enraged ? 9 : 7, heat: e.enraged ? 1.3 : 1 });
           }
         } else if (e.t <= 0) {
           if (e.leaps > 0) gorillaCrouch(e, 0.32);
@@ -696,6 +724,7 @@ const GORILLA = {
       start(e, p) {
         sub(e, 'wind', e.enraged ? 0.5 : 0.6);
         sfx.roar(0.9);
+        peakGust(e.x, e.y, 320, 0.7);
         e.aim = angleTo(e.x, e.y, p.x, p.y);
         e.face = e.aim;
         lane(e, e.t, 900, e.r * 2, DUST);
@@ -708,9 +737,12 @@ const GORILLA = {
         }
         const sp = 700 * gorillaRage(e);
         forward(e, sp, dt, e.aim);
+        peakPlough(e.x, e.y, e.aim, e.r * 1.1);
         e.crackD += sp * dt;
         if (e.crackD >= 52) {
           e.crackD -= 52;
+          const side = Math.random() < 0.5 ? 1 : -1;
+          peakCrack(e.x - Math.cos(e.aim) * e.r, e.y - Math.sin(e.aim) * e.r, e.aim + side * PI / 2 + rand(-0.4, 0.4), rand(30, 55), 1.1);
           spawnHazard({
             kind: 'blast', x: e.x - Math.cos(e.aim) * e.r, y: e.y - Math.sin(e.aim) * e.r, r: 42, delay: 0.55,
             damage: Math.round(e.damage * 0.55), color: DUST, owner: e, source: e.type, quiet: true,
@@ -724,6 +756,7 @@ const GORILLA = {
           shake(0.7);
           sfx.thud();
           burst(e.x, e.y, { count: 20, color: ROCKC, speed: 320, size: 4.5, life: 0.45, drag: 4, shape: 'shard' });
+          peakSlam(e.x, e.y, 80, { cracks: 4 });
           expose(e, 1.5);
         }
       },
@@ -750,6 +783,7 @@ const GORILLA = {
             }
             shake(0.5);
             sfx.explode();
+            peakCone(e.x, e.y, e.face, 1.8, 180);
             ring(e.x + Math.cos(e.face) * e.r * 1.4, e.y + Math.sin(e.face) * e.r * 1.4, {
               r0: 6, r1: 90, color: '#ffffff', life: 0.25, width: 5,
             });
@@ -769,6 +803,7 @@ const GORILLA = {
       start(e) {
         sub(e, 'wind', 0.9);
         sfx.roar(0.8);
+        peakGust(e.x, e.y, 420, 1);
         e.pounds = [10, 12, 14][e.phase - 1];
         e.poundK = 0;
         e.poundOff = rand(0, TAU);

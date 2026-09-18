@@ -311,11 +311,12 @@ export function shockwave(e, { speed = 240, width = 18, spread = [0.5, 0.95], ga
 }
 
 export function lob(e, tx, ty, o = {}) {
-  spawnHazard({
+  return spawnHazard({
     kind: 'lob', x0: e.x, y0: e.y - e.r * 0.3, x1: tx, y1: ty, flight: o.flight || 0.95,
     r: o.r || 46, damage: Math.round(e.damage * (o.dmg || 0.65)), color: o.color || e.color,
     source: e.type, owner: e, height: 160, shellR: 9, quiet: true,
     shards: o.shards || null, shardShape: o.shardShape, shardDamage: o.shardDamage,
+    onDetonate: o.onDetonate,
   });
 }
 

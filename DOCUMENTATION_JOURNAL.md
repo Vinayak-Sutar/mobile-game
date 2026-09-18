@@ -3023,7 +3023,7 @@ eslint `no-undef`); the owner tests on the phone.
   hits, no unavoidable damage.
 
 The mythology shortlist (ten regular enemies, six mini-bosses) is in the
-step 2 proposal of 2026-09-17; the ones not built yet are in §16.10. Sacred or
+step 2 proposal of 2026-09-17; the ones not built yet are in §16.11. Sacred or
 taboo figures (the Wendigo, Australian Aboriginal beings) are deliberately off
 the list.
 
@@ -3252,7 +3252,74 @@ after the fight).
   and `mireSplash / mireRing / mireWake / mireBubble` show how a boss's moves
   can talk to its arena.
 
-### 16.10 Folk enemies not built yet
+### 16.10 Step 7 — the Drowned Vault (Gravemaw) and the Broken Peak (Kharn)
+
+**The water engine** (`water-engine.js`): the Mire's simulation turned into a
+factory, `createWaterArena(config)`, returning `tick`, `draw` and the helpers
+`splash`, `ring`, `wake`, `bubble`, `vortex` (plus `disturb`, `addRipple`,
+`heightAt`, `swirlAt`). An arena supplies its `shade(d, p, tone, light, lap,
+x, y, time, solid)` per-pixel colour and optional `floor` (drawn under
+translucent water and bent by `refract`), `deco`, pads, flies, mists, drips,
+sheen, ripple colour, and hooks `onBuild`, `onTick`, `onDrawFloor` (under the
+water), `onDrawWater` (on it), `onDrawOver`. **The Mire** is now one config of
+it with exactly its old values (`arena-mire.js`); its exported names are
+unchanged. `lob()` in `boss-kit.js` now returns its hazard and takes
+`onDetonate`.
+
+- **Whirlpools** (`vortex`): the eye is pressed down and two arms turn round
+  it at 0.62 r, throwing spiral waves; foam arms are drawn turning; floating
+  things (pads, bubbles, fish) are swept round via `swirlAt`. It can `follow`
+  an entity and fades out when `until()` returns true.
+- **Refraction:** the floor is drawn once, then re-drawn only in 20-unit blocks
+  where the surface slopes, each shifted by the slope (cheap: only where waves
+  are).
+
+**The Drowned Vault** (`arena-vault.js`, Gravemaw):
+- Clear blue water, translucent in the shallows, over a carved vault floor:
+  stone slabs, a great nautilus-shell mosaic, scattered gold coins, gems and
+  broken amphorae. Crawling **caustics** (a sharpened interference net) plus
+  light focused where waves curve inward.
+- Life: bubbles rising from floor vents and **off his shell** (faster while he
+  spins or gathers the tide) and from the player's dash, each popping with a
+  ring; fish that dart away from anyone near; weed swaying along the walls;
+  slanting light shafts with drifting motes; toppled columns ringed in foam
+  and barnacles along the rim.
+- His moves: bite splashes ahead; each stomp is a real wave across the vault
+  plus a cloud of bubbles; **Shell Spin raises a whirlpool that follows him**
+  until the move ends, with a bow wave and a splash at every wall bounce;
+  mortar shells splash down; every Tidal Ring pulses through the water; phase
+  change and death are huge upheavals.
+
+**The Broken Peak** (`arena-peak.js`, Kharn) — a new engine for ash:
+- An **ash depth grid** (8-unit cells) over black basalt, painted like the
+  water (one pixel per cell, lit by the ash's slope, alpha from depth so thin
+  ash shows the rock). Drifts heap against walls and pillars. Ridges slowly
+  slump and falling ash refills everything below 0.55, so marks fade over
+  about half a minute.
+- **Footprints** for everything that walks it (the owner's favourite idea):
+  the player leaves alternating boot prints, small enemies paw prints, and
+  **Kharn knuckle-walks**: a four-knuckle fist print on one side and a broad
+  foot with a thumb-toe on the other, with a puff of dust each stride. Prints
+  are crisp decals (dark hollow, pale lip) and dent the grid too. A dash
+  ploughs a furrow instead.
+- **Glowing veins** in the rock under the ash show wherever it is swept away,
+  pulsing; brighter when he enrages (the whole arena heats: more embers, a
+  stronger red glow).
+- **Slams** (`peakSlam`): a crater with a raised rim, 6–10 **cracks** that
+  grow outward in 0.18 s, glow white-hot to orange and cool to dark grey over
+  ~6 s (longer when enraged), a torus of dust racing outward, a shock ring
+  across the ash and a gust that blows the falling ash away.
+- Falling ash with embers, riding a wandering wind; roars blow it outward.
+- His moves: crouch kicks up dust; take-off dents the ash; **landing is a full
+  slam**; each Ground Pound fist and each thrown boulder is a small crater and
+  a crack; the Knuckle Rush ploughs a furrow with cracks glowing behind him
+  and slams the wall; the Thunder Clap sweeps the ash off in a cone; roars
+  gust; phase changes and his death are the biggest slams.
+- Rim: jagged ash-capped rocks and charred stumps.
+
+All cosmetic; the fights play the same. Static checks only; the owner tests.
+
+### 16.11 Folk enemies not built yet
 
 Kappa (grappler), Jengu (healer), Preta (projectile eater), Aleya (lure),
 Chochin-obake (fodder that splits), Duende (thief), Draugr (rises once by
