@@ -3877,7 +3877,43 @@ before, and the Wanderer reads its pose:
 A "Character" row appears on the title, in The Wilds' intro and in The Wilds'
 pause menu. `render()` sets `look.skin` each frame.
 
-### 16.23 Folk enemies not built yet
+### 16.23 Step 20 — the Wanderer's walk, rebuilt (`wanderer.js` `gait`)
+
+The first walk read the rig's continuous curves directly and looked rubbery.
+The sources of the wobble:
+- stretching straight legs;
+- whole-figure squash, stretch and rotation;
+- the Hooded One's sine bob;
+- the head sway.
+
+It's now built the way hand-drawn and pixel-art walks are (Williams' walk
+keys, pixel-art walk cycles, planted feet):
+- **8 held key poses per stride:** contact, down, passing, up, then the same
+  on the other leg.
+  - Cadence is 1.5 + 0.8 × moveMag strides/s, times `groundMult`, which is
+    about 20 pose changes a second at full speed.
+  - Poses are chosen from `p.wPhase`, advanced by real time, so they don't
+    flicker between frames.
+- **Feet:** the planted foot slides back linearly for half the cycle; the
+  free foot swings forward on an eased arc, lifted up to 4.
+- **Two-bone IK legs:** thigh 6.2 + shin 6.2, knee forward.
+  - Legs are straight at contact (half-step 4.5), softly bent at rest,
+    bent on "down", knee up when passing.
+  - The boot tips up in the air.
+- **Body:** no squash, stretch or rocking.
+  - Stepped rise and fall per pose: 0, +1, 0, −1. The hips carry it; the
+    feet stay on the ground.
+  - A constant 0.04 lean while walking.
+- **Direction:** backing away steps backwards. Walking up or down the screen
+  gives shorter steps (× |cos|, minimum 0.3), with forward feet placed
+  lower or higher.
+- **Held poses:** dash is a lunge (lean 0.12). The air (hop or leap) tucks
+  both feet up. Hurt is a 1.5 jolt back. Idle is a stepped 0.5 breath.
+- The off arm swings against the far leg. The coat hem follows the near leg.
+- The Hooded One's smooth walking bob is no longer applied to the
+  Wanderer's weapon or body.
+
+### 16.24 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

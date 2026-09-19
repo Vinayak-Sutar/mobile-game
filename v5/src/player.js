@@ -650,11 +650,13 @@ export function drawPlayer(p, ctx) {
   // Wanderer's weapon is behind the body.
   const standing = look.skin === 'wanderer';
   if (standing) {
-    const lifted = liftWorld(playerWorld(p, bob - lift));
+    // The Wanderer carries its own stepped rise and fall (wanderer.js), so
+    // the Hooded One's smooth walking bob is left out.
+    const lifted = liftWorld(playerWorld(p, -lift));
     const behind = wandererFacingAway(p);
-    if (behind && !p.dead) { drawWandererArm(p, ctx, lifted, bob - lift, true); drawWeapon(p, ctx, lifted, bob - lift); }
-    drawWanderer(p, ctx, lifted, bob - lift);
-    if (!behind && !p.dead) { drawWandererArm(p, ctx, lifted, bob - lift, false); drawWeapon(p, ctx, lifted, bob - lift); }
+    if (behind && !p.dead) { drawWandererArm(p, ctx, lifted, -lift, true); drawWeapon(p, ctx, lifted, -lift); }
+    drawWanderer(p, ctx, lifted, -lift);
+    if (!behind && !p.dead) { drawWandererArm(p, ctx, lifted, -lift, false); drawWeapon(p, ctx, lifted, -lift); }
   } else {
     const world = drawPlayerRig(p, ctx, { bob: bob - lift });
     if (!p.dead) drawWeapon(p, ctx, world, bob - lift);

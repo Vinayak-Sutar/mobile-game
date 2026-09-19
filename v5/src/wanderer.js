@@ -51,8 +51,84 @@ export function wandererFacingAway(p) {
   return Math.sin(p.aimAngle) < -0.25;
 }
 
+// --- the walk ----------------------------------------------------------------
+// Built the way hand-drawn and pixel-art walks are, not as a smooth wiggle:
+//   - A stride is a handful of KEY POSES, each HELD for a moment (animating
+//     "on twos"): contact (heel down, legs apart), down (weight lands, body
+//     lowest), passing (the free leg swings under the body, knee up) and up
+//     (pushing off, body highest) - then the same on the other leg. Eight
+//     poses per stride, about twenty pose changes a second at a run.
+//   - The planted foot stays put on the ground and slides back under the
+//     body; only the swinging foot leaves the ground, in an arc.
+//   - Each leg is a thigh and a shin of fixed length, placed by two-bone IK
+//     from the hip to where the foot must be, so the knee bends like a knee
+//     and a leg never stretches or wobbles.
+//   - The body does not squash, stretch or rock: it drops a unit on "down"
+//     and rises a unit on "up", and the hips carry it. That small, stepped
+//     rise and fall is what reads as weight.
+const FRAMES = 8;
+const BOB = [0, 1, 0, -1, 0, 1, 0, -1];      // contact, down, passing, up (x2)
+const THIGH = 6.2, SHIN = 6.2, HIP_Y = -14, ANKLE_Y = -2.5;   // legs straight at contact, soft at rest
+
+/** Where a foot is at a point of its own cycle: planted, then swinging. */
+function footAt(u, R, L) {
+  if (u < 0.5) return { x: R - (u / 0.5) * 2 * R, lift: 0 };          // stance: slides back
+  const v = (u - 0.5) / 0.5, e = v * v * (3 - 2 * v);
+  return { x: -R + e * 2 * R, lift: Math.sin(v * Math.PI) * L };      // swing: arcs forward
+}
+
+/** The knee, from hip and foot, with thigh and shin of fixed length. */
+function ik(hx, hy, fx, fy) {
+  let dx = fx - hx, dy = fy - hy;
+  let d = Math.hypot(dx, dy);
+  const max = THIGH + SHIN - 0.05;
+  if (d > max) { fx = hx + (dx / d) * max; fy = hy + (dy / d) * max; dx = fx - hx; dy = fy - hy; d = max; }
+  const a = Math.atan2(dy, dx);
+  const b = Math.acos(clamp((THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * Math.max(d, 0.01)), -1, 1));
+  // Knees point forward (local +x is always the way the figure faces).
+  return { kx: hx + Math.cos(a - b) * THIGH, ky: hy + Math.sin(a - b) * THIGH, fx, fy };
+}
+
+/** This frame's pose for the legs and the body (all in the figure's frame). */
+function gait(p, s) {
+  const now = performance.now() * 0.001;
+  const dt = Math.min(0.05, Math.max(0, now - (p.wT ?? now)));
+  p.wT = now;
+  const air = !!(p.hop || p.leap || (p.z || 0) > 0.5);
+  const walking = p.moveMag > 0.08 && !p.dead && !p.dashing && !air;
+  if (walking) p.wPhase = ((p.wPhase || 0) + dt * (1.5 + 0.8 * p.moveMag) * (p.groundMult || 1)) % 1;
+  const frame = Math.floor((p.wPhase || 0) * FRAMES) % FRAMES;
+
+  // The way you walk, in the figure's frame: backing away steps backwards;
+  // walking up or down the screen takes shorter, deeper steps.
+  const mx = Math.cos(p.moveAngle), my = Math.sin(p.moveAngle);
+  const dir = mx * s < -0.2 ? -1 : 1;
+  const R = 4.5 * Math.max(0.3, Math.abs(mx));            // half a step
+
+  let near, far, bodyY = 0, lean = 0;
+  if (p.dead) {
+    near = { x: 1.5, lift: 0 }; far = { x: -1.5, lift: 0 };
+  } else if (air) {
+    near = { x: 3, lift: 4.5 }; far = { x: -2, lift: 5.5 };           // tucked in the air
+  } else if (p.dashing) {
+    const d = Math.cos(p.dashDir) * s < -0.2 ? -1 : 1;
+    near = { x: 7 * d, lift: 0 }; far = { x: -7 * d, lift: 2.5 };     // a held lunge
+    bodyY = 1; lean = 0.12 * d;
+  } else if (walking) {
+    const u = frame / FRAMES;
+    const a = footAt(u, R, 4), b = footAt((u + 0.5) % 1, R, 4);
+    near = { x: a.x * dir, lift: a.lift, y: a.x * my * 0.45 };
+    far = { x: b.x * dir, lift: b.lift, y: b.x * my * 0.45 };
+    bodyY = BOB[frame];
+    lean = 0.04 * dir;
+  } else {
+    near = { x: 1.8, lift: 0 }; far = { x: -1.6, lift: 0 };
+    bodyY = Math.floor(now / 0.9) % 2 ? 0.5 : 0;                        // breathing, stepped
+  }
+  return { near, far, bodyY, lean };
+}
+
 export function drawWanderer(p, ctx, world, bob) {
-  const pose = p.anim.pose;
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   const alpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;
   const col = (c) => (flashing ? '#ffffff' : c);
@@ -60,25 +136,21 @@ export function drawWanderer(p, ctx, world, bob) {
 
   const s = Math.cos(p.aimAngle) >= 0 ? 1 : -1;        // facing right or left
   const back = wandererFacingAway(p);
-  const torso = pose.torso || {};
-  const tsx = torso.sx ?? 1, tsy = torso.sy ?? 1;
-
+  const torso = p.anim.pose.torso || {};
   // The death clip collapses the torso; read it as a fall onto one side.
-  const fall = p.dead ? clamp((1.3 - tsy) / 0.8, 0, 1) : 0;
+  const fall = p.dead ? clamp((1.3 - (torso.sy ?? 1)) / 0.8, 0, 1) : 0;
   const moving = p.moveMag > 0.08 && !p.dead;
-  const step = moving ? Math.abs(torso.y || 0) * 1.4 : 0;   // a bob per footfall
-  const lean = moving ? 0.07 * p.moveMag : 0;
-  const dashLean = (tsx - 1) * 0.8;                        // the dash stretch tips it forward
+  const G = gait(p, s);
+  p.wBodyY = G.bodyY;
+  // Knocked back a step when hit: a held jolt, not a squash.
+  const jolt = p.hurtFlash > 0.2 && !p.dead ? -1.5 : 0;
 
   ctx.save();
   ctx.globalAlpha = alpha;
   // Stand on the feet: everything below is drawn with y up from the ground.
   ctx.translate(p.x, p.y + 12 + bob);
-  ctx.rotate(s * (lean + dashLean + fall * 1.3));
-  // Squash and stretch from the rig (breathing, dash, hurt), about the feet.
-  const sx = 1 + (tsx - 1) * 0.6, sy = 1 + (tsy - 1) * 0.7;
-  ctx.scale(s * (p.dead ? 1 : sx), p.dead ? 1 - fall * 0.2 : sy);
-  ctx.translate(0, -step);
+  ctx.rotate(s * (fall * 1.3));
+  ctx.scale(s, p.dead ? 1 - fall * 0.2 : 1);
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
 
@@ -90,11 +162,30 @@ export function drawWanderer(p, ctx, world, bob) {
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   };
 
+  // --- legs: hips ride with the body, feet stay on the ground -----------------
+  const hipY = HIP_Y + G.bodyY;
+  const leg = (f, hipX, width, color) => {
+    const L = ik(hipX + jolt, hipY, hipX + f.x, ANKLE_Y - f.lift + (f.y || 0));
+    ctx.strokeStyle = OUT; ctx.lineWidth = width + 3;
+    ctx.beginPath(); ctx.moveTo(hipX + jolt, hipY); ctx.lineTo(L.kx, L.ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(hipX + jolt, hipY); ctx.lineTo(L.kx, L.ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+    // The boot: flat on the ground, toe forward; tipped up a little in the air.
+    ctx.beginPath(); ctx.ellipse(L.fx + 1.4, L.fy + 1, 3.8, 2.1, f.lift > 0.5 ? -0.25 : 0, 0, TAU); fillOut(col(C.boot), 1.4);
+  };
+  leg(G.far, -1.8, 4.2, col(C.trouserShade));       // the far leg, in shade
+  leg(G.near, 1.8, 4.4, col(C.trouser));            // the near leg
+
+  // Everything above the hips rides the body's rise and fall, and a slight
+  // forward lean while walking or dashing.
+  ctx.translate(jolt, G.bodyY);
+  ctx.rotate(G.lean);
+
   // --- the scarf, streaming behind (drawn over the back when facing away) --
-  const cloakA = pose.cloakA || {}, cloakB = pose.cloakB || {};
+  const cloakA = p.anim.pose.cloakA || {};
   const scarfLen = 12 * (cloakA.sx ?? 1) + (moving ? 4 : 0);
   const t = performance.now() * 0.001;
-  const wave = Math.sin(t * 6 + p.x * 0.01) * 2 + (cloakB.angle || 0) * 8;
+  const wave = Math.sin(t * (moving ? 7 : 3) + p.x * 0.01) * (moving ? 1.6 : 0.8);
   const drawScarf = () => {
     const nx = -1, ny = -29;
     ctx.strokeStyle = OUT; ctx.lineWidth = 6.5;
@@ -106,38 +197,6 @@ export function drawWanderer(p, ctx, world, bob) {
   };
   if (!back) drawScarf();
 
-  // --- legs: the rig's stride, as steps -------------------------------------
-  // The rig's legs are mirrored bones, so legL's angle and legR's angle
-  // negated are both "how far forward": read that way they swing in opposite
-  // phase, a real stride. Which foot is in the air comes from the run clip's
-  // own clock (legL swings forward in the clip's second half, legR in its
-  // first), so it never flickers between frames. The stride follows the way
-  // you walk: backing away steps backwards, walking up or down the screen
-  // takes shorter side-on steps.
-  const legL = pose.legL || {}, legR = pose.legR || {};
-  const aL = legL.angle || 0, aR = -(legR.angle || 0);
-  const run = p.anim.clip && p.anim.clip.name === 'run';
-  const ph = run ? (p.anim.time % p.anim.clip.duration) / p.anim.clip.duration : 0;
-  const liftL = run ? Math.max(0, Math.sin((ph - 0.5) * TAU)) : 0;
-  const liftR = run ? Math.max(0, Math.sin(ph * TAU)) : 0;
-  const along = moving ? Math.cos(p.moveAngle) * s : 1;
-  const dir = along < -0.2 ? -1 : 1;
-  const reach = moving ? Math.max(0.4, Math.abs(Math.cos(p.moveAngle))) : 1;
-  const leg = (a, lift, hipX, width, color) => {
-    const fx = hipX + clamp(a, -1.2, 1.2) * 7 * dir * reach;
-    const up = lift * 3.6;
-    const fy = -2.5 - up;
-    const kx = (hipX + fx) / 2 + (1 + up * 0.8) * dir, ky = (-14 + fy) / 2;
-    // Both outlines first, then both fills, so the knee shows no seam.
-    ctx.strokeStyle = OUT; ctx.lineWidth = width + 3;
-    ctx.beginPath(); ctx.moveTo(hipX, -14); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = width;
-    ctx.beginPath(); ctx.moveTo(hipX, -14); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(fx + 1.3, fy + 0.9, 3.7, 2.2, 0, 0, TAU); fillOut(col(C.boot), 1.4);
-  };
-  leg(aR, liftR, -2, 4.2, col(C.trouserShade));     // the far leg, in shade
-  leg(aL, liftL, 2, 4.4, col(C.trouser));           // the near leg
-
   // --- the bedroll, peeking over a shoulder from the front ------------------
   const drawRoll = (y) => {
     ctx.beginPath(); ctx.ellipse(-2, y, 9.5, 3.4, -0.08, 0, TAU); fillOut(col(C.roll), 1.4);
@@ -146,13 +205,12 @@ export function drawWanderer(p, ctx, world, bob) {
   if (!back) drawRoll(-31);
 
   // --- the far arm (the off hand), counter-swinging -------------------------
-  const armL = pose.armL || {};
-  const offSwing = clamp(armL.angle || 0, -1.6, 1.6);
-  const offHand = { x: -5 - Math.sin(offSwing) * 5, y: -19 + Math.abs(Math.sin(offSwing)) * 1.5 };
+  // Arms swing against the legs: the far arm forward as the far leg goes back.
+  const offHand = { x: -4.5 - G.far.x * 0.5, y: -19 };
   if (!back) limb(-4.5, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the coat -----------------------------------------------------------------
-  const hem = aL * 1.4;
+  const hem = G.near.x * 0.25;
   ctx.beginPath();
   ctx.moveTo(-6.5, -30);
   ctx.quadraticCurveTo(-8.5, -21, -9 + hem * 0.3, -11);
@@ -189,8 +247,7 @@ export function drawWanderer(p, ctx, world, bob) {
   }
 
   // --- the head -----------------------------------------------------------------
-  const head = pose.head || {};
-  const hx = (head.x || 0) * 0.6 + 0.5, hy = -36;
+  const hx = 0.5, hy = -36;
   ctx.beginPath(); ctx.arc(hx, hy, 6.2, 0, TAU); fillOut(col(back ? C.hair : C.skin), 1.5);
   if (!back && !flashing) {
     ctx.fillStyle = C.skinShade;
@@ -229,7 +286,7 @@ export function drawWandererArm(p, ctx, lifted, bob, behind) {
   const hx = hand.x + Math.cos(hand.angle) * reach * 11;
   const hy = hand.y + Math.sin(hand.angle) * reach * 11;
   const s = Math.cos(p.aimAngle) >= 0 ? 1 : -1;
-  const sx0 = p.x + s * 5, sy0 = p.y + 12 + bob - 27;
+  const sx0 = p.x + s * 5, sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   ctx.globalAlpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;
   ctx.lineCap = 'round';
