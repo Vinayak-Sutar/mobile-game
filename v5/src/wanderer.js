@@ -106,17 +106,37 @@ export function drawWanderer(p, ctx, world, bob) {
   };
   if (!back) drawScarf();
 
-  // --- legs: the rig's stride, as feet stepping forward and back -----------
+  // --- legs: the rig's stride, as steps -------------------------------------
+  // The rig's legs are mirrored bones, so legL's angle and legR's angle
+  // negated are both "how far forward": read that way they swing in opposite
+  // phase, a real stride. Which foot is in the air comes from the run clip's
+  // own clock (legL swings forward in the clip's second half, legR in its
+  // first), so it never flickers between frames. The stride follows the way
+  // you walk: backing away steps backwards, walking up or down the screen
+  // takes shorter side-on steps.
   const legL = pose.legL || {}, legR = pose.legR || {};
-  const foot = (a) => ({
-    x: clamp(a, -1.2, 1.2) * 6,
-    y: moving ? -Math.max(0, 1 - Math.abs(a) / 0.75) * 2.6 : 0,
-  });
-  const fb = foot(-(legR.angle || 0)), ff = foot(legL.angle || 0);
-  limb(-2.5, -14, -2 + fb.x, -3 + fb.y, 4.2, col(C.trouserShade));
-  ctx.beginPath(); ctx.ellipse(-1 + fb.x, -1.6 + fb.y, 3.6, 2.2, 0, 0, TAU); fillOut(col(C.boot), 1.4);
-  limb(2.5, -14, 2 + ff.x, -3 + ff.y, 4.4, col(C.trouser));
-  ctx.beginPath(); ctx.ellipse(3 + ff.x, -1.6 + ff.y, 3.8, 2.3, 0, 0, TAU); fillOut(col(C.boot), 1.4);
+  const aL = legL.angle || 0, aR = -(legR.angle || 0);
+  const run = p.anim.clip && p.anim.clip.name === 'run';
+  const ph = run ? (p.anim.time % p.anim.clip.duration) / p.anim.clip.duration : 0;
+  const liftL = run ? Math.max(0, Math.sin((ph - 0.5) * TAU)) : 0;
+  const liftR = run ? Math.max(0, Math.sin(ph * TAU)) : 0;
+  const along = moving ? Math.cos(p.moveAngle) * s : 1;
+  const dir = along < -0.2 ? -1 : 1;
+  const reach = moving ? Math.max(0.4, Math.abs(Math.cos(p.moveAngle))) : 1;
+  const leg = (a, lift, hipX, width, color) => {
+    const fx = hipX + clamp(a, -1.2, 1.2) * 7 * dir * reach;
+    const up = lift * 3.6;
+    const fy = -2.5 - up;
+    const kx = (hipX + fx) / 2 + (1 + up * 0.8) * dir, ky = (-14 + fy) / 2;
+    // Both outlines first, then both fills, so the knee shows no seam.
+    ctx.strokeStyle = OUT; ctx.lineWidth = width + 3;
+    ctx.beginPath(); ctx.moveTo(hipX, -14); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.beginPath(); ctx.moveTo(hipX, -14); ctx.lineTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(fx + 1.3, fy + 0.9, 3.7, 2.2, 0, 0, TAU); fillOut(col(C.boot), 1.4);
+  };
+  leg(aR, liftR, -2, 4.2, col(C.trouserShade));     // the far leg, in shade
+  leg(aL, liftL, 2, 4.4, col(C.trouser));           // the near leg
 
   // --- the bedroll, peeking over a shoulder from the front ------------------
   const drawRoll = (y) => {
@@ -132,7 +152,7 @@ export function drawWanderer(p, ctx, world, bob) {
   if (!back) limb(-4.5, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the coat -----------------------------------------------------------------
-  const hem = (legL.angle || 0) * 1.4;
+  const hem = aL * 1.4;
   ctx.beginPath();
   ctx.moveTo(-6.5, -30);
   ctx.quadraticCurveTo(-8.5, -21, -9 + hem * 0.3, -11);
