@@ -597,8 +597,14 @@ const CHARACTERS = [
   ['wanderer', 'Wanderer', 'Standing, in the 3/4 view of The Wilds: a straw hat and a scarf'],
 ];
 
-/** Who you play as. The same moves; only the look changes (wanderer.js). */
-function characterRow() {
+/**
+ * Who you play as. The same moves; only the look changes (wanderer.js).
+ * Offered on the title and in every pause screen; `back` redraws the screen
+ * it was picked on, so the choice shows at once.
+ */
+let charBack = null;
+function characterRow(back = null) {
+  charBack = back;
   const cur = save.character || 'auto';
   return `
     <div class="volrow">
@@ -700,7 +706,7 @@ function showTitle() {
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
       ${fullscreenRow()}
-      ${characterRow()}
+      ${characterRow(showTitle)}
       ${statBlock()}
       ${musicVolumeRow()}
       ${dualSenseRow()}
@@ -1188,7 +1194,7 @@ function showWildsIntro() {
       face its guardian. The map in the corner fills in as you explore.</p>
       <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells. Change them there first.</p>
-      ${characterRow()}
+      ${characterRow(showWildsIntro)}
       <div class="row">
         <button class="btn" data-act="w-start">Set out</button>
         <button class="btn ghost" data-act="training">Training Ground loadout</button>
@@ -1283,7 +1289,7 @@ function showWildsPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
-      ${characterRow()}
+      ${characterRow(showWildsPause)}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
@@ -1347,6 +1353,7 @@ function showTutorialPause() {
         <button class="btn ghost" data-act="tut-skip">Skip the tutorial</button>
         <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
       </div>
+      ${characterRow(showTutorialPause)}
     </div>`);
 }
 
@@ -1443,6 +1450,8 @@ function showTraining() {
       <div class="tgsec">Call in a foe</div>
       <div class="chips">${foes}</div>
 
+      ${characterRow(showTraining)}
+
       <div class="row">
         <button class="btn" data-act="${live ? 't-resume' : 't-start'}">${live ? 'Resume' : 'Enter the ring'}</button>
         <button class="btn ghost" data-act="t-leave">Leave</button>
@@ -1467,6 +1476,7 @@ function showPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="abandon">Abandon Run</button>
       </div>
+      ${characterRow(showPause)}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
@@ -1633,9 +1643,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       save.character = el.dataset.v;
       writeSave();
       // Redraw whichever screen the choice was made on.
-      if (state === 'paused' && (world.overworld || world.owBoss)) showWildsPause();
-      else if (state === 'training') showWildsIntro();
-      else showTitle();
+      (charBack || showTitle)();
       break;
     }
     case 'w-start': phoneFullscreen(); startWilds(); break;

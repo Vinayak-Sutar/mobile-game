@@ -3913,7 +3913,20 @@ keys, pixel-art walk cycles, planted feet):
 - The Hooded One's smooth walking bob is no longer applied to the
   Wanderer's weapon or body.
 
-### 16.24 Folk enemies not built yet
+### 16.24 Step 21 — switch character from any pause screen
+
+The Character row (Auto / Hooded One / Wanderer) is now also on:
+- the run pause, which Boss Trials use too;
+- the Training Ground panel, before entering and while inside;
+- the tutorial pause;
+- The Wilds' intro and pause;
+- the title screen.
+
+`characterRow(back)` records the screen to redraw after a pick
+(`charBack`), so the choice shows at once and the game stays paused. The look
+changes on the next frame, and `save.character` persists it.
+
+### 16.25 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the
