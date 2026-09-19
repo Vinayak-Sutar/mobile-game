@@ -1,7 +1,7 @@
 // The player: movement, the dash (i-frames are the whole defensive game),
 // and a small attack state machine driving the weapon data.
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, tuning } from './state.js';
 import {
   TAU, clamp, rand, dist, angleTo, angleDiff, normalize, resolveCircleRect, polygon, lerp,
 } from './util.js';
@@ -205,7 +205,7 @@ export function updatePlayer(p, dt) {
 
   // --- movement -----------------------------------------------------------
   if (!p.dashing && !p.leap && !p.hop) {
-    let speed = BASE_SPEED * p.stats.moveSpeed;
+    let speed = BASE_SPEED * p.stats.moveSpeed * tuning.speed;   // the speed setting
     if (p.groundMult) speed *= p.groundMult;   // The Wilds: stairs are slower going
     if (p.attack) speed *= 0.34;
     if (p.charging) speed *= p.weapon.heavy ? 0.4 : 0.55;

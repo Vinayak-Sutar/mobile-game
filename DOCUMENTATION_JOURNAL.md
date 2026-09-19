@@ -3926,7 +3926,25 @@ The Character row (Auto / Hooded One / Wanderer) is now also on:
 (`charBack`), so the choice shows at once and the game stays paused. The look
 changes on the next frame, and `save.character` persists it.
 
-### 16.25 Folk enemies not built yet
+### 16.25 Step 22 — move speed setting (tester: "sliding on ice")
+
+- `tuning.speed` (state.js) multiplies the walking speed in `player.js`
+  (`BASE_SPEED` 268 × stats × tuning).
+  - The default is now **0.85**, which is 228 units/s.
+  - The range is 60–120% in 5% steps.
+  - Dash distance, enemies and knockback are unchanged.
+- `save.moveSpeed` persists it. `render()` copies it into `tuning` each frame,
+  like `look.skin`.
+- A "Move speed" row (−, the value, +, Default 85%) appears everywhere the
+  Character row does: the title, run pause, Training Ground, tutorial pause,
+  and The Wilds' intro and pause. Both rows are drawn by `playerRows(back)`.
+- The Wanderer's step rate also scales with the setting
+  (× (0.4 + 0.6 × speed/0.85)), so slower walking takes slower steps rather
+  than skating.
+- Once the owner settles on a final speed, set `SPEED_DEFAULT` in game.js,
+  the default in save.js, and the initial value in state.js to it.
+
+### 16.26 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

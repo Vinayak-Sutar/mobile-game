@@ -23,6 +23,7 @@
 import { TAU, clamp } from './util.js';
 import { boneAt } from './anim.js';
 import { PLAYER_SKELETON } from './rigs.js';
+import { tuning } from './state.js';
 
 /** Which look is drawn: 'hooded' | 'wanderer' (set by game.js). */
 export const look = { skin: 'hooded' };
@@ -96,7 +97,9 @@ function gait(p, s) {
   p.wT = now;
   const air = !!(p.hop || p.leap || (p.z || 0) > 0.5);
   const walking = p.moveMag > 0.08 && !p.dead && !p.dashing && !air;
-  if (walking) p.wPhase = ((p.wPhase || 0) + dt * (1.5 + 0.8 * p.moveMag) * (p.groundMult || 1)) % 1;
+  // Steps come quicker the faster you move (the speed setting too), so the
+  // feet keep up with the ground instead of skating over it.
+  if (walking) p.wPhase = ((p.wPhase || 0) + dt * (1.5 + 0.8 * p.moveMag) * (p.groundMult || 1) * (0.4 + 0.6 * tuning.speed / 0.85)) % 1;
   const frame = Math.floor((p.wPhase || 0) * FRAMES) % FRAMES;
 
   // The way you walk, in the figure's frame: backing away steps backwards;

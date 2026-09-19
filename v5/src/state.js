@@ -33,6 +33,10 @@ export const world = {
 // a backgrounded app). Every cached drawing keys on it, so they all rebuild.
 export const gfx = { epoch: 0 };
 
+// Player-facing tuning from the settings (game.js copies it from the save).
+// speed: the player's walking speed, as a multiple of the base.
+export const tuning = { speed: 0.85 };
+
 // Logical render resolution. The canvas is scaled to fill the viewport, so
 // world units stay stable across devices and only the aspect ratio changes.
 export const view = {

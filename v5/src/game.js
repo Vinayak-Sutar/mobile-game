@@ -1,7 +1,7 @@
 // Entry point: canvas setup, the fixed-timestep loop, the run state machine
 // and every menu screen.
 
-import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera } from './state.js';
+import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
   bindOverworldSpawner, drawOverworldBelow, drawOverworldAbove, drawOverworldMap,
@@ -473,6 +473,7 @@ function render() {
   // in The Wilds' 3/4 world and the Hooded One in the chambers.
   const ch = save.character;
   look.skin = ch === 'hooded' || ch === 'wanderer' ? ch : world.overworld || world.owBoss ? 'wanderer' : 'hooded';
+  tuning.speed = save.moveSpeed ?? SPEED_DEFAULT;
   ctx.setTransform(s, 0, 0, s, 0, 0);
 
   ctx.fillStyle = '#08060d';
@@ -614,6 +615,27 @@ function characterRow(back = null) {
     </div>`;
 }
 
+// Walking speed, adjustable while it is being tuned by feel (a tester found
+// the old pace "like sliding on ice"). 85% of the old speed by default.
+const SPEED_DEFAULT = 0.85, SPEED_MIN = 0.6, SPEED_MAX = 1.2, SPEED_STEP = 0.05;
+
+function speedRow() {
+  const pct = Math.round((save.moveSpeed ?? SPEED_DEFAULT) * 100);
+  return `
+    <div class="volrow">
+      <span class="vollabel">Move speed</span>
+      <button class="volbtn" data-act="spd-down" aria-label="Slower">−</button>
+      <span class="volval">${pct}%</span>
+      <button class="volbtn" data-act="spd-up" aria-label="Faster">+</button>
+      <button class="tgl ${pct === Math.round(SPEED_DEFAULT * 100) ? 'on' : ''}" data-act="spd-def">Default ${Math.round(SPEED_DEFAULT * 100)}%</button>
+    </div>`;
+}
+
+/** The player settings shown on the title and in every pause screen. */
+function playerRows(back) {
+  return characterRow(back) + speedRow();
+}
+
 function musicVolumeRow() {
   const pct = Math.round(audio.musicVolume * 100);
   // Big +/- buttons as well as the slider: easy to hit on a phone, and the
@@ -706,7 +728,7 @@ function showTitle() {
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
       ${fullscreenRow()}
-      ${characterRow(showTitle)}
+      ${playerRows(showTitle)}
       ${statBlock()}
       ${musicVolumeRow()}
       ${dualSenseRow()}
@@ -1194,7 +1216,7 @@ function showWildsIntro() {
       face its guardian. The map in the corner fills in as you explore.</p>
       <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells. Change them there first.</p>
-      ${characterRow(showWildsIntro)}
+      ${playerRows(showWildsIntro)}
       <div class="row">
         <button class="btn" data-act="w-start">Set out</button>
         <button class="btn ghost" data-act="training">Training Ground loadout</button>
@@ -1289,7 +1311,7 @@ function showWildsPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
-      ${characterRow(showWildsPause)}
+      ${playerRows(showWildsPause)}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
@@ -1353,7 +1375,7 @@ function showTutorialPause() {
         <button class="btn ghost" data-act="tut-skip">Skip the tutorial</button>
         <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
       </div>
-      ${characterRow(showTutorialPause)}
+      ${playerRows(showTutorialPause)}
     </div>`);
 }
 
@@ -1450,7 +1472,7 @@ function showTraining() {
       <div class="tgsec">Call in a foe</div>
       <div class="chips">${foes}</div>
 
-      ${characterRow(showTraining)}
+      ${playerRows(showTraining)}
 
       <div class="row">
         <button class="btn" data-act="${live ? 't-resume' : 't-start'}">${live ? 'Resume' : 'Enter the ring'}</button>
@@ -1476,7 +1498,7 @@ function showPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="abandon">Abandon Run</button>
       </div>
-      ${characterRow(showPause)}
+      ${playerRows(showPause)}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
       ${fullscreenRow()}
@@ -1639,6 +1661,16 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
     case 'wilds': showWildsIntro(); break;
+    case 'spd-down':
+    case 'spd-up':
+    case 'spd-def': {
+      const cur = save.moveSpeed ?? SPEED_DEFAULT;
+      const next = act === 'spd-def' ? SPEED_DEFAULT : cur + (act === 'spd-up' ? SPEED_STEP : -SPEED_STEP);
+      save.moveSpeed = Math.round(clamp(next, SPEED_MIN, SPEED_MAX) * 100) / 100;
+      writeSave();
+      (charBack || showTitle)();
+      break;
+    }
     case 'char': {
       save.character = el.dataset.v;
       writeSave();
