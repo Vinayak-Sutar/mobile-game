@@ -4,6 +4,7 @@
 import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
+  overworldProgress, FINALS,
   bindOverworldSpawner, drawOverworldBelow, drawOverworldAbove, drawOverworldMap,
 } from './overworld.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -404,7 +405,9 @@ function tick(dt) {
       if (world.overworld) {
         const act = updateOverworld(dt);
         if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.6);
-        if (act && act.boss) enterGateFight(act.boss, act.name);
+        if (act && act.site) showSiteChoice(act.site);
+        else if (act && act.final) showFinalChoice();
+        else if (act && act.spell) showSpellSelect(false, { eyebrow: 'spoils of the camp', done: wildsResume });
       }
       if (world.owBoss && world.room && world.room.cleared) {
         owBossT += dt;
@@ -828,11 +831,22 @@ function showBoonSelect() {
 let pendingSpells = [];
 let pendingSpellId = null;
 
-function showSpellSelect(again = false) {
+// Where a spell choice goes when it is made: the next chamber in a run, or
+// back to The Wilds (a camp's spoils, a guardian's gift).
+let spellDone = null, spellEyebrow = 'a spell tome lies open';
+function finishSpell() {
+  const next = spellDone || advanceRoom;
+  spellDone = null;
+  spellEyebrow = 'a spell tome lies open';
+  next();
+}
+
+function showSpellSelect(again = false, opts = null) {
   const p = world.player;
+  if (opts) { spellDone = opts.done || null; spellEyebrow = opts.eyebrow || spellEyebrow; }
   // Coming back from the replace screen shows the same three spells.
   if (!again) pendingSpells = offerSpells(p, 3);
-  if (!pendingSpells.length) { advanceRoom(); return; }
+  if (!pendingSpells.length) { finishSpell(); return; }
   state = 'boon';
   if (!again) sfx.boon();
   const cards = pendingSpells.map((sp, i) => {
@@ -852,7 +866,7 @@ function showSpellSelect(again = false) {
   }).join('');
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">a spell tome lies open</div>
+      <div class="eyebrow">${spellEyebrow}</div>
       <h2>Choose a spell</h2>
       <p class="sub">${p.spells.length} of ${SPELL_SLOTS} spell slots filled. Taking a spell you know levels it up (up to 3).
       With every slot full, a new spell replaces one of yours and keeps its level.</p>
@@ -1210,10 +1224,10 @@ function showWildsIntro() {
     <div class="panel">
       <div class="eyebrow">prototype &middot; nothing is banked</div>
       <h2>The Wilds</h2>
-      <p class="sub">A small open region instead of a run of chambers. Follow the roads or
-      leave them: kindle shrines, climb the watchtower, cut through brambles, dash across
-      water, find heart fragments and hidden chests, clear camps, and step into a gate to
-      face its guardian. The map in the corner fills in as you explore.</p>
+      <p class="sub">Four guardians hold the four ends of this land, each at a gate where you
+      choose which of them to face. Beat one at every gate to win its stone, set the four stones
+      in the Ashen Statue at the centre, and the last gate opens to the hardest guardians of all.
+      Clear enemy camps and beat guardians for new spells; explore for hearts, secrets and gold.</p>
       <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells. Change them there first.</p>
       ${playerRows(showWildsIntro)}
@@ -1242,7 +1256,7 @@ function startWilds() {
   const p = world.player;
   p.x = at.x; p.y = at.y;
   snapCamera();
-  showToast('THE WILDS', 'Go where the land draws you', 3);
+  showToast('THE WILDS', 'Four guardians at the four ends of the land hold the stones the statue needs', 4);
   state = 'playing';
   hideOverlay();
 }
@@ -1254,7 +1268,100 @@ function snapCamera() {
 }
 
 /** Stepping through a gate: that guardian's own arena, as a Boss Trial plays it. */
-function enterGateFight(bossType, name) {
+/** Back to The Wilds from a menu. */
+function wildsResume() {
+  state = 'playing';
+  hideOverlay();
+  resetInput();
+}
+
+let owFight = null;         // { site, boss } or { final: true, boss } while fighting
+
+/** A site's gate: which of its guardians will you face? */
+function showSiteChoice(q) {
+  state = 'paused';
+  const cards = q.group.map((type) => {
+    const info = BOSS_INFO[type] || { title: type, subtitle: '', color: '#fff', animal: '' };
+    const beat = q.beaten.includes(type);
+    return `
+      <div class="card" data-act="w-boss" data-site="${q.site}" data-type="${type}" style="border-color:${info.color}88">
+        <div class="tag" style="color:${info.color}">${info.animal}${beat ? ' &middot; beaten' : ''}</div>
+        <div class="name" style="color:${info.color}">${info.title}</div>
+        <div class="desc">${info.subtitle}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">${q.done ? `${q.stone} already won &middot; fight again for gold` : `win the ${q.stone} here`}</div>
+      <h2 style="color:${q.color}">${q.name}</h2>
+      <p class="sub">${q.done ? 'The stone is yours. Any guardian here can be fought again.'
+        : `Beat any one of these guardians to take the ${q.stone}, a heart fragment and a spell. Bring all four stones to the Ashen Statue at the centre of the land.`}</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="w-away">Not yet</button></div>
+    </div>`);
+}
+
+/** All four stones set: the last gate wakes. */
+function showFinalChoice() {
+  state = 'paused';
+  const cards = FINALS.map((type) => {
+    const info = BOSS_INFO[type] || { title: type, subtitle: '', color: '#fff', animal: '' };
+    return `
+      <div class="card" data-act="w-final" data-type="${type}" style="border-color:${info.color}88">
+        <div class="tag" style="color:${info.color}">${info.animal}</div>
+        <div class="name" style="color:${info.color}">${info.title}</div>
+        <div class="desc">${info.subtitle}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the four stones burn in their sockets</div>
+      <h2>The Last Gate</h2>
+      <p class="sub">The statue opens a way to the hardest of them all. Choose who you will end this with.
+      ${world.beaten.length ? 'The Trickster remembers every guardian you have beaten here.' : ''}</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="w-away">Not yet</button></div>
+    </div>`);
+}
+
+/** Step back out of a gate (or away from the statue) and carry on. */
+function wildsStepAway() {
+  const p = world.player;
+  if (p) { p.y += 90; p.vx = p.vy = 0; }
+  wildsResume();
+}
+
+/** The last guardian fell: the ending, and its reward. */
+function showWildsVictory(first) {
+  state = 'paused';
+  const pr = overworldProgress();
+  const reward = 250;
+  if (first) {
+    save.darkness += reward;
+    writeSave();
+  }
+  const t = world.runTime;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the ashen statue burns</div>
+      <h1>The Ash Lifts</h1>
+      <p class="sub">The last guardian falls, and for the first time in an age the sky over the Wilds clears.
+      ${first ? `You carry <b>${reward} darkness</b> out with you, for the Mirror of Night.` : 'The ending is yours again.'}</p>
+      <div class="stats">
+        <div class="stat"><b>${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}</b><span>Time</span></div>
+        <div class="stat"><b>${world.kills}</b><span>Kills</span></div>
+        <div class="stat"><b>${pr ? pr.camps : 0}/${pr ? pr.campsTotal : 0}</b><span>Camps cleared</span></div>
+        <div class="stat"><b>${pr ? pr.secrets : 0}</b><span>Secrets</span></div>
+      </div>
+      <div class="row">
+        <button class="btn" data-act="w-resume">Keep exploring</button>
+        <button class="btn ghost" data-act="w-leave">Title screen</button>
+      </div>
+    </div>`);
+}
+
+function enterGateFight(bossType, name, ctx = null) {
+  owFight = ctx || { boss: bossType };
   world.overworld = false;
   world.owBoss = bossType;
   owBossT = 0;
@@ -1263,19 +1370,23 @@ function enterGateFight(bossType, name) {
   chamberArena();
   clearEntities();
   clearFx();
-  startRoom(generateRoom(world.depth, 0, { bossType, slot: 1, tier: 1 }));
-  showToast(name.toUpperCase(), BOSS_INFO[bossType] ? BOSS_INFO[bossType].animal : '');
+  // The final guardian comes at full strength; the sites' guardians as a
+  // Boss Trial plays them.
+  const final = !!(ctx && ctx.final);
+  startRoom(generateRoom(world.depth, 0, { bossType, slot: final ? 3 : 1, tier: final ? 2 : 1 }));
+  showToast(name.toUpperCase(), BOSS_INFO[bossType] ? BOSS_INFO[bossType].title : '');
 }
 
 function leaveGateFight(won) {
-  const bossType = world.owBoss;
+  const ctx = owFight;
+  owFight = null;
   world.owBoss = null;
   world.overworld = true;
   clearEntities();
   clearFx();
   clearBullets();
   world.room = enterOverworld(false);
-  const at = overworldReturn(bossType, won);
+  const at = overworldReturn(ctx, won);
   const p = world.player;
   p.dead = false;
   p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
@@ -1283,9 +1394,18 @@ function leaveGateFight(won) {
   p.invuln = 1.5;
   if (!won) p.hp = p.stats.maxHp;
   snapCamera();
-  if (won) showToast('THE GUARDIAN FALLS', 'The gate goes quiet', 3);
-  else showToast('THROWN BACK OUT', 'The gate still waits', 3);
   state = 'playing';
+  if (!won) { showToast('THROWN BACK OUT', 'The gate still waits', 3); return; }
+  p.hp = p.stats.maxHp;
+  if (at.final) { showWildsVictory(at.first); return; }
+  if (at.first) {
+    // Every step pays: the stone, a heart fragment, gold, and a spell.
+    showToast(`THE ${at.stone.toUpperCase()} \u00b7 ${at.count} / 4`,
+      at.count >= 4 ? 'All four. Take them to the Ashen Statue.' : 'Bring it to the Ashen Statue', 3.4);
+    showSpellSelect(false, { eyebrow: 'the guardian\'s gift', done: wildsResume });
+  } else {
+    showToast('THE GUARDIAN FALLS', 'Gold for the practice', 3);
+  }
 }
 
 function leaveWilds() {
@@ -1299,18 +1419,57 @@ function leaveWilds() {
   showTitle();
 }
 
+/** The quest at a glance: the four stones, camps, hearts. */
+function wildsQuestRow() {
+  const pr = overworldProgress();
+  if (!pr) return '';
+  const stones = pr.stones.map((S) => `
+    <span class="tgl ${S.got ? 'on' : ''}" style="${S.got ? `border-color:${S.color};color:${S.color}` : ''}">${S.stone}</span>`).join('');
+  return `
+    <p class="sub" style="margin-bottom:6px">${pr.finalWon ? 'The ash has lifted. The land is yours to wander.'
+      : pr.stones.every((S) => S.got) ? 'All four stones are yours: go to the Ashen Statue at the centre.'
+      : 'Win a stone from a guardian at each end of the land and set them in the Ashen Statue.'}</p>
+    <div class="chips">${stones}</div>
+    <p class="sub" style="margin-top:6px">Camps cleared ${pr.camps} / ${pr.campsTotal} &middot; heart fragments ${pr.hearts % 4} / 4 &middot; secrets ${pr.secrets}</p>`;
+}
+
+/** Any weapon, any time, keeping everything else about you. */
+function wildsWeaponRow() {
+  const p = world.player;
+  return `
+    <div class="tgsec">Weapon</div>
+    <div class="chips">${WEAPONS.map((w, i) => `
+      <button class="tgl ${p && p.weapon === w ? 'on' : ''}" data-act="w-weapon" data-idx="${i}" style="${p && p.weapon === w ? `border-color:${w.color};color:${w.color}` : ''}">${w.glyph} ${w.name}</button>`).join('')}</div>`;
+}
+
+function swapWeapon(i) {
+  const old = world.player;
+  if (!old || !WEAPONS[i] || old.weapon === WEAPONS[i]) return;
+  const next = createPlayer(WEAPONS[i], metaBonuses());
+  // Rebuilt, so no half-finished swing or reload survives; what you have
+  // earned (health, hearts, embers, spells, boons) comes with you.
+  for (const k of ['x', 'y', 'face', 'aimAngle', 'stats', 'hp', 'lives', 'spells', 'spellLv', 'spellCds', 'boons', 'boonOrder']) {
+    if (old[k] !== undefined) next[k] = old[k];
+  }
+  next.invuln = 0.5;
+  world.player = next;
+  training.weapon = i;
+}
+
 function showWildsPause() {
   state = 'paused';
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">the wilds &middot; prototype</div>
+      <div class="eyebrow">the wilds</div>
       <h2>Paused</h2>
+      ${wildsQuestRow()}
       <div class="row">
         <button class="btn" data-act="w-resume">Resume</button>
         <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
+      ${wildsWeaponRow()}
       ${playerRows(showWildsPause)}
       ${spellSlotsRow()}
       ${musicVolumeRow()}
@@ -1679,7 +1838,27 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'w-start': phoneFullscreen(); startWilds(); break;
-    case 'w-resume': state = 'playing'; hideOverlay(); resetInput(); break;
+    case 'w-resume': wildsResume(); break;
+    case 'w-away': wildsStepAway(); break;
+    case 'w-weapon': swapWeapon(idx); showWildsPause(); break;
+    case 'w-boss': {
+      const type = el.dataset.type;
+      const info = BOSS_INFO[type];
+      hideOverlay();
+      resetInput();
+      state = 'playing';
+      enterGateFight(type, info ? info.title : type, { site: el.dataset.site, boss: type });
+      break;
+    }
+    case 'w-final': {
+      const type = el.dataset.type;
+      const info = BOSS_INFO[type];
+      hideOverlay();
+      resetInput();
+      state = 'playing';
+      enterGateFight(type, info ? info.title : type, { final: true, boss: type });
+      break;
+    }
     case 'w-leave': leaveWilds(); break;
     case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 't-leave': world.training = false; clearEntities(); showTitle(); break;
@@ -1777,7 +1956,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       if (!sp) break;
       if (learnSpell(world.player, sp.id) === 'full') { showSpellReplace(sp.id); break; }
       sfx.boon();
-      advanceRoom();
+      finishSpell();
       break;
     }
     case 'spell-replace': {
@@ -1787,11 +1966,11 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       learnSpell(p, pendingSpellId, idx);
       p.spellLv[pendingSpellId] = Math.max(spellLevel(p, pendingSpellId), oldLv);
       sfx.boon();
-      advanceRoom();
+      finishSpell();
       break;
     }
     case 'spell-back': showSpellSelect(true); break;
-    case 'spell-skip': advanceRoom(); break;
+    case 'spell-skip': finishSpell(); break;
     case 'slot-pick': pickSlot(idx); break;
     case 'buy': {
       if (buyUpgrade(UPGRADES[idx])) { sfx.pickup(); showMirror(); }

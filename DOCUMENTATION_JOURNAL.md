@@ -3944,7 +3944,62 @@ changes on the next frame, and `save.character` persists it.
 - Once the owner settles on a final speed, set `SPEED_DEFAULT` in game.js,
   the default in save.js, and the initial value in state.js to it.
 
-### 16.26 Folk enemies not built yet
+### 16.26 Step 23 — The Wilds become a small game: four stones, a statue, a last gate
+
+The structure is a hub-and-spoke quest in the classic "collect N keys, open
+the final door" shape (Zelda dungeons for pendants and crystals; the lords'
+souls in Dark Souls). Players choose their own order and their own
+opponents, and every step pays out.
+
+- **Sites** (`SITES` in overworld.js). Each is a gate POI with a group. The
+  ten non-final guardians are split by theme:
+  - **North, Silverback's Summit (1300, 205, on the ridge top):** gorilla,
+    peacock, bride. Wins the Peakstone.
+  - **South, Mire's Edge (2050, 2230):** croc, turtle, naga. Wins the
+    Tidestone.
+  - **East, The Dust Gulch (3440, 1640, the quarry floor):** vesper, anansi.
+    Wins the Duskstone.
+  - **West, The Echo Hall (190, 770):** maestro, mau. Wins the Echostone.
+- **Entering a site.** Standing in a gate for 1.2 s opens `showSiteChoice`:
+  cards for the group, beaten ones marked, and "Not yet" steps you 90 south.
+  - The fight is `enterGateFight(type, title, { site, boss })`, slot 1,
+    tier 1.
+  - The first win at a site gives its stone, a heart fragment, 10 gold
+    pickups and a full heal. Then a spell choice ("the guardian's gift")
+    returns to The Wilds through `spellDone`.
+  - Later wins at a conquered site are practice, for gold. Its portal is
+    grey.
+- **The Ashen Statue (1150, 1160):** a plinth obstacle with four sockets that
+  light in each site's colour.
+  - With fewer than four stones, a toast shows the count.
+  - With all four, `showFinalChoice` offers `FINALS`: warden, monkey,
+    solaris (the Twin Wardens) and aldric, the four hardest guardians.
+  - The final fight is slot 3, tier 2. The Monkey King borrows the guardians
+    you beat at the sites (`world.beaten`).
+  - The win shows `showWildsVictory`: "The Ash Lifts", with stats. The first
+    time, it also banks **250 darkness** for the Mirror of Night. The statue
+    burns from then on.
+- **Spells from activities:** each of the five camps gives a spell choice
+  when cleared (as well as its gold chest). The three existing camps are
+  joined by the Broken Road camp (560, 1720) and the quarry-road camp
+  (2150, 1390).
+  - `showSpellSelect(again, { eyebrow, done })` plus `finishSpell()` now
+    serve both runs (the next chamber) and The Wilds (resume).
+- **Pause screen:**
+  - `wildsQuestRow`: the four stones, camps cleared, heart fragments and
+    secrets.
+  - `wildsWeaponRow`: **any weapon at any time**. `swapWeapon` rebuilds the
+    player but keeps position, stats (hearts, embers), HP, spells, their
+    levels and cooldowns, and boons.
+- **Decluttered:**
+  - Trees are capped at 130. One deep forest (the circle at (2950, 430),
+    r 520) is always dense; elsewhere trees are much sparser (woods 0.28,
+    meadow 0.05, ridge 0.1, the rest 0.03).
+  - No trees within 240 of any camp, gate or the statue, and no quarry
+    rocks within 150, so fights have room.
+- Gates and the statue show on the minimap from the start: they're the goal.
+
+### 16.27 Folk enemies not built yet
 
 Jengu (healer), Aleya (lure), Chochin-obake (fodder that splits) — the
 Kappa, Preta, Draugr and Duende are built (§16.18). Mini-bosses: Tengu the Mountain Fencer, Nuckelavee, the

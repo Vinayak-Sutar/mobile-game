@@ -48,6 +48,22 @@ const ZONES = [
   { id: 'ridge', name: 'Silverback Ridge', x: 1300, y: 300, r: 800, col: '60,58,66' },
 ];
 
+// The quest (step 23): four guardian sites at the region's four ends. Each
+// offers a choice of guardian from its group; beating one wins the site's
+// stone. The four stones set in the Ashen Statue at the centre wake the last
+// gate, where one of the four hardest guardians - your choice again - waits.
+// The ten others are split by where they fit: water to the lake, heights to
+// the ridge, dust and webs to the quarry, song and ruin to the west.
+export const SITES = [
+  { site: 'north', name: "Silverback's Summit", stone: 'Peakstone', x: 1300, y: 205, color: '#c9bff0', group: ['gorilla', 'peacock', 'bride'] },
+  { site: 'south', name: "Mire's Edge", stone: 'Tidestone', x: 2050, y: 2230, color: '#6fdca0', group: ['croc', 'turtle', 'naga'] },
+  { site: 'east', name: 'The Dust Gulch', stone: 'Duskstone', x: 3440, y: 1640, color: '#ffb35e', group: ['vesper', 'anansi'] },
+  { site: 'west', name: 'The Echo Hall', stone: 'Echostone', x: 190, y: 770, color: '#c8a8ff', group: ['maestro', 'mau'] },
+];
+// The hardest four, for the end.
+export const FINALS = ['warden', 'monkey', 'solaris', 'aldric'];
+const STATUE = { x: 1150, y: 1160 };
+
 let spawnFn = null;
 export function bindOverworldSpawner(fn) { spawnFn = fn; }
 
@@ -190,10 +206,14 @@ function build() {
 
   // Trees: thick in the woods, a scatter at the meadow's edges.
   let guard = 0;
-  while (trees.length < 150 && guard++ < 3000) {
+  // Sparse in the open, with one deep forest in the north-east woods; camps,
+  // gates and the statue get room to fight in (cleared below).
+  const deep = { x: 2950, y: 430, r: 520 };
+  while (trees.length < 130 && guard++ < 3000) {
     const x = rand(60, OW.W - 60), y = rand(60, OW.H - 60);
     const z = zoneAt(x, y);
-    const want = z.id === 'woods' ? 1 : z.id === 'meadow' ? 0.12 : z.id === 'ridge' ? 0.18 : 0.05;
+    const want = dist(x, y, deep.x, deep.y) < deep.r ? 1
+      : z.id === 'woods' ? 0.28 : z.id === 'meadow' ? 0.05 : z.id === 'ridge' ? 0.1 : 0.03;
     if (Math.random() > want) continue;
     if (onRoad(x, y) || near(x, y, trees.map((t) => [t.x, t.y]), 95)) continue;
     if (obstacles.some((o) => x > o.x - 60 && x < o.x + o.w + 60 && y > o.y - 60 && y < o.y + o.h + 60)) continue;
@@ -229,7 +249,7 @@ function build() {
   }
 
   // Points of interest.
-  const poi = (kind, x, y, extra = {}) => pois.push({ kind, x, y, seen: false, done: false, ...extra });
+  const poi = (kind, x, y, extra = {}) => pois.push({ kind, x, y, seen: kind === 'gate' || kind === 'statue', done: false, ...extra });
   poi('shrine', 1300, 1300, { name: 'Meadow Shrine', lit: false });
   poi('shrine', 3250, 2150, { name: 'Quarry Shrine', lit: false });
   poi('tower', 900, 380);
@@ -246,11 +266,15 @@ function build() {
   poi('chest', 1060, 1480, { reward: 'gold' });
   poi('lore', 870, 1480, { text: 'From the hill the shepherds watched for ash on the wind.' });
   poi('lore', 1150, 560, { text: 'Kharn keeps the high ground. Nothing climbs to him and comes down unchanged.' });
-  poi('gate', 2050, 2230, { boss: 'croc', name: "Mire's Edge" });
-  poi('gate', 1300, 175, { boss: 'gorilla', name: "Silverback's Summit" });
+  for (const S of SITES) poi('gate', S.x, S.y, { ...S, beaten: [] });
+  poi('statue', STATUE.x, STATUE.y, { stones: 0 });
+  poi('lore', STATUE.x - 110, STATUE.y + 40, { text: 'Four stones, from the four ends of the land. Set them here and the last gate wakes.' });
+  // Camps: clear one and its spoils include a spell.
   poi('camp', 2600, 780, { foes: ['wretch', 'wretch', 'slinger', 'kappa'], cleared: false });
   poi('camp', 3000, 1950, { foes: ['sapper', 'sapper', 'chinthe'], cleared: false });
   poi('camp', 1650, 420, { foes: ['draugr', 'preta', 'wretch'], cleared: false });
+  poi('camp', 560, 1720, { foes: ['draugr', 'wretch', 'slinger'], cleared: false });
+  poi('camp', 2150, 1390, { foes: ['adze', 'charger', 'wretch', 'kappa'], cleared: false });
   poi('wander', 1800, 1250, { foe: 'duende' });
   poi('wander', 700, 1150, { foe: 'adze' });
   poi('wander', 2100, 600, { foe: 'charger' });
@@ -259,13 +283,21 @@ function build() {
   const lanterns = [];
   for (let k = 0; k < 7; k++) lanterns.push({ x: 2750 + k * 60, y: 600 - k * 55 + Math.sin(k) * 14, ph: rand(0, TAU) });
 
-  // Nothing grows on a landmark or on the lantern trail.
+  // Nothing grows on a landmark or on the lantern trail, and where there is
+  // fighting to be done (camps, gates, the statue) there is room to do it.
   const clear = pois.map((q) => [q.x, q.y]).concat(lanterns.map((l) => [l.x, l.y]));
+  const arenaPois = pois.filter((q) => q.kind === 'camp' || q.kind === 'gate' || q.kind === 'statue').map((q) => [q.x, q.y]);
   for (let i = trees.length - 1; i >= 0; i--) {
-    if (!near(trees[i].x, trees[i].y, clear, 120)) continue;
+    if (!near(trees[i].x, trees[i].y, clear, 120) && !near(trees[i].x, trees[i].y, arenaPois, 240)) continue;
     obstacles.splice(obstacles.indexOf(trees[i].o), 1);
     trees.splice(i, 1);
   }
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
+    if (o.kind === 'rock' && near(o.x + o.w / 2, o.y + o.h / 2, arenaPois, 150)) obstacles.splice(i, 1);
+  }
+  // The statue's plinth.
+  wall(obstacles, STATUE.x - 30, STATUE.y - 14, 60, 30, 'plinth', { shadow: true });
 
   // The grass field, sown clear of walls, landmarks and the lantern trail.
   const grass = createGrass(terrain, {
@@ -281,7 +313,7 @@ function build() {
     grade: [255, 230, 170, 0.04], printSprite: null, printEpoch: -1,
     fog: new Uint8Array(fogW * fogH), fogW, fogH,
     zone: null, respawn: { x: 1300, y: 1380 }, hearts: 0, secrets: 0,
-    gateT: 0, returnFrom: null, beaten: {}, leaves: [],
+    gateT: 0, leaves: [], stones: new Set(), finalWon: false,
   };
 }
 
@@ -313,12 +345,49 @@ export function enterOverworld(fresh) {
 
 export function overworldRespawn() { return ow ? ow.respawn : { x: 1300, y: 1380 }; }
 
-/** Back from a boss gate: where to stand, and whether it fell. */
-export function overworldReturn(bossType, won) {
+/**
+ * Back from a fight. ctx is { site, boss } or { final: true, boss }. Returns
+ * where to stand and what was won: `first` when this win took the site's
+ * stone (or the final guardian fell for the first time).
+ */
+export function overworldReturn(ctx, won) {
+  if (!ow || !ctx) return { x: 1300, y: 1380 };
+  const p = world.player;
+  if (ctx.final) {
+    const first = won && !ow.finalWon;
+    if (won) ow.finalWon = true;
+    return { x: STATUE.x, y: STATUE.y + 90, final: true, first };
+  }
+  const gate = ow.pois.find((q) => q.kind === 'gate' && q.site === ctx.site);
+  if (!gate) return ow.respawn;
+  const at = { x: gate.x, y: gate.y + 95 };
+  let first = false;
+  if (won) {
+    if (!gate.beaten.includes(ctx.boss)) gate.beaten.push(ctx.boss);
+    if (!gate.done) {
+      // The site's stone, a heart fragment, and gold on the ground.
+      gate.done = true;
+      first = true;
+      ow.stones.add(gate.site);
+      if (p) grantHeart(p, at.x, at.y);
+      for (let k = 0; k < 10; k++) {
+        const a = rand(0, TAU);
+        spawnPickup({ x: at.x, y: at.y, vx: Math.cos(a) * 160, vy: Math.sin(a) * 160, type: 'gold', value: 6 });
+      }
+    }
+  }
+  return { ...at, first, stone: gate.stone, name: gate.name, count: ow.stones.size };
+}
+
+/** For the pause screen: how the quest stands. */
+export function overworldProgress() {
   if (!ow) return null;
-  const gate = ow.pois.find((q) => q.kind === 'gate' && q.boss === bossType);
-  if (won && gate) { gate.done = true; ow.beaten[bossType] = true; }
-  return gate ? { x: gate.x, y: gate.y + 90 } : ow.respawn;
+  const camps = ow.pois.filter((q) => q.kind === 'camp');
+  return {
+    stones: SITES.map((S) => ({ ...S, got: ow.stones.has(S.site) })),
+    camps: camps.filter((q) => q.cleared).length, campsTotal: camps.length,
+    hearts: ow.hearts, secrets: ow.secrets, finalWon: ow.finalWon,
+  };
 }
 
 // --- per frame ----------------------------------------------------------------------
@@ -478,7 +547,7 @@ export function updateOverworld(dt) {
         if (q.spawned && !q.cleared && q.members.length && q.members.every((e) => e.dead)) {
           q.cleared = true;
           ow.pois.push({ kind: 'chest', x: q.x, y: q.y, seen: true, done: false, reward: 'gold' });
-          action = { toast: ['CAMP CLEARED', 'They left their spoils by the fire'] };
+          action = { toast: ['CAMP CLEARED', 'Among the spoils, a spell tome'], spell: 'camp' };
         }
         break;
       case 'wander':
@@ -489,16 +558,29 @@ export function updateOverworld(dt) {
         }
         break;
       case 'gate':
-        if (q.done) break;
+        // Stand in the portal a moment and it asks which guardian you'll face
+        // (a conquered site can be fought again, for practice and gold).
         if (d < 56) {
           ow.gateT += dt;
-          if (ow.gateT > 1.2) { ow.gateT = 0; return { boss: q.boss, name: q.name }; }
+          if (ow.gateT > 1.2) { ow.gateT = 0; return { site: q }; }
         }
+        break;
+      case 'statue':
+        q.stones = ow.stones.size;
+        if (d < 70) {
+          if (!q.near) {
+            q.near = true;
+            if (ow.stones.size >= SITES.length) return { final: true };
+            action = { toast: [`THE ASHEN STATUE \u00b7 ${ow.stones.size} / ${SITES.length}`,
+              ow.stones.size ? 'The set stones hum. The empty sockets wait.' : 'Four empty sockets, facing the four ends of the land'] };
+            sfx.chime();
+          }
+        } else q.near = false;
         break;
       default: break;
     }
   }
-  if (!ow.pois.some((q) => q.kind === 'gate' && !q.done && dist(p.x, p.y, q.x, q.y) < 56)) ow.gateT = 0;
+  if (!ow.pois.some((q) => q.kind === 'gate' && dist(p.x, p.y, q.x, q.y) < 56)) ow.gateT = 0;
 
   // Brambles: cut by your blows.
   for (const h of world.hitboxes) {
@@ -807,9 +889,9 @@ function drawPoi(ctx, q, time) {
       ctx.beginPath(); ctx.arc(q.x, q.y, 50, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
       ctx.fillStyle = '#5a5452';
       ctx.fillRect(q.x - 58, q.y - 18, 14, 36); ctx.fillRect(q.x + 44, q.y - 18, 14, 36);
-      if (!q.done) {
-        const c = q.boss === 'croc' ? '#b5e05a' : '#ffb35e';
-        glow(48, c, 0.18);
+      {
+        const c = q.done ? '#9a98aa' : q.color;
+        glow(48, c, q.done ? 0.08 : 0.18);
         ctx.strokeStyle = c; ctx.lineWidth = 2;
         for (let k = 0; k < 3; k++) {
           ctx.globalAlpha = 0.6;
@@ -817,7 +899,7 @@ function drawPoi(ctx, q, time) {
         }
         ctx.globalAlpha = 1;
         // Standing in it: a ring filling as the gate takes hold of you.
-        if (ow.gateT > 0 && dist(world.player.x, world.player.y, q.x, q.y) < 56) {
+        if (ow.gateT > 0 && world.player && dist(world.player.x, world.player.y, q.x, q.y) < 56) {
           ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4;
           ctx.beginPath(); ctx.arc(q.x, q.y, 56, -Math.PI / 2, -Math.PI / 2 + (ow.gateT / 1.2) * TAU); ctx.stroke();
         }
@@ -825,7 +907,40 @@ function drawPoi(ctx, q, time) {
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.font = '800 12px system-ui';
       ctx.textAlign = 'center';
-      ctx.fillText(q.done ? `${q.name} — conquered` : q.name, q.x, q.y + 44);
+      ctx.fillText(q.done ? `${q.name} \u2014 ${q.stone} won` : q.name, q.x, q.y + 44);
+      break;
+    }
+    case 'statue': {
+      // A robed figure on a plinth, four sockets round its base, one for each
+      // end of the land; lit when set, and the whole statue burns once the
+      // last guardian falls.
+      const lit = ow.finalWon;
+      ctx.fillStyle = '#6a6462'; roundRect(ctx, q.x - 30, q.y - 14, 60, 30, 4); ctx.fill();
+      ctx.fillStyle = '#86807a'; roundRect(ctx, q.x - 30, q.y - 14, 60, 8, 4); ctx.fill();
+      ctx.fillStyle = '#7e7874';
+      ctx.beginPath(); ctx.moveTo(q.x - 14, q.y - 12); ctx.lineTo(q.x + 14, q.y - 12); ctx.lineTo(q.x + 8, q.y - 52); ctx.lineTo(q.x - 8, q.y - 52); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#948e88'; ctx.beginPath(); ctx.arc(q.x, q.y - 58, 8, 0, TAU); ctx.fill();
+      SITES.forEach((S, i) => {
+        const sx = q.x - 21 + i * 14, sy = q.y + 2;
+        const got = ow.stones.has(S.site);
+        ctx.fillStyle = got ? S.color : '#2e2a2a';
+        ctx.beginPath(); ctx.arc(sx, sy, 4.5, 0, TAU); ctx.fill();
+        if (got) {
+          ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.35 + Math.sin(time * 3 + i) * 0.15;
+          ctx.beginPath(); ctx.arc(sx, sy, 10, 0, TAU); ctx.fill();
+          ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+        }
+      });
+      if (ow.stones.size >= SITES.length && !lit) glow(70 + Math.sin(time * 2.5) * 8, '#ff9a5e', 0.16);
+      if (lit) {
+        const fl = 0.8 + Math.sin(time * 9) * 0.2;
+        glow(60, '#ffb35e', 0.22 * fl);
+        ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.ellipse(q.x, q.y - 72, 5, 10 * fl, 0, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '800 12px system-ui';
+      ctx.textAlign = 'center';
+      ctx.fillText(lit ? 'The Ashen Statue \u2014 the ash has lifted' : `The Ashen Statue \u00b7 ${ow.stones.size} / ${SITES.length}`, q.x, q.y + 32);
       break;
     }
     default: break;
@@ -915,13 +1030,14 @@ export function drawOverworldMap(ctx) {
     ctx.fillRect(x + o.x * s, y + o.y * s, Math.max(1.5, o.w * s), Math.max(1.5, o.h * s));
   }
   // Landmarks.
-  const icon = { shrine: '#ffb35e', tower: '#ffe08a', chest: '#ffd45e', gate: '#ff6b6b', camp: '#ff8a4a', lore: '#9fe8ff', heart: '#ff7a8a', lever: '#c0c4cc' };
+  const icon = { shrine: '#ffb35e', tower: '#ffe08a', chest: '#ffd45e', gate: '#ff6b6b', camp: '#ff8a4a', lore: '#9fe8ff', heart: '#ff7a8a', lever: '#c0c4cc', statue: '#f0e6d0' };
   for (const q of ow.pois) {
     if (!q.seen || q.hidden || !icon[q.kind] || (q.done && (q.kind === 'chest' || q.kind === 'heart'))) continue;
     if (q.kind === 'camp' && q.cleared) continue;
-    ctx.fillStyle = icon[q.kind];
+    ctx.fillStyle = q.kind === 'gate' ? (q.done ? '#8a8894' : q.color) : icon[q.kind];
     const px = x + q.x * s, py = y + q.y * s;
-    if (q.kind === 'gate') { ctx.fillRect(px - 3, py - 3, 6, 6); }
+    if (q.kind === 'gate') { ctx.fillRect(px - 3.5, py - 3.5, 7, 7); }
+    else if (q.kind === 'statue') { ctx.fillRect(px - 2, py - 5, 4, 8); }
     else { ctx.beginPath(); ctx.arc(px, py, q.kind === 'shrine' || q.kind === 'tower' ? 3 : 2.2, 0, TAU); ctx.fill(); }
   }
   // You, pointing where you face.
