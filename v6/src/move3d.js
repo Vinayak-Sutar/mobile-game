@@ -56,6 +56,14 @@ export function createMover() {
     ground: 0,              // the height of the ground under the feet
     landedAt: 0,
     jumpedAt: 0,
+    // What the body should feel, for the animation: how hard it is speeding up
+    // or braking, how fast it is turning, how hard it last landed, and how
+    // recently it pushed off.
+    accel: 0,
+    turn: 0,
+    impact: 0,
+    pushOff: 0,
+    lastSpeed: 0,
   };
 }
 
@@ -84,16 +92,32 @@ export function updateMove(mv, p, dt, want, keys, heights, time) {
   mv.speed = approach(mv.speed, wantSpeed, MOVE.accel * 26 * dt);
   tuning.speed = mv.speed / BASE;
 
+  // How hard the body is speeding up or slowing down, 0..1 either way: the
+  // travelled speed is the eased input vector times the eased speed.
+  const travelling = Math.hypot(mv.ix, mv.iy) * mv.speed;
+  const change = (travelling - mv.lastSpeed) / Math.max(dt, 1e-4);
+  mv.lastSpeed = travelling;
+  mv.accel += (clamp(change / 900, -1, 1) - mv.accel) * Math.min(1, dt * 9);
+
   // An attack plants the feet, exactly as the Godot controller does.
   const plant = p.attack && mv.grounded ? 0.15 : 1;
   input.move.x = mv.ix * plant;
   input.move.y = mv.iy * plant;
 
   // --- the body turns toward where it is going ------------------------------
+  // The turn is not instant: the figure leans into it, and how sharply it is
+  // turning is handed to the animation so it can bank.
+  const before = mv.face;
   if (Math.hypot(mv.ix, mv.iy) > 0.12) {
     const wantFace = Math.atan2(mv.iy, mv.ix);
     mv.face = turnToward(mv.face, wantFace, MOVE.turn * dt);
   }
+  let spun = mv.face - before;
+  while (spun > Math.PI) spun -= Math.PI * 2;
+  while (spun < -Math.PI) spun += Math.PI * 2;
+  mv.turn += (clamp(spun / Math.max(dt, 1e-4) / MOVE.turn, -1, 1) - mv.turn) * Math.min(1, dt * 10);
+  mv.pushOff = Math.max(0, mv.pushOff - dt * 7);
+  mv.impact = Math.max(0, mv.impact - dt * 3.5);
 
   // --- height: jumping, falling, landing ------------------------------------
   const ground = heights.at(p.x, p.y);
@@ -118,6 +142,7 @@ export function updateMove(mv, p, dt, want, keys, heights, time) {
     mv.coyote = 0;
     mv.grounded = false;
     mv.jumpedAt = time;
+    mv.pushOff = 1;                 // the legs drive the body up for a moment
     sfx.dash();
     burst(p.x, p.y, { count: 8, color: '#cfc6b4', speed: 130, size: 3, life: 0.35, drag: 5 });
   }
@@ -131,6 +156,8 @@ export function updateMove(mv, p, dt, want, keys, heights, time) {
     if (p.z <= 0) {
       p.z = 0;
       const hard = mv.vz < -MOVE.jump * 0.7;
+      // How hard this landing was, for the animation's absorb.
+      mv.impact = clamp(-mv.vz / MOVE.jump, 0, 1.4);
       mv.vz = 0;
       mv.grounded = true;
       mv.landedAt = time;

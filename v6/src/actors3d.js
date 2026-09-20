@@ -33,6 +33,14 @@ const SOLE = 2.6;
 const FRAMES = 8;
 const BOB = [0, 1.5, 0, -1.5, 0, 1.5, 0, -1.5];
 
+/** The shortest signed angle from b to a. */
+function angleGap(a, b) {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
+}
+
 /** A limb angle where 0 hangs straight down and positive swings forward. */
 function swing(group, a, out = 0) {
   group.rotation.z = -Math.PI / 2 + a;
@@ -146,6 +154,7 @@ export function createPlayerActor(group) {
   const head = new THREE.Group();
   head.position.y = 19.5;
   chest.add(head);
+  // (kept on the actor so the pose can turn it toward the aim)
   // A high collar rather than a bare neck: it joins the head to the coat.
   const collar = box(7.5, 4.5, 9, cloth(WEAR.coatShade));
   collar.position.y = -2;
@@ -220,7 +229,7 @@ export function createPlayerActor(group) {
     boot.position.set(SHIN + 1.5, 0, 0);
     shin.add(boot);
     hips.add(thigh);
-    legs.push({ thigh, shin });
+    legs.push({ thigh, shin, boot });
   }
 
   // A soft pool of shadow under the feet, on top of the sun's own shadow.
@@ -254,6 +263,9 @@ export function createPlayerActor(group) {
     },
 
     update(p, dt, heights, mv, extra = {}) {
+      // The head leads: it turns toward where you are aiming before the body
+      // gets there, which is what stops a turn looking like a tank.
+      const aimOff = angleGap(p.aimAngle, mv ? mv.face : p.aimAngle);
       const ground = heights.at(p.x, p.y);
       const lift = p.z || 0;
       node.position.set(p.x, ground + lift, p.y);
@@ -262,9 +274,11 @@ export function createPlayerActor(group) {
       shadow.scale.setScalar(1 / (1 + lift / 130));
 
       const air = !!(p.hop || p.leap || (mv && !mv.grounded) || lift > 0.5);
-      if (state.wasAir && !air) state.land = 1;
+      // Landing absorbs in proportion to the fall: a hop barely dips, a drop
+      // from the ridge buckles the knees.
+      if (state.wasAir && !air) state.land = mv ? clamp(0.35 + mv.impact, 0.35, 1.5) : 1;
       state.wasAir = air;
-      state.land = Math.max(0, state.land - dt * 5);
+      state.land = Math.max(0, state.land - dt * 4.5);
       state.flinch = p.hurtFlash > 0 ? 1 : Math.max(0, state.flinch - dt * 4);
 
       const sprinting = !!(mv && mv.sprinting);
@@ -273,30 +287,40 @@ export function createPlayerActor(group) {
       const frame = Math.floor(state.phase * FRAMES) % FRAMES;
 
       const pose = bodyPose(p, extra, { walking, air, sprinting, frame, mv, land: state.land, flinch: state.flinch });
+      pose.headTurn = clamp(aimOff, -0.7, 0.7);
 
       // --- place the body ----------------------------------------------------
       node.rotation.y = -(mv ? mv.face : p.aimAngle) + pose.spin;
       node.rotation.z = 0;
       rollPivot.rotation.z = pose.roll;
       rollPivot.position.y = HIP_Y + pose.rollLift;
-      hips.position.y = pose.bodyY - state.land * 3.5;
+      hips.position.y = pose.bodyY - state.land * 5;
       hips.position.x = pose.step;
       hips.rotation.y = pose.twist;
-      hips.rotation.z = -pose.lean;
+      // Lean: into the acceleration, back when braking, and banked into a turn.
+      const drive = mv ? mv.accel * 0.16 : 0;
+      const bank = mv ? mv.turn * 0.22 : 0;
+      hips.rotation.z = -(pose.lean + drive);
+      hips.rotation.x = bank;
+      pelvis.rotation.y = pose.hipTurn;
+      // The head keeps looking where you are aiming while the body turns.
+      head.rotation.y = pose.headTurn - pose.twist * 0.6;
 
       swing(arms[0].upper, pose.armA, pose.armAOut);
       arms[0].fore.rotation.z = pose.elbowA;
       swing(arms[1].upper, pose.armB, pose.armBOut);
       arms[1].fore.rotation.z = pose.elbowB;
 
-      const hipHeight = HIP_Y + pose.bodyY - state.land * 3.5;
+      const hipHeight = HIP_Y + pose.bodyY - state.land * 5;
       const feet = [pose.footNear, pose.footFar];
+      const rolls = [pose.footNearRoll, pose.footFarRoll];
       for (let i = 0; i < 2; i++) {
         const f = feet[i];
         const L = legs[i];
         const { hip, knee } = legAngles(f.x, -hipHeight + f.y + SOLE);
         swing(L.thigh, hip);
         L.shin.rotation.z = knee;
+        L.boot.rotation.z = rolls[i] || 0;      // heel down, then toe off
       }
 
       // The cloak trails whatever the body just did.
@@ -325,16 +349,21 @@ export function createPlayerActor(group) {
  * The whole body's pose for this frame, in one place.
  *
  * Arm angles: 0 hangs straight down, +90 degrees is straight forward, +180 is
- * straight overhead. `out` swings the arm away from the body. Elbows are
- * negative to fold the forearm inward, the way an elbow actually bends.
+ * straight overhead. `out` swings the arm away from the body.
+ *
+ * ELBOWS ARE POSITIVE. With the upper arm hanging, a positive rotation carries
+ * the forearm forward and up - which is the only way an elbow bends. Negative
+ * would hyperextend it backwards, which is what the first pass did to every
+ * pose in this file.
  */
 function bodyPose(p, extra, s) {
   const o = {
-    armA: 0.12, armAOut: 0.12, elbowA: -0.25,      // sword arm
-    armB: 0.1, armBOut: -0.12, elbowB: -0.3,       // off hand
+    armA: 0.12, armAOut: 0.12, elbowA: 0.25,      // sword arm
+    armB: 0.1, armBOut: -0.12, elbowB: 0.3,       // off hand
     twist: 0, lean: 0, step: 0, spin: 0, bodyY: 0,
-    roll: 0, rollLift: 0, cloak: 0,
+    roll: 0, rollLift: 0, cloak: 0, hipTurn: 0, headTurn: 0,
     footNear: { x: 4, y: 0 }, footFar: { x: -3.5, y: 0 },
+    footNearRoll: 0, footFarRoll: 0,
   };
 
   // --- legs and the body's carriage ---------------------------------------
@@ -351,14 +380,25 @@ function bodyPose(p, extra, s) {
     o.rollLift = Math.sin(k * Math.PI) * 8;
     o.footNear = { x: 8, y: 12 };
     o.footFar = { x: 1, y: 14 };
-    o.armA = 1.9; o.elbowA = -1.5;
-    o.armB = 2.0; o.elbowB = -1.6;
+    o.armA = 1.9; o.elbowA = 1.5;
+    o.armB = 2.0; o.elbowB = 1.6;
     o.bodyY = -5;
     o.cloak = -0.5;
     return o;
   }
   if (s.air) {
     const rising = s.mv ? s.mv.vz > 0 : false;
+    const push = s.mv ? s.mv.pushOff : 0;
+    if (push > 0.05) {
+      // The push-off: legs driving down, body stretched, arms thrown up.
+      o.footNear = { x: 2, y: 2 };
+      o.footFar = { x: -2, y: 1 };
+      o.bodyY = 3 * push;
+      o.armA = 0.9 + push * 0.6; o.armB = 1.0 + push * 0.7;
+      o.lean = 0.12;
+      o.cloak = -0.6;
+      return o;
+    }
     o.footNear = rising ? { x: 9, y: 12 } : { x: 6, y: 4 };
     o.footFar = rising ? { x: -5, y: 14 } : { x: -7, y: 6 };
     o.lean = rising ? 0.1 : -0.05;
@@ -375,9 +415,19 @@ function bodyPose(p, extra, s) {
     o.bodyY = BOB[s.frame] * (s.sprinting ? 1.4 : 1);
     o.lean = s.sprinting ? 0.22 : 0.06;
     o.cloak = s.sprinting ? -0.45 : -0.18;
-    // Arms counter-swing against the legs.
-    o.armA = 0.12 + o.footFar.x * 0.02;
-    o.armB = 0.1 + o.footNear.x * 0.025;
+    // The hips lead and the shoulders answer: the pelvis turns with the leg
+    // that is reaching, the chest counter-turns, and that opposition is most
+    // of what makes a walk look like a person rather than a doll on rails.
+    o.hipTurn = (o.footNear.x / reach) * (s.sprinting ? 0.22 : 0.13);
+    o.twist -= o.hipTurn * 1.5;
+    // Heel strikes first, toe pushes off last.
+    o.footNearRoll = -o.footNear.x * 0.035;
+    o.footFarRoll = -o.footFar.x * 0.035;
+    // Arms counter-swing against the legs, and the elbows bend as they come up.
+    o.armA = 0.12 + o.footFar.x * (s.sprinting ? 0.055 : 0.032);
+    o.armB = 0.1 + o.footNear.x * (s.sprinting ? 0.06 : 0.035);
+    o.elbowA = 0.25 + Math.max(0, o.footFar.x) * (s.sprinting ? 0.05 : 0.025);
+    o.elbowB = 0.3 + Math.max(0, o.footNear.x) * (s.sprinting ? 0.055 : 0.03);
   } else {
     // At rest: weight on one leg, a slow breath.
     o.bodyY = Math.sin(performance.now() * 0.0015) * 0.6;
@@ -402,8 +452,8 @@ function bodyPose(p, extra, s) {
 function swordArms(p, extra, o, s) {
   // A fighter's rest: bladed stance, weapon low and out, off hand forward.
   const guard = () => {
-    o.armA = 0.5; o.armAOut = 0.45; o.elbowA = -0.55;
-    o.armB = 0.55; o.armBOut = -0.5; o.elbowB = -0.9;
+    o.armA = 0.5; o.armAOut = 0.45; o.elbowA = 0.55;
+    o.armB = 0.55; o.armBOut = -0.5; o.elbowB = 0.9;
     o.twist += -0.22;
   };
   if (!s.air && !p.dashing && !p.dead) guard();
@@ -413,8 +463,8 @@ function swordArms(p, extra, o, s) {
     const k = extra.chargeFrac;
     o.armA = 2.1 + k * 0.55;
     o.armAOut = 0.55;
-    o.elbowA = -0.8 - k * 0.35;
-    o.armB = 0.9; o.armBOut = -0.7; o.elbowB = -1.2;
+    o.elbowA = 0.8 + k * 0.35;
+    o.armB = 0.9; o.armBOut = -0.7; o.elbowB = 1.2;
     o.twist = -0.45 - k * 0.4;
     o.lean = -0.12 - k * 0.1;
     o.step = -3.5 * k;
@@ -423,8 +473,8 @@ function swordArms(p, extra, o, s) {
   }
   if (extra.plunging) {
     // Both hands overhead, point down, waiting for the ground.
-    o.armA = 3.0; o.armAOut = 0.1; o.elbowA = -0.15;
-    o.armB = 2.85; o.armBOut = -0.25; o.elbowB = -0.3;
+    o.armA = 3.0; o.armAOut = 0.1; o.elbowA = 0.15;
+    o.armB = 2.85; o.armBOut = -0.25; o.elbowB = 0.3;
     o.lean = -0.2;
     o.cloak = -0.7;
     return;
@@ -439,8 +489,8 @@ function swordArms(p, extra, o, s) {
     // Hit three and the Rending Spin: the body turns through the blow with the
     // blade held out at the end of a straight arm.
     const turns = at.isSpecial ? 1.5 : 1;
-    o.armA = 1.55; o.armAOut = 0.9; o.elbowA = -0.1;
-    o.armB = 0.9; o.armBOut = -0.8; o.elbowB = -0.7;
+    o.armA = 1.55; o.armAOut = 0.9; o.elbowA = 0.1;
+    o.armB = 0.9; o.armBOut = -0.8; o.elbowB = 0.7;
     if (at.phase === 'windup') { o.spin = -0.6 * k; o.twist = -0.7 * k; o.lean = 0.08; }
     else if (at.phase === 'active') { o.spin = -0.6 - turns * Math.PI * 2 * k; o.lean = 0.16; }
     else {
@@ -457,14 +507,14 @@ function swordArms(p, extra, o, s) {
   if (at.phase === 'windup') {
     o.armA = 0.5 + 2.1 * k;                  // up and behind the head
     o.armAOut = (0.45 + 0.5 * k) * mirror;
-    o.elbowA = -0.55 - 0.5 * k;
+    o.elbowA = 0.55 + 0.5 * k;
     o.twist = -0.55 * k * mirror;
     o.lean = -0.08 * k;
     o.cloak = 0.2 * k;
   } else if (at.phase === 'active') {
     o.armA = 2.6 - 2.0 * k;                  // down through the arc
     o.armAOut = (0.95 - 1.5 * k) * mirror;
-    o.elbowA = -1.05 + 0.85 * k;
+    o.elbowA = 1.05 - 0.85 * k;
     o.twist = (-0.55 + 1.15 * k) * mirror;
     o.lean = 0.16 * Math.sin(k * Math.PI);
     o.step = 6 * k;
@@ -472,7 +522,7 @@ function swordArms(p, extra, o, s) {
   } else {
     o.armA = 0.6 + (0.5 - 0.6) * k;
     o.armAOut = (-0.55 + 1.0 * k) * mirror;
-    o.elbowA = -0.2 - 0.35 * k;
+    o.elbowA = 0.2 + 0.35 * k;
     o.twist = (0.6 * (1 - k)) * mirror;
     o.step = 6 * (1 - k);
   }
@@ -483,8 +533,8 @@ function genericArms(p, o) {
   const id = p.weapon ? p.weapon.id : '';
   const at = p.attack;
   if (p.aiming || (p.charging && id === 'bow')) {
-    o.armA = 1.55; o.armAOut = -0.15; o.elbowA = -0.1;
-    o.armB = 1.5; o.armBOut = -0.45; o.elbowB = -0.6;
+    o.armA = 1.55; o.armAOut = -0.15; o.elbowA = 0.1;
+    o.armB = 1.5; o.armBOut = -0.45; o.elbowB = 0.6;
     o.twist = -0.4;
     return;
   }
@@ -494,5 +544,5 @@ function genericArms(p, o) {
   if (at.phase === 'windup') { o.armA = 0.4 + 1.9 * k; o.twist = -0.4 * k; }
   else if (at.phase === 'active') { o.armA = 2.3 - 1.8 * k; o.twist = -0.4 + 0.8 * k; o.step = 5 * k; }
   else { o.armA = 0.5 + 0.2 * k; o.twist = 0.4 * (1 - k); }
-  o.elbowA = -0.3;
+  o.elbowA = 0.3;
 }
