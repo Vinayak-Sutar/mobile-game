@@ -34,12 +34,24 @@ export function buildWeapon(id, color) {
 
   switch (id) {
     case 'blade': {
-      add(new THREE.Mesh(new THREE.BoxGeometry(9, 3.4, 3.4), surfaceMat(LEATHER, TEX.cloth(), { rough: 0.9 })), 2, 0, 0);
-      add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 3, 13), metal(DARKSTEEL)), 7, 0, 0);
-      const blade = add(new THREE.Mesh(new THREE.BoxGeometry(42, 1.7, 6), metal(STEEL)), 29, 0, 0);
-      blade.geometry.translate(0, 0, 0);
-      const tip = add(new THREE.Mesh(new THREE.ConeGeometry(3, 10, 4), metal(STEEL)), 55, 0, 0);
-      tip.rotation.z = -Math.PI / 2;
+      // A longsword for a figure about 62 units tall: a 30-unit blade, wide
+      // enough to read as a blade at a distance, with a real crossguard, a
+      // leather grip and a pommel. The old one was a 52-unit needle six units
+      // wide, which hung from the fist like a white cane.
+      const steel = metal(0x9fb0c4), edge = metal(0xe8eef6), brass = metal(0xb9964a);
+      add(new THREE.Mesh(new THREE.SphereGeometry(2.4, 10, 8), brass), -2.5, 0, 0);
+      add(new THREE.Mesh(new THREE.BoxGeometry(9, 3.2, 3.6), surfaceMat(LEATHER, TEX.cloth(), { rough: 0.9 })), 2.5, 0, 0);
+      add(new THREE.Mesh(new THREE.BoxGeometry(2.6, 3.2, 17), brass), 8, 0, 0);
+      // The blade: a broad flat bar with a bright edge either side and a
+      // darker fuller down the middle.
+      add(new THREE.Mesh(new THREE.BoxGeometry(26, 2.4, 8.2), steel), 22, 0, 0);
+      add(new THREE.Mesh(new THREE.BoxGeometry(26, 2.6, 1.6), metal(0x6d7a8a)), 22, 0, 0);
+      for (const dz of [-3.9, 3.9]) {
+        add(new THREE.Mesh(new THREE.BoxGeometry(26, 1.4, 0.9), edge), 22, 0, dz);
+      }
+      const point = add(new THREE.Mesh(new THREE.ConeGeometry(4.1, 8, 4), steel), 39, 0, 0);
+      point.rotation.z = -Math.PI / 2;
+      point.scale.set(1, 1, 0.55);
       break;
     }
     case 'spear': {

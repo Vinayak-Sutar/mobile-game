@@ -167,8 +167,8 @@ export function createPlayerActor(group) {
   hair.position.set(-0.4, 7, 0);
   head.add(hair);
   // A shadowed face under the brim, with two catchlights for eyes.
-  const face = box(1.2, 3, 7, mat(0x2a211c));
-  face.position.set(4.2, 3.2, 0);
+  const face = box(1.1, 2.2, 5.4, mat(0x3a2e26));
+  face.position.set(4.25, 3.4, 0);
   head.add(face);
   for (const z of [-1.9, 1.9]) {
     const eye = box(0.7, 0.7, 1, mat(0x9fb4cc, { kind: 'basic' }));
@@ -254,8 +254,11 @@ export function createPlayerActor(group) {
       state.weaponId = w.id;
       if (state.weapon) hand.remove(state.weapon);
       state.weapon = buildWeapon(w.id, w.color);
-      // The grip sits in the fist, angled so the blade runs along the forearm.
+      // The grip sits in the fist, canted so the blade carries on up and out
+      // from the forearm rather than straight down it - a sword held at rest
+      // points away from the body, not at the floor like a walking stick.
       state.weapon.position.set(2.5, 0, 0);
+      state.weapon.rotation.z = w.id === 'blade' ? 0.28 : 0;
       hand.add(state.weapon);
       if (state.trail) state.trail.clear();
       else state.trail = createTrail(fxGroup, w.color);
@@ -452,8 +455,8 @@ function bodyPose(p, extra, s) {
 function swordArms(p, extra, o, s) {
   // A fighter's rest: bladed stance, weapon low and out, off hand forward.
   const guard = () => {
-    o.armA = 0.5; o.armAOut = 0.45; o.elbowA = 0.55;
-    o.armB = 0.55; o.armBOut = -0.5; o.elbowB = 0.9;
+    o.armA = 0.28; o.armAOut = 0.3; o.elbowA = 0.34;
+    o.armB = 0.22; o.armBOut = -0.16; o.elbowB = 0.5;
     o.twist += -0.22;
   };
   if (!s.air && !p.dashing && !p.dead) guard();
