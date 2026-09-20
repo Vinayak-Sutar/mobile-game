@@ -91,12 +91,16 @@ function buildStairs(group, s, heights) {
 
 /** A boulder: its 2D outline extruded and faceted, with a snow cap up high. */
 function buildRock(group, o, heights, terrain) {
-  const shape = new THREE.Shape();
-  o.poly.forEach(([px, py], i) => (i ? shape.lineTo(px, py) : shape.moveTo(px, py)));
-  shape.closePath();
-  const tall = Math.max(o.w, o.h) * rand(0.5, 0.8);
-  const geo = new THREE.ExtrudeGeometry(shape, { depth: tall, bevelEnabled: true, bevelSize: 4, bevelThickness: 5, bevelSegments: 1, steps: 1 });
-  geo.rotateX(-Math.PI / 2);
+  // A faceted lump: a coarse sphere squashed to the obstacle's footprint and
+  // knocked about, so no two boulders are the same shape.
+  const tall = Math.max(o.w, o.h) * rand(0.55, 0.85);
+  const geo = new THREE.IcosahedronGeometry(0.5, 1);
+  const gp = geo.attributes.position;
+  for (let i = 0; i < gp.count; i++) {
+    const j = 0.86 + Math.random() * 0.3;
+    gp.setXYZ(i, gp.getX(i) * o.w * j, Math.max(-0.1, gp.getY(i)) * tall * 2 * j, gp.getZ(i) * o.h * j);
+  }
+  geo.computeVertexNormals();
   const rock = new THREE.Mesh(geo, mat(WORLD.rock));
   const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
   rock.position.set(cx, heights.at(cx, cy) - 3, cy);

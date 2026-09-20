@@ -12,18 +12,37 @@
 
 import * as THREE from '../vendor/three.module.js';
 import { view } from '../../v5/src/state.js';
-import { NIGHT, SKY_LOW, SKY_TOP } from './palette.js';
+import { SKY_LOW, SKY_TOP } from './palette.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setClearColor(NIGHT, 1);
   renderer.shadowMap.enabled = false;              // contact shadows are decals
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const scene = new THREE.Scene();
-  // Distance haze in the ash colour, so the far edge of a level fades out
-  // instead of ending in a hard line.
-  scene.fog = new THREE.Fog(0x2a2434, 900, 2600);
+  // Distance haze in the colour of the horizon, so the land fades into the sky
+  // rather than ending in a hard line against the dark.
+  const HAZE = 0x6d6a72;
+  scene.fog = new THREE.Fog(HAZE, 700, 2400);
+  renderer.setClearColor(HAZE, 1);
+
+  // The sky: one big sphere seen from the inside, dark overhead and warm at the
+  // horizon, coloured per vertex so it costs one draw call and no texture.
+  const skyGeo = new THREE.SphereGeometry(3400, 16, 12);
+  const skyPos = skyGeo.attributes.position;
+  const skyCol = new Float32Array(skyPos.count * 3);
+  const top = new THREE.Color(SKY_TOP), low = new THREE.Color(SKY_LOW), c = new THREE.Color();
+  for (let i = 0; i < skyPos.count; i++) {
+    const t = Math.max(0, Math.min(1, (skyPos.getY(i) / 3400) * 1.6 + 0.35));
+    c.copy(low).lerp(top, t);
+    skyCol[i * 3] = c.r; skyCol[i * 3 + 1] = c.g; skyCol[i * 3 + 2] = c.b;
+  }
+  skyGeo.setAttribute('color', new THREE.BufferAttribute(skyCol, 3));
+  const skyDome = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({
+    vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false,
+  }));
+  skyDome.renderOrder = -10;
+  scene.add(skyDome);
 
   const camera = new THREE.PerspectiveCamera(55, 1, 1, 6000);
 

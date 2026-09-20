@@ -125,7 +125,10 @@ export function updateInput3d(p, reticle) {
   const b = rig.basis();
   let fwd = (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
   let side = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
-  if (pad.connected && (Math.abs(pad.move.x) > 0.001 || Math.abs(pad.move.y) > 0.001)) {
+  // A second gate over gamepad.js's own deadzone: a stick that rests
+  // off-centre (drift, or a controller lying on something) would otherwise
+  // walk the player across the meadow on its own.
+  if (pad.connected && Math.hypot(pad.move.x, pad.move.y) > 0.34) {
     side += pad.move.x;
     fwd -= pad.move.y;
   }

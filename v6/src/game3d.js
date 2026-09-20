@@ -169,7 +169,7 @@ function startDemo() {
   world.player.y = level.spawn.y;
   actor = createPlayerActor(stage.groups.actors);
 
-  rig.yaw = Math.PI;                  // looking north, up the meadow at the ridge
+  rig.yaw = 0;                        // the camera sits south, looking up the meadow
   rig.pitch = -0.2;
   rig.distWanted = 190;
 
