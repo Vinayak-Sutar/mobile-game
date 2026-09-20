@@ -4094,7 +4094,57 @@ height comes from `heights.js` and nothing else guesses.
 Not in yet: enemies, weapon meshes, projectile and effect visuals, hazard
 cues, lock-on, grass, the arenas.
 
-### 12. Glossary
+#### 17.4 Milestone 2 (2026-09-21): the Godot controller, and the sword
+
+The owner's own Godot project (`D:\Gadot	est\player.gd`) and an animation
+research document (`RPG Animation Workflow Research.docx`, in the repo root)
+are the references from here on. The document is a full taxonomy for a
+souls-like action RPG: locomotion, per-weapon combo chains, charged and
+jumping attacks, hit reactions, posture breaking and anti-cheese boss AI.
+Worth re-reading before any animation work.
+
+**From `player.gd`, kept in its own terms** (`move3d.js`):
+- camera-relative movement with acceleration 12 and the body turning toward
+  travel at 12;
+- walk 2.9 m/s, sprint 6.0 m/s (1 metre = 30 sim units), both eased;
+- jump 8.2 with gravity ×2.04 (a 1.6 m hop, measured), the rise cut to 0.45 on
+  release, coyote 0.12 s, jump buffer 0.15 s, air control 0.75, air drag 1.6.
+- Shift sprints and a tap of it rolls; Space jumps.
+
+**Fixed:**
+- **The legs bent backwards.** Two-bone IK has two solutions; the code took the
+  one that puts the knee behind the hip-to-foot line. `legAngles` now returns
+  the `a + b` branch with the shin folded the other way. Measured: the knee now
+  leads 6–13 units forward of that line, walking and idle.
+- **Movement felt reversed.** A gamepad stick resting off-centre (the owner's
+  DualSense sits at -0.51) was fighting the keys. The keyboard now always wins;
+  the pad is read only when no key is held and the stick is past 0.5.
+- **Restarting the demo left the old character** in the scene: `clearLevel`
+  now clears the actors, effects and overlay groups too.
+- Arms were hidden inside the coat; the body sat in the ground (the roll pivot
+  was zeroing the hip height).
+
+**The sword** (`combat3d.js` + `swordPose` in `actors3d.js`), the document's
+three kinds of attack:
+- **Light combo:** the simulation's own three-hit chain, one pose per hit -
+  hits 1 and 2 mirror each other so a combo reads as two different swings, and
+  hit 3 is the spin, which turns the whole figure.
+- **Charged:** hold the heavy button (right mouse). The blade winds back and is
+  held there, embers gathering; release fires the weapon's own special, and a
+  full wind-up also breaks the ground with a `groundSlam`.
+- **Jumping:** a press in the air is intercepted before the simulation sees it;
+  the blade goes overhead and waits for the ground, landing as a plunge
+  (`groundSlam`, radius 130).
+
+**Testing note:** the in-app preview browser freezes `requestAnimationFrame`
+while its pane is hidden, so the actor is never posed and every rig measurement
+reads the untransformed pose. `window.ashfall3d.draw()` runs one draw pass by
+hand; `.hold(key)` / `.letGo(key)` drive the keyboard. Always call
+`scene.updateMatrixWorld(true)` before reading a world position.
+
+**Next:** the bow (draw, hold, release, and a jumping shot), then enemies.
+
+## 12. Glossary
 
 | Term | Meaning |
 | --- | --- |

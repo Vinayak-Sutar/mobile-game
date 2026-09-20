@@ -102,7 +102,9 @@ export function createStage(canvas) {
     renderer, scene, camera, groups, sun, sky,
     /** Everything a level puts in the world, cleared when the level changes. */
     clearLevel() {
-      for (const key of ['ground', 'props', 'grass', 'decals']) {
+      // The actors and the effects go too: starting a second time otherwise
+      // leaves the old character standing in the meadow for ever.
+      for (const key of ['ground', 'props', 'grass', 'decals', 'actors', 'fx', 'overlay']) {
         const g = groups[key];
         for (let i = g.children.length - 1; i >= 0; i--) {
           const child = g.children[i];

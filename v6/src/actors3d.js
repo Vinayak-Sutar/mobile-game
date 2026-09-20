@@ -32,13 +32,20 @@ function footAt(u, reach, lift) {
   return { x: -reach + e * 2 * reach, y: Math.sin(v * Math.PI) * lift };
 }
 
-/** Knee angles for a hip-to-foot span, thigh and shin of fixed length. */
+/**
+ * Knee angles for a hip-to-foot span, thigh and shin of fixed length.
+ *
+ * Two-bone inverse kinematics always has two answers - the knee can bend
+ * either side of the line from hip to foot - and the wrong one gives a bird's
+ * backward knee. The body faces local +X, so the knee has to lead forward:
+ * that is the `a + b` branch, with the shin folding back the other way.
+ */
 function legAngles(dx, dy) {
   const d = Math.min(Math.hypot(dx, dy), THIGH + SHIN - 0.5);
   const a = Math.atan2(dy, dx);
   const b = Math.acos(clamp((THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * Math.max(d, 0.01)), -1, 1));
   const knee = Math.acos(clamp((THIGH * THIGH + SHIN * SHIN - d * d) / (2 * THIGH * SHIN), -1, 1));
-  return { hip: a - b, knee: Math.PI - knee };
+  return { hip: a + b, knee: -(Math.PI - knee) };
 }
 
 /** Woven cloth for the clothes, so the light finds a weave rather than a plane. */
@@ -54,17 +61,98 @@ function limb(len, thick, color) {
 }
 
 /**
+ * The sword, pose by pose, following the owner's animation notes: a light
+ * combo whose three hits each read differently, a charged blow held at the top
+ * of its wind-up, and a jumping attack that comes down as a plunge.
+ *
+ * Every pose is driven by the simulation's own attack state (which hit of the
+ * combo, which phase, how far through it), so the swing you see is the swing
+ * that has the hitbox.
+ */
+function swordPose(p, extra, out) {
+  const REST = 1.42;
+  const at = p.attack;
+
+  // Charged: wound back over the shoulder and held there, the blade low behind.
+  if (extra.charging) {
+    const k = extra.chargeFrac;
+    out.mainZ = REST - 1.2 - k * 1.4;
+    out.mainY = 0.5 + k * 0.55;
+    out.twist = -0.35 - k * 0.45;
+    out.lean = -0.1 - k * 0.12;
+    out.step = -4 * k;                     // weight shifts onto the back foot
+    return out;
+  }
+  // The jumping attack: both hands up, blade overhead, waiting for the ground.
+  if (extra.plunging) {
+    out.mainZ = -1.85;
+    out.mainY = 0.15;
+    out.twist = -0.2;
+    out.lean = -0.18;
+    out.offGrip = true;
+    return out;
+  }
+  if (!at) return out;
+
+  const total = Math.max(0.0001, (at.step[at.phase] || 0.0001) / p.stats.attackSpeed);
+  const k = 1 - Math.max(0, Math.min(1, at.t / total));       // 0 at the phase's start
+  const spin = !!at.step.spin;
+  const hit = at.index | 0;
+
+  if (spin) {
+    // The third hit and the Rending Spin: the whole body turns through the
+    // swing, blade held out at arm's length, and the feet cross under it.
+    const turns = at.isSpecial ? 1.6 : 1.0;
+    out.mainZ = 0.12;
+    out.mainY = -0.25;
+    if (at.phase === 'windup') { out.twist = -0.9 * k; out.lean = 0.05 + 0.1 * k; out.spin = -0.5 * k; }
+    else if (at.phase === 'active') { out.spin = -0.5 - turns * Math.PI * 2 * k; out.twist = -0.9 + 0.4 * k; }
+    else { out.spin = -0.5 - turns * Math.PI * 2; out.twist = -0.5 * (1 - k); out.mainZ = 0.12 + (1.42 - 0.12) * k; }
+    return out;
+  }
+
+  // Light hits. The first comes down from the right shoulder, the second
+  // answers it back across the body from the left, so a combo reads as two
+  // different swings rather than the same one twice.
+  const mirror = hit % 2 === 1 ? -1 : 1;
+  if (at.phase === 'windup') {
+    out.mainZ = 1.42 - 2.9 * k;                       // up and behind the head
+    out.mainY = (0.95 * k) * mirror;
+    out.twist = (-0.6 * k) * mirror;
+    out.lean = -0.06 * k;
+  } else if (at.phase === 'active') {
+    out.mainZ = -1.5 + 2.9 * k;                       // through the arc
+    out.mainY = (0.95 - 2.0 * k) * mirror;
+    out.twist = (-0.6 + 1.25 * k) * mirror;
+    out.lean = 0.12 * Math.sin(k * Math.PI);
+    out.step = 7 * k;                                  // the body follows the blade
+  } else {
+    out.mainZ = 1.4 + (1.42 - 1.4) * k;
+    out.mainY = (-1.05 * (1 - k)) * mirror;
+    out.twist = (0.65 * (1 - k)) * mirror;
+    out.step = 7 * (1 - k);
+  }
+  return out;
+}
+
+/**
  * Where the arms are this frame. The attack state machine gives the phase and
  * how far through it we are; each family of weapon reads that differently - a
  * blade winds up over the shoulder and sweeps down, a spear pulls back and
  * thrusts, a maul is slower and heavier, a gun kicks.
  */
-function armPose(p) {
+function armPose(p, extra) {
   const REST = 1.42;
-  const out = { mainZ: REST, mainY: 0, offZ: 0, offY: 0, twist: 0, offGrip: false };
+  const out = {
+    mainZ: REST, mainY: 0, offZ: 0, offY: 0, twist: 0, offGrip: false,
+    lean: 0, step: 0, spin: 0,
+  };
   const id = p.weapon ? p.weapon.id : 'blade';
   const twoHanded = id === 'maul' || id === 'longarm' || id === 'spear';
   out.offGrip = twoHanded;
+
+  // The blade has its own hand-authored set (light combo, charged, plunge).
+  if (id === 'blade') return swordPose(p, extra, out);
 
   // Aiming down a scope or drawing a bow: brought up and held.
   if (p.aiming || (p.charging && id === 'bow')) {
@@ -243,8 +331,11 @@ export function createPlayerActor(group) {
       else state.trail = createTrail(fxGroup, w.color);
       state.trail.mesh.material.color.setHex(w.color);
     },
-    /** p: the simulation's player. mv: the mover (move3d.js). */
-    update(p, dt, heights, mv) {
+    /**
+     * p: the simulation's player. mv: the mover (move3d.js).
+     * extra: { charging, chargeFrac, plunging } from combat3d.js.
+     */
+    update(p, dt, heights, mv, extra) {
       const ground = heights.at(p.x, p.y);
       node.position.set(p.x, ground + (p.z || 0), p.y);
       shadow.position.set(p.x, ground + 0.7, p.y);
@@ -252,9 +343,6 @@ export function createPlayerActor(group) {
       const lift = (p.z || 0);
       shadow.material.opacity = 0.5 / (1 + lift / 55);
       shadow.scale.setScalar(1 / (1 + lift / 130));
-      // Built facing local +X: the body turns toward where it is travelling
-      // (the Godot controller's rule), not toward the camera.
-      node.rotation.y = -(mv ? mv.face : p.aimAngle);
 
       const air = !!(p.hop || p.leap || (mv && !mv.grounded) || (p.z || 0) > 0.5);
       // Landing compresses the legs for a moment; a hit jolts the body.
@@ -335,12 +423,17 @@ export function createPlayerActor(group) {
       // At rest they hang and swing against the legs. During an attack the
       // weapon arm is driven by the simulation's own state machine, so what you
       // see is exactly the swing that deals the damage.
-      const A = armPose(p);
+      const A = armPose(p, extra || {});
       armL.rotation.z = A.offZ + (A.offGrip ? 0 : 1.42 - far.x * 0.03);
       armL.rotation.y = A.offY;
       armR.rotation.z = A.mainZ;
       armR.rotation.y = A.mainY;
       hips.rotation.y = A.twist;
+      // A swing carries the body with it: the shoulders lean into the arc, the
+      // hips step through it, and a spin turns the whole figure.
+      if (A.lean) hips.rotation.z -= A.lean;
+      hips.position.x = A.step || 0;
+      node.rotation.y = -(mv ? mv.face : p.aimAngle) + (A.spin || 0);
       if (A.offGrip && state.weapon) {
         // Both hands on it: the off hand reaches for the grip.
         armL.rotation.z = A.mainZ * 0.85;

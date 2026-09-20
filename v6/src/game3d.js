@@ -36,6 +36,7 @@ import {
   initInput3d, updateInput3d, releaseLook, requestLook, state3d, keys3d, want, endFrame3d, heldKeys,
 } from './input3d.js';
 import { createMover, updateMove, MOVE } from './move3d.js';
+import { createCombat, updateCombat3d, chargeFrac } from './combat3d.js';
 import {
   buildHud, hideOverlay, hudToast, hudVisible, overlayVisible, setFps, setHint, showFps, showOverlay, updateHud,
 } from './hud3d.js';
@@ -49,6 +50,7 @@ const rig = createCameraRig(stage.camera);
 let level = null;
 let actor = null;
 let mover = createMover();
+let combat = createCombat();
 let state = 'title';          // title | playing | paused
 let accumulator = 0;
 let last = performance.now();
@@ -174,6 +176,7 @@ function startDemo() {
   world.player.y = level.spawn.y;
   mover = createMover();
   mover.face = Math.PI / 2;
+  combat = createCombat();
   actor = createPlayerActor(stage.groups.actors);
   actor.setWeapon(WEAPONS[weaponIndex], stage.groups.fx);
 
@@ -239,6 +242,11 @@ function tick(dt) {
   // sprinting, jumping thing the simulation then walks with.
   if (state === 'playing' && world.player && level) {
     updateMove(mover, world.player, dt, want, keys3d, level.heights, world.runTime);
+    // The charged blow and the jumping plunge live in V6's own layer; they
+    // read the buttons before the simulation sees them.
+    updateCombat3d(combat, world.player, dt, mover, {
+      light: input.attack, heavy: state3d.aiming,
+    });
   }
 
   if (state === 'playing' && input.pausePressed) {
@@ -277,7 +285,11 @@ function draw(dt) {
   const t = world.runTime;
   if (actor && world.player && level) {
     actor.setWeapon(world.player.weapon, stage.groups.fx);
-    actor.update(world.player, STEP, level.heights, mover);
+    actor.update(world.player, STEP, level.heights, mover, {
+      charging: combat.charging,
+      chargeFrac: chargeFrac(combat),
+      plunging: combat.plunging,
+    });
   }
 
   if (level && world.player) {
@@ -355,6 +367,11 @@ window.ashfall3d = {
   tp: (x, y) => { world.player.x = x; world.player.y = y; },
   speed: (v) => { tuning.speed = clamp(v, 0.3, 2); },
   mover: () => mover,
+  combat: () => combat,
+  actor: () => actor,
+  // Run one draw pass by hand. The preview browser freezes requestAnimationFrame
+  // while its pane is hidden, so a test has to drive the picture itself.
+  draw: (dt = STEP) => draw(dt),
   keys: keys3d,
   want,
   // Drive the keyboard by hand, for testing without a window in focus.
