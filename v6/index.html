@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#08060d">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon.svg">
+<title>Ashfall 3D — Version 6</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308060d'/%3E%3Cpath d='M16 5l3.6 8.2L28 16l-8.4 2.8L16 27l-3.6-8.2L4 16l8.4-2.8z' fill='%23ff8a3d'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#08060d;
+    --ink:#f2ecff;
+    --dim:#9a90b5;
+    --gold:#ffc861;
+    --blood:#ff4d5e;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;overflow:hidden;
+    background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",Roboto,-apple-system,system-ui,sans-serif;
+    overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none;
+  }
+  #game{display:block;width:100%;height:100%;touch-action:none}
+
+  #overlay{
+    position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;
+    padding:16px;z-index:10;
+    background:radial-gradient(ellipse at center,rgba(20,12,34,.82),rgba(4,3,8,.95));
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    overflow-y:auto;
+  }
+  #overlay.on{display:flex}
+  /* margin:auto centres the panel when it fits and top-aligns it when it's
+     taller than the screen. Flex align-items:center pushed the top of a tall
+     panel above the viewport, out of scroll reach, on landscape phones. */
+  .panel{width:100%;max-width:900px;margin:auto;text-align:center;animation:rise .28s cubic-bezier(.2,.9,.3,1.2)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+
+  .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  h1{margin:0 0 4px;font-size:clamp(30px,7vw,54px);letter-spacing:.12em;text-transform:uppercase;
+     background:linear-gradient(180deg,#fff5e0,#ff9a4d 60%,#c8354f);
+     -webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+  h2{margin:0 0 14px;font-size:clamp(18px,4.2vw,28px);letter-spacing:.06em;font-weight:700}
+  .sub{color:var(--dim);font-size:13px;line-height:1.55;margin:0 auto 18px;max-width:520px}
+
+  .cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .card{
+    flex:1 1 200px;max-width:250px;min-height:132px;padding:14px;cursor:pointer;
+    background:linear-gradient(170deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+    border:1px solid rgba(255,255,255,.13);border-radius:14px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+    transition:transform .12s,border-color .12s,background .12s;
+  }
+  .card:active{transform:scale(.96)}
+  .card:hover{border-color:rgba(255,255,255,.4);background:linear-gradient(170deg,rgba(255,255,255,.12),rgba(255,255,255,.03))}
+  .card .glyph{font-size:30px;line-height:1}
+  .card .name{font-weight:700;font-size:15px;letter-spacing:.04em}
+  .card .desc{font-size:12px;color:var(--dim);line-height:1.45}
+  .card .tag{font-size:10px;letter-spacing:.18em;text-transform:uppercase;opacity:.8}
+  .card.rare{border-color:rgba(255,200,97,.5);box-shadow:0 0 22px rgba(255,180,60,.14) inset}
+
+  .btn{
+    display:inline-block;margin:6px;padding:13px 30px;cursor:pointer;
+    background:linear-gradient(180deg,#ff9a4d,#d8433f);color:#1a0d08;
+    border:0;border-radius:11px;font-weight:800;font-size:15px;letter-spacing:.1em;text-transform:uppercase;
+    transition:transform .1s,filter .1s;font-family:inherit;
+  }
+  .btn:active{transform:scale(.95)}
+  .btn.ghost{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.28)}
+  .row{margin-top:16px}
+
+  .stats{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
+  .stat b{display:block;font-size:24px;color:var(--gold)}
+  .stat span{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+
+  .mirror{display:flex;flex-direction:column;gap:8px;max-width:460px;margin:0 auto}
+  .mrow{display:flex;align-items:center;gap:12px;padding:11px 14px;text-align:left;
+        background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:11px}
+  .mrow .mname{flex:1}
+  .mrow .mname b{display:block;font-size:14px}
+  .mrow .mname i{font-style:normal;font-size:11.5px;color:var(--dim)}
+  .pips{display:flex;gap:3px}
+  .pip{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.16)}
+  .pip.on{background:var(--gold);box-shadow:0 0 7px rgba(255,200,97,.7)}
+  .buy{padding:8px 13px;border-radius:9px;border:1px solid rgba(255,200,97,.45);background:rgba(255,200,97,.1);
+       color:var(--gold);font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit}
+  .buy:disabled{opacity:.32;cursor:default}
+  .keys{font-size:11px;color:var(--dim);margin-top:14px;line-height:1.7}
+  kbd{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:4px;padding:1px 6px;font-size:10.5px}
+
+  /* Biome cards show a real tile of their own floor, dimmed so the text reads. */
+  .biomecard{
+    position:relative;overflow:hidden;min-height:150px;
+    background-size:96px 96px;background-repeat:repeat;
+    padding:0;justify-content:flex-end;
+  }
+  .biomeveil{
+    position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(8,6,13,.35) 0%,rgba(8,6,13,.86) 62%,rgba(8,6,13,.95) 100%);
+  }
+  .biometext{position:relative;z-index:1;padding:12px 14px;width:100%;text-align:center}
+  .biometext .desc{margin-top:4px}
+
+  .padfocus{
+    outline:2px solid var(--gold);outline-offset:3px;
+    box-shadow:0 0 0 4px rgba(255,200,97,.16),0 0 22px rgba(255,200,97,.28);
+    border-color:rgba(255,200,97,.75)!important;
+  }
+  .card.padfocus{transform:translateY(-3px)}
+
+  .volrow{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .vollabel{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}
+  .volbtn{width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.28);background:transparent;
+          color:var(--ink);font-size:22px;line-height:1;cursor:pointer;font-family:inherit}
+  .volbtn:active{transform:scale(.92)}
+  .volval{min-width:44px;text-align:left;font-weight:700;color:var(--gold);font-size:14px}
+  #musicvol{width:min(220px,46vw);accent-color:#ff9a4d;touch-action:manipulation}
+
+  /* Version switch on the title screen: Version 1 (8 chambers) lives in ./v1/. */
+  .versions{display:flex;justify-content:center;gap:8px;margin:0 auto 14px;flex-wrap:wrap}
+  .ver{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:150px;padding:8px 16px;
+       border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--dim);
+       font:inherit;font-weight:800;font-size:13px;letter-spacing:.06em;cursor:pointer}
+  .ver small{font-weight:600;font-size:10.5px;letter-spacing:.04em;opacity:.8}
+  .ver.on{color:var(--gold);border-color:rgba(255,200,97,.6);background:rgba(255,200,97,.08);cursor:default}
+  .ver:not(.on):active{transform:scale(.96)}
+  /* Version 5 Training Ground. */
+  .tgsec{margin:14px 0 4px;font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
+  .tgw{flex:1 1 120px;max-width:170px;min-height:84px;padding:10px;gap:4px}
+  .tgw.on{border-color:rgba(255,200,97,.75);background:linear-gradient(170deg,rgba(255,200,97,.16),rgba(255,255,255,.03))}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;justify-content:center}
+  .chip{
+    position:relative;display:flex;align-items:center;gap:7px;cursor:pointer;
+    padding:8px 12px;border-radius:11px;border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.04);transition:transform .1s,border-color .12s,background .12s;
+  }
+  .chip:active{transform:scale(.95)}
+  .chip.on{border-color:var(--c);background:color-mix(in srgb, var(--c) 18%, transparent)}
+  .chip .sg{font-size:17px;line-height:1}
+  .chip .sn{font-weight:700;font-size:12.5px}
+  .chip .sm{font-size:10px;color:var(--dim);letter-spacing:.06em}
+  .chip .lv{
+    margin-left:2px;padding:3px 7px;border-radius:7px;cursor:pointer;font:inherit;
+    font-size:10px;font-weight:800;letter-spacing:.08em;
+    border:1px solid rgba(255,255,255,.3);background:rgba(0,0,0,.35);color:var(--ink);
+  }
+  .chip .slot{
+    position:absolute;top:-7px;left:-7px;width:18px;height:18px;border-radius:50%;
+    background:var(--c);color:#0b0812;font-size:10px;font-weight:900;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .tgl{
+    display:inline-block;margin:4px;padding:9px 16px;border-radius:10px;cursor:pointer;
+    border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.04);
+    color:var(--dim);font:inherit;font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;
+  }
+  .tgl.on{border-color:rgba(142,240,255,.7);background:rgba(142,240,255,.14);color:#8ef0ff}
+
+  /* Version 5 spell slots in the pause menu: drag, tap or hover-and-key to rearrange. */
+  .slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;touch-action:none}
+  .sslot{
+    position:relative;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:grab;
+    width:112px;padding:10px 6px 8px;border-radius:12px;user-select:none;-webkit-user-select:none;
+    border:1px solid color-mix(in srgb, var(--c, #fff) 45%, transparent);
+    background:linear-gradient(170deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+    transition:transform .12s,border-color .12s,background .12s,box-shadow .12s;
+  }
+  .sslot:hover{transform:translateY(-2px);border-color:var(--c)}
+  .sslot.sel{border-color:var(--c);box-shadow:0 0 0 2px var(--c) inset,0 0 18px color-mix(in srgb, var(--c) 40%, transparent)}
+  .sslot.over{transform:scale(1.06);border-color:#fff;background:rgba(255,255,255,.12)}
+  .sslot.lifted{opacity:.35}
+  .sslot.empty{opacity:.35;border-style:dashed;cursor:default;--c:#fff}
+  .sslot .sk{position:absolute;top:5px;left:7px;font-size:10px;font-weight:800;color:var(--dim)}
+  .sslot .sg{font-size:24px;line-height:1.1}
+  .sslot .sn{font-size:11.5px;font-weight:700;text-align:center}
+  .sslot .sl{font-size:8px;letter-spacing:2px;color:var(--c)}
+  .sslot.ghost{position:fixed;z-index:100;pointer-events:none;transform:scale(1.08) rotate(-2deg);
+    box-shadow:0 10px 30px rgba(0,0,0,.5);opacity:.95;cursor:grabbing}
+
+  /* Version 4 spell cards. */
+  .spellcard{min-height:150px}
+  .spellcard .desc{font-size:11.5px}
+
+  /* Upright-phone fallback where the landscape lock isn't available. */
+  #rotate{
+    position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:16px;background:var(--bg);text-align:center;padding:30px;
+    font-size:15px;letter-spacing:.04em;
+  }
+  #rotate.on{display:flex}
+  #rotate .ph{width:52px;height:88px;border:3px solid var(--ink);border-radius:9px;animation:tilt 1.6s ease-in-out infinite}
+  @keyframes tilt{0%,40%{transform:rotate(0)}70%,100%{transform:rotate(-90deg)}}
+
+  /* Narrow (upright phone) screens: menus stay usable before a run starts,
+     two cards per row instead of one tall column. */
+  @media (max-width: 560px){
+    #overlay{padding:12px 10px}
+    .card{flex:1 1 140px;min-height:112px;padding:11px}
+    .biomecard{min-height:124px}
+    .btn{padding:12px 20px;font-size:14px}
+    .keys{font-size:10px}
+  }
+
+  /* --- Version 6 (3D) ------------------------------------------------------ */
+  /* The HUD is DOM rather than canvas: sharp text, no font work in WebGL. */
+  #hud{position:fixed;inset:0;z-index:5;pointer-events:none;display:none}
+  #hud.on{display:block}
+  #fps{position:fixed;top:6px;left:8px;z-index:6;font:11px/1.5 ui-monospace,Consolas,monospace;
+       color:var(--dim);white-space:pre;pointer-events:none;display:none}
+  #fps.on{display:block}
+  .hint{position:fixed;left:0;right:0;bottom:18px;z-index:6;text-align:center;
+        font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);pointer-events:none}
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="overlay"></div>
+  <div id="hud"></div>
+  <div id="fps"></div>
+  <script type="module" src="./src/game3d.js"></script>
+</body>
+</html>

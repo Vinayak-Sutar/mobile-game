@@ -1,0 +1,21 @@
+{
+  "name": "Ashfall 3D — Version 6",
+  "short_name": "Ashfall 3D",
+  "description": "A third-person 3D action demo built on Ashfall.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#08060d",
+  "theme_color": "#08060d",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

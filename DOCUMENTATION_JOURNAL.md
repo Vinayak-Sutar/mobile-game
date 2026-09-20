@@ -4008,7 +4008,93 @@ Guardian.
 
 ---
 
-## 12. Glossary
+## 17. Version 6 (`v6/`) — a 3D demo on the 2D simulation (started 2026-09-20)
+
+A standalone experiment, agreed with the owner: the 2D game (V5) stays the
+mobile product; V6 asks whether the same game works in 3D on the web. Scope is
+a demo — a few levels, movement and weapons. **No bosses.** Desktop only;
+mobile performance is explicitly out of scope.
+
+### 17.1 The decisions behind it
+
+- **Three.js r169, vendored** at `v6/vendor/three.module.js` (1.3 MB, tracked;
+  `three.module.min.js` sits beside it). Installed once with
+  `npm i --no-save three@0.169.0` and copied from `node_modules/three/build/`.
+  Nothing is fetched at runtime and there is still no build step.
+- **Third-person free-look camera** with **Elden Ring-style aiming**:
+  camera-relative movement, lock-on, over-the-shoulder aim for the guns, the
+  dash read as a dodge roll. (Owner's choice over a fixed 3/4 camera.)
+- **V6 imports V5's simulation across the folder boundary**
+  (`../../v5/src/…`), so there is one copy of the simulation and no drift.
+  V5 was touched once: a sixth button in `versionRow()`.
+- **V6 gets its own enemies, designed for 3D** (owner: they need not match the
+  2D roster). So `enemies.js` — and with it `bosses.js` and fourteen boss
+  modules — is not imported at all.
+- `rooms.js`, `ui.js`, `overworld.js` and `texture.js` are not imported either:
+  their layout and camera maths are 2D-viewport concepts.
+
+### 17.2 The seam that makes it cheap
+
+The simulation reads exactly four things from `input`: `move`, `aim`,
+`aimActive` and `grenadeAbs` (see `aimAngle()`, `v5/src/player.js:117`). So
+`input3d.js` writes those from the camera's point of view and
+`player.js`, `weapons.js`, `spells.js`, `grenade.js`, `combat.js`,
+`projectiles.js` and `hazards.js` need **no edits**. V5's own
+`initInput`/`updateInput` are never called (they measure a 2D canvas);
+`endFrameInput` is reused as-is.
+
+`input.aimActive` is true every frame, which permanently bypasses the soft
+auto-aim inside `aimAngle()` — that branch is for touch steering.
+`input.padMode` is kept false, because `spells.js:395` refuses
+reticle-placed spells when it is set.
+
+The simulation's `(x, y)` plane is the world's `(x, z)`; height is `y`. Every
+height comes from `heights.js` and nothing else guesses.
+
+### 17.3 Milestone 1 (built 2026-09-20): the world, the camera, the character
+
+`v6/` holds `index.html` (canvas + the V5 menu CSS + a DOM HUD), `sw.js`
+(cache prefix `ashfall-v6-`), `manifest.json`, `icon.svg`, `vendor/`, and
+`src/`:
+- `renderer.js` — renderer, scene, sun plus sky light, ash fog, seven named
+  groups (ground, props, grass, decals, actors, fx, overlay), resize (which
+  keeps `view` up to date because input reads it), context-loss logging.
+- `camera3d.js` — the spring arm: yaw/pitch (clamped), distance 70–420, a
+  critically damped pivot at shoulder height, pull-in when the view is
+  blocked, and `fx.trauma` converted from the 2D game's screen-pixel shake
+  into camera-local offsets scaled by distance and field of view.
+- `input3d.js` — pointer-lock mouse look, WASD in camera space, the pad's
+  right stick, and the `input` contract above.
+- `heights.js` — `at(x, y)`: the plateau step (52 units) or a staircase ramp,
+  plus micro-relief from `fbm`, rougher on rock and snow.
+- `levels3d.js` — the Ember Meadow, 1600×1200, hand-authored in V5's
+  vocabulary: a ridge with one staircase and a hop-down face, a pond with one
+  dash channel, a ruined road, eight boulders with their `poly` outlines,
+  ~54 trees, and a `classify` fed to `createTerrain` (only `typeAt`/`roadAt`
+  are used — the pixel painter is never called, so no canvas is allocated).
+- `terrain3d.js` — chunked (256-unit) non-indexed flat-shaded ground at an
+  8-unit vertex pitch, vertex-coloured from `TERRAIN_RGB` with the painter's
+  own relief light and worn roads baked in; water planes rippled by two sines.
+- `props3d.js` — cliff faces with a ground-coloured lip and strata, real
+  nine-unit stairs with cheek walls, boulders extruded from their 2D outline
+  with snow caps, broken walls, pines and broadleaf trees that sway near the
+  camera.
+- `actors3d.js` — the player as primitives (hips, coat, bedroll, head, straw
+  hat, two arms, two IK legs), running the 2D Wanderer's eight-pose walk, with
+  a tumble on the dodge roll and a disc shadow.
+- `palette.js` — the V5 colours plus a material cache (flat-shaded materials
+  must be shared or the draw-call count explodes) and the inverted-hull
+  outline helper, which is `drawSkeleton`'s `grow: 1.5` dark pass in 3D.
+- `hud3d.js` — DOM HUD (health with its lagging ghost, dash and grenade pips,
+  toasts, hint line) and V6's own `showOverlay`/`hideOverlay`/`overlayVisible`.
+- `game3d.js` — the loop with V5's tick order, the title and pause screens,
+  the ground reticle for placed throws, the camera's occlusion test (analytic
+  against the same rectangles, no ray casts), and `window.ashfall3d`.
+
+Not in yet: enemies, weapon meshes, projectile and effect visuals, hazard
+cues, lock-on, grass, the arenas.
+
+### 12. Glossary
 
 | Term | Meaning |
 | --- | --- |
