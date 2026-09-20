@@ -14,8 +14,8 @@ import * as THREE from '../vendor/three.module.js';
 
 /** The outline and shadow ink: everything dark in the game is this colour. */
 export const INK = 0x1b130f;
-export const SKY_TOP = 0x2a3550;
-export const SKY_LOW = 0x6a5a58;
+export const SKY_TOP = 0x3f74c8;        // the zenith on a clear day
+export const SKY_LOW = 0xe6d2ae;        // the warm band at the horizon
 export const NIGHT = 0x08060d;          // the menus' background, and the fog's far end
 
 // The nine terrain types, in the order of terrain.js's TT enum.
@@ -47,6 +47,28 @@ export const WORLD = {
 };
 
 const cache = new Map();
+
+/**
+ * A surface with texture: colour, normal and roughness maps from
+ * textures3d.js, lit as a physical material so the light rakes across the
+ * bumps. `tex` is one of TEX's sets; `tile` is how many times it repeats over
+ * a hundred world units.
+ */
+export function surfaceMat(color, tex, opts = {}) {
+  const { rough = 0.9, metal = 0, tile = 1, normalScale = 1, flat = false, vertexColors = false } = opts;
+  const key = `s|${color}|${tex ? tex.map.uuid : 'none'}|${rough}|${metal}|${tile}|${normalScale}|${flat}|${vertexColors}`;
+  let m = cache.get(key);
+  if (m) return m;
+  m = new THREE.MeshStandardMaterial({
+    color, roughness: rough, metalness: metal, flatShading: flat, vertexColors,
+    map: tex ? tex.map : null,
+    normalMap: tex ? tex.normalMap : null,
+    roughnessMap: tex ? tex.roughnessMap : null,
+  });
+  if (tex && m.normalMap) m.normalScale.set(normalScale, normalScale);
+  cache.set(key, m);
+  return m;
+}
 
 /**
  * A shared material. Flat shading by default, because the facets catching the

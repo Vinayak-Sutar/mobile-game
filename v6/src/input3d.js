@@ -33,12 +33,21 @@ export const state3d = {
   pointerLocked: () => locked,
 };
 
+// Keyboard roles. Space is the jump now, and the dodge roll moved onto Shift:
+// a tap rolls, holding it sprints - the way a soulslike puts both on one
+// button, so the hand never leaves the movement keys.
 const KEY_ROLE = {
   j: 'attack', e: 'attack',
-  k: 'special', shift: 'special',
-  ' ': 'dash',
+  k: 'special',
   q: 'grenade',
 };
+const SHIFT_TAP = 0.22;          // held shorter than this: a roll, not a sprint
+
+/** What the mover needs to know each tick. */
+export const keys3d = { jump: false, jumpHeld: false, jumpCut: false, sprint: false, sprintHeld: false };
+/** The held keys, exposed for the console handle. */
+export const heldKeys = keys;
+let shiftDown = 0;
 
 export function initInput3d(canvas, cameraRig, hooks = {}) {
   canvasEl = canvas;
@@ -75,6 +84,8 @@ export function initInput3d(canvas, cameraRig, hooks = {}) {
     if (k === ' ' || k === 'tab') ev.preventDefault();
     const role = KEY_ROLE[k];
     if (role) press(role);
+    if (k === ' ') { keys3d.jump = true; keys3d.jumpHeld = true; }
+    if (k === 'shift') shiftDown = performance.now() * 0.001;
     if (k === 'r') input.reloadPressed = true;
     if (k === 'tab') state3d.lockPressed = true;
     if (k >= '1' && k <= '4') input.spellCast = Number(k) - 1;
@@ -86,9 +97,18 @@ export function initInput3d(canvas, cameraRig, hooks = {}) {
     keys.delete(k);
     const role = KEY_ROLE[k];
     if (role) release(role);
+    // Godot cuts the rise on release, once - not every frame the key is up.
+    if (k === ' ') { keys3d.jumpHeld = false; keys3d.jumpCut = true; }
+    if (k === 'shift') {
+      // Let go quickly and it was a roll; held, it was a sprint that has ended.
+      if (performance.now() * 0.001 - shiftDown < SHIFT_TAP) press('dash');
+      shiftDown = 0;
+    }
   });
   window.addEventListener('blur', () => {
     keys.clear();
+    shiftDown = 0;
+    keys3d.jumpHeld = false;
     for (const role of ['attack', 'special', 'dash', 'grenade']) release(role);
   });
 }
@@ -105,6 +125,8 @@ function release(role) {
  * Called at the top of every tick, before the simulation runs.
  * `reticle()` returns the ground point the camera is looking at, or null.
  */
+export const want = { x: 0, y: 0 };
+
 export function updateInput3d(p, reticle) {
   // --- the camera: mouse look, stick look, zoom -------------------------------
   if (lookDX || lookDY) { rig.look(lookDX, lookDY); lookDX = 0; lookDY = 0; }
@@ -115,6 +137,8 @@ export function updateInput3d(p, reticle) {
     if (pad.attackPressed) { input.attackPressed = true; pad.attackPressed = false; }
     if (pad.specialPressed) { input.specialPressed = true; pad.specialPressed = false; }
     if (pad.dashPressed) { input.dashPressed = true; pad.dashPressed = false; }
+    if (pad.jumpPressed) { keys3d.jump = true; pad.jumpPressed = false; }
+    keys3d.jumpHeld = keys3d.jumpHeld || !!pad.jump;
     if (pad.grenadePressed) { input.grenadePressed = true; pad.grenadePressed = false; }
     if (pad.reloadPressed) { input.reloadPressed = true; pad.reloadPressed = false; }
     if (pad.spellPressed !== null) { input.spellCast = pad.spellPressed; pad.spellPressed = null; }
@@ -125,10 +149,12 @@ export function updateInput3d(p, reticle) {
   const b = rig.basis();
   let fwd = (keys.has('w') ? 1 : 0) - (keys.has('s') ? 1 : 0);
   let side = (keys.has('d') ? 1 : 0) - (keys.has('a') ? 1 : 0);
-  // A second gate over gamepad.js's own deadzone: a stick that rests
-  // off-centre (drift, or a controller lying on something) would otherwise
-  // walk the player across the meadow on its own.
-  if (pad.connected && Math.hypot(pad.move.x, pad.move.y) > 0.34) {
+  // The keyboard always wins. A stick that rests off-centre (this project's
+  // own test pad sits at -0.51) would otherwise fight every key press and make
+  // the controls feel reversed, so the pad is only read when no key is held
+  // and the stick is pushed well past any plausible drift.
+  const onKeys = fwd !== 0 || side !== 0;
+  if (!onKeys && pad.connected && Math.hypot(pad.move.x, pad.move.y) > 0.5) {
     side += pad.move.x;
     fwd -= pad.move.y;
   }
@@ -136,8 +162,11 @@ export function updateInput3d(p, reticle) {
   let my = b.fy * fwd + b.ry * side;
   const mag = Math.hypot(mx, my);
   if (mag > 1) { mx /= mag; my /= mag; }
-  input.move.x = mx;
-  input.move.y = my;
+  // move3d.js turns this into the eased, sprinting vector the simulation reads.
+  want.x = mx;
+  want.y = my;
+  keys3d.sprintHeld = shiftDown > 0 && performance.now() * 0.001 - shiftDown >= SHIFT_TAP;
+  keys3d.sprint = keys3d.sprintHeld;
 
   // --- aim: the way the camera looks, on the ground ---------------------------
   // (Lock-on will override this in a later milestone.)
@@ -157,6 +186,12 @@ export function updateInput3d(p, reticle) {
   // touch layout is not in play at all here.
   input.touchMode = false;
   input.padMode = false;
+}
+
+/** Clear the one-frame edges this module owns, at the end of a tick. */
+export function endFrame3d() {
+  keys3d.jump = false;
+  keys3d.jumpCut = false;
 }
 
 export function requestLook() {

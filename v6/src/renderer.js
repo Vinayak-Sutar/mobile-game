@@ -16,14 +16,20 @@ import { SKY_LOW, SKY_TOP } from './palette.js';
 
 export function createStage(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.shadowMap.enabled = false;              // contact shadows are decals
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // Filmic tone mapping: highlights roll off instead of blowing out to white,
+  // which is most of the difference between "a WebGL demo" and "a game".
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  // Real sun shadows, softened. Desktop only, so this is affordable.
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
   // Distance haze in the colour of the horizon, so the land fades into the sky
   // rather than ending in a hard line against the dark.
-  const HAZE = 0x6d6a72;
-  scene.fog = new THREE.Fog(HAZE, 700, 2400);
+  const HAZE = 0xc3c8cc;
+  scene.fog = new THREE.Fog(HAZE, 900, 3000);
   renderer.setClearColor(HAZE, 1);
 
   // The sky: one big sphere seen from the inside, dark overhead and warm at the
@@ -33,7 +39,7 @@ export function createStage(canvas) {
   const skyCol = new Float32Array(skyPos.count * 3);
   const top = new THREE.Color(SKY_TOP), low = new THREE.Color(SKY_LOW), c = new THREE.Color();
   for (let i = 0; i < skyPos.count; i++) {
-    const t = Math.max(0, Math.min(1, (skyPos.getY(i) / 3400) * 1.6 + 0.35));
+    const t = Math.max(0, Math.min(1, (skyPos.getY(i) / 3400) * 1.5 + 0.28));
     c.copy(low).lerp(top, t);
     skyCol[i * 3] = c.r; skyCol[i * 3 + 1] = c.g; skyCol[i * 3 + 2] = c.b;
   }
@@ -48,11 +54,35 @@ export function createStage(canvas) {
 
   // The light is the 2D game's light: from the upper left, warm, with a cool
   // sky bounce underneath so shadowed faces go blue rather than black.
-  const sun = new THREE.DirectionalLight(0xffe2b8, 2.05);
+  const sun = new THREE.DirectionalLight(0xffe9cc, 3.1);
   sun.position.set(-260, 420, -160);
+  sun.castShadow = true;
+  // A tight shadow frustum that travels with the player: sharp shadows near
+  // you, nothing wasted on the far side of the level.
+  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.camera.near = 20;
+  sun.shadow.camera.far = 1400;
+  const span = 420;
+  sun.shadow.camera.left = -span;
+  sun.shadow.camera.right = span;
+  sun.shadow.camera.top = span;
+  sun.shadow.camera.bottom = -span;
+  sun.shadow.bias = -0.0012;
+  sun.shadow.normalBias = 1.2;
   scene.add(sun);
-  const sky = new THREE.HemisphereLight(SKY_TOP, SKY_LOW, 0.85);
+  scene.add(sun.target);
+  const sky = new THREE.HemisphereLight(0xbcd2ff, 0x7a6a52, 1.5);
   scene.add(sky);
+
+  // The sun itself, a warm disc in the sky dome.
+  const disc = new THREE.Mesh(
+    new THREE.CircleGeometry(180, 24),
+    new THREE.MeshBasicMaterial({ color: 0xfff0cf, fog: false, transparent: true, opacity: 0.9 }),
+  );
+  disc.position.set(-1700, 1500, -1100);
+  disc.lookAt(0, 0, 0);
+  disc.renderOrder = -9;
+  scene.add(disc);
 
   const groups = {
     ground: new THREE.Group(),    // terrain, water
@@ -96,6 +126,12 @@ export function createStage(canvas) {
       renderer.setSize(cw, ch, false);
       camera.aspect = cw / ch;
       camera.updateProjectionMatrix();
+    },
+    /** Keep the sun's shadow box over the player. */
+    followSun(x, z) {
+      sun.target.position.set(x, 0, z);
+      sun.position.set(x - 320, 520, z - 210);
+      sun.target.updateMatrixWorld();
     },
     render() {
       renderer.render(scene, camera);

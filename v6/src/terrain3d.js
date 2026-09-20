@@ -12,7 +12,8 @@
 
 import * as THREE from '../vendor/three.module.js';
 import { TT, fbm, vnoise } from '../../v5/src/terrain.js';
-import { GROUND, mat, WORLD } from './palette.js';
+import { GROUND, mat, surfaceMat, WORLD } from './palette.js';
+import { TEX } from './textures3d.js';
 
 const CHUNK = 256;          // world units per chunk
 const PITCH = 8;            // units between vertices
@@ -26,7 +27,15 @@ const tmpColor = new THREE.Color();
 export function buildTerrain(group, level) {
   const { terrain, heights, W, H } = level;
   const cols = Math.ceil(W / CHUNK), rows = Math.ceil(H / CHUNK);
-  const material = mat(0xffffff, { vertexColors: true, flat: true });
+  // One material for the whole ground: the per-vertex colour says which land
+  // this is, and a tiling grass-and-grit detail texture gives it a surface.
+  // A single shared material keeps the meadow down to a handful of draws.
+  const detail = TEX.grass();
+  const TILE = 26;                 // how many times the detail repeats over the level
+  detail.map.repeat.set(TILE, TILE);
+  detail.normalMap.repeat.set(TILE, TILE);
+  detail.roughnessMap.repeat.set(TILE, TILE);
+  const material = surfaceMat(0xffffff, detail, { vertexColors: true, rough: 0.95, normalScale: 0.75 });
 
   for (let cj = 0; cj < rows; cj++) {
     for (let ci = 0; ci < cols; ci++) {
@@ -36,11 +45,16 @@ export function buildTerrain(group, level) {
       const tris = nx * ny * 2;
       const pos = new Float32Array(tris * 9);
       const col = new Float32Array(tris * 9);
-      let p = 0, c = 0;
+      const uv = new Float32Array(tris * 6);
+      let p = 0, c = 0, u = 0;
 
       const put = (x, y) => {
         pos[p] = x; pos[p + 1] = heights.at(x, y); pos[p + 2] = y;
         p += 3;
+        // The texture is laid over the world rather than over each triangle, so
+        // it never stretches and never seams between chunks.
+        uv[u] = x / W; uv[u + 1] = y / H;
+        u += 2;
         groundColor(terrain, x, y, tmpColor);
         col[c] = tmpColor.r; col[c + 1] = tmpColor.g; col[c + 2] = tmpColor.b;
         c += 3;
@@ -59,9 +73,11 @@ export function buildTerrain(group, level) {
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
       geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
       geo.computeVertexNormals();
       const mesh = new THREE.Mesh(geo, material);
       mesh.frustumCulled = true;
+      mesh.receiveShadow = true;
       group.add(mesh);
     }
   }
@@ -70,7 +86,7 @@ export function buildTerrain(group, level) {
   // nothing: a wide dark plane a little below the ground.
   const skirt = new THREE.Mesh(
     new THREE.PlaneGeometry(W * 4, H * 4),
-    mat(0x1a1622, { flat: false }),
+    mat(0x2b2b33, { flat: false }),
   );
   skirt.rotation.x = -Math.PI / 2;
   skirt.position.set(W / 2, -60, H / 2);

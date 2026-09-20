@@ -32,7 +32,10 @@ import { buildMeadow } from './levels3d.js';
 import { buildTerrain, buildWater, updateWater } from './terrain3d.js';
 import { buildProps, swayTrees } from './props3d.js';
 import { createPlayerActor } from './actors3d.js';
-import { initInput3d, updateInput3d, releaseLook, requestLook, state3d } from './input3d.js';
+import {
+  initInput3d, updateInput3d, releaseLook, requestLook, state3d, keys3d, want, endFrame3d, heldKeys,
+} from './input3d.js';
+import { createMover, updateMove, MOVE } from './move3d.js';
 import {
   buildHud, hideOverlay, hudToast, hudVisible, overlayVisible, setFps, setHint, showFps, showOverlay, updateHud,
 } from './hud3d.js';
@@ -45,6 +48,7 @@ const rig = createCameraRig(stage.camera);
 
 let level = null;
 let actor = null;
+let mover = createMover();
 let state = 'title';          // title | playing | paused
 let accumulator = 0;
 let last = performance.now();
@@ -88,7 +92,8 @@ function showTitle() {
       </div>
       <div class="keys" style="margin-top:14px">
         <b>Mouse</b> looks (click to capture, <kbd>Esc</kbd> releases) · <b>WASD</b> moves ·
-        <kbd>Space</kbd> dodge roll · <kbd>Wheel</kbd> zoom · <kbd>F</kbd> fullscreen · <kbd>G</kbd> stats
+        <kbd>Shift</kbd> sprint, tap it to dodge roll · <kbd>Space</kbd> jump ·
+        <kbd>Wheel</kbd> zoom · <kbd>F</kbd> fullscreen · <kbd>G</kbd> stats
       </div>
     </div>`);
 }
@@ -167,14 +172,17 @@ function startDemo() {
   world.player = createPlayer(WEAPONS[weaponIndex], {});
   world.player.x = level.spawn.x;
   world.player.y = level.spawn.y;
+  mover = createMover();
+  mover.face = Math.PI / 2;
   actor = createPlayerActor(stage.groups.actors);
+  actor.setWeapon(WEAPONS[weaponIndex], stage.groups.fx);
 
   rig.yaw = 0;                        // the camera sits south, looking up the meadow
   rig.pitch = -0.2;
   rig.distWanted = 190;
 
   buildHud();
-  setHint('WASD to move · mouse to look · space to roll');
+  setHint('WASD move · shift sprint (tap to roll) · space jump · mouse look');
   hudToast('THE EMBER MEADOW', 'Walk north to the ridge', 3.4);
   resume();
 }
@@ -227,6 +235,11 @@ function cameraBlocked(pivot, yaw, pitch, dist) {
 
 function tick(dt) {
   updateInput3d(world.player, reticle);
+  // The camera writes a raw direction; the mover turns it into the eased,
+  // sprinting, jumping thing the simulation then walks with.
+  if (state === 'playing' && world.player && level) {
+    updateMove(mover, world.player, dt, want, keys3d, level.heights, world.runTime);
+  }
 
   if (state === 'playing' && input.pausePressed) {
     input.pausePressed = false;
@@ -257,16 +270,21 @@ function tick(dt) {
 
   setMusicActive(state === 'playing');
   endFrameInput();
+  endFrame3d();
 }
 
 function draw(dt) {
   const t = world.runTime;
-  if (actor && world.player) actor.update(world.player, STEP, level.heights);
+  if (actor && world.player && level) {
+    actor.setWeapon(world.player.weapon, stage.groups.fx);
+    actor.update(world.player, STEP, level.heights, mover);
+  }
 
   if (level && world.player) {
     const p = world.player;
     const focus = { x: p.x, y: level.heights.at(p.x, p.y) + (p.z || 0), z: p.y };
     rig.update(dt, focus, cameraBlocked);
+    stage.followSun(p.x, p.y);
     updateWater(stage.groups.ground, t);
     swayTrees(stage.groups.props, t, focus);
   }
@@ -274,7 +292,11 @@ function draw(dt) {
 
   const info = stage.info();
   setFps(`${fpsSmooth.toFixed(0)} fps · ${info.calls} calls · ${(info.tris / 1000).toFixed(0)}k tris\n`
-    + (world.player ? `x ${world.player.x.toFixed(0)}  y ${world.player.y.toFixed(0)}  h ${level ? level.heights.at(world.player.x, world.player.y).toFixed(0) : 0}` : ''));
+    + (world.player
+      ? `x ${world.player.x.toFixed(0)}  y ${world.player.y.toFixed(0)}`
+      + `  h ${level ? level.heights.at(world.player.x, world.player.y).toFixed(0) : 0}`
+      + `  z ${(world.player.z || 0).toFixed(0)}${mover.grounded ? '' : ' (air)'}${mover.sprinting ? ' sprint' : ''}`
+      : ''));
 }
 
 function frame(now) {
@@ -332,5 +354,12 @@ window.ashfall3d = {
   run: (n = 60) => { for (let i = 0; i < n; i++) tick(STEP); },
   tp: (x, y) => { world.player.x = x; world.player.y = y; },
   speed: (v) => { tuning.speed = clamp(v, 0.3, 2); },
+  mover: () => mover,
+  keys: keys3d,
+  want,
+  // Drive the keyboard by hand, for testing without a window in focus.
+  hold: (k) => heldKeys.add(k),
+  letGo: (k) => heldKeys.delete(k),
+  MOVE,
   info: () => stage.info(),
 };
