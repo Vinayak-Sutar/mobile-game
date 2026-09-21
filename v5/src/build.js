@@ -2,5 +2,5 @@
 // tools/bump-build.py (the git pre-commit hook) on every commit that touches
 // v5/ - do not edit by hand. The title screen compares it with the copy on
 // the server to tell whether this phone is running the latest (update.js).
-export const BUILD = 2;
-export const BUILT = '2026-09-21 10:54';
+export const BUILD = 3;
+export const BUILT = '2026-09-21 11:10';

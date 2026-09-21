@@ -4081,6 +4081,16 @@ Owner: the head wobbled, and down-right/down-left looked like the side view.
   (`spread = 1.8 + 1.5·|depth|`), boots angled down the diagonal, and the off
   hand in view.
 
+### 16.31 The Wilds: three lives in guardian fights (2026-09-21, M0 of the big-world plan)
+
+Bug: in a Wilds guardian fight the first fall threw you out, because the revive
+check (`game.js`, the `dying` state) excluded `world.owBoss`. Now a spare life stands
+you back up in a gate fight exactly as in the chambers. Losing the last one still
+throws you out, and the toast says a shrine gives the lives back. Shrines now refill
+`p.lives` to `START_LIVES`. Out in the open Wilds a fall still wakes you at your
+shrine. This is milestone M0 of the plan to rebuild The Wilds as a large souls-like
+world (Ashlamps, Cinders, fourteen lairs).
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

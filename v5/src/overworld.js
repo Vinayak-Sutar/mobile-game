@@ -35,6 +35,7 @@ import { sfx } from './audio.js';
 import { spawnPickup } from './spawn.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
+import { START_LIVES } from './player.js';
 
 export const OW = { W: 3600, H: 2400 };
 const FOG = 100;                         // fog-of-war cell size
@@ -497,6 +498,7 @@ export function updateOverworld(dt) {
           if (!q.near) {
             q.near = true;
             p.hp = p.stats.maxHp;
+            p.lives = START_LIVES;           // a shrine gives back every life
             ow.respawn = { x: q.x, y: q.y + 80 };
             if (!q.lit) { q.lit = true; action = { toast: ['SHRINE KINDLED', `${q.name}: you will wake here`] }; }
             ring(q.x, q.y, { r0: 10, r1: 110, color: '#ffb35e', life: 0.6, width: 5 });

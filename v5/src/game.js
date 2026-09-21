@@ -453,7 +453,10 @@ function tick(dt) {
     updateHazards(dt);
     deathTimer -= dt;
     if (deathTimer <= 0) {
-      if (world.player.lives > 1 && !world.overworld && !world.owBoss) revivePlayer();
+      // A spare life stands you back up where you fell - in the chambers and
+      // in a Wilds guardian's arena alike. (Out in the Wilds themselves a fall
+      // wakes you at your shrine instead.)
+      if (world.player.lives > 1 && !world.overworld) revivePlayer();
       else onDeath();
     }
   } else {
@@ -1429,7 +1432,7 @@ function leaveGateFight(won) {
   if (!won) p.hp = p.stats.maxHp;
   snapCamera();
   state = 'playing';
-  if (!won) { showToast('THROWN BACK OUT', 'The gate still waits', 3); return; }
+  if (!won) { showToast('THROWN BACK OUT', 'The gate still waits · a shrine gives your lives back', 3.4); return; }
   p.hp = p.stats.maxHp;
   if (at.final) { showWildsVictory(at.first); return; }
   if (at.first) {
