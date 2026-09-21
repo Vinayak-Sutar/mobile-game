@@ -4385,6 +4385,87 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.48 Combat rework I: animation juice, Kyubi and Sasaki rebuilt, no more shared rush (2026-09-22)
+
+The owner found most of the new mini-bosses and enemies charged at you the
+same way, and the Japanese bosses low in quality. They asked for variety,
+better looks, animation and patterns, research on creative 2D animation,
+and more fun.
+
+**The research**, and how it was used:
+- The game-animation principles: squash and stretch, anticipation, smear
+  frames, and follow-through or secondary motion (sources: Game Developer's
+  "12 principles for game animation", GameAnim's "The 12 Principles of
+  Animation in Video Games").
+- Hades' readable tells: a boss freezes in a recognisable pose before it
+  attacks.
+- Readability: a telegraph before, an expectation after.
+- Juice: hitstop, shake and weapon trails on impact.
+- Kitsune folklore: kitsunebi (foxfire) in processions, illusions, and more
+  power with more tails.
+
+**Juice** (`figures.js`, for every figure):
+- A wind-up (any state in `WIND`, or a pose's `wind`) holds a squash, low and
+  wide, and leaving it POPS the figure tall for 0.12 s.
+- A fast move stretches it and leaves a SMEAR of its colour from its last few
+  spots. A teleport leaves a fading GHOST where it stood.
+- Landing from the air squashes it (0.22 s), and a hit knocks it squat.
+- Everything scales from the feet.
+- Springs (`g.sw`, `g.swy`), pulled against the velocity, drive tails, hair,
+  sleeves and coat tails, so they trail and settle.
+- Strikes throw `fx.slash` arcs.
+
+**Kyubi, rebuilt as a caster** (she never charges):
+- **Look**: a white furisode kimono with a red hem, a gold obi and long
+  hanging sleeves; silver hair; fox ears; gold eyes with red marks; a fox
+  mask at her temple.
+- **Tails**: nine on springs, fanned wide, glowing blue-tipped as she casts.
+- **Foxfire orbits her.** It is her visible ammunition (`e.orbs`), and it
+  comes back one flame every 0.6 s.
+- **Moves**:
+  - Procession: the flames leave their orbit one by one, curving at you.
+  - Fields: fox-fire eruptions in patterns that leave a way through, a ring
+    round you and then a cross on you.
+  - Court of illusions: she and 3 copies (4 later) round you. Only she casts,
+    and only she has a shadow. Striking her exposes her ("FOUND YOU"); a
+    struck copy bursts into a ring of flames.
+  - Tail fan: nine flames that curve inward.
+  - Blink away, leaving a flame mine where she stood.
+  - Phase 2: a three-armed spiral.
+
+**Sasaki, rebuilt as a duelist** (after Sasaki Kojiro):
+- **Look**: a white kimono under a red haori open at the front; wide pleated
+  hakama that flare with the stride; a ponytail and headband tails on
+  springs; a long nodachi, sheathed at his hip when he is about to draw.
+- **Flash draw**: the cut strikes a locked line at once, and his body is at
+  its far end. There is no rush; a fading cut line and a ghost are left. He
+  chains 3 in phase 2, then he is exposed.
+- **Swallow Return** (Tsubame Gaeshi): one crescent flies straight and one
+  curls round and comes back (two later).
+- **Delayed cuts**: eyes shut, sheathed, while 3 (then 5) warning lines
+  across your position strike in sequence; the later lines follow you until
+  they lock.
+- **Counter stance** in both phases: strike him and he blinks behind you and
+  cuts.
+- A three-cut combo up close.
+- **Petal storm** (phase 2): two gapped shockwaves.
+
+**No more shared rush**:
+- **The Oni**: the charge is gone. Instead he tears up a boulder and throws it
+  where you are (it bursts into rubble), and stamps a quake (a gapped
+  shockwave and rocks falling round you).
+- **The Bone Captain**: the rush is gone. He throws a javelin down a locking
+  line (a fan of three in phase 2), and raises a SHIELD WALL: fully guarded
+  in front, walking you down while his skeletons flank.
+- **The Bandit Queen**: the knife dash is gone. She lobs powder kegs round you
+  on short fuses; strike one and it flies back at her.
+- **The Ronin**: his draw no longer dashes. The cut flies down the locked line
+  while he stays put, then he sheathes, exposed.
+
+**Checked**:
+- every move of every mini-boss ran in 25 s simulations, with no bad numbers;
+- the new looks were checked on the preview sheet.
+
 ### 16.47 Training Ground: dummies called in like any foe (2026-09-22)
 
 The owner asked for the dummies to stop being built in and respawning.

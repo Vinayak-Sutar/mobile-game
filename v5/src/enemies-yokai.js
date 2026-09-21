@@ -1,8 +1,8 @@
 // Yokai and warriors of Cloud Summit: the Japan-inspired land's own enemies.
 //
 //   Ronin     a masterless swordsman. Crouches with his hand on the hilt - a
-//             thin line reaches for you and locks - then the draw: a dash
-//             through you. Sheathing after, he is open.            step off the line
+//             thin line reaches for you and locks - then the draw: the cut
+//             flies down the line (he stays put). Sheathing, he is open.  step off the line
 //   Kitsune   a fox spirit in a white robe. Throws slow foxfire that follows
 //             you; hurt, she leaves a copy of herself and slips away. The copy
 //             casts no shadow.                                     look for the shadow
@@ -17,7 +17,7 @@
 import { world } from './state.js';
 import { TAU, rand, dist, angleTo, polygon, circleOrientedRect } from './util.js';
 import { damagePlayer } from './combat.js';
-import { burst } from './fx.js';
+import { burst, slash } from './fx.js';
 import { sfx } from './audio.js';
 import { player, stepToward, stepAway, strafe } from './ai.js';
 import { spawnProjectile } from './spawn.js';
@@ -65,16 +65,20 @@ const RONIN = {
       e.t -= dt;
       if (e.t > LOCK) e.aim = angleTo(e.x, e.y, p.x, p.y);
       e.face = e.aim;
-      if (e.t <= 0) { e.state = 'draw'; e.t = 0.16; e.hit = false; e.x0 = e.x; e.y0 = e.y; sfx.swing(1.2); }
+      if (e.t <= 0) {
+        // The draw: he stays where he stands, and the cut flies down the line.
+        e.state = 'draw'; e.t = 0.16; sfx.swing(1.2);
+        const len = DASH + e.r, mx = e.x + Math.cos(e.aim) * len / 2, my = e.y + Math.sin(e.aim) * len / 2;
+        if (circleOrientedRect(p.x, p.y, p.r, mx, my, e.aim, len, 24)) damagePlayer(e.damage, e.x, e.y, 'ronin');
+        e.cut = { t: 0.25, a: e.aim, len };
+        slash(e.x, e.y, e.aim, 1.4, 50, '#e8f0ff', 0.16, 10);
+        for (let k = 1; k <= 6; k++) burst(e.x + Math.cos(e.aim) * len * k / 6, e.y + Math.sin(e.aim) * len * k / 6, { count: 1, color: '#e8f0ff', speed: 60, size: 3, life: 0.3, drag: 4, shape: 'spark' });
+      }
       return;
     }
     if (e.state === 'draw') {
       e.t -= dt;
-      e.x += Math.cos(e.aim) * (DASH / 0.16) * dt;
-      e.y += Math.sin(e.aim) * (DASH / 0.16) * dt;
-      const mx = (e.x0 + e.x) / 2, my = (e.y0 + e.y) / 2, len = Math.hypot(e.x - e.x0, e.y - e.y0) + e.r * 2;
-      if (!e.hit && circleOrientedRect(p.x, p.y, p.r, mx, my, e.aim, len, 22)) { e.hit = true; damagePlayer(e.damage, e.x0, e.y0, 'ronin'); }
-      if (e.t <= 0) { e.state = 'sheathe'; e.t = 0.8; e.exposed = 0.8; burst(e.x, e.y, { count: 8, color: '#e8f0ff', speed: 160, size: 3, life: 0.3, drag: 5, shape: 'spark' }); }
+      if (e.t <= 0) { e.state = 'sheathe'; e.t = 0.8; e.exposed = 0.8; }
       return;
     }
     if (e.state === 'sheathe') { e.t -= dt; if (e.t <= 0) { e.state = 'chase'; e.cd = rand(1.2, 1.8); e.exposed = 0; } return; }
@@ -85,6 +89,12 @@ const RONIN = {
     if (e.cd <= 0 && d < 260) { e.state = 'stance'; e.t = DRAW_T; e.aim = angleTo(e.x, e.y, p.x, p.y); sfx.telegraph(); }
   },
   under(e, ctx) {
+    if (e.cut && e.cut.t > 0) {
+      e.cut.t -= 1 / 60;
+      const k = e.cut.t / 0.25;
+      ctx.strokeStyle = `rgba(240,248,255,${(0.85 * k).toFixed(2)})`; ctx.lineWidth = 2 + 5 * k;
+      ctx.beginPath(); ctx.moveTo(e.x, e.y - 16); ctx.lineTo(e.x + Math.cos(e.cut.a) * e.cut.len, e.y + Math.sin(e.cut.a) * e.cut.len - 16); ctx.stroke();
+    }
     if (e.state !== 'stance') return;
     const locked = e.t <= LOCK;
     ctx.save(); ctx.translate(e.x, e.y); ctx.rotate(e.aim);

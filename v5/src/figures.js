@@ -24,6 +24,16 @@
 //     so the drawing and the hitboxes never disagree, and nothing about how
 //     any enemy fights is changed here.
 //
+// On top of the pose, the classic principles that make 2D motion read
+// (squash and stretch, anticipation, smears, follow-through):
+//   - a wind-up SQUASHES the figure down and wide (held: the tell), and the
+//     release POPS it tall for a beat;
+//   - a fast move STRETCHES it along the way it goes and leaves a SMEAR of
+//     its colour behind; a teleport leaves a fading GHOST where it was;
+//   - landing from the air squashes; a hit knocks it squat for a moment;
+//   - tails, hair, sleeves and coat tails hang on SPRINGS pulled against the
+//     motion, so they trail and then settle (secondary motion).
+//
 // Only drawn when the Wanderer's look is in use (the Wilds, or a chamber run
 // with the Wanderer): the Hooded One keeps the old top-down shapes.
 
@@ -32,6 +42,9 @@ import { TAU, clamp, lerp, angleDiff } from './util.js';
 import { look } from './wanderer.js';
 
 const OUT = '#1b130f';
+// States that are a wind-up: the figure holds a squash through them.
+const WIND = new Set(['windup', 'wind', 'crouch', 'aim', 'stance', 'set', 'gather', 'rite', 'draw', 'fuse', 'smoke',
+  'raise', 'spread', 'lift', 'cast', 'focus', 'guard', 'call', 'bomb']);
 const OCT = Math.PI / 4;
 const REF = 17;                 // an enemy of this radius is drawn at scale 1
 const FRAMES = 8;
@@ -72,6 +85,27 @@ function prepare(e, F) {
   const moving = e.gSpeed > 14;
   if (step > 0.3) e.gMove = Math.atan2(dy, dx);
   const B = F.B;
+
+  // Velocity, for the stretch and the springs.
+  e.gVx = lerp(e.gVx || 0, dt > 0 && moved < 90 ? dx / dt : 0, 0.3);
+  e.gVy = lerp(e.gVy || 0, dt > 0 && moved < 90 ? dy / dt : 0, 0.3);
+  // A teleport leaves a ghost behind, and starts the smear afresh.
+  if (moved >= 90) { e.gGhost = { x: e.x - dx, y: e.y - dy, t: 0.35 }; e.gTrail = []; }
+  if (e.gGhost) { e.gGhost.t -= dt; if (e.gGhost.t <= 0) e.gGhost = null; }
+  (e.gTrail = e.gTrail || []).push([e.x, e.y]);
+  if (e.gTrail.length > 6) e.gTrail.shift();
+  // Springs for tails, hair and cloth: pulled against the motion, then settling.
+  const tx = clamp(-e.gVx / 260, -1.2, 1.2), ty = clamp(-e.gVy / 260, -1.2, 1.2);
+  e.gSwV = (e.gSwV || 0) + ((tx - (e.gSw || 0)) * 42 - (e.gSwV || 0) * 6) * dt;
+  e.gSw = (e.gSw || 0) + e.gSwV * dt;
+  e.gSyV = (e.gSyV || 0) + ((ty - (e.gSy || 0)) * 42 - (e.gSyV || 0) * 6) * dt;
+  e.gSy = (e.gSy || 0) + e.gSyV * dt;
+  // Landing from the air.
+  const airNow = (e.z || 0) > 3;
+  if (e.gWasAir && !airNow) e.gLand = 0.22;
+  e.gWasAir = airNow;
+  e.gLand = Math.max(0, (e.gLand || 0) - dt);
+  e.gPop = Math.max(0, (e.gPop || 0) - dt);
   if (moving) e.gPhase = ((e.gPhase || 0) + step / B.cycle) % 1;
 
   // Which way it faces: at you while it fights, the way it goes while it walks.
@@ -131,6 +165,10 @@ export function drawFigure(e, ctx) {
   const main = flash ? '#ffffff' : tinted ? e.tint : C.main;
 
   const P = { crouch: 0, lean: 0, float: 0, alpha: 1, air: false, sit: false, shake: 0, ...F.pose(e, G, B) };
+  // Anticipation: any wind-up state holds a squash; leaving it pops.
+  if (P.wind === undefined) P.wind = WIND.has(e.sub || e.state) ? 0.75 : 0;
+  if (e.gWind && !P.wind) e.gPop = 0.12;
+  e.gWind = P.wind > 0.1;
   const hipH = B.legL - P.crouch + G.bob * (B.legs ? 1 : 0.5) + (P.sit ? -B.legL * 0.45 : 0);
   const shH = hipH + B.torsoH;
   const lean = P.lean;
@@ -140,12 +178,38 @@ export function drawFigure(e, ctx) {
   const pr = (f, r, h) => [f * ca - r * sa + shake, (f * sa + r * ca) * 0.5 - h];
   const depth = (f, r) => f * sa + r * ca;
 
+  // The smear of a fast move, and the ghost of a teleport.
+  const spd = Math.hypot(e.gVx || 0, e.gVy || 0);
+  const midH = (B.legL + B.torsoH * 0.55) * sc;
+  if (spd > 380 && e.gTrail.length > 2 && !flash) {
+    const [ox, oy] = e.gTrail[0], k = clamp((spd - 380) / 500, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = (0.16 + 0.24 * k) * P.alpha;
+    ctx.strokeStyle = e.color; ctx.lineCap = 'round'; ctx.lineWidth = B.torsoW * sc;
+    ctx.beginPath(); ctx.moveTo(ox, oy + e.r * 0.72 - midH - (e.z || 0)); ctx.lineTo(e.x, e.y + e.r * 0.72 - midH - (e.z || 0)); ctx.stroke();
+    ctx.restore();
+  }
+  if (e.gGhost) {
+    const k = e.gGhost.t / 0.35;
+    ctx.save();
+    ctx.globalAlpha = 0.45 * k;
+    ctx.fillStyle = e.color;
+    const gx = e.gGhost.x, gy = e.gGhost.y + e.r * 0.72;
+    ctx.beginPath(); ctx.ellipse(gx, gy - midH, B.torsoW * 0.6 * sc * (1 + (1 - k) * 0.5), midH * (1.05 - (1 - k) * 0.3), 0, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
   ctx.save();
   const feetY = e.y + e.r * 0.72;
   // Climbing out of the ground: nothing below the ground line shows.
   if (P.rise !== undefined) { ctx.beginPath(); ctx.rect(e.x - 200, feetY - 400, 400, 402); ctx.clip(); }
   ctx.translate(e.x, feetY - (e.z || 0) - P.float * sc);
-  ctx.scale(sc, sc);
+  // Squash and stretch, anchored at the feet.
+  const land = (e.gLand || 0) / 0.22, hurt = e.flash > 0 ? 1 : 0, pop = (e.gPop || 0) / 0.12;
+  const st = clamp((spd - 320) / 500, 0, 1) * (P.air ? 0.5 : 1);
+  const sy = (1 - 0.13 * P.wind) * (1 - 0.2 * land) * (1 - 0.08 * hurt) * (1 + 0.1 * st) * (1 + 0.1 * pop);
+  const sx = (1 + 0.1 * P.wind) * (1 + 0.15 * land) * (1 + 0.07 * hurt) * (1 - 0.06 * st) * (1 - 0.06 * pop);
+  ctx.scale(sc * sx, sc * sy);
   ctx.globalAlpha = P.alpha;
   ctx.lineJoin = 'round';
   ctx.lineCap = 'round';
@@ -172,7 +236,7 @@ export function drawFigure(e, ctx) {
   // Everything the head and the decorations need.
   const g = {
     e, F, C, B, P, G, ca, sa, sc, col, main, flash, fillOut, limb, pr, depth, hipH, shH,
-    toward: sa, away: sa < -0.3, front: sa > 0.3, t: world.runTime || 0,
+    toward: sa, away: sa < -0.3, front: sa > 0.3, t: world.runTime || 0, sw: e.gSw || 0, swy: e.gSy || 0,
     body: (f, r, h) => pr(bodyF(f, h), r, h),
   };
 
@@ -457,7 +521,8 @@ function drawKatana(ctx, g, hand, dir, len = 15) {
   drawBlade(ctx, g, hand, dir, len, '#e8eef4', '#1e1a24', 2);
 }
 
-/** A straw hat (kasa): a wide shallow cone. */
+/** A straw hat (kasa): a wide shallow cone. (Kept for the ronin variants to come.) */
+// eslint-disable-next-line no-unused-vars
 function kasa(ctx, g, color = '#c8a860', w = 1) {
   const { x, y, R } = g.head;
   ctx.beginPath(); ctx.moveTo(x - (R + 7) * w, y - R * 0.35); ctx.lineTo(x, y - R * 1.7); ctx.lineTo(x + (R + 7) * w, y - R * 0.35);
@@ -1406,7 +1471,7 @@ const FIGS = {
     pose(e, G, B) {
       const shH = B.legL + B.torsoH;
       if (e.state === 'stance') return { crouch: 3, stance: 'wide', lean: 0.2, handR: [1, 2, shH - 9], handL: [2, -2, shH - 9], wR: [-0.6, 0.3, -0.5] };
-      if (e.state === 'draw') return { lean: 0.5, stance: 'wide', handR: [B.armL, 2, shH - 2], wR: [1, 0.1, 0.05] };
+      if (e.state === 'draw') return { lean: 0.3, stance: 'wide', handR: [B.armL, 4, shH - 2], wR: [0.7, 0.7, 0.05] };
       if (e.state === 'sheathe') return { lean: 0.1, handR: [2, 3, shH - 8], wR: [-0.4, 0.2, -0.8] };
       return { lean: 0.08, handR: [1, 5, shH - 9], wR: [-0.5, 0.2, -0.7] };
     },
@@ -1502,68 +1567,267 @@ const FIGS = {
     },
   },
 
-  // --- Kyubi, the Nine-Tailed: a fox spirit in white and red, nine tails fanned.
+  // --- Kyubi, the Nine-Tailed: a fox spirit in a long-sleeved white-and-red
+  // kimono, silver hair, fox ears, nine tails on springs, foxfire orbiting her.
   kyubi: {
     scale: 1.1,
-    body: { legL: 11, torsoH: 13, torsoW: 12, torsoD: 9, shW: 5.4, armL: 11, headR: 5.8, legs: false, armW: 2.8 },
-    c: { main: '#f4ece0', arm: '#c83a2a', hand: '#f0d8c0', skin: '#f0d8c0' },
-    crown: 6,
-    aimAt: (e) => e.action !== 'idle',
-    pose(e, G, B) {
-      const shH = B.legL + B.torsoH;
-      const a = e.action, s2 = e.sub;
-      if (a === 'foxfire' && s2 === 'wind') return { handR: [B.armL - 1, 4, shH + 1], handL: [B.armL - 1, -4, shH + 1], frontR: true, frontL: true, glow: true };
-      if (a === 'illusion') return { handR: [0, 7, shH + 5], handL: [0, -7, shH + 5], glow: true, shake: 0.3 };
-      if (a === 'sweep') return s2 === 'crouch' ? { lean: 0.35, crouch: 2, handR: [-3, 6, shH - 6], handL: [-3, -6, shH - 6] } : { lean: 0.45, handR: [-4, 7, shH - 2], handL: [-4, -7, shH - 2] };
-      if (a === 'exposed') return { shake: 0.4, lean: -0.15, handR: [1, 7, shH - 11], handL: [1, -7, shH - 11] };
-      if (a === 'phase') return { handR: [0, 8, shH + 6], handL: [0, -8, shH + 6], glow: true, shake: 0.5 };
-      return { handR: [3, 5, shH - 5], handL: [3, -5, shH - 5] };
-    },
-    torso: robe('#f4ece0', false),
-    items(g) { return [foxTails(g, 9, !!g.P.glow)]; },
-    over(ctx, g) {
-      if (g.flash || g.away) return;
-      const [x, y] = g.body(0, 0, g.hipH + g.B.torsoH * 0.45);
-      ctx.fillStyle = '#c8302a'; ctx.fillRect(x - 6, y - 2, 12, 4);
-    },
-    head(ctx, g) { foxHead(ctx, g, '#e8843a', false); },
-  },
-
-  // --- Sasaki, the Wandering Blade: a ronin master in blue, a straw hat, a long katana.
-  sasaki: {
-    scale: 1.2,
-    body: { legL: 12, torsoH: 13, torsoW: 12, torsoD: 8, shW: 5.6, armL: 11.5, headR: 5.6, legW: 3.8, armW: 3 },
-    c: { main: '#2a3a5a', leg: '#1e2a44', arm: '#2a3a5a', hand: '#e2b489', skin: '#e2b489', foot: '#141418' },
-    crown: 6,
+    body: { legL: 11, torsoH: 13, torsoW: 12, torsoD: 9, shW: 5.2, armL: 11, headR: 5.6, legs: false, armW: 2.6 },
+    c: { main: '#f4ece0', arm: '#f4ece0', hand: '#f4e4d8', skin: '#f4e4d8' },
+    crown: 7,
     aimAt: (e) => e.action !== 'idle',
     pose(e, G, B) {
       const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
-      if (a === 'iaido' && s2 === 'stance') return { crouch: 3.5, stance: 'wide', lean: 0.25, handR: [1, 2, shH - 9], handL: [2, -2, shH - 9], wR: [-0.6, 0.3, -0.5] };
-      if (a === 'iaido' && s2 === 'dash') return { lean: 0.55, stance: 'wide', handR: [B.armL, 2, shH - 2], wR: [1, 0.1, 0.05] };
+      const bob = Math.sin((world.runTime || 0) * 2.2 + (e.seed || 0)) * 2;
+      const P = { float: 5 + bob, handR: [4, 2.5, shH - 7], handL: [4, -2.5, shH - 7], frontR: true, frontL: true };
+      if (a === 'procession') Object.assign(P, s2 === 'raise' ? { handR: [0, 5, shH + 9], handL: [3, -4, shH - 4], glow: true, wind: 0.8 } : { handR: [B.armL, 2, shH], handL: [2, -6, shH - 5], glow: true });
+      else if (a === 'field') Object.assign(P, { handR: [3, 9, shH - 10], handL: [3, -9, shH - 10], frontR: false, frontL: false, glow: true, lean: 0.15 });
+      else if (a === 'court') Object.assign(P, s2 === 'vanish' ? { alpha: Math.max(0.05, (e.t || 0) / 0.45) } : { handR: [B.armL - 2, 3, shH - 2] });
+      else if (a === 'fan') Object.assign(P, s2 === 'spread' ? { handR: [0, 10, shH + 4], handL: [0, -10, shH + 4], frontR: false, frontL: false, glow: true, fan: 1, wind: 0.9 } : { handR: [4, 8, shH - 2], handL: [4, -8, shH - 2], fan: 0.6 });
+      else if (a === 'blink') P.alpha = Math.max(0.1, (e.t || 0) / 0.25);
+      else if (a === 'spiral') Object.assign(P, { handR: [0, 11, shH], handL: [0, -11, shH], frontR: false, frontL: false, glow: true, fan: 1 });
+      else if (a === 'phase') Object.assign(P, { handR: [0, 9, shH + 8], handL: [0, -9, shH + 8], glow: true, fan: 1, shake: 0.5 });
+      else if (a === 'exposed') Object.assign(P, { float: 1, shake: 0.4, lean: -0.15, handR: [2, 6, shH - 11], handL: [2, -6, shH - 11] });
+      return P;
+    },
+    torso: Object.assign((ctx, g) => {
+      // A kimono to the ground: white, a red hem, a red collar, a gold obi.
+      const { B, sa, ca, pr } = g;
+      const hw = 0.5 * (Math.abs(sa) * B.torsoW + Math.abs(ca) * B.torsoD);
+      const [tx, ty] = g.body(0, 0, g.shH);
+      const [bx, by] = pr(0, 0, -g.P.float * 0.15);
+      const sway = g.sw * 3;
+      const shape = () => {
+        ctx.beginPath();
+        ctx.moveTo(tx - hw * 0.8, ty + 1);
+        ctx.quadraticCurveTo(tx, ty - 3, tx + hw * 0.8, ty + 1);
+        ctx.quadraticCurveTo(bx + hw * 1.1 + sway * 0.5, (ty + by) / 2, bx + hw * 1.35 + sway, by);
+        ctx.quadraticCurveTo(bx + sway, by + 2.5, bx - hw * 1.35 + sway, by);
+        ctx.quadraticCurveTo(bx - hw * 1.1 + sway * 0.5, (ty + by) / 2, tx - hw * 0.8, ty + 1);
+        ctx.closePath();
+      };
+      shape(); g.fillOut(g.main, 1.5);
+      if (g.flash) return;
+      ctx.save(); shape(); ctx.clip();
+      ctx.fillStyle = '#c8302a'; ctx.fillRect(bx - hw * 2, by - 6, hw * 4, 8);
+      ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(tx + hw * 0.2, ty - 4, hw * 2, by - ty + 8);
+      ctx.fillStyle = 'rgba(200,90,110,0.35)';
+      for (let k = 0; k < 5; k++) { ctx.beginPath(); ctx.arc(bx - hw + ((k * 37) % 17) * hw / 9, ty + 10 + ((k * 23) % 13), 1.6, 0, TAU); ctx.fill(); }
+      ctx.restore();
+      if (!g.away) {
+        ctx.strokeStyle = '#c8302a'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(tx - 3, ty + 1); ctx.lineTo(tx + 0.5, ty + 7); ctx.lineTo(tx + 3, ty + 1); ctx.stroke();
+      }
+      const [ox, oy] = g.body(0, 0, g.hipH + g.B.torsoH * 0.35);
+      ctx.fillStyle = '#e8c050'; ctx.fillRect(ox - hw * 0.85, oy - 2.5, hw * 1.7, 5);
+      ctx.fillStyle = '#c8302a'; ctx.fillRect(ox - hw * 0.85, oy - 0.4, hw * 1.7, 0.9);
+    }, { replace: true }),
+    items(g) {
+      const out = [];
+      // Nine tails on springs: they trail the way she moves and wave on their own.
+      const glow = !!g.P.glow, fan = g.P.fan || 0.35;
+      out.push({ f: -5, r: 0, bias: -4, draw: (ctx) => {
+        const [bx, by] = g.body(-3, 0, g.hipH + 6);
+        for (let k = 0; k < 9; k++) {
+          const u = k / 8 - 0.5;
+          const a = -Math.PI / 2 + u * (2.2 + fan * 1.3) + g.sw * (0.35 + Math.abs(u) * 0.3) + Math.sin(g.t * 1.8 + k * 0.7) * 0.1;
+          const len = 25 + fan * 7 - Math.abs(u) * 3;
+          const tx = bx + Math.cos(a) * len - g.ca * 2, ty = by + Math.sin(a) * len * 0.85 + g.swy * 2;
+          const cx = bx + Math.cos(a - 0.35 * Math.sign(u || 1)) * len * 0.55, cy = by + Math.sin(a - 0.35) * len * 0.5;
+          const nx = -Math.sin(a), ny = Math.cos(a);
+          ctx.beginPath();
+          ctx.moveTo(bx + nx * 2.2, by + ny * 2.2);
+          ctx.quadraticCurveTo(cx + nx * 6.5, cy + ny * 6.5, tx, ty);
+          ctx.quadraticCurveTo(cx - nx * 6.5, cy - ny * 6.5, bx - nx * 2.2, by - ny * 2.2);
+          ctx.closePath();
+          g.fillOut(g.col('#e8843a'), 1.1);
+          ctx.beginPath(); ctx.ellipse(tx - Math.cos(a) * 2.5, ty - Math.sin(a) * 2.5, 3.4, 2.6, a, 0, TAU);
+          g.fillOut(g.col(glow ? '#cfeeff' : '#fbf4ec'), 1);
+          if (glow && !g.flash) { ctx.fillStyle = 'rgba(160,220,255,0.3)'; ctx.beginPath(); ctx.arc(tx, ty, 7, 0, TAU); ctx.fill(); }
+        }
+      } });
+      // Long silver hair down her back.
+      out.push({ f: -3, r: 0, bias: -2, draw: (ctx) => {
+        const { x, y, R } = g.head;
+        const sw = g.sw * 3;
+        ctx.beginPath();
+        ctx.moveTo(x - R, y);
+        ctx.quadraticCurveTo(x - R * 1.2 + sw * 0.5, y + R * 2, x - R * 0.9 + sw, y + R * 3.2);
+        ctx.lineTo(x + R * 0.9 + sw, y + R * 3.2);
+        ctx.quadraticCurveTo(x + R * 1.2 + sw * 0.5, y + R * 2, x + R, y);
+        ctx.closePath();
+        g.fillOut(g.col('#e8eaf4'), 1.1);
+      } });
+      // Long hanging sleeves (furisode) on both arms.
+      for (const key of ['R', 'L']) {
+        const h = g.hands[key];
+        if (!h) continue;
+        out.push({ f: h.hand[0] * 0.5, r: h.hand[1], bias: (g.P[`front${key}`] ? 5 : 0) + 0.01, draw: (ctx) => {
+          const [ex, ey] = g.pr(...h.elbow), [hx, hy] = g.pr(...h.hand);
+          const drop = 9 + Math.abs(g.sw) * 2;
+          ctx.beginPath();
+          ctx.moveTo(ex - 2.5, ey - 1.5);
+          ctx.lineTo(hx - 3, hy - 1);
+          ctx.lineTo(hx - 4 + g.sw * 2, hy + drop);
+          ctx.quadraticCurveTo((ex + hx) / 2 + g.sw * 3, Math.max(ey, hy) + drop + 2, ex + 2, ey + 3);
+          ctx.closePath();
+          g.fillOut(g.col('#f4ece0'), 1.2);
+          if (!g.flash) { ctx.fillStyle = '#c8302a'; ctx.fillRect(hx - 4 + g.sw * 2, hy + drop - 2.5, 5, 2.4); }
+        } });
+      }
+      return out;
+    },
+    over(ctx, g) {
+      // The foxfire she carries, circling her: her ammunition.
+      if (g.flash) return;
+      const n = g.e.orbs || 0;
+      for (let k = 0; k < n; k++) {
+        const a = (g.e.orbA || 0) + k * (TAU / 7);
+        const [x, y] = g.body(Math.cos(a) * 16, Math.sin(a) * 16, g.hipH + g.B.torsoH * 0.7 + Math.sin(g.t * 3 + k) * 1.5);
+        const back = Math.sin(a) * g.sa + Math.cos(a) * g.ca < -0.3;
+        ctx.globalAlpha *= back ? 0.5 : 1;
+        ctx.fillStyle = 'rgba(160,220,255,0.35)'; ctx.beginPath(); ctx.arc(x, y, 6, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#e8f6ff';
+        ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.quadraticCurveTo(x + 3.2, y - 1, x, y + 2.6); ctx.quadraticCurveTo(x - 3.2, y - 1, x, y - 6); ctx.fill();
+        ctx.globalAlpha /= back ? 0.5 : 1;
+      }
+    },
+    head(ctx, g) {
+      const { x, y, R } = g.head;
+      spikes(ctx, g, [-0.5, 3.2, 3.6], [-1, 4.6, 10], 2.4, '#f4ece0');
+      headBall(ctx, g, '#f4e4d8');
+      // Silver hair over the brow, parted.
+      ctx.beginPath(); ctx.arc(x, y - 0.8, R + 0.5, Math.PI * 1.03, Math.PI * 1.97); ctx.closePath(); g.fillOut(g.col('#e8eaf4'), 1.1);
+      if (g.flash) return;
+      // Inner ears, pink.
+      for (const s2 of [1, -1]) { const [ix, iy] = g.hp(-0.6, s2 * 4, 7); ctx.fillStyle = '#f0a8b8'; ctx.beginPath(); ctx.ellipse(ix, iy, 0.9, 2.2, 0, 0, TAU); ctx.fill(); }
+      // Gold eyes with red marks under them; a fox mask worn at the side.
+      eyes(ctx, g, '#ffcc40', 2.3, 0.6, 1.6, true);
+      for (const s2 of [1, -1]) {
+        if (!g.vis(R * 0.8, s2 * 2.4)) continue;
+        const [mx, my] = g.hp(R * 0.8, s2 * 2.4, -1.4);
+        ctx.strokeStyle = '#c8302a'; ctx.lineWidth = 1.1; ctx.beginPath(); ctx.moveTo(mx - 1.6, my); ctx.lineTo(mx + 1.6, my + 1); ctx.stroke();
+      }
+      if (g.vis(0, R)) {
+        const [kx, ky] = g.hp(0, R * 0.95, 1.5);
+        ctx.fillStyle = '#fbf6ee'; ctx.beginPath(); ctx.ellipse(kx, ky, 2.4, 3, 0, 0, TAU); ctx.fill();
+        ctx.strokeStyle = '#c8302a'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(kx - 1.5, ky - 0.5); ctx.lineTo(kx + 1.5, ky + 0.5); ctx.stroke();
+      }
+    },
+  },
+
+  // --- Sasaki, the Wandering Blade: a white kimono under a red haori, wide
+  // dark hakama, a long ponytail and a headband streaming, a long nodachi.
+  sasaki: {
+    scale: 1.2,
+    body: { legL: 12, hipW: 3.4, torsoH: 13, torsoW: 12, torsoD: 8, shW: 5.6, armL: 11.5, headR: 5.5, legs: false, armW: 3, cycle: 80 },
+    c: { main: '#ece6da', arm: '#8a2a2a', hand: '#e2b489', skin: '#e2b489' },
+    crown: 3,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      if (a === 'flash' && s2 === 'stance') return { crouch: 4, lean: 0.3, stance: 'wide', handR: [1, -3, shH - 9], handL: [2, -3.5, shH - 10], wR: [-0.8, -0.3, -0.3], wind: 1, sheathed: true };
+      if (a === 'flash' && s2 === 'after') return { lean: 0.4, crouch: 2, stance: 'wide', handR: [B.armL, 5, shH - 3], wR: [0.6, 1, 0.1] };
+      if (a === 'flash') return { handR: [2, -3, shH - 9], wR: [-0.8, -0.3, -0.3], sheathed: true };
+      if (a === 'swallow') return s2 === 'wind' ? { stance: 'wide', lean: -0.1, handR: [-3, 3, shH + 9], handL: [-2, 1, shH + 8], wR: [-0.6, 0, 1], wind: 0.8 } : { stance: 'wide', lean: 0.3, handR: [B.armL, -4, shH - 7], wR: [0.5, -1, -0.3] };
+      if (a === 'cuts') return { crouch: 1, handR: [2, -3, shH - 9], handL: [2.5, -3.5, shH - 10], wR: [-0.8, -0.3, -0.3], sheathed: true, eyesShut: true };
+      if (a === 'counter') return s2 === 'guard' ? { stance: 'wide', crouch: 2, handR: [6, 2, shH - 1], handL: [6, -2, shH - 1], wR: [0.1, 1, 0.15], guard: true, frontR: true } : { lean: 0.4, handR: [B.armL, 3, shH - 3], wR: [1, 0.5, 0] };
       if (a === 'combo') { const side = e.cutSide || 1; return s2 === 'wind' ? { stance: 'wide', handR: [-1, 4 * side, shH + 5], wR: [-0.3, side * 0.6, 1] } : { stance: 'wide', lean: 0.3, handR: [B.armL - 1, -3 * side, shH - 5], wR: [0.6, -side, -0.4] }; }
-      if (a === 'wave') return s2 === 'wind' ? { handR: [-2, 3, shH + 7], wR: [-0.4, 0, 1] } : { lean: 0.3, handR: [B.armL, 1, shH - 6], wR: [1, 0, -0.5] };
-      if (a === 'parry') return { stance: 'wide', handR: [5, 1, shH - 3], handL: [5, -1, shH - 3], wR: [0.1, 0, 1], guard: true };
-      if (a === 'exposed') return { lean: 0.1, shake: 0.3, handR: [2, 5, shH - 10], wR: [0.3, 0.3, -1] };
-      return { lean: 0.05, handR: [1, 5, shH - 9], wR: [-0.5, 0.2, -0.7] };
+      if (a === 'storm') return { handR: [1, 11, shH - 1], handL: [1, -9, shH - 1], wR: [0.2, 1, 0], frontR: false };
+      if (a === 'exposed') return { lean: 0.1, shake: 0.35, handR: [2, 5, shH - 10], wR: [0.3, 0.3, -1] };
+      if (a === 'phase') return { handR: [2, 5, shH + 6], wR: [0, 0.2, 1], shake: 0.4 };
+      return { lean: 0.05, handR: [3, 5, shH - 8], wR: [0.8, 0.3, -0.5] };
     },
     weapon(ctx, g, key, hand, dir) {
       if (key !== 'R') return;
-      drawKatana(ctx, g, hand, dir, 19);
+      if (g.P.sheathed) {
+        // Hand on the hilt; the long blade still in its scabbard at his hip.
+        const tip = along(g, hand, dir, 20);
+        g.limb([g.pr(...hand), g.pr(...tip)], 3, g.col('#2a1e1a'));
+        g.limb([g.pr(...hand), g.pr(...along(g, hand, dir, 3))], 2.4, g.col('#c8a050'));
+        return;
+      }
+      drawKatana(ctx, g, hand, dir, 23);
       if (g.P.guard && !g.flash) {
-        const [x, y] = g.pr(...along(g, hand, dir, 10));
-        ctx.fillStyle = 'rgba(190,224,255,0.35)'; ctx.beginPath(); ctx.arc(x, y, 10, 0, TAU); ctx.fill();
+        const [x, y] = g.pr(...along(g, hand, dir, 11));
+        ctx.fillStyle = 'rgba(190,224,255,0.4)'; ctx.beginPath(); ctx.arc(x, y, 12, 0, TAU); ctx.fill();
       }
     },
-    torso(ctx, g, T) {
-      if (!T || g.flash || g.away) return;
-      ctx.strokeStyle = '#e8e0cc'; ctx.lineWidth = 1.6;
-      ctx.beginPath(); ctx.moveTo(T.tx - 3.5, T.ty + 1); ctx.lineTo(T.tx + 1, T.ty + 8); ctx.lineTo(T.tx + 3.5, T.ty + 1); ctx.stroke();
-      ctx.fillStyle = '#e8e0cc'; ctx.fillRect(T.bx - T.hwB, T.by - 5, T.hwB * 2, 2.6);
+    torso: Object.assign((ctx, g) => {
+      const { B, sa, ca, pr, G, P } = g;
+      const hw = 0.5 * (Math.abs(sa) * B.torsoW + Math.abs(ca) * B.torsoD);
+      // Feet peeking from under the hakama.
+      if (!g.P.air) {
+        for (const [side, foot] of [[1, G.near], [-1, G.far]]) {
+          let ff = foot.f;
+          if (P.stance === 'wide') ff = side > 0 ? 4.5 : -4;
+          const [fx, fy] = pr(ff + 1, side * B.hipW, foot.lift);
+          ctx.beginPath(); ctx.ellipse(fx, fy + 0.6, 2.6, 1.8, 0, 0, TAU); g.fillOut(g.col('#e8e0cc'), 1.1);
+        }
+      }
+      // The hakama: wide pleated trousers, flaring with the stride.
+      const [hx, hy] = g.body(0, 0, g.hipH);
+      const [kx, ky] = pr(0, 0, 2.5);
+      const spread = (P.stance === 'wide' ? 8 : Math.abs(G.near.f - G.far.f) * 0.6) + g.sw * 2;
+      ctx.beginPath();
+      ctx.moveTo(hx - hw * 0.95, hy);
+      ctx.lineTo(kx - hw * 1.3 - spread * 0.5, ky);
+      ctx.lineTo(kx + hw * 1.3 + spread * 0.5, ky);
+      ctx.lineTo(hx + hw * 0.95, hy);
+      ctx.closePath();
+      g.fillOut(g.col('#3a3a4e'), 1.4);
+      if (!g.flash) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 1;
+        for (const k of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.moveTo(hx + k * hw, hy + 1); ctx.lineTo(kx + k * (hw * 1.4 + spread * 0.5), ky - 1); ctx.stroke(); }
+      }
+      // The white kimono.
+      const [tx, ty] = g.body(0, 0, g.shH);
+      ctx.beginPath();
+      ctx.moveTo(hx - hw * 0.9, hy + 1); ctx.lineTo(tx - hw, ty + 2);
+      ctx.quadraticCurveTo(tx, ty - 2.5, tx + hw, ty + 2); ctx.lineTo(hx + hw * 0.9, hy + 1); ctx.closePath();
+      g.fillOut(g.main, 1.5);
+      if (g.flash) return;
+      // The red haori over it, open at the front.
+      ctx.fillStyle = '#8a2a2a';
+      if (!g.away) {
+        ctx.beginPath(); ctx.moveTo(tx - hw, ty + 2); ctx.lineTo(tx - hw * 0.3, ty + 1); ctx.lineTo(hx - hw * 0.4, hy + 3); ctx.lineTo(hx - hw * 1.05, hy + 3); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(tx + hw, ty + 2); ctx.lineTo(tx + hw * 0.3, ty + 1); ctx.lineTo(hx + hw * 0.4, hy + 3); ctx.lineTo(hx + hw * 1.05, hy + 3); ctx.closePath(); ctx.fill();
+      } else {
+        ctx.beginPath(); ctx.moveTo(tx - hw, ty + 2); ctx.quadraticCurveTo(tx, ty - 2.5, tx + hw, ty + 2); ctx.lineTo(hx + hw * 1.05, hy + 3); ctx.lineTo(hx - hw * 1.05, hy + 3); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#e8e0cc'; ctx.beginPath(); ctx.arc((tx + hx) / 2, (ty + hy) / 2 - 1, 2.6, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = '#2a2a34'; ctx.fillRect(hx - hw * 0.95, hy - 1, hw * 1.9, 2.4);
+    }, { replace: true }),
+    items(g) {
+      return [{ f: -4, r: 0, bias: -3, draw: (ctx) => {
+        // The haori's hem and the ponytail and headband tails, trailing on springs.
+        const [x, y] = g.body(-3, 0, g.hipH + 1);
+        const sw = g.sw * 6;
+        ctx.beginPath(); ctx.moveTo(x - 6, y - 2); ctx.lineTo(x + 6, y - 2); ctx.lineTo(x + 5 + sw, y + 7 + Math.abs(sw) * 0.3); ctx.lineTo(x - 5 + sw, y + 7); ctx.closePath();
+        g.fillOut(g.col('#8a2a2a'), 1.1);
+        const { x: hx, y: hy, R } = g.head;
+        const tail = (len, w, color, off) => {
+          const bx = hx - g.ca * R * 0.7, by = hy - R * 0.4 + off;
+          const ex = bx - g.ca * 4 + g.sw * len * 0.8, ey = by + len * (0.75 - Math.abs(g.sw) * 0.3) + g.swy * 3;
+          ctx.strokeStyle = OUT; ctx.lineWidth = w + 2.4;
+          ctx.beginPath(); ctx.moveTo(bx, by); ctx.quadraticCurveTo(bx + g.sw * len * 0.3, by + len * 0.4, ex, ey); ctx.stroke();
+          ctx.strokeStyle = g.col(color); ctx.lineWidth = w; ctx.stroke();
+        };
+        tail(15, 3, '#16121a', -1);                   // the ponytail
+        tail(9, 1.6, '#f4f0e8', 0);                    // the headband's ends
+      } }];
     },
     head(ctx, g) {
       headBall(ctx, g, '#e2b489');
-      eyes(ctx, g, '#1a1210', 2.2, 0.8, 1.3);
-      kasa(ctx, g, '#c8a860', 1.1);
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.arc(x, y - 0.6, R + 0.4, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); g.fillOut(g.col('#16121a'), 1.1);
+      if (!g.flash) {
+        ctx.strokeStyle = '#f4f0e8'; ctx.lineWidth = 1.8;
+        ctx.beginPath(); ctx.arc(x, y - 0.4, R + 0.2, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+        ctx.fillStyle = '#c8302a'; const [bx, by] = g.hp(R * 0.9, 0, 2.4); if (g.vis(R, 0)) ctx.fillRect(bx - 1, by - 1, 2, 2);
+      }
+      if (g.P.eyesShut) {
+        if (!g.flash) for (const s2 of [1, -1]) { if (!g.vis(R * 0.8, s2 * 2.2)) continue; const [ex, ey] = g.hp(R * 0.8, s2 * 2.2, 0.4); ctx.strokeStyle = '#1a1210'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ex - 1.3, ey); ctx.lineTo(ex + 1.3, ey); ctx.stroke(); }
+      } else eyes(ctx, g, '#1a1210', 2.2, 0.6, 1.3);
     },
   },
 
@@ -1580,7 +1844,8 @@ const FIGS = {
       if (a === 'smash' && s2 === 'raise') return { lean: -0.18, stance: 'wide', handR: [-2, 3, shH + 12], handL: [-1, -3, shH + 11], wR: [-0.8, 0, 1], shake: rage };
       if (a === 'smash') return { lean: 0.35, crouch: 3, stance: 'wide', handR: [B.armL, 2, shH - 9], handL: [B.armL - 1, -2, shH - 9], wR: [1, 0, -0.9] };
       if (a === 'sweep') return s2 === 'wind' ? { crouch: 2, handR: [-3, 9, shH - 2], handL: [-2, 5, shH - 3], wR: [-0.8, 0.8, 0.1] } : { crouch: 2, handR: [3, -9, shH - 2], handL: [2, -5, shH - 3], wR: [0.6, -1, 0.1] };
-      if (a === 'charge') return { lean: 0.5, crouch: 2, handR: [-3, 7, shH - 3], wR: [-0.6, 0.3, 0.6] };
+      if (a === 'boulder') return s2 === 'lift' ? { lean: -0.15, stance: 'wide', handR: [0, 5, shH + 10], handL: [0, -5, shH + 10], wR: [-0.6, 0.3, -0.4], rock: true } : { lean: 0.35, handR: [B.armL, 4, shH], handL: [B.armL - 2, -4, shH - 2], wR: [0.6, 0.3, 0.5] };
+      if (a === 'quake') return s2 === 'raise' ? { lean: -0.1, feet: [3, -3], handR: [1, 9, shH + 4], handL: [1, -9, shH + 4], wR: [-0.4, 0.4, 1] } : { crouch: 4, stance: 'wide', handR: [3, 9, shH - 10], handL: [3, -9, shH - 10], wR: [0.3, 0.5, -1] };
       if (a === 'exposed') return { lean: -0.1, shake: 0.5, handR: [3, 8, shH - 12], wR: [0.6, 0.3, -1] };
       return { lean: 0.08, handR: [2, 7, shH - 3], wR: [-0.6, 0.2, 1], shake: rage * 0.3 };
     },
@@ -1595,6 +1860,13 @@ const FIGS = {
         ctx.fillStyle = '#9a9aa8';
         for (let k = 10; k < 22; k += 3) { const [x, y] = g.pr(...along(g, hand, dir, k)); ctx.beginPath(); ctx.arc(x + 1.5, y - 1, 1.1, 0, TAU); ctx.fill(); }
       }
+    },
+    over(ctx, g) {
+      // A boulder held overhead, about to be thrown.
+      if (!g.P.rock) return;
+      const [x, y] = g.body(0, 0, g.shH + g.B.neck + g.B.headR * 2 + 9);
+      ctx.beginPath(); ctx.ellipse(x, y, 13, 10, 0, 0, TAU); g.fillOut(g.col('#7a6a5a'), 1.5);
+      if (!g.flash) { ctx.fillStyle = '#9a8a78'; ctx.beginPath(); ctx.ellipse(x - 4, y - 3, 5, 3.4, -0.3, 0, TAU); ctx.fill(); }
     },
     torso(ctx, g, T) {
       if (!T || g.flash) return;
@@ -1627,17 +1899,23 @@ const FIGS = {
       const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
       const shield = { handL: [6, -3, shH - 5], frontL: true };
       if (a === 'combo') { const side = e.cutSide || 1; return s2 === 'wind' ? { ...shield, handR: [-1, 4 * side, shH + 5], wR: [-0.3, side * 0.6, 1] } : { ...shield, lean: 0.3, handR: [B.armL - 1, -3 * side, shH - 5], wR: [0.6, -side, -0.4] }; }
-      if (a === 'rush') return { ...shield, lean: 0.4, stance: 'wide', handL: [B.armL, -1, shH - 3], handR: [-3, 6, shH - 6], wR: [-0.4, 0.3, 1] };
+      if (a === 'javelin') return s2 === 'aim' ? { ...shield, stance: 'wide', lean: -0.1, handR: [-5, 5, shH + 3], wR: [1, 0, 0.15], javelin: true } : { ...shield, lean: 0.35, handR: [B.armL, 3, shH - 1], wR: [1, 0, 0] };
+      if (a === 'wall') return { crouch: 2.5, stance: 'wide', handL: [B.armL - 1, -1, shH - 4], frontL: true, handR: [3, 5, shH - 4], wR: [1, -0.1, 0.4], bigShield: true };
       if (a === 'raise') return { handR: [2, 5, shH + 6], wR: [0, 0, 1], handL: [3, -6, shH - 6], rite: true };
       if (a === 'exposed') return { shake: 0.4, lean: -0.1, handR: [2, 6, shH - 10], wR: [0.5, 0.3, -1], handL: [2, -8, shH - 11] };
       return { ...shield, handR: [2, 5, shH - 7], wR: [0.3, 0.1, 1] };
     },
-    weapon(ctx, g, key, hand, dir) { if (key === 'R') drawBlade(ctx, g, hand, dir, 14, '#c8ccd0', '#6a4a2c', 2.6); },
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      if (g.P.javelin) drawSpear(ctx, g, hand, dir, 16, 8, '#e8e0cc');
+      else drawBlade(ctx, g, hand, dir, 14, '#c8ccd0', '#6a4a2c', 2.6);
+    },
     items(g) {
       const h = g.hands.L;
       if (!h) return [];
+      const big = g.P.bigShield;
       const c = [h.hand[0] + 1.5, h.hand[1], h.hand[2] - 1];
-      return [{ f: c[0] + 3, r: c[1], bias: g.P.rite ? -6 : 4, draw: (ctx) => drawPlate(ctx, g, c, 5.5, 5.5, '#6a5a4a', '#c8a050') }];
+      return [{ f: c[0] + 3, r: c[1], bias: g.P.rite ? -6 : 4, draw: (ctx) => drawPlate(ctx, g, c, big ? 8 : 5.5, big ? 9 : 5.5, '#6a5a4a', '#c8a050') }];
     },
     torso(ctx, g, T) {
       if (!T || g.flash) return;
@@ -1663,7 +1941,7 @@ const FIGS = {
     pose(e, G, B) {
       const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
       if (a === 'fan' && s2 === 'aim') return { stance: 'wide', handR: [5, 2, shH - 1], handL: [B.armL - 1, -1, shH - 1], frontL: true, wR: [1, 0, 0] };
-      if (a === 'knives') return s2 === 'wind' ? { crouch: 2, lean: 0.25, handR: [-3, 5, shH - 4], wR: [0.2, 0.3, 1] } : { lean: 0.5, handR: [B.armL, 2, shH - 3], wR: [1, 0, 0] };
+      if (a === 'kegs') return s2 === 'wind' ? { lean: -0.15, handL: [-3, -5, shH + 6], handR: [2, 5, shH - 6], wR: [0.7, -0.2, -0.6], keg: true } : { lean: 0.3, handL: [B.armL - 1, -3, shH + 2], handR: [2, 5, shH - 6], wR: [0.7, -0.2, -0.6] };
       if (a === 'smoke') return { crouch: 2, handR: [2, 2, shH], handL: [2, -2, shH] };
       if (a === 'exposed') return { shake: 0.4, handR: [2, 6, shH - 9], wR: [0.6, 0, -0.8] };
       return { handR: [2, 5, shH - 7], handL: [3, -3, shH - 6], wR: [0.7, -0.2, -0.6] };
@@ -1679,6 +1957,14 @@ const FIGS = {
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2 + w, y2); ctx.lineTo(x3 + w, y3); ctx.closePath();
         g.fillOut(g.col('#a8282a'), 1.2);
       } }];
+    },
+    over(ctx, g) {
+      // A powder keg in her raised hand, fuse lit.
+      const h = g.hands.L;
+      if (!g.P.keg || !h) return;
+      const [x, y] = g.pr(...h.hand);
+      ctx.beginPath(); ctx.ellipse(x, y - 4, 5, 4, 0, 0, TAU); g.fillOut(g.col('#7a5230'), 1.2);
+      if (!g.flash) { ctx.fillStyle = '#ffd45e'; ctx.beginPath(); ctx.arc(x + 3, y - 9, 1.4 + Math.random() * 1.2, 0, TAU); ctx.fill(); }
     },
     head(ctx, g) {
       headBall(ctx, g, '#e2b489');

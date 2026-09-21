@@ -19,9 +19,9 @@ const STATES = {
   jiangshi: ['set', 'hop'], zealot: ['chase', 'flee'], wolf: ['chase', 'howl', 'crouch', 'pounce'],
   tengu: ['chase', 'rise', 'dive', 'dazed'], banshee: ['chase', 'wail'], spearman: ['chase', 'draw', 'thrust', 'recover'],
   ronin: ['chase', 'stance', 'draw'], kitsune: ['chase', 'wind'], ninja: ['chase', 'smoke', 'throw'],
-  kyubi: ['idle', 'foxfire.wind', 'sweep.dash', 'illusion.wind'], sasaki: ['idle', 'iaido.stance', 'iaido.dash', 'parry.guard'],
-  oni: ['idle', 'smash.raise', 'smash.stuck', 'sweep.wind'], captain: ['idle', 'combo.wind', 'rush.go', 'raise.rite'],
-  alpha: ['idle', 'pounce.crouch', 'pounce.leap', 'howl.howl'], queen: ['idle', 'fan.aim', 'knives.dash', 'smoke.bomb'],
+  kyubi: ['idle', 'procession.raise', 'field.cast', 'fan.spread'], sasaki: ['idle', 'flash.stance', 'flash.after', 'swallow.wind', 'counter.guard'],
+  oni: ['idle', 'boulder.lift', 'quake.raise', 'smash.raise'], captain: ['idle', 'javelin.aim', 'wall.wall', 'combo.wind'],
+  alpha: ['idle', 'pounce.crouch', 'pounce.leap', 'howl.howl'], queen: ['idle', 'fan.aim', 'kegs.wind', 'smoke.bomb'],
   hag: ['idle', 'globs.wind', 'leap.crouch', 'frogs.call'], hierophant: ['idle', 'halo.gather', 'lance.cast', 'wardens.call'],
 };
 const c = document.getElementById('c');
@@ -38,7 +38,7 @@ types.forEach((type, row) => {
   STATES[type].forEach((st, col) => views.forEach((o, v) => {
     const e = spawnEnemy(type, 0, 0, { instant: true });
     e.spawning = false; e.state = st; e.t = 0.12;
-    if (e.mini) { const [ac, sb] = st.split('.'); e.action = ac; e.sub = sb || null; e.phase = 1; } e.belly = ['#ff5e6e', '#5ee0c8']; e.loot = 30;
+    if (e.mini) { const [ac, sb] = st.split('.'); e.action = ac; e.sub = sb || null; e.phase = 1; e.orbs = 5; } e.belly = ['#ff5e6e', '#5ee0c8']; e.loot = 30;
     cells.push({ e, st, o, x: (1 + col * views.length + v) * CW + CW / 2, y: row * RH + 66, walk: false });
   }));
   if (!params.get('v')) for (const o of [1, 3]) {
