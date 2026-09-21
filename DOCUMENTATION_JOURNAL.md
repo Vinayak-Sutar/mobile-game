@@ -4275,6 +4275,63 @@ and the Mire (16.10). It now gets the same fix:
   old drifting shimmer strokes on water tiles (`wilds-draw.js`). The live
   water is now the only light on it.
 
+### 16.37 The Wilds, M2: Ashlamps, Cinders, levelling, the smoulder, save and Continue (2026-09-21)
+
+- **Ashlamps**:
+  - 23 lamps (`LAMPS` in wilds-layout.js): one at every region's heart, at the
+    foot and the top of the climbs, at the bridge ends, and Saltwind Harbour.
+    All were checked to stand on open ground. They're kept clear of trees
+    through `CLEARINGS`.
+  - `updateLamps` (wilds-world.js): coming within 70 units kindles a lamp
+    (`{ kindle }`). Standing still 0.6 s at a kindled one rests you (`{ rest }`),
+    once each visit.
+  - Drawn as an iron cage on a stone post with a flickering flame and warm
+    light, its name, and a "stand still to rest" ring. Shown on the minimap and
+    the full map (named when zoomed in).
+- **Resting** (`restAtLamp`, game.js):
+  - `restore()` gives back full health, `START_LIVES`, dashes, grenades and
+    spell cooldowns;
+  - the lamp becomes where you wake (`setLastLamp`), and the journey is saved;
+  - then the lamp menu: Level up, Travel (to any kindled lamp, resting there),
+    Attune spells (equip known spells up to your slots), Weapon, Rise.
+- **Cinders are the Wilds' use of `world.gold`**, so enemy drops in M3 count
+  without new code. The HUD shows an ember in place of the coin, and the top
+  label reads the region and level.
+- **`wilds-progress.js`**:
+  - `journey.levels` for Vigor (+12 HP), Might (+5% damage), Grace (dash
+    recharge +3% per level via `stats.dashRate`, +1 dash at 3/7/12) and
+    Attunement (`stats.spellCdMult`, slots at 2/5/9, starting from 1).
+  - Cost is `round(60 + 14·L^1.4)`, from 74 to 514 over the first twelve.
+  - `applyLevels` works from `wildsBase`, a fresh `createPlayer(weapon, {})`:
+    the Mirror of Night doesn't apply in the Wilds.
+  - Hooks: `player.js` dash timer, `spells.js` `spellCooldown` and the
+    `learnSpell` cap (`p.spellSlots ?? SPELL_SLOTS`), and `ui.js` sealed slots
+    shown with a lock.
+- **Lives and death**:
+  - a spare life now revives you anywhere;
+  - with none left in the Wilds, `dropSmoulder` leaves your Cinders where you
+    fell, and you wake at the last lamp, restored;
+  - touching the smoulder (`takeSmoulder`, within 44 units) takes them all
+    back. A second fall first loses them.
+- **Save** (`wilds-save.js`, `ashfall.v5.wilds`, version 1):
+  - holds levels, smoulder, Cinders, weapon, spells, spell levels, time played
+    (`world.runTime`), and `worldSnapshot()` (lamps lit, last lamp, fog as a
+    base64 bitset, lands found);
+  - about 23 KB;
+  - written on kindle, rest, level, travel, waking, smoulder, every 30 s, on
+    leaving the Wilds and on page hide.
+  - On Continue, `restoreWorld` repaints the explored map in the background
+    from direct classifier samples.
+- **Title flow**:
+  - The Wilds shows Continue (level, Cinders, lamps, time, where you'll wake)
+    and New Journey (confirms before forgetting the old one).
+  - A new journey takes the Training Ground's weapon and spells (as many as
+    one slot holds).
+  - The pause menu gains "+1000 Cinders" for testing, until M3 brings enemies.
+- **Verified in Node**: stats and costs; caps and refusal; the smoulder; kindle
+  at frame 57 and rest at frame 110 walking up to the Hearth; the save
+  round-trips fog, lamps and Cinders.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

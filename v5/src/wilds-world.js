@@ -25,9 +25,11 @@ import { burst } from './fx.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise, mulberry } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
 import {
-  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET,
+  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
+import { journey, takeSmoulder } from './wilds-progress.js';
+import { packBits, unpackBits } from './wilds-save.js';
 
 export { WILDS };
 export const FOG = 100;                  // fog-of-war cell
@@ -462,6 +464,10 @@ function build() {
     prints: [], stepT: 0, lastX: 0, lastY: 0, printX: 0, printY: 0,
     grade: [255, 228, 168, 0.05], leaves: [],
     water: createWildsWater(),
+    // The Ashlamps: kindled or not, and the one you last rested at.
+    lamps: LAMPS.map((l) => ({ ...l, lit: false, seen: false, near: false, still: 0, rested: false })),
+    lastLamp: null,
+    repaint: null,
   };
 }
 
@@ -784,7 +790,108 @@ export function arriveAt(x, y) {
   W.lastX = x; W.lastY = y;
 }
 
-export function overworldRespawn() { return W ? W.respawn : { ...START }; }
+/** Where you wake: before the last Ashlamp you rested at (or where you began). */
+export function overworldRespawn() {
+  const l = W && W.lastLamp && W.lamps.find((q) => q.id === W.lastLamp);
+  return l ? { x: l.x, y: l.y + 70 } : { ...START };
+}
+
+// --- the Ashlamps ---------------------------------------------------------------------
+
+export const lampById = (id) => W && W.lamps.find((l) => l.id === id);
+export const litLamps = () => (W ? W.lamps.filter((l) => l.lit) : []);
+export const allLamps = () => (W ? W.lamps : []);
+
+/** Rest here: it becomes where you wake. */
+export function setLastLamp(id) {
+  if (!W) return;
+  const l = lampById(id);
+  if (!l) return;
+  l.lit = true;
+  W.lastLamp = id;
+}
+
+const LAMP_R = 70;            // how near counts as at the lamp
+const REST_STILL = 0.6;       // seconds standing still there that rests you
+
+/**
+ * The lamps' upkeep: walking up to an unlit one kindles it; standing still at
+ * a lit one rests you (once each visit - step away to rest again).
+ */
+function updateLamps(p, dt) {
+  let action = null;
+  for (const l of W.lamps) {
+    const d = Math.hypot(p.x - l.x, p.y - l.y);
+    if (d < 900) l.seen = true;
+    if (d > LAMP_R || p.dead) {
+      l.near = false; l.still = 0; l.rested = false;
+      continue;
+    }
+    l.near = true;
+    if (!l.lit) {
+      l.lit = true;
+      W.lastLamp = l.id;
+      action = { kindle: l };
+      continue;
+    }
+    const idle = p.moveMag < 0.1 && !p.attack && !p.dashing && !p.charging && !p.aiming;
+    l.still = idle ? l.still + dt : 0;
+    if (!l.rested && l.still >= REST_STILL) {
+      l.rested = true;
+      action = { rest: l };
+    }
+  }
+  return action;
+}
+
+// --- saving and restoring the world's side of a journey ----------------------------------
+
+/** What the save file needs from the world. */
+export function worldSnapshot() {
+  if (!W) return null;
+  return {
+    lamps: W.lamps.filter((l) => l.lit).map((l) => l.id),
+    last: W.lastLamp,
+    fog: packBits(W.fog),
+    visited: [...W.visited],
+  };
+}
+
+/**
+ * Put a saved journey's world back: lamps, fog, lands found. The map's
+ * picture of the explored land is repainted in the background (straight from
+ * the classifier, a few rows a frame), so continuing never waits on it.
+ */
+export function restoreWorld(snap) {
+  if (!W || !snap) return;
+  for (const l of W.lamps) l.lit = snap.lamps.includes(l.id);
+  W.lastLamp = snap.last && lampById(snap.last) ? snap.last : null;
+  W.fog = unpackBits(snap.fog, W.fogW * W.fogH);
+  for (const id of snap.visited || []) W.visited.add(id);
+  W.repaint = { row: 0 };
+}
+
+function repaintStep(deadline) {
+  const R = W.repaint;
+  if (!R || !W.mapCanvas) { W.repaint = null; return; }
+  const g = W.mapCanvas.getContext('2d');
+  while (R.row < W.fogH) {
+    const j = R.row, y = j * FOG + FOG / 2;
+    let road = null;
+    for (let i = 0; i < W.fogW; i++) {
+      if (!W.fog[j * W.fogW + i]) continue;
+      if (!road) road = roadDistIn(0, y - 60, WILDS.W, y + 60);
+      const x = i * FOG + FOG / 2;
+      const t = W.classify(x, y);
+      const isRoad = t !== TT.WATER && t !== TT.SHALLOW && t !== TT.CHASM && road(x, y) < 44;
+      g.fillStyle = `rgb(${isRoad ? ROAD_RGB : TERRAIN_RGB[t]})`;
+      g.fillRect(i * 2, j * 2, 2, 2);
+    }
+    R.row++;
+    if (performance.now() > deadline) return;
+  }
+  W.repaint = null;
+}
 
 /** Back from a fight: where to stand. (The guardians' gates return in a later step.) */
 export function overworldReturn() {
@@ -824,6 +931,7 @@ export function updateOverworld(dt) {
   stream(p, p.ghost ? 8 : 3);
   refreshActive(p);
   if (W.fogOff) chartOverview(performance.now() + 3);
+  if (W.repaint) repaintStep(performance.now() + 3);
 
   // The camera leads a little the way you aim.
   const lead = 60;
@@ -864,6 +972,13 @@ export function updateOverworld(dt) {
   }
 
   weather(z, dt);
+  world.zoneName = z.name;
+
+  // The Ashlamps; and your smoulder, if you walk back to it.
+  const lampAct = updateLamps(p, dt);
+  if (lampAct) action = lampAct;
+  const back = takeSmoulder(p);
+  if (back) action = { smoulder: back };
 
   // Each land has its own light, eased so crossing a border is a slow turn.
   const ground = W.terrain.typeAt(p.x, p.y);

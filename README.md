@@ -138,6 +138,13 @@ in: guardians, lamps, fights and progression arrive in the next steps.
 - **Map:** a minimap window round you, and a full-screen map (Tab, tap the
   minimap, or the DualSense touchpad). Fog of war covers it until you have
   walked there. Drag to pan, zoom in two steps.
+- **Souls-like core:** kindle **Ashlamps** (23 of them) by walking up; stand
+  still at one to rest: health, all three lives and cooldowns back, and it
+  becomes where you wake. Spend **Cinders** there on four attributes (Vigor,
+  Might, Grace for dashes, Attunement for spell slots), travel between
+  kindled lamps, and attune your spells. Fall with no life left and your
+  Cinders stay where you fell as a **smoulder**. The journey saves itself;
+  Continue from the Wilds screen.
 - **Streaming:** only the land near you exists at any moment: detail in
   2048-unit sectors, walls in a spatial hash, and collision against an
   active set. That is what lets a world this size run on a phone.

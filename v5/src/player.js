@@ -145,9 +145,9 @@ export function updatePlayer(p, dt) {
   p.grenadePop = Math.max(0, (p.grenadePop || 0) - dt);
   p.grenadeDenied = Math.max(0, (p.grenadeDenied || 0) - dt);
 
-  // Dash charges refill one at a time.
+  // Dash charges refill one at a time (faster with the Wilds' Grace).
   if (p.dashStock < p.stats.dashCharges) {
-    p.dashTimer -= dt;
+    p.dashTimer -= dt * (p.stats.dashRate || 1);
     if (p.dashTimer <= 0) {
       p.dashStock++;
       p.dashTimer = 0.75;

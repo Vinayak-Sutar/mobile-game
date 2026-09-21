@@ -278,7 +278,8 @@ export function spellLevel(p, id) { return (p && p.spellLv && p.spellLv[id]) || 
 /** A spell's full cooldown at the player's level for it (−12% per level). */
 export function spellCooldown(p, s) {
   const lv = Math.max(1, spellLevel(p, s.id));
-  return s.cd * (1 - 0.12 * (lv - 1)) * (1 - Math.min(0.5, (p && p.stats && p.stats.spellCdr) || 0));
+  return s.cd * (1 - 0.12 * (lv - 1)) * (1 - Math.min(0.5, (p && p.stats && p.stats.spellCdr) || 0))
+    * ((p && p.stats && p.stats.spellCdMult) || 1);           // the Wilds' Attunement
 }
 
 /** Seconds until the spell is ready again (0 = ready). */
@@ -320,7 +321,8 @@ export function learnSpell(p, id, replaceSlot = -1) {
     p.spellLv[id] = Math.min(SPELL_MAX_LEVEL, spellLevel(p, id) + 1);
     return 'levelled';
   }
-  const free = p.spells.length < SPELL_SLOTS;
+  // The Wilds open slots with Attunement; everywhere else all four are open.
+  const free = p.spells.length < (p.spellSlots ?? SPELL_SLOTS);
   if (!free && replaceSlot < 0) return 'full';
   p.spellLv[id] = Math.max(1, spellLevel(p, id));    // a spell you dropped keeps its level
   if (free) p.spells.push(id);

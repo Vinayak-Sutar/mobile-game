@@ -16,6 +16,21 @@ import { TAU, clamp, roundRect } from './util.js';
 import { input } from './input.js';
 import { REGIONS } from './wilds-layout.js';
 import { wildsState, WILDS, FOG, chartOverview, chartProgress } from './wilds-world.js';
+import { journey } from './wilds-progress.js';
+
+/** A lamp on a map: a warm dot if kindled, a hollow ring if only seen. */
+function lampIcon(ctx, x, y, lit, r) {
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+  if (lit) { ctx.fillStyle = '#ffb35e'; ctx.fill(); ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 1; ctx.stroke(); }
+  else { ctx.strokeStyle = 'rgba(255,200,150,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
+}
+
+/** Your smoulder on a map: a pulsing ember. */
+function smoulderIcon(ctx, x, y, r) {
+  const k = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
+  ctx.fillStyle = `rgba(255,90,40,${k.toFixed(2)})`;
+  ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
 
 const PX = 2 / FOG;                      // map pixels per world unit
 const INK = '#16121c';
@@ -51,6 +66,11 @@ export function drawOverworldMap(ctx) {
   ctx.imageSmoothingEnabled = true;
   ctx.restore();
 
+  ctx.save();
+  roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
+  for (const l of W.lamps) if (l.seen || l.lit) lampIcon(ctx, x + (l.x - wx) * s, y + (l.y - wy) * s, l.lit, 3);
+  if (journey.smoulder) smoulderIcon(ctx, x + (journey.smoulder.x - wx) * s, y + (journey.smoulder.y - wy) * s, 3.5);
+  ctx.restore();
   ctx.fillStyle = '#ffffff';
   arrow(ctx, x + (p.x - wx) * s, y + (p.y - wy) * s, p.face ?? p.aimAngle, 6);
   ctx.fill();
@@ -129,6 +149,16 @@ export function mountWildsMap(canvas, opts = {}) {
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(r.name, tx + 1, ty + 1);
       ctx.fillStyle = 'rgba(255,236,200,0.92)'; ctx.fillText(r.name, tx, ty);
     }
+
+    // The Ashlamps (kindled, or seen), and your smoulder.
+    ctx.font = '700 11px system-ui';
+    ctx.textAlign = 'center';
+    for (const l of W.lamps) {
+      if (!l.seen && !l.lit && !W.fogOff) continue;
+      lampIcon(ctx, toX(l.x), toY(l.y), l.lit, st.zoom > 1.5 ? 6 : 4);
+      if (st.zoom > 1.5 && l.lit) { ctx.fillStyle = 'rgba(255,217,160,0.9)'; ctx.fillText(l.name, toX(l.x), toY(l.y) - 10); }
+    }
+    if (journey.smoulder) smoulderIcon(ctx, toX(journey.smoulder.x), toY(journey.smoulder.y), 6);
 
     // You.
     if (p) {

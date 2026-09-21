@@ -5,7 +5,14 @@ import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
   overworldProgress, FINALS, bindOverworldSpawner, arriveAt, setMapFog,
+  lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld,
 } from './wilds-world.js';
+import {
+  journey, resetJourney, applyLevels, buyLevel, levelCost, totalLevel, ATTRS,
+  dropSmoulder, restore,
+} from './wilds-progress.js';
+import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
+import { LAMPS } from './wilds-layout.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -310,16 +317,24 @@ function revivePlayer() {
 function onDeath() {
   if (world.owBoss) { leaveGateFight(false); return; }
   if (world.overworld) {
+    // No life to spare: your Cinders stay where you fell (your smoulder), and
+    // you wake at the last Ashlamp you rested at, whole again.
     const p = world.player;
+    const lost = world.gold;
+    dropSmoulder(p.x, p.y);
     const at = overworldRespawn();
-    p.dead = false; p.hp = p.stats.maxHp; p.invuln = 2;
+    p.dead = false; p.invuln = 2;
+    restore(p);
     p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
     p.attack = null; p.dashing = false;
     clearBullets();
     arriveAt(p.x, p.y);
     snapCamera();
-    showToast('YOU WAKE AGAIN', 'The Wilds keep what they took, nothing more');
+    const lamp = lampById(journey.lastLampId) || null;
+    showToast(`YOU WAKE${lamp ? ` AT ${lamp.name.toUpperCase()}` : ' AGAIN'}`,
+      lost ? `Your ${lost} Cinders smoulder where you fell. Go back for them.` : 'You carried no Cinders', 4);
     state = 'playing';
+    saveWilds();
     return;
   }
   if (world.training || world.tutorial) {
@@ -427,6 +442,21 @@ function tick(dt) {
       if (world.overworld) {
         const act = updateOverworld(dt);
         if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.6);
+        if (act && act.kindle) {
+          journey.lastLampId = act.kindle.id;
+          showToast('ASHLAMP KINDLED', `${act.kindle.name}: stand still at it to rest`, 3);
+          sfx.boon();
+          saveWilds();
+        }
+        if (act && act.rest) restAtLamp(act.rest);
+        if (act && act.smoulder) {
+          showToast('YOUR SMOULDER', `${act.smoulder} Cinders taken back`, 2.6);
+          sfx.pickup();
+          saveWilds();
+        }
+        // Kept safe every half minute, whatever happens.
+        wildsSaveT -= dt;
+        if (wildsSaveT <= 0) { wildsSaveT = 30; saveWilds(); }
         if (act && act.site) showSiteChoice(act.site);
         else if (act && act.final) showFinalChoice();
         else if (act && act.spell) showSpellSelect(false, { eyebrow: 'spoils of the camp', done: wildsResume });
@@ -477,7 +507,9 @@ function tick(dt) {
       // A spare life stands you back up where you fell - in the chambers and
       // in a Wilds guardian's arena alike. (Out in the Wilds themselves a fall
       // wakes you at your shrine instead.)
-      if (world.player.lives > 1 && !world.overworld) revivePlayer();
+      // A spare life stands you back up where you fell - in the chambers, in
+      // a guardian's arena, and out in the Wilds alike.
+      if (world.player.lives > 1) revivePlayer();
       else onDeath();
     }
   } else {
@@ -1302,53 +1334,262 @@ function startTraining() {
 bindOverworldSpawner(spawnEnemyDebug);
 let owBossT = 0;
 
-function showWildsIntro() {
+function showWildsIntro(confirmNew = false) {
   state = 'training';
   const w = WEAPONS[training.weapon];
-  showOverlay(`
-    <div class="panel">
-      <div class="eyebrow">in construction &middot; the land first</div>
-      <h2>The Wilds</h2>
-      <p class="sub">A land of fourteen regions round the Ashen Heartland: the Webwood, Mirror
-      Lake, the Dust Gulch, the Blackwater Mire, the Gilded Deep, the Echo Cliffs, the Sunken
-      Sands, the Broken Peaks, the Coil Gorge, the Hollow Moors, Cloud Summit, the Great Bridge
-      and the Moon Citadel. Walk it end to end: it takes minutes, not seconds. Climb the tiers of
-      the Peaks and the Summit, cross the rivers at their bridges, and fill in the map.</p>
-      <p class="sub">Its guardians, lamps and fights arrive in the next steps. For now the land is empty.</p>
-      <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
-      Ground's spells. Change them there first.</p>
-      ${playerRows(showWildsIntro)}
-      <div class="row">
-        <button class="btn" data-act="w-start">Set out</button>
+  const saved = loadJourney();
+  const t = saved ? saved.played || 0 : 0;
+  const lamp = saved && saved.world && saved.world.last;
+  const lampName = lamp ? (LAMP_NAMES[lamp] || 'an Ashlamp') : 'where you began';
+  const lv = saved ? 1 + Object.values(saved.levels || {}).reduce((a, b) => a + b, 0) : 1;
+  const buttons = confirmNew
+    ? `<p class="sub" style="color:#ffb35e">A new journey forgets the one you have: your levels, Cinders, lamps and map. Begin again?</p>
+       <div class="row">
+         <button class="btn" data-act="w-new-yes">Yes, begin again</button>
+         <button class="btn ghost" data-act="wilds">Keep my journey</button>
+       </div>`
+    : `<div class="row">
+        ${saved ? '<button class="btn" data-act="w-continue">Continue</button>' : ''}
+        <button class="btn ${saved ? 'ghost' : ''}" data-act="w-new">${saved ? 'New Journey' : 'Set out'}</button>
         <button class="btn ghost" data-act="training">Training Ground loadout</button>
         <button class="btn ghost" data-act="title">Back</button>
-      </div>
+      </div>`;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">in construction &middot; the land and its lamps</div>
+      <h2>The Wilds</h2>
+      ${saved ? `<p class="sub"><b>Your journey:</b> level ${lv} &middot; ${saved.cinders || 0} Cinders &middot;
+        ${(saved.world && saved.world.lamps ? saved.world.lamps.length : 0)} Ashlamps kindled &middot;
+        ${Math.floor(t / 3600)}h ${String(Math.floor(t / 60) % 60).padStart(2, '0')}m played.
+        You will wake at ${lampName}.</p>` : ''}
+      <p class="sub">An island of fourteen lands round the Ashen Heartland, and Saltwind Isle
+      across the sea bridge. Kindle the <b>Ashlamps</b> you find: rest at one to heal, get your
+      three lives back and save; spend <b>Cinders</b> there to grow stronger; travel between the
+      ones you have lit. Fall with no life left and you wake at your last lamp, your Cinders left
+      smouldering where you fell.</p>
+      <p class="sub">The land's enemies and guardians arrive in the next steps.</p>
+      <p class="sub">A new journey takes <b style="color:${w.color}">${w.name}</b> and the Training
+      Ground's spells (as many as your spell slots hold).</p>
+      ${playerRows(() => showWildsIntro(confirmNew))}
+      ${buttons}
     </div>`);
 }
 
-function startWilds() {
+// The lamps' names, for the intro screen (the world is not built there yet).
+const LAMP_NAMES = Object.fromEntries(LAMPS.map((l) => [l.id, l.name]));
+
+// The Wilds' own progression (wilds-progress.js): the player is made with no
+// Mirror of Night bonuses and the journey's levels are laid on top. `wildsBase`
+// is that fresh player's stats, which every level is counted from.
+let wildsBase = null;
+let wildsSaveT = 30;
+
+/** Start the Wilds: `cont` carries on the saved journey, otherwise a new one. */
+function startWilds(cont) {
   resetWorld();
   clearFx();
   resetUi();
   resetInput();
   world.biome = getBiome(save.biome);
-  world.player = createPlayer(WEAPONS[training.weapon], metaBonuses());
+  const saved = cont ? loadJourney() : null;
+  if (!saved) { clearJourney(); resetJourney(); }
+  else {
+    journey.levels = { ...journey.levels, ...saved.levels };
+    journey.smoulder = saved.smoulder || null;
+  }
+  if (saved && WEAPONS[saved.weapon]) training.weapon = saved.weapon;
+  world.player = createPlayer(WEAPONS[training.weapon], {});
+  wildsBase = { ...world.player.stats };
   world.depth = FIRST_BOSS_DEPTH + BOSS_GAP;
-  trainingLoadout();
-  world.player.invincible = false;
+  const p = world.player;
+  if (saved) {
+    p.spells = (saved.spells || []).filter((id) => spellById(id));
+    p.spellLv = saved.spellLv || {};
+    p.spellCds = {};
+  } else {
+    trainingLoadout();
+  }
+  applyLevels(p, wildsBase);
+  p.hp = p.stats.maxHp;
+  p.invincible = false;
+  world.gold = saved ? saved.cinders || 0 : 0;
+  world.runTime = saved ? saved.played || 0 : 0;
+  world.wildsLevel = totalLevel();
   wildsGhost = false;
+  wildsSaveT = 30;
   world.overworld = true;
   const room = enterOverworld(true);
   world.room = room;
+  if (saved && saved.world) restoreWorld(saved.world);
+  journey.lastLampId = saved && saved.world ? saved.world.last : null;
   setMapFog(!!save.mapNoFog);
   const at = overworldRespawn();
-  const p = world.player;
   p.x = at.x; p.y = at.y;
   arriveAt(p.x, p.y);
   snapCamera();
-  showToast('THE WILDS', 'Walk it end to end. Tab or tap the minimap for the map.', 4);
+  const lamp = lampById(journey.lastLampId);
+  if (saved) showToast(lamp ? `YOU WAKE AT ${lamp.name.toUpperCase()}` : 'YOUR JOURNEY GOES ON', `Level ${totalLevel()} \u00b7 ${world.gold} Cinders`, 3.4);
+  else showToast('THE WILDS', 'Find an Ashlamp. Tab or tap the minimap for the map.', 4);
   state = 'playing';
   hideOverlay();
+  saveWilds();
+}
+
+/** Keep the journey (everything but where you stand). */
+function saveWilds() {
+  const p = world.player;
+  if (!p || !(world.overworld || world.owBoss)) return;
+  saveJourney({
+    levels: journey.levels,
+    smoulder: journey.smoulder,
+    cinders: world.gold,
+    weapon: WEAPONS.indexOf(p.weapon),
+    spells: p.spells,
+    spellLv: p.spellLv,
+    played: world.runTime,
+    world: worldSnapshot(),
+  });
+}
+
+// --- the Ashlamps ----------------------------------------------------------------------------
+// Standing still at a kindled lamp rests you there: everything back, it becomes
+// where you wake, and the journey is saved. Then its menu: level up, travel to
+// another lamp, attune your spells, change weapon, or rise and go on.
+
+let curLamp = null;
+
+function restAtLamp(lamp) {
+  const p = world.player;
+  if (!p) return;
+  restore(p);
+  setLastLamp(lamp.id);
+  journey.lastLampId = lamp.id;
+  sfx.heal();
+  saveWilds();
+  showLampMenu(lamp);
+}
+
+function lampHeader(lamp, eyebrow) {
+  return `
+    <div class="eyebrow">${eyebrow}</div>
+    <h2 style="color:#ffb35e">${lamp.name}</h2>
+    <div class="stats">
+      <div class="stat"><b>${totalLevel()}</b><span>Level</span></div>
+      <div class="stat"><b style="color:#ff9a5a">${world.gold}</b><span>Cinders</span></div>
+      <div class="stat"><b>${levelCost()}</b><span>Next level</span></div>
+    </div>`;
+}
+
+function showLampMenu(lamp) {
+  curLamp = lamp;
+  state = 'paused';
+  showOverlay(`
+    <div class="panel">
+      ${lampHeader(lamp, 'ashlamp &middot; rested')}
+      <p class="sub">Your wounds close and your three lives return. You will wake here if you fall.</p>
+      <div class="row">
+        <button class="btn" data-act="l-level">Level up</button>
+        <button class="btn ghost" data-act="l-travel">Travel</button>
+        <button class="btn ghost" data-act="l-attune">Attune spells</button>
+        <button class="btn ghost" data-act="l-weapon">Weapon</button>
+        <button class="btn ghost" data-act="l-leave">Rise</button>
+      </div>
+    </div>`);
+}
+
+function showLevelUp(msg = '') {
+  const lamp = curLamp;
+  const cost = levelCost();
+  const rows = ATTRS.map((a) => {
+    const lv = journey.levels[a.id];
+    const maxed = lv >= a.max;
+    const can = !maxed && world.gold >= cost;
+    return `
+      <div class="volrow">
+        <span class="vollabel"><b>${a.name}</b> &middot; ${lv} / ${a.max}</span>
+        <span class="vollabel" style="opacity:.75">${a.what}</span>
+        <button class="btn ${can ? '' : 'ghost'} small" data-act="l-buy" data-id="${a.id}" ${can ? '' : 'disabled'}>${maxed ? 'Full' : `+1 &middot; ${cost}`}</button>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      ${lampHeader(lamp, 'ashlamp &middot; burn cinders to grow')}
+      ${msg ? `<p class="sub" style="color:#9fe0a0">${msg}</p>` : ''}
+      ${rows}
+      <div class="row"><button class="btn ghost" data-act="l-back">Back</button></div>
+    </div>`);
+}
+
+function showTravel() {
+  const lamp = curLamp;
+  const others = litLamps().filter((l) => l.id !== lamp.id);
+  const list = others.length
+    ? others.map((l) => `<button class="tgl" data-act="l-go" data-id="${l.id}">${l.name}</button>`).join('')
+    : '<p class="sub">Kindle other Ashlamps to travel between them.</p>';
+  showOverlay(`
+    <div class="panel">
+      ${lampHeader(lamp, 'ashlamp &middot; travel')}
+      <div class="chips">${list}</div>
+      <div class="row"><button class="btn ghost" data-act="l-back">Back</button></div>
+    </div>`);
+}
+
+function showAttune(msg = '') {
+  const lamp = curLamp;
+  const p = world.player;
+  const known = Object.keys(p.spellLv || {}).filter((id) => spellById(id));
+  const list = known.length
+    ? known.map((id) => {
+      const sp = spellById(id);
+      const on = p.spells.includes(id);
+      return `<button class="tgl ${on ? 'on' : ''}" data-act="l-spell" data-id="${id}" style="${on ? `border-color:${spellColor(sp)};color:${spellColor(sp)}` : ''}">${sp.glyph} ${sp.name}</button>`;
+    }).join('')
+    : '<p class="sub">You know no spells yet.</p>';
+  showOverlay(`
+    <div class="panel">
+      ${lampHeader(lamp, 'ashlamp &middot; attune')}
+      <p class="sub">${p.spells.length} of ${p.spellSlots} spell slots filled. Attunement opens more (at levels 2, 5 and 9).</p>
+      ${msg ? `<p class="sub" style="color:#ffb35e">${msg}</p>` : ''}
+      <div class="chips">${list}</div>
+      <div class="row"><button class="btn ghost" data-act="l-back">Back</button></div>
+    </div>`);
+}
+
+function showLampWeapon() {
+  const lamp = curLamp;
+  const p = world.player;
+  showOverlay(`
+    <div class="panel">
+      ${lampHeader(lamp, 'ashlamp &middot; weapon')}
+      <div class="chips">${WEAPONS.map((w, i) => `
+        <button class="tgl ${p.weapon === w ? 'on' : ''}" data-act="l-weapon-pick" data-idx="${i}" style="${p.weapon === w ? `border-color:${w.color};color:${w.color}` : ''}">${w.glyph} ${w.name}</button>`).join('')}</div>
+      <div class="row"><button class="btn ghost" data-act="l-back">Back</button></div>
+    </div>`);
+}
+
+/** Travel: straight to another kindled lamp, and rest there. */
+function travelTo(id) {
+  const l = lampById(id);
+  const p = world.player;
+  if (!l || !p) return;
+  p.x = l.x; p.y = l.y + 70; p.vx = p.vy = 0;
+  arriveAt(p.x, p.y);
+  snapCamera();
+  restore(p);
+  setLastLamp(l.id);
+  journey.lastLampId = l.id;
+  saveWilds();
+  wildsResume();
+  showToast(l.name.toUpperCase(), 'You rest, and rise', 2.4);
+}
+
+/** Testing, while the Wilds have no enemies yet: Cinders to spend. */
+function testRow() {
+  return `
+    <div class="volrow">
+      <span class="vollabel">Testing</span>
+      <button class="tgl" data-act="w-cinders">+1000 Cinders</button>
+    </div>`;
 }
 
 function snapCamera() {
@@ -1500,6 +1741,7 @@ function leaveGateFight(won) {
 }
 
 function leaveWilds() {
+  saveWilds();
   world.overworld = false;
   world.owBoss = null;
   camera.x = 0;
@@ -1609,10 +1851,11 @@ function wildsWeaponRow() {
 function swapWeapon(i) {
   const old = world.player;
   if (!old || !WEAPONS[i] || old.weapon === WEAPONS[i]) return;
-  const next = createPlayer(WEAPONS[i], metaBonuses());
+  // In the Wilds the journey's levels are laid on a player with no Mirror bonuses.
+  const next = createPlayer(WEAPONS[i], world.overworld || world.owBoss ? {} : metaBonuses());
   // Rebuilt, so no half-finished swing or reload survives; what you have
-  // earned (health, hearts, embers, spells, boons) comes with you.
-  for (const k of ['x', 'y', 'face', 'aimAngle', 'stats', 'hp', 'lives', 'spells', 'spellLv', 'spellCds', 'boons', 'boonOrder', 'ghost', 'invincible']) {
+  // earned (health, hearts, embers, spells, boons, levels) comes with you.
+  for (const k of ['x', 'y', 'face', 'aimAngle', 'stats', 'hp', 'lives', 'spells', 'spellLv', 'spellCds', 'boons', 'boonOrder', 'ghost', 'invincible', 'spellSlots', 'dashStock']) {
     if (old[k] !== undefined) next[k] = old[k];
   }
   next.invuln = 0.5;
@@ -1635,6 +1878,7 @@ function showWildsPause() {
       </div>
       ${ghostRow()}
       ${fogRow()}
+      ${testRow()}
       ${wildsWeaponRow()}
       ${playerRows(showWildsPause)}
       ${spellSlotsRow()}
@@ -2014,7 +2258,40 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       (charBack || showTitle)();
       break;
     }
-    case 'w-start': phoneFullscreen(); startWilds(); break;
+    case 'w-start':
+    case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); startWilds(false); } break;
+    case 'w-new-yes': phoneFullscreen(); startWilds(false); break;
+    case 'w-continue': phoneFullscreen(); startWilds(true); break;
+    case 'w-cinders': world.gold += 1000; saveWilds(); showWildsPause(); break;
+    case 'l-level': showLevelUp(); break;
+    case 'l-travel': showTravel(); break;
+    case 'l-attune': showAttune(); break;
+    case 'l-weapon': showLampWeapon(); break;
+    case 'l-back': showLampMenu(curLamp); break;
+    case 'l-leave': wildsResume(); break;
+    case 'l-go': travelTo(el.dataset.id); break;
+    case 'l-buy': {
+      const a = ATTRS.find((q) => q.id === el.dataset.id);
+      if (a && buyLevel(a.id, world.player, wildsBase)) {
+        world.wildsLevel = totalLevel();
+        sfx.boon();
+        saveWilds();
+        showLevelUp(`${a.name} rises to ${journey.levels[a.id]}.`);
+      }
+      break;
+    }
+    case 'l-spell': {
+      const p = world.player;
+      const id = el.dataset.id;
+      let msg = '';
+      if (p.spells.includes(id)) p.spells = p.spells.filter((s) => s !== id);
+      else if (p.spells.length < p.spellSlots) p.spells.push(id);
+      else msg = 'Every slot is full: take a spell out first.';
+      saveWilds();
+      showAttune(msg);
+      break;
+    }
+    case 'l-weapon-pick': swapWeapon(idx); saveWilds(); showLampWeapon(); break;
     case 'w-resume': wildsResume(); break;
     case 'w-away': wildsStepAway(); break;
     case 'w-weapon': swapWeapon(idx); showWildsPause(); break;
@@ -2216,6 +2493,7 @@ window.addEventListener('keydown', (ev) => {
 // drawing is rebuilt.
 
 function onLeave() {
+  if (world.overworld || world.owBoss) saveWilds();
   resetInput();
   if (state === 'playing') showPause();
   suspendAudio();

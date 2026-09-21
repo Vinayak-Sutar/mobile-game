@@ -12,6 +12,7 @@
 import { world, camera, view, gfx } from './state.js';
 import { TAU, dist } from './util.js';
 import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
+import { journey } from './wilds-progress.js';
 
 const inView = (x, y, pad = 80) => x > camera.x - pad && x < camera.x + view.w + pad && y > camera.y - pad && y < camera.y + view.h + pad;
 
@@ -64,6 +65,10 @@ export function drawOverworldBelow(ctx, time) {
     for (const d of S.decals) if (inView(d.x, d.y, 24)) drawDecal(ctx, d, time);
   }
   for (const S of secs) for (const g of S.grass) g.draw(ctx, time, { x: cx, y: cy, w: vw, h: vh });
+
+  // The Ashlamps, and your smoulder.
+  for (const l of W.lamps) if (inView(l.x, l.y, 120)) drawLamp(ctx, l, time);
+  if (journey.smoulder && inView(journey.smoulder.x, journey.smoulder.y, 80)) drawSmoulder(ctx, journey.smoulder, time);
 
   // Tree trunks and their shadows (the crowns are drawn over everyone).
   for (const S of secs) {
@@ -118,6 +123,84 @@ function drawObstacle(ctx, o, time) {
     }
     default: break;
   }
+}
+
+/**
+ * An Ashlamp: an iron cage on a stone post. Unkindled it is cold and dark;
+ * kindled, a flame burns in it and throws warm light round it. Stand at one
+ * and it says what it will do.
+ */
+function drawLamp(ctx, l, time) {
+  const x = l.x, y = l.y;
+  const fl = 0.8 + Math.sin(time * 9 + x) * 0.12 + Math.sin(time * 23 + y) * 0.08;
+  if (l.lit) {
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(x, y - 30, 4, x, y - 30, 120);
+    g.addColorStop(0, `rgba(255,170,80,${(0.34 * fl).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y - 30, 120, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 4, 20, 7, 0, 0, TAU); ctx.fill();
+  // The post and its base.
+  ctx.fillStyle = '#4a4648'; ctx.fillRect(x - 12, y - 6, 24, 10);
+  ctx.fillStyle = '#5e5a5c'; ctx.fillRect(x - 5, y - 40, 10, 36);
+  ctx.fillStyle = '#6e6a6c'; ctx.fillRect(x - 5, y - 40, 3, 36);
+  // The cage.
+  ctx.strokeStyle = '#2a2628'; ctx.lineWidth = 2;
+  ctx.strokeRect(x - 9, y - 62, 18, 22);
+  ctx.beginPath(); ctx.moveTo(x - 3, y - 62); ctx.lineTo(x - 3, y - 40); ctx.moveTo(x + 3, y - 62); ctx.lineTo(x + 3, y - 40); ctx.stroke();
+  ctx.fillStyle = '#2a2628';
+  ctx.beginPath(); ctx.moveTo(x - 12, y - 62); ctx.lineTo(x, y - 70); ctx.lineTo(x + 12, y - 62); ctx.closePath(); ctx.fill();
+  // The flame, or cold ash.
+  if (l.lit) {
+    ctx.fillStyle = '#ff8a3a';
+    ctx.beginPath(); ctx.ellipse(x, y - 49, 5.5, 9 * fl, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffe08a';
+    ctx.beginPath(); ctx.ellipse(x, y - 47, 2.6, 5 * fl, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillStyle = '#3a3436'; ctx.fillRect(x - 5, y - 45, 10, 4);
+  }
+  if (l.near) {
+    ctx.textAlign = 'center';
+    ctx.font = '800 12px system-ui';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(l.name, x + 1, y - 81);
+    ctx.fillStyle = '#ffd9a0'; ctx.fillText(l.name, x, y - 82);
+    if (l.lit && !l.rested) {
+      const k = Math.min(1, l.still / 0.6);
+      ctx.font = '700 10px system-ui';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('stand still to rest', x, y + 24);
+      if (k > 0) {
+        ctx.strokeStyle = '#ffb35e'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y - 49, 18, -Math.PI / 2, -Math.PI / 2 + k * TAU); ctx.stroke();
+      }
+    }
+  }
+}
+
+/** Your smoulder: the Cinders you dropped, a heap of embers breathing in and out. */
+function drawSmoulder(ctx, s, time) {
+  const k = 0.7 + Math.sin(time * 3) * 0.3;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, 46);
+  g.addColorStop(0, `rgba(255,110,40,${(0.5 * k).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(255,60,20,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(s.x, s.y, 46, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + time * 0.3;
+    const r = 6 + (i % 3) * 5;
+    ctx.fillStyle = i % 2 ? '#ff8a3a' : '#ffd07a';
+    ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r * 0.5, 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.textAlign = 'center';
+  ctx.font = '800 11px system-ui';
+  ctx.fillStyle = '#ffd9a0';
+  ctx.fillText(`${s.amount} Cinders`, s.x, s.y - 26);
 }
 
 function drawDecal(ctx, d, time) {

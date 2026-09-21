@@ -146,14 +146,15 @@ export function drawHud(ctx, time) {
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = `700 11px ${FONT}`;
   const loopTag = world.loop > 0 ? `  ·  LOOP ${world.loop + 1}` : '';
-  const label = world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
+  const label = world.overworld ? `${(world.zoneName || 'The Wilds').toUpperCase()}  ·  LEVEL ${world.wildsLevel || 1}`
+    : world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
   ctx.fillText(label, cx, 26);
 
   // Depth pips: bars for fights, diamonds for guardians.
   const pipW = 10, gap = 4;
   const total = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
   let ppx = cx - total / 2;
-  for (let i = 1; i <= FINAL_DEPTH && !world.trial; i++) {
+  for (let i = 1; i <= FINAL_DEPTH && !world.trial && !world.overworld; i++) {
     const done = i < world.depth;
     const here = i === world.depth;
     ctx.fillStyle = here ? '#ffd45e' : done ? 'rgba(255,212,94,0.45)' : 'rgba(255,255,255,0.14)';
@@ -173,10 +174,21 @@ export function drawHud(ctx, time) {
   ctx.textAlign = 'right';
   ctx.fillStyle = '#ffc861';
   ctx.font = `800 17px ${FONT}`;
-  ctx.fillText(`${world.gold}`, goldX, 32);
-  ctx.beginPath();
-  ctx.arc(goldX - ctx.measureText(`${world.gold}`).width - 12, 32, 7, 0, TAU);
-  ctx.fill();
+  if (world.overworld) {
+    // In the Wilds the purse holds Cinders: an ember, not a coin.
+    ctx.fillStyle = '#ff9a5a';
+    ctx.fillText(`${world.gold}`, goldX, 32);
+    const ex = goldX - ctx.measureText(`${world.gold}`).width - 12;
+    ctx.beginPath(); ctx.moveTo(ex, 22); ctx.quadraticCurveTo(ex + 8, 30, ex + 5, 37); ctx.quadraticCurveTo(ex, 41, ex - 5, 37);
+    ctx.quadraticCurveTo(ex - 8, 30, ex, 22); ctx.fill();
+    ctx.fillStyle = '#ffe08a';
+    ctx.beginPath(); ctx.ellipse(ex, 34, 2.4, 3.6, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillText(`${world.gold}`, goldX, 32);
+    ctx.beginPath();
+    ctx.arc(goldX - ctx.measureText(`${world.gold}`).width - 12, 32, 7, 0, TAU);
+    ctx.fill();
+  }
 
   // Mute indicator
   ctx.fillStyle = audio.muted ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.55)';
@@ -433,6 +445,19 @@ function drawSpellRow(ctx, p) {
       btn.y = view.h - 46;
     }
     const sp = spellById(p.spells[i]);
+    if (i >= (p.spellSlots ?? SPELL_SLOTS)) {
+      // Sealed (the Wilds): Attunement opens it.
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(btn.x, btn.y, btn.r * 0.72, 0, TAU); ctx.fill();
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = '#1a1420';
+      ctx.fillRect(btn.x - 6, btn.y - 1, 12, 9);
+      ctx.strokeStyle = '#1a1420'; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.arc(btn.x, btn.y - 2, 4.5, Math.PI, TAU); ctx.stroke();
+      ctx.globalAlpha = 1;
+      continue;
+    }
     if (!sp) {
       // Locked: an empty socket until a Spell door fills it.
       ctx.globalAlpha = 0.22;

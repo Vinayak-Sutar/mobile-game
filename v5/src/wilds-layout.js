@@ -213,6 +213,37 @@ const RAW_RIMS = [
   { x: 12960, y: 23000, w: 26, h: 1000 },
 ];
 
+// --- Ashlamps (the bonfires) --------------------------------------------------------
+// Rest at one to be healed, get your lives back and save; the last one you
+// rested at is where you wake if you fall; any you have kindled you can travel
+// between. Roughly one every few thousand units, one at every region's heart,
+// at the foot and the top of every climb, and at both ends of the bridges.
+const RAW_LAMPS = [
+  { id: 'hearth', name: 'Heartland Hearth', x: 18350, y: 13000 },
+  { id: 'eastway', name: 'Eastway', x: 22500, y: 11850 },
+  { id: 'southway', name: 'Southway', x: 18600, y: 16500 },
+  { id: 'millpond', name: 'Millpond', x: 20900, y: 14000 },
+  { id: 'coilford', name: 'Coil Crossing', x: 13400, y: 11950 },
+  { id: 'webwood', name: 'Webwood Hollow', x: 7500, y: 12000 },
+  { id: 'lakeshore', name: 'Lakeshore', x: 8200, y: 16900 },
+  { id: 'drowned', name: 'The Drowned Isle', x: 7450, y: 19250 },
+  { id: 'gorge', name: 'Coil Gorge', x: 12500, y: 22300 },
+  { id: 'mire', name: 'Mire Boardwalk', x: 18800, y: 18900 },
+  { id: 'garden', name: 'Garden Gate', x: 28000, y: 20100 },
+  { id: 'gulch', name: 'Dust Gulch Well', x: 26400, y: 11900 },
+  { id: 'sands', name: 'Sunken Stair', x: 33000, y: 13600 },
+  { id: 'harbour', name: 'Saltwind Harbour', x: 40300, y: 13400 },
+  { id: 'echo', name: 'Echo Lookout', x: 3300, y: 6000 },
+  { id: 'moors', name: 'Moorgate', x: 7800, y: 3300 },
+  { id: 'ashfoot', name: 'Ashen Foot', x: 16800, y: 7500 },
+  { id: 'caldera', name: 'Caldera Rim', x: 16000, y: 2600 },
+  { id: 'westsky', name: 'West Sky Landing', x: 19600, y: 2950 },
+  { id: 'bridgegate', name: 'Great Bridge Gate', x: 24300, y: 6700 },
+  { id: 'mooncourt', name: 'Moon Court', x: 24400, y: 3000 },
+  { id: 'terracefoot', name: 'Terrace Foot', x: 30300, y: 7100 },
+  { id: 'cloudperch', name: 'Cloud Perch', x: 32300, y: 2100 },
+];
+
 // Places that must stay clear of trees and rocks: where you start, the gate
 // dais, and every spot something will stand later (lamps, lairs, sites).
 const RAW_CLEARINGS = [
@@ -240,5 +271,6 @@ export const CHASMS = RAW_CHASMS.map(at);
 export const BRIDGES = RAW_BRIDGES.map(at);
 export const PLATEAUS = RAW_PLATEAUS.map(([x, y, w, h, f, stairs]) => [x + OX, y + OY, w, h, f, stairs.map(([sx, sw]) => [sx + OX, sw])]);
 export const RIMS = RAW_RIMS.map(at);
-export const CLEARINGS = RAW_CLEARINGS.map(at);
+export const LAMPS = RAW_LAMPS.map(at);
+export const CLEARINGS = [...RAW_CLEARINGS.map(at), ...LAMPS.map((l) => ({ x: l.x, y: l.y, r: 160 }))];
 export const LAND = { main: at(MAIN), isles: ISLES.map(at) };
