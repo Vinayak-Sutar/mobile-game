@@ -1303,7 +1303,9 @@ const FIGS = {
     pose(e, G, B) {
       const shH = B.legL + B.torsoH;
       const swing = Math.sin((world.runTime || 0) * 3 + (e.seed || 0)) * 3;
-      if (e.state === 'flee') return { lean: 0.25, handR: [-3, 5, shH - 3], handL: [-3, -5, shH - 3] };
+      if (e.state === 'flee') return { lean: 0.35, handR: [-3, 5, shH - 3], handL: [-3, -5, shH - 3] };
+      if (e.state === 'winded') return { lean: 0.45, crouch: 2, shake: 0.2, handR: [4, 4, shH - 11], handL: [4, -4, shH - 11] };
+      if (e.state === 'wind') return { handR: [1, 5, shH + 9], handL: [3, -5, shH + 2], lean: -0.1 };
       return { handR: [5 + swing, 5, shH - 3], handL: [2, -5, shH - 7] };
     },
     torso: robe('#e8dcc0', false),

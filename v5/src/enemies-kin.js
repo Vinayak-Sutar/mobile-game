@@ -9,7 +9,7 @@
 //   Necromancer  (cultists)      raises skeletons from the ground           hit it mid-rite; kill it and they fall
 //   Boneling     (the dead)      the necromancer's little skeletons         -
 //   Jiangshi     (China)         a hopping corpse, stiff-armed, in lines    stand still and it cannot see you
-//   Zealot       (cultists)      wards the enemies near it                  it runs; catch it
+//   Zealot       (cultists)      wards its allies; calls down light on you   it runs out of breath: catch it
 //   Wolf-folk    (beast-folk)    hunts in packs; one howls to rouse them    kill the howler while it howls
 //   Tengu        (Japan)         a crow-winged goblin that dives from the sky   watch its shadow, then punish it
 //   Banshee      (Ireland)       a keening that fills a cone                get out of the cone, or behind her
@@ -26,6 +26,7 @@ import { burst, ring, shake, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { player, stepToward, stepAway, strafe, collideWorld, contactDamage } from './ai.js';
 import { spawnProjectile } from './spawn.js';
+import { spawnHazard } from './hazards.js';
 
 let spawnEnemyFn = null;
 export function bindKinSpawner(fn) { spawnEnemyFn = fn; }
@@ -263,38 +264,52 @@ const WARD_R = 280;
 
 const ZEALOT = {
   r: 15, hp: 42, speed: 132, mass: 0.9, cost: 4, minDepth: 3, color: '#e8c050',
-  role: 'support', damageBase: 6, maxPerWave: 1,
-  init(e) { e.sign = Math.random() < 0.5 ? 1 : -1; e.pulse = 0; },
+  role: 'support', damageBase: 9, maxPerWave: 1,
+  init(e) { e.sign = Math.random() < 0.5 ? 1 : -1; e.pulse = 0; e.cd = rand(1.2, 2); e.fleeCd = 0; },
   update(e, dt) {
     const p = player();
     if (!p) return;
     const d = dist(e.x, e.y, p.x, p.y);
-    e.state = d < 200 ? 'flee' : 'chase';
-    // It shelters behind its nearest ally, away from you - close enough to
-    // ward it - and runs outright only when you come right up to it.
+    e.cd = Math.max(0, e.cd - dt);
+    e.fleeCd = Math.max(0, e.fleeCd - dt);
+    e.face = angleTo(e.x, e.y, p.x, p.y);
+    wardAllies(e, dt);
+
+    // Smite: the censer raised, a golden circle on the ground where you stand,
+    // then light falls there.
+    if (e.state === 'wind') {
+      e.t -= dt;
+      if (e.t <= 0) {
+        spawnHazard({ kind: 'blast', x: e.tx, y: e.ty, r: 58, delay: 0.55, damage: e.damage, color: '#ffe08a', source: 'zealot', owner: e, quiet: true });
+        e.state = 'chase'; e.cd = rand(2.2, 3);
+      }
+      return;
+    }
+    // It can run from you, but not for long: then it must stop for breath.
+    if (e.state === 'flee') {
+      e.t -= dt;
+      stepAway(e, p.x, p.y, e.speed * 1.15, dt);
+      if (e.t <= 0) { e.state = 'winded'; e.t = 1.3; e.exposed = 1.3; damageText(e.x, e.y - 40, 'WINDED', { color: '#ffe08a', size: 13 }); }
+      return;
+    }
+    if (e.state === 'winded') { e.t -= dt; if (e.t <= 0) { e.state = 'chase'; e.exposed = 0; e.fleeCd = 3.5; } return; }
+
+    e.state = 'chase';
+    if (d < 150 && e.fleeCd <= 0) { e.state = 'flee'; e.t = 1.1; return; }
+    // With someone to shelter behind, it keeps behind them; alone, it stands
+    // at a caster's distance and fights.
     const ally = world.enemies
-      .filter((q) => q !== e && !q.dead && !q.boss && q.type !== 'zealot')
+      .filter((q) => q !== e && !q.dead && !q.boss && q.type !== 'zealot' && q.type !== 'dummy')
       .sort((a, b) => dist(a.x, a.y, e.x, e.y) - dist(b.x, b.y, e.x, e.y))[0];
-    if (d < 200 || !ally) {
-      stepAway(e, p.x, p.y, e.speed * (d < 200 ? 1.1 : 0.6), dt);
-    } else {
+    if (ally) {
       const k = Math.hypot(ally.x - p.x, ally.y - p.y) || 1;
       const tx = ally.x + ((ally.x - p.x) / k) * 110, ty = ally.y + ((ally.y - p.y) / k) * 110;
       if (dist(e.x, e.y, tx, ty) > 20) stepToward(e, tx, ty, e.speed * 0.9, dt);
-    }
-    strafe(e, p.x, p.y, e.speed * 0.2, dt, e.sign);
-    e.face = angleTo(e.x, e.y, p.x, p.y);
-    // The wards: renewed on its three nearest allies every half second.
-    e.pulse -= dt;
-    if (e.pulse <= 0) {
-      e.pulse = 0.5;
-      const near = world.enemies
-        .filter((q) => q !== e && !q.dead && !q.boss && q.type !== 'zealot' && dist(q.x, q.y, e.x, e.y) < WARD_R)
-        .sort((a, b) => dist(a.x, a.y, e.x, e.y) - dist(b.x, b.y, e.x, e.y))
-        .slice(0, 3);
-      e.warded = near;
-      for (const q of near) q.wardT = 0.7;
-    }
+    } else if (d > 300) stepToward(e, p.x, p.y, e.speed * 0.8, dt);
+    else if (d < 200) stepAway(e, p.x, p.y, e.speed * 0.7, dt);
+    strafe(e, p.x, p.y, e.speed * 0.35, dt, e.sign);
+    if (Math.random() < dt * 0.4) e.sign *= -1;
+    if (e.cd <= 0 && d < 460) { e.state = 'wind'; e.t = 0.6; e.tx = p.x; e.ty = p.y; sfx.telegraph(); }
   },
   under(e, ctx) {
     if (!e.warded) return;
@@ -308,6 +323,19 @@ const ZEALOT = {
   },
   draw(e, ctx) { blob(ctx, e, 6, 0.95); },
 };
+
+/** The wards: renewed on its three nearest allies every half second. */
+function wardAllies(e, dt) {
+  e.pulse -= dt;
+  if (e.pulse > 0) return;
+  e.pulse = 0.5;
+  const near = world.enemies
+    .filter((q) => q !== e && !q.dead && !q.boss && q.type !== 'zealot' && q.type !== 'dummy' && dist(q.x, q.y, e.x, e.y) < WARD_R)
+    .sort((a, b) => dist(a.x, a.y, e.x, e.y) - dist(b.x, b.y, e.x, e.y))
+    .slice(0, 3);
+  e.warded = near;
+  for (const q of near) q.wardT = 0.7;
+}
 
 /** Drawn over any warded enemy: a thin golden shell. */
 export function drawWard(e, ctx) {

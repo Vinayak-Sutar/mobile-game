@@ -4385,6 +4385,21 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.49 The Zealot fights, and can be caught (2026-09-22)
+
+The owner found the Zealot only ran away, most of all alone (as in the
+training ring).
+- **Smite**: it raises its censer (0.6 s), a golden circle marks where you
+  stood, and light falls there 0.55 s later.
+- **Alone**, it holds a caster's distance (200-300) and fights. With allies,
+  it still shelters behind the nearest one and wards up to three.
+- **It runs out of breath**: it bolts only when you come within 150, for
+  1.1 s. Then it is WINDED for 1.3 s (exposed, doubled over), and it cannot
+  bolt again for 3.5 s.
+- Wards skip training dummies.
+- **Tested**: chased for 15 s, alone, it spent 3.3 s running, 3.1 s winded
+  and 2.4 s casting; 4 smites landed, and the chaser caught up with it.
+
 ### 16.48 Combat rework I: animation juice, Kyubi and Sasaki rebuilt, no more shared rush (2026-09-22)
 
 The owner found most of the new mini-bosses and enemies charged at you the
