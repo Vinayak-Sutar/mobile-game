@@ -4385,6 +4385,60 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.45 Cloud Summit becomes a Japanese mountain in blossom (2026-09-21)
+
+The owner asked for a Japan-inspired area (red shrine gates, red lanterns,
+cherry blossom, falling petals) and chose Cloud Summit for it (asked). The
+Summit already had the Monkey King's pagoda, tengu and a four-tier
+switchback.
+
+- **`wilds-sakura.js` (new)**:
+  - **`planShrine`** walks the roads inside the Summit.
+    - Where the road climbs up or down the screen (|uy| >= 0.7), tunnels of
+      vermilion torii: 8 gates 74 apart, then 440 of open road with a pair of
+      lit stone lanterns (`toro`).
+    - A great gate (half-width 78, height 100, a plaque) stands where each
+      road first enters the land.
+    - On east-west stretches a gate would be seen edge-on as bare poles, so
+      those are lined with red paper lanterns on posts (`chochin`) every 150.
+    - Nothing is placed on stairs, cliff faces, water, places, or within
+      reach of another road. Places can ask for gates (`P.gates`); the shrine
+      has one.
+  - **Drawing**:
+    - the pillars (`torii` obstacles, solid, with black feet) are drawn with
+      the ground;
+    - the beams (the vermilion tie, the black top sweeping up at the ends,
+      the centre strut) are drawn over everyone, so you walk under them;
+    - every other tunnel gate hangs a ribbed red lantern with a warm glow.
+  - **Sakura**:
+    - the Summit grows `sakura` trees (density 0.24): a dark crooked trunk
+      and three layers of pink clusters, with white highlights;
+    - a `petalbed` of fallen petals under each tree;
+    - `sakura` weather: 22 petals a second on the wind, and 14 a second
+      shaken from trees in view, each turning over as it falls (`flip`),
+      fluttering side to side and spinning;
+    - petals kicked up from your feet in the grass (more on a dash);
+    - a slow drift of cloud;
+    - a pink light over the land (`grade`).
+  - The snow stays on the crown.
+- **Places** built on the Summit are Japanese:
+  - houses are `minka`: white plaster and dark timber under slate-grey roofs
+    with swept-up eaves;
+  - the village has paper lanterns at its square;
+  - the Cloud Temple becomes a shrine: a `shrine` hall (vermilion walls, a
+    green copper roof, crossed gold finials) on raked gravel, `redpillar`s,
+    stone lanterns along a paved approach, paper lanterns, and a great torii
+    at its foot.
+- **`v5/scene-preview.html` (new)**: a still of any spot in the Wilds, drawn
+  by the game's own world drawing, for checking art without playing:
+  `?road=-1&pt=3&z=0.7`, or `?place=cloudtemple&dy=450`.
+- **Checked**:
+  - 35 gates, 3 of them great ones, 8 stone lanterns, and nothing blocking
+    any road;
+  - the tunnel, the lantern-lined road, the shrine approach and the village
+    were checked by eye on the scene preview;
+  - the Summit route's worst frame is 5 ms.
+
 ### 16.44 Enemy variety (E2): nine new creatures (2026-09-21)
 
 The owner asked for more enemy variety and for mini-bosses. Variety comes

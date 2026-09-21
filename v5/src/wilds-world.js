@@ -32,6 +32,7 @@ import { takeSmoulder } from './wilds-progress.js';
 import { planSites, updateSites, resetSites, unitsFromPlaces } from './wilds-sites.js';
 import { planPlaces, floorLookup } from './wilds-places.js';
 import { inGate } from './wilds-lairs.js';
+import { planShrine, newPetal, stepPetal } from './wilds-sakura.js';
 import { BOSS_INFO } from './bosses.js';
 import { packBits, unpackBits } from './wilds-save.js';
 
@@ -454,6 +455,13 @@ function build() {
   for (const P of places) for (const o of P.obs) statics.push(o);
   // The seals across the sky bridges, until the Twin Wardens fall.
   for (const s of SEALS) statics.push({ x: s.x, y: s.y, w: s.w, h: s.h, kind: 'seal', opensWith: s.by });
+  // Cloud Summit's red gates and stone lanterns, up its roads.
+  const shrine = planShrine({
+    roads: ROADS, regionAt, raised, waterAt, inChasm, places, summit: REGIONS.find((r) => r.id === 'summit'),
+    roadDist: (x, y) => roadDistIn(x - 120, y - 120, x + 120, y + 120)(x, y),
+    extra: places.flatMap((P) => P.gates || []),
+  });
+  for (const o of shrine.obs) statics.push(o);
   for (const o of statics) hash.add(o);
 
   const classify = makeClassify(raised, floorLookup(places));
@@ -479,7 +487,7 @@ function build() {
 
   const fogW = Math.ceil(WILDS.W / FOG), fogH = Math.ceil(WILDS.H / FOG);
   return {
-    terrain, raised, hash, statics, classify, sites, places, inPlace: null,
+    terrain, raised, hash, statics, classify, sites, places, inPlace: null, gates: shrine.gates,
     sectors: new Map(),
     room: { type: 'overworld', training: true, overworld: true, obstacles: [], waves: [], doors: [], doorsOpen: false, intro: 0 },
     ax: -1e9, ay: -1e9, activeDirty: true,
@@ -569,6 +577,8 @@ function growSector(si, sj) {
       t.o = { x: x - 12, y: y - 8, w: 24, h: 20, kind: 'trunk' };
       add(t.o);
       S.trees.push(t);
+      // Under a cherry tree, a carpet of its fallen petals.
+      if (kind === 'sakura') for (let k = 0; k < 3; k++) S.decals.push({ t: 'petalbed', x: x + between(-t.r, t.r), y: y + between(-4, t.r * 0.5), ph: rng() * TAU });
     }
   }
 
@@ -1127,7 +1137,8 @@ export function updateOverworld(dt) {
 function weather(z, dt) {
   const kind = z.weather;
   const rate = kind === 'snow' || kind === 'ash' ? 60 : kind === 'cloud' ? 8 : 18;
-  if (Math.random() < dt * rate) {
+  if (kind === 'sakura') sakuraWeather(dt);
+  else if (Math.random() < dt * rate) {
     const x = camera.x + rand(-40, view.w + 40), y = camera.y + rand(-60, view.h);
     const L = { x, y, t: 0, kind, rot: rand(0, TAU) };
     switch (kind) {
@@ -1146,9 +1157,30 @@ function weather(z, dt) {
   for (let i = W.leaves.length - 1; i >= 0; i--) {
     const l = W.leaves[i];
     l.t += dt; l.x += (l.vx + Math.sin(l.t * 2) * 12) * dt; l.y += l.vy * dt; l.rot += dt * 2;
+    if (l.kind === 'sakura') stepPetal(l, dt);
     if (l.t > l.life) W.leaves.splice(i, 1);
   }
-  if (W.leaves.length > 180) W.leaves.splice(0, W.leaves.length - 180);
+  if (W.leaves.length > 260) W.leaves.splice(0, W.leaves.length - 260);
+}
+
+/**
+ * Cherry blossom on the wind: petals blowing through the view, petals shaken
+ * from the trees in view, and now and then a drift of cloud.
+ */
+function sakuraWeather(dt) {
+  const n = Math.floor(dt * 22 + Math.random());
+  for (let k = 0; k < n; k++) W.leaves.push(newPetal(camera.x + rand(-60, view.w), camera.y + rand(-60, view.h * 0.8)));
+  if (Math.random() < dt * 14) {
+    const trees = [];
+    for (const S of sectorsIn(camera.x, camera.y, camera.x + view.w, camera.y + view.h)) for (const t of S.trees) if (t.kind === 'sakura') trees.push(t);
+    const t = trees[Math.floor(Math.random() * trees.length)];
+    if (t && t.x > camera.x - 40 && t.x < camera.x + view.w + 40 && t.y > camera.y - 40 && t.y < camera.y + view.h + 80) {
+      W.leaves.push(newPetal(t.x + rand(-t.r, t.r), t.y - 20 - rand(0, t.r * 1.2), { vx: rand(4, 20), vy: rand(4, 10), fall: 1, life: rand(2.5, 4) }));
+    }
+  }
+  if (Math.random() < dt * 0.6) {
+    W.leaves.push({ x: camera.x + rand(-40, view.w + 40), y: camera.y + rand(-60, view.h), t: 0, kind: 'cloud', rot: 0, life: rand(6, 9), vx: rand(20, 36), vy: 0, s: rand(90, 160) });
+  }
 }
 
 /** How the ground answers your feet: dust, powder, prints in the snow. */
@@ -1166,6 +1198,13 @@ function groundFeel(p, dt) {
     }
     if (p.dashing && dust && Math.random() < 0.7) {
       burst(p.x, p.y + p.r * 0.6, { count: 2, color: dust, speed: 90, size: 3.5, life: 0.5, drag: 3, gravity: -14 });
+    }
+  }
+  // Petals kicked up by your feet among the cherry trees.
+  if (moved > 0.5 && W.zone && W.zone.id === 'summit' && (ground === TT.GRASS || ground === TT.TALL)
+    && Math.random() < dt * (p.dashing ? 30 : 5)) {
+    for (let k = 0; k < (p.dashing ? 3 : 1); k++) {
+      W.leaves.push(newPetal(p.x + rand(-8, 8), p.y + p.r * 0.6, { vx: rand(-40, 40), vy: rand(-70, -35), fall: 1, life: rand(0.9, 1.5) }));
     }
   }
   // Soft prints through snow, ash and mud, slowly filling back in.

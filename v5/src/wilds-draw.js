@@ -15,6 +15,7 @@ import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
 import { drawLairFront } from './wilds-lairs.js';
+import { drawToriiPillar, drawToriiBeams, drawToro, drawSakura, drawPetalBed, drawPetal, drawChochinPost } from './wilds-sakura.js';
 import { relicAt } from './wilds-sites.js';
 
 const inView = (x, y, pad = 80) => x > camera.x - pad && x < camera.x + view.w + pad && y > camera.y - pad && y < camera.y + view.h + pad;
@@ -185,6 +186,9 @@ function drawObstacle(ctx, o, time) {
       for (let y = o.y - 60; y < o.y + o.h - 10; y += 46) { ctx.fillRect(o.x + o.w / 2 - 4, y, 8, 3); ctx.fillRect(o.x + o.w / 2 - 1.5, y - 6, 3, 15); }
       break;
     }
+    case 'torii': drawToriiPillar(ctx, o); break;
+    case 'toro': drawToro(ctx, o, time); break;
+    case 'chochin': drawChochinPost(ctx, { x: o.x + o.w / 2, y: o.y + o.h / 2 + 4, ph: o.ph }, time); break;
     case 'cactus': {
       const x = o.x + o.w / 2, y = o.y + o.h;
       ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -386,6 +390,7 @@ function drawDecal(ctx, d, time) {
       ctx.fillStyle = '#3a3028'; ctx.beginPath(); ctx.ellipse(d.x, d.y, 9, 5, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#5a4a3a'; ctx.beginPath(); ctx.ellipse(d.x, d.y - 3, 8, 4, 0, 0, TAU); ctx.fill();
       break;
+    case 'petalbed': drawPetalBed(ctx, d); break;
     case 'web':
       ctx.strokeStyle = 'rgba(230,230,240,0.35)'; ctx.lineWidth = 0.8;
       for (let k = 0; k < 6; k++) {
@@ -470,6 +475,8 @@ export function drawOverworldAbove(ctx, time) {
       ctx.globalAlpha = 1;
     }
   }
+  // Cloud Summit's gates: their beams over everyone, so you walk under them.
+  for (const g of W.gates) if (inView(g.x, g.y - 60, g.half + 120)) drawToriiBeams(ctx, g, time);
   // Champions wear their names.
   ctx.textAlign = 'center';
   ctx.font = '800 12px system-ui';
@@ -496,6 +503,7 @@ export function drawOverworldAbove(ctx, time) {
         case 'cypress': drawCypress(ctx, t, sway); break;
         case 'palm': drawPalm(ctx, t, sway, time); break;
         case 'blossom': drawBroad(ctx, t, sway, [214, 120, 160], 1, [246, 176, 204]); break;
+        case 'sakura': drawSakura(ctx, t, sway, time); break;
         case 'dark': drawBroad(ctx, t, sway, [18, 34, 26], 0.9); break;
         default: drawBroad(ctx, t, sway, null, 1);
       }
@@ -533,6 +541,7 @@ export function drawOverworldAbove(ctx, time) {
         ctx.strokeStyle = '#e8e4f4'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(l.x + l.s, l.y + Math.sin(l.t * 3) * 2); ctx.stroke();
         break;
+      case 'sakura': drawPetal(ctx, l, a); break;
       default:
         ctx.globalAlpha = a * 0.8;
         ctx.fillStyle = l.c;

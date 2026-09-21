@@ -73,10 +73,11 @@ const RAW_REGIONS = [
     trees: 0.12, tree: 'dark', rocks: 0.25, weather: 'mist', grade: [90, 150, 120, 0.12] },
   { id: 'moors', name: 'The Hollow Moors', x: 7000, y: 2600, r: 3300, tier: 2,
     trees: 0.1, tree: 'pine', rocks: 0.12, weather: 'snow', grade: [185, 210, 255, 0.14] },
-  // Cloud Summit: green terraces in blossom, cloud drifting through; snow only
-  // on the crown.
+  // Cloud Summit: a Japanese mountain in blossom - cherry trees, petals on the
+  // wind, red gates and lanterns up its roads (wilds-sakura.js); snow only on
+  // the crown.
   { id: 'summit', name: 'Cloud Summit', x: 32000, y: 3800, r: 3500, tier: 3,
-    trees: 0.16, tree: 'blossom', rocks: 0.1, weather: 'cloud', grade: [255, 225, 240, 0.08] },
+    trees: 0.24, tree: 'sakura', rocks: 0.08, weather: 'sakura', grade: [255, 206, 226, 0.1] },
   { id: 'bridge', name: 'The Great Bridge', x: 24000, y: 5800, r: 1500, tier: 3,
     trees: 0.02, tree: 'dead', rocks: 0.18, weather: 'wind', grade: [180, 170, 190, 0.1] },
   // The Moon Citadel: pale marble courts under a cold blue moon.

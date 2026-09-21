@@ -172,6 +172,11 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Tengu that dive from the sky onto their shadow;
   - Banshees whose keening fills a cone;
   - Skeleton Spearmen.
+- **Cloud Summit, in blossom:** a Japanese mountain. Tunnels of red torii
+  climb its roads, stone lanterns glow and red paper lanterns hang along the
+  way, and cherry trees drop petals onto the wind and around your feet. At
+  the top is a shrine with a great gate, and the village has curved tiled
+  roofs.
 - **Lairs (all 14):** each guardian waits in a lair of its own:
   - the Drowned Vault on Mirror Lake's island;
   - the Story-Tree in the Webwood;

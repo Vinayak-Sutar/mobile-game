@@ -1,0 +1,40 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Scene preview</title>
+<style>body{margin:0;background:#111}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// A still of a spot in the Wilds, drawn by the game's own world drawing, for
+// checking art without playing: ?x=&y= (world units) or ?road=N&pt=K, &z= zoom.
+import { world, view, camera, resetWorld } from './src/state.js';
+import { enterOverworld, arriveAt, updateOverworld, wildsState } from './src/wilds-world.js';
+import { drawOverworldBelow, drawOverworldAbove } from './src/wilds-draw.js';
+import { ROADS } from './src/wilds-layout.js';
+import { look, drawWanderer, prepareWanderer } from './src/wanderer.js';
+const q = new URLSearchParams(location.search);
+const c = document.getElementById('c');
+const Z = Number(q.get('z') || 1);
+c.width = innerWidth; c.height = innerHeight;
+view.w = Math.round(c.width / Z); view.h = Math.round(c.height / Z); view.cw = c.width; view.ch = c.height; view.scale = Z; view.dpr = 1;
+resetWorld();
+look.skin = 'wanderer';
+enterOverworld(true);
+let x = Number(q.get('x')), y = Number(q.get('y'));
+if (q.get('road')) { const ri = Number(q.get('road')); const r = ROADS[ri < 0 ? ROADS.length + ri : ri], k = Number(q.get('pt') || 0); const a = r[k], b = r[k + 1] || a; const f = Number(q.get('f') || 0.5); x = a[0] + (b[0] - a[0]) * f; y = a[1] + (b[1] - a[1]) * f; }
+if (q.get('place')) { const P = wildsState().places.find((o) => o.id === q.get('place')); x = P.x + Number(q.get('dx') || 0); y = P.y + Number(q.get('dy') || 0); }
+const p = { x, y, r: 17, aimAngle: 0, face: 0, moveMag: 0, dead: false, stats: { maxHp: 80 }, hp: 80, moveAngle: 0 };
+world.player = p; world.hitboxes = []; world.enemies = [];
+arriveAt(x, y);
+const ctx = c.getContext('2d');
+function frame(now) {
+  world.runTime = now / 1000;
+  camera.x = x - view.w / 2; camera.y = y - view.h / 2;
+  updateOverworld(1 / 60);
+  camera.x = x - view.w / 2; camera.y = y - view.h / 2;
+  ctx.setTransform(Z, 0, 0, Z, -camera.x * Z, -camera.y * Z);
+  drawOverworldBelow(ctx, world.runTime);
+  drawOverworldAbove(ctx, world.runTime);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+void drawWanderer; void prepareWanderer;
+</script></body></html>

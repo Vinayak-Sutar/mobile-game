@@ -29,6 +29,7 @@ import { TAU } from './util.js';
 import { mulberry } from './terrain.js';
 import { WILDS, START, LAMPS, PLACES, LAIRS } from './wilds-layout.js';
 import { buildLair, drawLairProp, drawLairDeco } from './wilds-lairs.js';
+import { drawToro, drawChochinPost } from './wilds-sakura.js';
 
 const inR = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
@@ -165,7 +166,9 @@ function build(P, rng, roadNear) {
   const { ob, wall, building, prop, deco, floor, tower, group } = K;
 
   const style = P.region.id;
-  const hut = style === 'mire' || style === 'isle' || style === 'webwood' ? 'hut' : 'house';
+  // On Cloud Summit everything is built the Japanese way.
+  const jp = style === 'summit';
+  const hut = jp ? 'minka' : style === 'mire' || style === 'isle' || style === 'webwood' ? 'hut' : 'house';
 
   switch (P.kind) {
     case 'fort': {
@@ -217,6 +220,7 @@ function build(P, rng, roadNear) {
         }
       }
       prop(cx, cy, 40, 36, 'well');
+      if (jp) for (const [dx, dy] of [[-120, -120], [120, -120], [-120, 120], [120, 120]]) deco(cx + dx, cy + dy, 'chochin');
       const t = tower(cx + 240, cy - 420, 150, 140);
       for (let k = 0; k < 6; k++) prop(cx + (rng() - 0.5) * R * 1.4, cy + (rng() - 0.5) * R * 1.4, 30, 28, rng() < 0.5 ? 'barrel' : 'crate');
       deco(cx - 120, cy + 120, 'fire');
@@ -233,18 +237,25 @@ function build(P, rng, roadNear) {
       // A stepped platform at the head of a colonnaded avenue.
       tower(cx - 420, cy - 360, 840, 520, 50, 170);
       const top = tower(cx - 220, cy - 300, 440, 250, 46, 120);
-      floor(cx - 420, cy - 360, 840, 520, 'marble');
+      floor(cx - 420, cy - 360, 840, 520, jp ? 'gravel' : 'marble');
       floor(cx - 140, cy + 160, 280, 640, 'pave');
-      for (let y = cy + 260; y < cy + 760; y += 110) { prop(cx - 190, y, 28, 28, 'column'); prop(cx + 190, y, 28, 28, 'column'); }
-      prop(cx - 330, cy + 230, 40, 34, 'statue'); prop(cx + 330, cy + 230, 40, 34, 'statue');
-      for (let k = -1; k <= 1; k += 2) { prop(cx + k * 330, cy - 250, 28, 28, 'column'); prop(cx + k * 330, cy - 60, 28, 28, 'column'); }
-      deco(cx - 120, cy - 60, 'brazier'); deco(cx + 120, cy - 60, 'brazier');
+      // A Japanese shrine on the Summit: red pillars, stone lanterns, paper
+      // lanterns, a hall on the top terrace and a great gate at the foot.
+      const col = jp ? 'redpillar' : 'column';
+      for (let y = cy + 260; y < cy + 760; y += 110) { prop(cx - 190, y, jp ? 20 : 28, jp ? 20 : 28, jp ? 'toro' : col); prop(cx + 190, y, jp ? 20 : 28, jp ? 20 : 28, jp ? 'toro' : col); }
+      prop(cx - 330, cy + 230, 40, 34, jp ? 'toro' : 'statue'); prop(cx + 330, cy + 230, 40, 34, jp ? 'toro' : 'statue');
+      for (let k = -1; k <= 1; k += 2) { prop(cx + k * 330, cy - 250, 28, 28, col); prop(cx + k * 330, cy - 60, 28, 28, col); }
+      deco(cx - 120, cy - 60, jp ? 'chochin' : 'brazier'); deco(cx + 120, cy - 60, jp ? 'chochin' : 'brazier');
+      if (jp) {
+        building(cx - 90, cy - 298, 180, 62, 'shrine');
+        P.gates = [{ x: cx, y: cy + 800, ux: 0, uy: -1, big: true }];
+      }
       group(cx, cy + 600, 260, 3);
       group(cx - 290, cy - 130, 200, 2);
       group(cx + 290, cy - 130, 200, 2);
       if (top) group(top.x, top.y, 220, 2, { perches: [{ x: top.x - 130, y: top.y - 50 }, { x: top.x + 130, y: top.y - 50 }], ranged: true });
       P.champ = { x: cx, y: cy - 150 };
-      P.relic = { x: cx, y: cy - 230 };
+      P.relic = { x: cx, y: jp ? cy - 205 : cy - 230 };
       break;
     }
     case 'quarry': {
@@ -473,7 +484,8 @@ export function drawPlaceObstacle(ctx, o, time) {
       // The base and the front wall, with its door; the roof comes later, over everyone.
       const wallH = o.style === 'tent' ? 22 : 34;
       ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(o.x + 8, o.y + 8, o.w, o.h);
-      const col = o.style === 'crypt' ? '#6a6670' : o.style === 'tent' ? '#8a7858' : o.style === 'hut' || o.style === 'saloon' ? '#6a5038' : '#8a7a68';
+      const col = o.style === 'crypt' ? '#6a6670' : o.style === 'tent' ? '#8a7858' : o.style === 'hut' || o.style === 'saloon' ? '#6a5038'
+        : o.style === 'minka' ? '#e8e0cc' : o.style === 'shrine' ? '#d8402a' : '#8a7a68';
       ctx.fillStyle = col; ctx.fillRect(o.x, o.y + o.h - wallH, o.w, wallH);
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x, o.y + o.h - wallH, o.w, 4);
       if (o.style !== 'tent') { ctx.fillStyle = '#3a2a1c'; ctx.fillRect(o.x + o.w / 2 - 11, o.y + o.h - 26, 22, 26); }
@@ -520,6 +532,12 @@ function drawProp(ctx, o, time) {
       ctx.fillStyle = '#8a8690'; ctx.fillRect(o.x + 4, o.y - 60, o.w - 8, o.h + 60);
       ctx.fillStyle = '#a8a4ae'; ctx.fillRect(o.x, o.y - 66, o.w, 8); ctx.fillRect(o.x + 4, o.y - 60, 4, o.h + 60);
       break;
+    case 'redpillar':
+      ctx.fillStyle = '#d8402a'; ctx.fillRect(o.x + 6, o.y - 60, o.w - 12, o.h + 60);
+      ctx.fillStyle = '#9a2a1c'; ctx.fillRect(o.x + o.w / 2, o.y - 60, (o.w - 12) / 2, o.h + 60);
+      ctx.fillStyle = '#1e1614'; ctx.fillRect(o.x + 4, o.y + o.h - 8, o.w - 8, 8); ctx.fillRect(o.x + 2, o.y - 66, o.w - 4, 7);
+      break;
+    case 'toro': drawToro(ctx, o, time); break;
     case 'grave':
       ctx.fillStyle = '#6a6870';
       ctx.beginPath(); ctx.moveTo(o.x, y); ctx.lineTo(o.x, y - 18); ctx.arc(x, y - 18, o.w / 2, Math.PI, TAU); ctx.lineTo(o.x + o.w, y); ctx.closePath(); ctx.fill();
@@ -560,6 +578,8 @@ export function drawPlaceDeco(ctx, d, time) {
     const flap = Math.sin(time * 3 + d.ph) * 4;
     ctx.fillStyle = '#8a2a24';
     ctx.beginPath(); ctx.moveTo(d.x + 2, d.y - 68); ctx.lineTo(d.x + 34 + flap, d.y - 60); ctx.lineTo(d.x + 2, d.y - 44); ctx.closePath(); ctx.fill();
+  } else if (d.style === 'chochin') {
+    drawChochinPost(ctx, d, time);
   } else {
     drawLairDeco(ctx, d, time);
   }
@@ -581,7 +601,8 @@ export function drawRoof(ctx, o, p) {
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w / 2, y + h); ctx.closePath(); ctx.fill();
   } else {
-    const base = o.style === 'crypt' ? [86, 84, 94] : o.style === 'hut' ? [110, 90, 54] : o.style === 'hall' ? [96, 60, 40] : o.style === 'saloon' ? [90, 76, 62] : [128, 64, 48];
+    const base = o.style === 'crypt' ? [86, 84, 94] : o.style === 'hut' ? [110, 90, 54] : o.style === 'hall' ? [96, 60, 40] : o.style === 'saloon' ? [90, 76, 62]
+      : o.style === 'minka' ? [66, 70, 82] : o.style === 'shrine' ? [70, 124, 108] : [128, 64, 48];
     const [r, g, b] = base.map((v) => v + t * 18);
     ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
     ctx.fillRect(x, y + 10, w, h - 10);
@@ -593,6 +614,19 @@ export function drawRoof(ctx, o, p) {
     for (let k = x + 14; k < x + w; k += 14) { ctx.beginPath(); ctx.moveTo(k, y + 12); ctx.lineTo(k, y + h); ctx.stroke(); }
     if (o.style === 'crypt') {
       ctx.fillStyle = '#a8a4ae'; ctx.fillRect(x + w / 2 - 3, y - 6, 6, 22); ctx.fillRect(x + w / 2 - 10, y, 20, 5);
+    }
+    if (o.style === 'minka' || o.style === 'shrine') {
+      // Curved eaves: the corners of the roof sweep up.
+      ctx.fillStyle = `rgb(${r * 0.8 | 0},${g * 0.8 | 0},${b * 0.8 | 0})`;
+      for (const [ex, dir] of [[x, -1], [x + w, 1]]) {
+        ctx.beginPath(); ctx.moveTo(ex, y + h - 6); ctx.quadraticCurveTo(ex + dir * 8, y + h - 4, ex + dir * 12, y + h - 16); ctx.lineTo(ex, y + h - 14); ctx.closePath(); ctx.fill();
+      }
+      ctx.fillStyle = `rgb(${r * 0.6 | 0},${g * 0.6 | 0},${b * 0.6 | 0})`; ctx.fillRect(x + 4, y + 8, w - 8, 4);
+      if (o.style === 'shrine') {
+        // Crossed finials at the ridge ends, in gold.
+        ctx.strokeStyle = '#e8c050'; ctx.lineWidth = 2.4;
+        for (const ex of [x + 10, x + w - 10]) { ctx.beginPath(); ctx.moveTo(ex - 5, y - 2); ctx.lineTo(ex + 5, y + 14); ctx.moveTo(ex + 5, y - 2); ctx.lineTo(ex - 5, y + 14); ctx.stroke(); }
+      }
     }
     if (o.style === 'saloon') {
       // A tall, flat false front over the street, grey with age.
