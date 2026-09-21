@@ -29,7 +29,8 @@ import {
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
 import { takeSmoulder } from './wilds-progress.js';
-import { planSites, updateSites, resetSites } from './wilds-sites.js';
+import { planSites, updateSites, resetSites, unitsFromPlaces } from './wilds-sites.js';
+import { planPlaces, floorLookup } from './wilds-places.js';
 import { packBits, unpackBits } from './wilds-save.js';
 
 export { WILDS };
@@ -213,10 +214,10 @@ function wetNear(x, y) {
 
 const SLOPE = 60;
 
-function buildRaised() {
+function buildRaised(extra = []) {
   const R = { tops: [], faces: [], stairs: [], rims: [], slopes: [] };
   const walls = [];
-  for (const [x, y, w, h, faceH, stairs] of PLATEAUS) {
+  for (const [x, y, w, h, faceH, stairs] of [...PLATEAUS, ...extra]) {
     R.tops.push({ x, y, w, h });
     let cx = x;
     for (const [sx, sw] of [...stairs, [x + w, 0]]) {
@@ -311,7 +312,9 @@ function createHash() {
 
 // --- the ground --------------------------------------------------------------------
 
-function makeClassify(raised) {
+const FLOOR_TT = { dirt: TT.DIRT, pave: TT.PAVE, marble: TT.MARBLE, gravel: TT.GRAVEL };
+
+function makeClassify(raised, placeFloor) {
   return (x, y) => {
     const b = raised.at(x, y);
     for (const r of b.stairs) if (inRect(r, x, y)) return TT.PAVE;
@@ -330,6 +333,9 @@ function makeClassify(raised) {
         return reg.id === 'mire' ? TT.MUD : sea && reg.id === 'echo' ? TT.GRAVEL : TT.SAND;
       }
     }
+    // Inside a place: its own floor (paved lanes, a dirt yard, marble walks).
+    const fl = placeFloor(x, y);
+    if (fl) return FLOOR_TT[fl];
     // Region rules are written in the main island's own frame.
     const u = x - OFFSET.x, v = y - OFFSET.y;
     const m = fbm(x * 0.0035, y * 0.0035);
@@ -378,7 +384,9 @@ function makeClassify(raised) {
 // --- building ------------------------------------------------------------------------
 
 function build() {
-  const { R, walls } = buildRaised();
+  // The places come first: their towers and terraces are raised ground.
+  const places = planPlaces({ waterAt, inChasm, plateaus: PLATEAUS, roadSegs: ROAD_SEGS, regionAt });
+  const { R, walls } = buildRaised(places.flatMap((P) => P.plateaus));
   const raised = bucketRects(R);
   const hash = createHash();
 
@@ -440,19 +448,23 @@ function build() {
       statics.push({ x: b.x - 20, y: b.y + b.h, w: b.w + 40, h: 16, kind: 'rail' });
     }
   }
+  // The places' walls, buildings and props.
+  for (const P of places) for (const o of P.obs) statics.push(o);
   for (const o of statics) hash.add(o);
 
-  const classify = makeClassify(raised);
-  // The encounter sites, placed once from the seed; their stakes, stones,
-  // walls and thorns go in the hash like any wall.
-  const sites = planSites({
+  const classify = makeClassify(raised, floorLookup(places));
+  // The fighting units: every place's posts and champion, then the smaller
+  // sites and the road patrols between them. Their walls go in the hash too.
+  const smalls = planSites({
     classify,
     query: (x0, y0, x1, y1) => hash.query(x0, y0, x1, y1),
     stairsNear: (x0, y0, x1, y1) => raised.near(x0, y0, x1, y1).stairs,
     regionAt,
     roadSegs: ROAD_SEGS,
+    places,
   });
-  for (const s of sites) for (const o of s.obs) { statics.push(o); hash.add(o); }
+  for (const s of smalls) for (const o of s.obs) { statics.push(o); hash.add(o); }
+  const sites = [...unitsFromPlaces(places), ...smalls];
   const terrain = createTerrain({
     W: WILDS.W, H: WILDS.H,
     classify,
@@ -463,7 +475,7 @@ function build() {
 
   const fogW = Math.ceil(WILDS.W / FOG), fogH = Math.ceil(WILDS.H / FOG);
   return {
-    terrain, raised, hash, statics, classify, sites,
+    terrain, raised, hash, statics, classify, sites, places, inPlace: null,
     sectors: new Map(),
     room: { type: 'overworld', training: true, overworld: true, obstacles: [], waves: [], doors: [], doorsOpen: false, intro: 0 },
     ax: -1e9, ay: -1e9, activeDirty: true,
@@ -507,7 +519,8 @@ const NO_TREES = new Set([TT.WATER, TT.SHALLOW, TT.CHASM, TT.ICE, TT.PAVE, TT.MA
 
 function inClearing(x, y) {
   if (Math.hypot(x - START.x, y - START.y) < 700) return true;
-  if (W && W.sites.some((s) => Math.hypot(x - s.x, y - s.y) < s.r + 70)) return true;
+  if (W && W.places.some((P) => Math.hypot(x - P.x, y - P.y) < P.r + 80)) return true;
+  if (W && W.sites.some((s) => s.kind === 'site' && Math.hypot(x - s.x, y - s.y) < s.r + 70)) return true;
   return CLEARINGS.some((c) => Math.hypot(x - c.x, y - c.y) < c.r);
 }
 
@@ -875,10 +888,11 @@ export function resetWildsSites() {
   if (W) resetSites(W.sites);
 }
 
-/** How the sites stand, for the pause screen. */
+/** How the fights stand, for the pause screen: champions beaten of the places. */
 export function sitesProgress() {
   if (!W) return null;
-  return { claimed: W.sites.filter((s) => s.claimed).length, total: W.sites.length };
+  const champs = W.sites.filter((s) => s.kind === 'champion');
+  return { claimed: champs.filter((s) => s.claimed).length, total: champs.length };
 }
 
 /**
@@ -1003,9 +1017,21 @@ export function updateOverworld(dt) {
   // Cinders are worth more the harder the land.
   world.cinderMult = 8 * (1 + z.tier * 0.6);
 
-  // The encounter sites.
+  // The fighting units.
   const siteAct = updateSites(W.sites, p, dt, spawnFn);
   if (siteAct) action = siteAct;
+
+  // Walking into a place: its name.
+  const P = W.places.find((q) => Math.hypot(p.x - q.x, p.y - q.y) < q.r);
+  if (P !== W.inPlace) {
+    W.inPlace = P || null;
+    if (P) {
+      P.seen = true;
+      const champ = W.sites.find((s) => s.id === `${P.id}:champ`);
+      action = { toast: [P.name.toUpperCase(), champ && champ.claimed ? 'Its champion has fallen' : champ ? `${champ.name} holds it` : 'The Wilds'] };
+    }
+  }
+  for (const q of W.places) if (!q.seen && Math.hypot(p.x - q.x, p.y - q.y) < q.r + 900) q.seen = true;
 
   // The Ashlamps; and your smoulder, if you walk back to it.
   const lampAct = updateLamps(p, dt);

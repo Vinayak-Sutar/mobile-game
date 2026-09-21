@@ -13,6 +13,8 @@ import { world, camera, view, gfx } from './state.js';
 import { TAU, dist } from './util.js';
 import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
+import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
+import { relicAt } from './wilds-sites.js';
 
 const inView = (x, y, pad = 80) => x > camera.x - pad && x < camera.x + view.w + pad && y > camera.y - pad && y < camera.y + view.h + pad;
 
@@ -66,7 +68,12 @@ export function drawOverworldBelow(ctx, time) {
   }
   for (const S of secs) for (const g of S.grass) g.draw(ctx, time, { x: cx, y: cy, w: vw, h: vh });
 
-  // The encounter sites: their seals, braziers and reliquaries.
+  // The places' fires, braziers and banners; the fighting units' rings,
+  // braziers and rewards.
+  for (const P of W.places) {
+    if (!inView(P.x, P.y, P.r + 100)) continue;
+    for (const d of P.deco) if (inView(d.x, d.y, 90)) drawPlaceDeco(ctx, d, time);
+  }
   for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
 
   // The Ashlamps, and your smoulder.
@@ -114,6 +121,11 @@ function drawObstacle(ctx, o, time) {
       }
       break;
     }
+    case 'wall':
+    case 'building':
+    case 'prop':
+      drawPlaceObstacle(ctx, o, time);
+      break;
     case 'stake': {
       // A sharpened timber stake.
       const x = o.x + o.w / 2, y = o.y + o.h;
@@ -228,88 +240,84 @@ function drawLamp(ctx, l, time) {
 }
 
 /**
- * A site's own drawing (its stakes, stones, walls and thorns are obstacles,
- * drawn with the rest): a faint ring on the ground so you can see where its
- * ground ends, the seal while it is closed, braziers, and the reliquary once
- * it is cleared.
+ * A fighting unit's own drawing (walls and buildings are obstacles, drawn with
+ * the rest): a small site's worn ring and braziers, a champion's duel ring
+ * while it is closed, an outpost's banner, and the reward once it is won - a
+ * chest of Cinders, or a champion's reliquary.
  */
 function drawSite(ctx, s, time) {
-  // Its edge: a worn ring on the ground.
-  ctx.strokeStyle = s.sealed ? 'rgba(255,110,60,0.55)' : 'rgba(0,0,0,0.16)';
-  ctx.lineWidth = s.sealed ? 3 : 6;
-  ctx.setLineDash(s.sealed ? [] : [14, 10]);
-  ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.stroke();
-  ctx.setLineDash([]);
-
-  if (s.kind === 'circle') {
-    // Braziers inside the stones; lit while the circle is awake.
-    for (let k = 0; k < 4; k++) {
-      const a = (k / 4) * TAU + Math.PI / 4;
-      const bx = s.x + Math.cos(a) * s.r * 0.62, by = s.y + Math.sin(a) * s.r * 0.62;
-      ctx.fillStyle = '#3a3230'; ctx.fillRect(bx - 7, by - 14, 14, 14);
-      if (s.members || s.sealed) {
-        const fl = 0.8 + Math.sin(time * 10 + k) * 0.2;
-        ctx.fillStyle = s.region === 'moors' || s.region === 'citadel' ? '#9fd8ff' : '#ff8a3a';
-        ctx.beginPath(); ctx.ellipse(bx, by - 18, 5, 8 * fl, 0, 0, TAU); ctx.fill();
+  if (s.kind === 'site') {
+    // Its edge: a worn ring on the ground.
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([14, 10]);
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    if (s.form === 'circle') {
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * TAU + Math.PI / 4;
+        const bx = s.x + Math.cos(a) * s.r * 0.62, by = s.y + Math.sin(a) * s.r * 0.62;
+        ctx.fillStyle = '#3a3230'; ctx.fillRect(bx - 7, by - 14, 14, 14);
+        if (s.members) {
+          const fl = 0.8 + Math.sin(time * 10 + k) * 0.2;
+          ctx.fillStyle = s.region === 'moors' || s.region === 'citadel' ? '#9fd8ff' : '#ff8a3a';
+          ctx.beginPath(); ctx.ellipse(bx, by - 18, 5, 8 * fl, 0, 0, TAU); ctx.fill();
+        }
       }
     }
+    if (s.form === 'outpost' && s.perches) {
+      const bx = s.perches[0].x + 150, by = s.perches[0].y;
+      ctx.fillStyle = '#3a2a1c'; ctx.fillRect(bx - 2, by - 60, 4, 60);
+      ctx.fillStyle = s.cleared ? '#6a6862' : '#a0342c';
+      const flap = Math.sin(time * 3 + bx) * 4;
+      ctx.beginPath(); ctx.moveTo(bx + 2, by - 58); ctx.lineTo(bx + 30 + flap, by - 52); ctx.lineTo(bx + 2, by - 40); ctx.closePath(); ctx.fill();
+    }
   }
 
-  // The seal: fire between the stones, a barricade in the gate, thorns closing - all read as a
-  // wall of light round the edge.
-  if (s.sealed) {
-    const n = Math.round((TAU * s.r) / 26);
-    const c = s.kind === 'thorns' ? '120,180,90' : s.kind === 'circle' && (s.region === 'moors' || s.region === 'citadel') ? '150,210,255' : '255,120,50';
+  // A champion's duel ring, closed: a wall of fire round it.
+  if (s.kind === 'champion' && s.sealed) {
+    const n = Math.round((TAU * s.r) / 24);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * TAU;
-      const h = 10 + Math.sin(time * 9 + k * 1.7) * 5;
-      ctx.fillStyle = `rgba(${c},${(0.35 + Math.sin(time * 7 + k) * 0.15).toFixed(2)})`;
+      const h = 12 + Math.sin(time * 9 + k * 1.7) * 6;
+      ctx.fillStyle = `rgba(255,110,50,${(0.4 + Math.sin(time * 7 + k) * 0.15).toFixed(2)})`;
       ctx.beginPath(); ctx.ellipse(s.x + Math.cos(a) * s.r, s.y + Math.sin(a) * s.r - h / 2, 5, h, 0, 0, TAU); ctx.fill();
     }
-    if (s.kind === 'palisade' && s.gate !== undefined) {
-      // The barricade dropped across the gate: spiked logs.
-      const gx = s.x + Math.cos(s.gate) * s.r, gy = s.y + Math.sin(s.gate) * s.r;
-      ctx.save(); ctx.translate(gx, gy); ctx.rotate(s.gate + Math.PI / 2);
-      ctx.fillStyle = '#4a3220'; ctx.fillRect(-40, -8, 80, 16);
-      ctx.fillStyle = '#8a6a48';
-      for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.moveTo(k * 12 - 4, -8); ctx.lineTo(k * 12, -22); ctx.lineTo(k * 12 + 4, -8); ctx.closePath(); ctx.fill(); }
-      ctx.restore();
-    }
   }
 
-  // An outpost's banner on the heights.
-  if (s.perch) {
-    const bx = s.perch.x + 90, by = s.perch.y;
-    ctx.fillStyle = '#3a2a1c'; ctx.fillRect(bx - 2, by - 60, 4, 60);
-    ctx.fillStyle = s.claimed ? '#6a6862' : '#a0342c';
-    const flap = Math.sin(time * 3 + bx) * 4;
-    ctx.beginPath(); ctx.moveTo(bx + 2, by - 58); ctx.lineTo(bx + 30 + flap, by - 52); ctx.lineTo(bx + 2, by - 40); ctx.closePath(); ctx.fill();
-  }
-
-  // The reliquary: a chest that lights when the site is cleared.
-  if (s.cleared) {
-    const rx = s.perch ? s.perch.x : s.x, ry = s.perch ? s.perch.y : s.y;
+  // The reward, once won: a chest of Cinders, or a champion's reliquary.
+  if (s.cleared && s.reward) {
+    const at = relicAt(s), rx = at.x, ry = at.y;
+    const relic = s.kind === 'champion';
     if (!s.opened) {
       const g = 0.7 + Math.sin(time * 4) * 0.3;
       ctx.globalCompositeOperation = 'lighter';
-      const gr = ctx.createRadialGradient(rx, ry - 8, 2, rx, ry - 8, 60);
-      gr.addColorStop(0, `rgba(255,224,138,${(0.45 * g).toFixed(2)})`);
+      const gr = ctx.createRadialGradient(rx, ry - 8, 2, rx, ry - 8, relic ? 80 : 50);
+      gr.addColorStop(0, relic ? `rgba(160,220,255,${(0.5 * g).toFixed(2)})` : `rgba(255,224,138,${(0.4 * g).toFixed(2)})`);
       gr.addColorStop(1, 'rgba(255,200,90,0)');
-      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(rx, ry - 8, 60, 0, TAU); ctx.fill();
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(rx, ry - 8, relic ? 80 : 50, 0, TAU); ctx.fill();
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(rx - 16, ry - 2, 36, 10);
-    ctx.fillStyle = s.opened ? '#4a3a2a' : '#6a4a2a'; ctx.fillRect(rx - 18, ry - 18, 36, 20);
-    ctx.fillStyle = s.opened ? '#6a5a44' : '#e0b050';
-    ctx.fillRect(rx - 18, ry - 11, 36, 3); ctx.fillRect(rx - 3, ry - 16, 6, 9);
+    if (relic) {
+      // A reliquary: a stone casket with a glowing seal.
+      ctx.fillStyle = '#6a6670'; ctx.fillRect(rx - 20, ry - 22, 40, 24);
+      ctx.fillStyle = '#8a8690'; ctx.fillRect(rx - 22, ry - 26, 44, 6);
+      ctx.fillStyle = s.opened ? '#4a4a52' : '#9fe0ff';
+      ctx.beginPath(); ctx.arc(rx, ry - 12, 5, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = s.opened ? '#4a3a2a' : '#6a4a2a'; ctx.fillRect(rx - 18, ry - 18, 36, 20);
+      ctx.fillStyle = s.opened ? '#6a5a44' : '#e0b050';
+      ctx.fillRect(rx - 18, ry - 11, 36, 3); ctx.fillRect(rx - 3, ry - 16, 6, 9);
+    }
     if (!s.opened) {
       ctx.textAlign = 'center';
       ctx.font = '800 11px system-ui';
-      ctx.fillStyle = '#ffe08a';
-      ctx.fillText(s.claimed ? 'stand on it: Cinders' : 'stand on it: a spell', rx, ry - 30);
+      ctx.fillStyle = relic ? '#bfe8ff' : '#ffe08a';
+      ctx.fillText(relic && !s.claimed ? 'stand on it: a spell' : 'stand on it: Cinders', rx, ry - 36);
       if (s.relT > 0) {
-        ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(rx, ry - 8, 26, -Math.PI / 2, -Math.PI / 2 + Math.min(1, s.relT) * TAU); ctx.stroke();
+        ctx.strokeStyle = relic ? '#bfe8ff' : '#ffe08a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(rx, ry - 10, 28, -Math.PI / 2, -Math.PI / 2 + Math.min(1, s.relT) * TAU); ctx.stroke();
       }
     }
   }
@@ -432,6 +440,24 @@ export function drawOverworldAbove(ctx, time) {
   const front = (e) => { const S = sectorAt(e.x, e.y); if (S) for (const g of S.grass) g.drawFront(ctx, time, e); };
   if (p && !p.dead) front(p);
   for (const e of world.enemies) if (!e.dead && !e.z && inView(e.x, e.y, 20)) front(e);
+
+  // The places' roofs: they fade when you are behind them.
+  for (const P of W.places) {
+    if (!inView(P.x, P.y, P.r + 120)) continue;
+    for (const o of P.obs) if (o.kind === 'building' && inView(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h))) drawRoof(ctx, o, p);
+  }
+  // Champions wear their names.
+  ctx.textAlign = 'center';
+  ctx.font = '800 12px system-ui';
+  for (const e of world.enemies) {
+    if (!e.champion || e.dead || !inView(e.x, e.y, 60)) continue;
+    const y = e.y - e.r - 34;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(e.champion, e.x + 1, y + 1);
+    ctx.fillStyle = '#ffb35e'; ctx.fillText(e.champion, e.x, y);
+    const k = Math.max(0, e.hp / e.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(e.x - 40, y + 5, 80, 5);
+    ctx.fillStyle = '#ff6a4a'; ctx.fillRect(e.x - 40, y + 5, 80 * k, 5);
+  }
 
   const secs = sectorsIn(camera.x - 120, camera.y - 120, camera.x + view.w + 120, camera.y + view.h + 120);
   for (const S of secs) {

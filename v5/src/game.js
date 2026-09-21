@@ -451,10 +451,11 @@ function tick(dt) {
           saveWilds();
         }
         if (act && act.rest) restAtLamp(act.rest);
-        if (act && (act.seal || act.wave || act.clear || act.reliquary)) siteFx(act);
-        if (act && act.seal) showToast('THERE IS NO WAY OUT', 'Not until the last of them falls', 2.2);
+        if (act && (act.duel || act.wave || act.clear || act.reliquary || act.champion)) siteFx(act);
+        if (act && act.duel) showToast(act.duel.name.toUpperCase(), 'The ring closes. One of you walks out.', 2.6);
         if (act && act.wave) showToast('MORE OF THEM', 'A second wave', 2);
-        if (act && act.clear) { showToast('CLEARED', act.clear.claimed ? 'The reliquary holds Cinders' : 'A reliquary lights: stand on it', 3); saveWilds(); }
+        if (act && act.clear) { showToast('CLEARED', 'A chest of Cinders', 2.4); saveWilds(); }
+        if (act && act.champion) { showToast('CHAMPION FELLED', act.champion.claimed ? 'Its reliquary holds Cinders' : 'Its reliquary lights: a spell waits', 3.4); saveWilds(); }
         if (act && act.reliquary) openReliquary(act.reliquary);
         if (act && act.smoulder) {
           showToast('YOUR SMOULDER', `${act.smoulder} Cinders taken back`, 2.6);
@@ -1374,9 +1375,10 @@ function showWildsIntro(confirmNew = false) {
       three lives back and save; spend <b>Cinders</b> there to grow stronger; travel between the
       ones you have lit. Fall with no life left and you wake at your last lamp, your Cinders left
       smouldering where you fell.</p>
-      <p class="sub">Its fights wait in places of their own - behind palisades, inside stone
-      circles, among ruins, under the cliffs - and seal behind you. Clear one and its reliquary
-      gives a spell. The guardians arrive in the next steps.</p>
+      <p class="sub">Thirty places hold the land - forts with watchtowers, villages, temples,
+      quarries, war camps, graveyards, canyon passes, ruined keeps, hedge gardens - each with
+      its posts to fight through and a named champion at its heart guarding a reliquary with a
+      spell. Patrols walk the roads. The guardians arrive in the next steps.</p>
       <p class="sub">A new journey takes <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells (as many as your spell slots hold).</p>
       ${playerRows(() => showWildsIntro(confirmNew))}
@@ -1599,9 +1601,10 @@ function travelTo(id) {
  * well (chosen from three, as at a Spell door).
  */
 function openReliquary(site) {
-  const bonus = Math.round(60 * (1 + site.tier) * (site.claimed ? 0.5 : 1));
+  const champ = site.kind === 'champion';
+  const bonus = Math.round((champ ? 160 : 50) * (1 + site.tier) * (site.claimed ? 0.5 : 1));
   world.gold += bonus;
-  const first = !site.claimed;
+  const first = champ && !site.claimed;
   site.claimed = true;
   saveWilds();
   if (first) {
@@ -1790,7 +1793,7 @@ function wildsQuestRow() {
     <p class="sub" style="margin-bottom:6px">Lands found ${pr.regions.length} / ${pr.regionsTotal}
       &middot; explored ${(pr.explored * 100).toFixed(1)}%</p>
     <div class="chips">${lands}</div>
-    ${sitesProgress() ? `<p class="sub" style="margin-top:6px">Reliquaries claimed ${sitesProgress().claimed} / ${sitesProgress().total}</p>` : ''}
+    ${sitesProgress() ? `<p class="sub" style="margin-top:6px">Champions felled ${sitesProgress().claimed} / ${sitesProgress().total}</p>` : ''}
     <div class="row"><button class="btn ghost" data-act="w-map">Open the map</button></div>`;
 }
 

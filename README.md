@@ -145,12 +145,14 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   kindled lamps, and attune your spells. Fall with no life left and your
   Cinders stay where you fell as a **smoulder**. The journey saves itself;
   Continue from the Wilds screen.
-- **Encounter sites (96):** every fight has a place of its own - a
-  palisade, a ring of standing stones (two waves), ruins, a thorn ring, a
-  yard under a cliff with archers on the heights, a bridge ambush. Its
-  enemies never leave it and doze until you come near; step inside and it
-  seals until the last falls; then a reliquary lights - a spell the first
-  time, Cinders always. Resting brings them all back.
+- **Thirty places to fight through:** forts with watchtowers, villages
+  with bell towers, stepped temples, terraced quarries, war camps,
+  graveyards, canyon passes with archers on the ledges, ruined keeps and
+  hedge gardens. Enemies hold posts all through each one and never leave
+  their ground; nothing locks you in. A named **champion** at each place's
+  heart fights you in a closing ring and guards a reliquary with a spell.
+  Between the places: smaller fights (a ring of stones, a palisade, ruins)
+  and **patrols** walking the roads. Resting brings them all back.
 - **Streaming:** only the land near you exists at any moment: detail in
   2048-unit sectors, walls in a spatial hash, and collision against an
   active set. That is what lets a world this size run on a phone.

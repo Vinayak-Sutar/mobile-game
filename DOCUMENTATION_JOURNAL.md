@@ -4385,6 +4385,69 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.39 The Wilds, M3 redone: thirty designed places, champions, patrols (2026-09-21)
+
+The owner's verdict on M3's small sealed circles was that they limited play
+badly; they wanted whole designed areas as the arenas. Decisions (asked):
+- about 30 big places, roughly 1500-2200 across;
+- no lock-in, except a champion's duel ring;
+- road patrols, champions, and a few of the small sites kept;
+- mini-bosses to be designed later.
+
+- **`wilds-places.js`**:
+  - **Placement**: 30 `PLACES` are authored in wilds-layout.js (id, name,
+    kind, spot, radius). `planPlaces` runs BEFORE the raised ground is built.
+    It spirals each spot out to the nearest one that is dry, clear of the
+    world's faces and stairs, lamps and other places. 26 stayed put and 4
+    moved 300-600.
+  - **Nine templates**:
+    - `fort`: timber walls with gates, 4 watchtowers, a hall, tents, crates, a campfire;
+    - `village`: paved lanes, a plaza with a well, houses or huts, fences, a bell tower;
+    - `temple`: two stepped terraces, a colonnaded avenue, statues, braziers;
+    - `quarry`: three terraces with cut blocks;
+    - `camp`: tents, fires, stake barricades, wagons, a lookout;
+    - `graveyard`: an iron fence, grave rows, a crypt;
+    - `pass`: two long ledges with archers above a gravel corridor;
+    - `keep`: a broken curtain wall and an inner keep of three rooms with doorways, a tower;
+    - `garden`: hedges, a parterre, a fountain, a pavilion.
+  - **What it lays down**: walls in 100-unit panels (gaps as offsets),
+    buildings, props, `deco` (non-blocking), plateaus (towers and terraces,
+    stairs on the south face), floors (dirt, pave, marble, gravel through
+    `floorLookup` into `classify`), and groups with `perches` for archers, a
+    `champ` and a `relic`.
+  - **Roads stay clear**: nothing is placed within 60 of a road.
+  - **Drawing**: `drawPlaceObstacle`, `drawPlaceDeco`, and `drawRoof`, which is
+    drawn over everyone and fades to 28% when you are behind or under it.
+- **`wilds-sites.js`, now built around units**:
+  - **Kinds**: `group` (a post, leashed to its circle; archers leashed to their
+    perch at r 110), `champion`, `site` (small, never sealed, a chest of
+    Cinders), `patrol`.
+  - **The champion**:
+    - the region's heaviest type at scale 1.7 + 0.5·tier, an elite with +15%
+      size and +25% damage;
+    - named from `TITLES` plus the place name, with a name tag and health bar
+      over it;
+    - it is the only thing that seals: a 300 ring while you are inside 0.8 of it;
+    - its reliquary gives a spell the first time, and
+      `160·(1 + tier)` Cinders (half after that).
+  - **Patrols**: 2-3 walk a 1200-unit stretch of road while asleep, and wake
+    within 460 or when hit.
+  - **Counts**: small sites are about 28 (every 4600 along the roads and a
+    5200 scatter, kept 400 clear of places); 11-13 patrols.
+  - **Totals**: 126 groups, 30 champions, 28 sites, 12 patrols.
+- **World**:
+  - a place's name is toasted on entry, with its champion's standing;
+  - places are drawn as a little keep on both maps, with names when zoomed in;
+  - `inClearing` keeps trees out of places;
+  - the pause menu shows champions felled.
+- **Verified in Node**:
+  - all 30 placed, and no road blocked;
+  - at a fort, the posts spawn asleep and wake by section;
+  - the champion (the Red Hound of The Old Hold, a charger at 253 HP) seals
+    its ring and holds you 17 inside, falls, and its reliquary opens;
+  - a patrol walked its road;
+  - the worst frame on every route is about 10 ms (one spike on the north road).
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

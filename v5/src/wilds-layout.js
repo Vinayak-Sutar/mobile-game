@@ -244,6 +244,48 @@ const RAW_LAMPS = [
   { id: 'cloudperch', name: 'Cloud Perch', x: 32300, y: 2100 },
 ];
 
+// --- places: the big designed fights ------------------------------------------------------
+// About thirty PLACES, one to three a region, each a designed location built
+// from a template (wilds-places.js): a fort with watchtowers, a village with a
+// bell tower, a stepped temple, a terraced quarry, a war camp, a graveyard,
+// a canyon pass with archers on its ledges, a ruined keep, a hedge garden.
+// Their enemies hold posts all through the place; a named CHAMPION waits at
+// its heart with the reliquary. Nothing locks you in except the champion's
+// duel ring. The spot here is where the designer wants it; wilds-places.js
+// moves it to the nearest open ground if water, a cliff or a lamp is in the way.
+const RAW_PLACES = [
+  { id: 'ashford', name: 'Ashford', kind: 'village', x: 15200, y: 14300, r: 950 },
+  { id: 'raidcamp', name: "Raiders' Camp", kind: 'camp', x: 21800, y: 9800, r: 850 },
+  { id: 'oldhold', name: 'The Old Hold', kind: 'fort', x: 22600, y: 15600, r: 900 },
+  { id: 'webcamp', name: 'Silkweaver Camp', kind: 'camp', x: 4400, y: 12800, r: 850 },
+  { id: 'hollowkeep', name: 'Hollow Keep', kind: 'keep', x: 8600, y: 9600, r: 850 },
+  { id: 'mirrow', name: 'Mirrow', kind: 'village', x: 10200, y: 15300, r: 900 },
+  { id: 'lakeshrine', name: 'Shrine of the Still Water', kind: 'temple', x: 3900, y: 17600, r: 850 },
+  { id: 'dustwall', name: 'Fort Dustwall', kind: 'fort', x: 28800, y: 9800, r: 900 },
+  { id: 'rattlepass', name: 'Rattlesnake Pass', kind: 'pass', x: 24200, y: 13600, r: 950 },
+  { id: 'prospect', name: "Prospectors' Camp", kind: 'camp', x: 30400, y: 14600, r: 800 },
+  { id: 'stiltmoor', name: 'Stiltmoor', kind: 'village', x: 21800, y: 21800, r: 950 },
+  { id: 'drowngraves', name: 'The Drowned Graves', kind: 'graveyard', x: 15000, y: 18600, r: 800 },
+  { id: 'peacockgardens', name: 'The Peacock Gardens', kind: 'garden', x: 31400, y: 18400, r: 950 },
+  { id: 'sunterrace', name: 'The Sun Terrace', kind: 'temple', x: 26000, y: 22300, r: 900 },
+  { id: 'echokeep', name: 'Echo Keep', kind: 'keep', x: 2600, y: 4700, r: 850 },
+  { id: 'cliffbarrows', name: 'Cliffside Barrows', kind: 'graveyard', x: 4500, y: 7300, r: 750 },
+  { id: 'buriedtemple', name: 'The Buried Temple', kind: 'temple', x: 34300, y: 9600, r: 900 },
+  { id: 'nomadcamp', name: 'Nomad Camp', kind: 'camp', x: 33600, y: 16800, r: 850 },
+  { id: 'saltwind', name: 'Saltwind Village', kind: 'village', x: 41200, y: 14800, r: 800 },
+  { id: 'oldquarry', name: 'The Old Quarry', kind: 'quarry', x: 10220, y: 7460, r: 900 },
+  { id: 'ashguard', name: 'Ashguard', kind: 'fort', x: 18500, y: 7600, r: 850 },
+  { id: 'scorchpass', name: 'Scorch Pass', kind: 'pass', x: 10900, y: 3200, r: 900 },
+  { id: 'coilruins', name: 'The Coil Ruins', kind: 'keep', x: 14500, y: 23100, r: 800 },
+  { id: 'barrows', name: 'The Hollow Barrows', kind: 'graveyard', x: 4600, y: 1700, r: 850 },
+  { id: 'frostwatch', name: 'Frostwatch', kind: 'keep', x: 10300, y: 1500, r: 850 },
+  { id: 'terracevillage', name: 'Terrace Village', kind: 'village', x: 34800, y: 8200, r: 850 },
+  { id: 'cloudtemple', name: 'The Cloud Temple', kind: 'temple', x: 34300, y: 3400, r: 700 },
+  { id: 'bridgeward', name: 'Bridgeward', kind: 'fort', x: 21200, y: 8400, r: 850 },
+  { id: 'moonbarracks', name: 'The Moon Barracks', kind: 'keep', x: 26400, y: 2000, r: 750 },
+  { id: 'moongarden', name: 'The Moon Garden', kind: 'garden', x: 22200, y: 1900, r: 750 },
+];
+
 // --- hand-placed encounter sites -------------------------------------------------------
 // Most fights are placed by wilds-sites.js along the roads; these few are set
 // against the heights on purpose. An OUTPOST fights in the yard below a cliff
@@ -296,6 +338,7 @@ export const BRIDGES = RAW_BRIDGES.map(at);
 export const PLATEAUS = RAW_PLATEAUS.map(([x, y, w, h, f, stairs]) => [x + OX, y + OY, w, h, f, stairs.map(([sx, sw]) => [sx + OX, sw])]);
 export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
+export const PLACES = RAW_PLACES.map(at);
 export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
 export const AMBUSHES = RAW_AMBUSHES.map(at);
 export const CLEARINGS = [...RAW_CLEARINGS.map(at), ...LAMPS.map((l) => ({ x: l.x, y: l.y, r: 160 }))];

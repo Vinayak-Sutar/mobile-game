@@ -25,6 +25,14 @@ function lampIcon(ctx, x, y, lit, r) {
   else { ctx.strokeStyle = 'rgba(255,200,150,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
 }
 
+/** A place on a map: a little keep, red while its champion stands, green once it has fallen. */
+function placeIcon(ctx, x, y, won, r) {
+  ctx.fillStyle = won ? '#9fe0a0' : '#ff7a5a';
+  ctx.fillRect(x - r, y - r * 0.4, r * 2, r * 1.4);
+  ctx.fillRect(x - r, y - r, r * 0.6, r * 0.7); ctx.fillRect(x + r * 0.4, y - r, r * 0.6, r * 0.7);
+  ctx.strokeStyle = '#1a1014'; ctx.lineWidth = 1; ctx.strokeRect(x - r, y - r * 0.4, r * 2, r * 1.4);
+}
+
 /** A site on a map: crossed blades, red while it waits, green once its reliquary is yours. */
 function siteIcon(ctx, x, y, claimed, r) {
   ctx.strokeStyle = claimed ? '#9fe0a0' : '#ff6a5a';
@@ -40,6 +48,12 @@ function smoulderIcon(ctx, x, y, r) {
 }
 
 const PX = 2 / FOG;                      // map pixels per world unit
+
+/** Has this place's champion fallen (and its reliquary been claimed)? */
+function placeWon(W, P) {
+  const c = W.sites.find((q) => q.id === `${P.id}:champ`);
+  return !!(c && c.claimed);
+}
 const INK = '#16121c';
 
 function arrow(ctx, x, y, a, s) {
@@ -75,7 +89,8 @@ export function drawOverworldMap(ctx) {
 
   ctx.save();
   roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
-  for (const q of W.sites) if (q.seen) siteIcon(ctx, x + (q.x - wx) * s, y + (q.y - wy) * s, q.claimed, 2.5);
+  for (const q of W.sites) if (q.seen && q.kind === 'site') siteIcon(ctx, x + (q.x - wx) * s, y + (q.y - wy) * s, q.cleared, 2.5);
+  for (const P of W.places) if (P.seen) placeIcon(ctx, x + (P.x - wx) * s, y + (P.y - wy) * s, placeWon(W, P), 4);
   for (const l of W.lamps) if (l.seen || l.lit) lampIcon(ctx, x + (l.x - wx) * s, y + (l.y - wy) * s, l.lit, 3);
   if (journey.smoulder) smoulderIcon(ctx, x + (journey.smoulder.x - wx) * s, y + (journey.smoulder.y - wy) * s, 3.5);
   ctx.restore();
@@ -159,7 +174,14 @@ export function mountWildsMap(canvas, opts = {}) {
     }
 
     // The sites you have seen, the Ashlamps (kindled, or seen), and your smoulder.
-    for (const q of W.sites) if (q.seen || W.fogOff) siteIcon(ctx, toX(q.x), toY(q.y), q.claimed, st.zoom > 1.5 ? 5 : 3);
+    for (const q of W.sites) if ((q.seen || W.fogOff) && q.kind === 'site') siteIcon(ctx, toX(q.x), toY(q.y), q.cleared, st.zoom > 1.5 ? 5 : 3);
+    ctx.font = '700 10px system-ui';
+    ctx.textAlign = 'center';
+    for (const P of W.places) {
+      if (!P.seen && !W.fogOff) continue;
+      placeIcon(ctx, toX(P.x), toY(P.y), placeWon(W, P), st.zoom > 1.5 ? 8 : 5);
+      if (st.zoom > 1.5) { ctx.fillStyle = 'rgba(255,200,180,0.9)'; ctx.fillText(P.name, toX(P.x), toY(P.y) + 20); }
+    }
     ctx.font = '700 11px system-ui';
     ctx.textAlign = 'center';
     for (const l of W.lamps) {
