@@ -1235,6 +1235,7 @@ const training = {
   invincible: true,
   freeCasts: false,
   dummyHp: 1000,        // 0 = endless (never breaks, refills)
+  dummyRespawn: false,  // does a broken dummy stand back up?
   respawns: [],         // broken dummies waiting to stand back up
 };
 
@@ -1289,8 +1290,9 @@ function trainingToggleSpell(id) {
 }
 
 /**
- * One dummy. With a set health it can be broken: it reports how long that
- * took and stands back up where it was a moment later. Endless ones refill.
+ * One dummy, called in like any other foe. With a set health it can be
+ * broken: it reports how long that took, and - if "Dummies stand back up" is
+ * on - stands up again where it was a moment later. Endless ones refill.
  */
 function trainingDummy(x, y) {
   const e = spawnEnemyDebug('dummy', x, y);
@@ -1301,17 +1303,10 @@ function trainingDummy(x, y) {
     e.hp = training.dummyHp;
     e.onDeath = (self) => {
       noteBroken(self);
-      training.respawns.push({ x, y, t: 1.5 });
+      if (training.dummyRespawn) training.respawns.push({ x, y, t: 1.5 });
     };
   }
   return e;
-}
-
-function trainingDummies(n = 3) {
-  const b = arenaBounds();
-  const cx = b.l + (b.r - b.l) / 2;
-  const y = b.t + (b.b - b.t) * 0.3;
-  for (let i = 0; i < n; i++) trainingDummy(cx + (i - (n - 1) / 2) * 130, y);
 }
 
 function trainingClear() {
@@ -1319,7 +1314,6 @@ function trainingClear() {
   clearEntities();
   clearFx();
   resetMeter();
-  trainingDummies();
 }
 
 function startTraining() {
@@ -1338,7 +1332,6 @@ function startTraining() {
   const room = generateRoom(1, 0, { training: true });
   startRoom(room);
   trainingLoadout();
-  trainingDummies();
 
   showToast('TRAINING GROUND', 'Pause to change your loadout');
   state = 'playing';
@@ -2048,7 +2041,7 @@ function showTraining() {
       </div>`;
   }).join('');
 
-  const foes = TRAINING_FOES.map((t) => `
+  const foes = ['dummy', ...TRAINING_FOES].map((t) => `
     <button class="tgl" data-act="t-spawn" data-type="${t}">${t}</button>`).join('');
 
   showOverlay(`
@@ -2064,16 +2057,16 @@ function showTraining() {
       <div class="tgsec">Spells &mdash; ${training.spells.length}/${SPELL_SLOTS} equipped (tap Lv to rank up)</div>
       <div class="chips">${spells}</div>
 
-      <div class="tgsec">Dummy health</div>
+      <div class="tgsec">Dummies &mdash; call one in below, like any foe</div>
       <div class="chips">${DUMMY_HP_CHOICES.map((hp) => `
         <button class="tgl ${training.dummyHp === hp ? 'on' : ''}" data-act="t-hp" data-hp="${hp}">${hp || 'Endless'}</button>`).join('')}
+        <button class="tgl ${training.dummyRespawn ? 'on' : ''}" data-act="t-toggle" data-opt="dummyRespawn">Dummies stand back up</button>
       </div>
 
       <div class="tgsec">Room</div>
       <div class="chips">
         <button class="tgl ${training.invincible ? 'on' : ''}" data-act="t-toggle" data-opt="invincible">Invincible</button>
         <button class="tgl ${training.freeCasts ? 'on' : ''}" data-act="t-toggle" data-opt="freeCasts">No cooldowns</button>
-        <button class="tgl" data-act="t-spawn" data-type="dummy">+ dummy</button>
         <button class="tgl" data-act="t-clear">Clear room</button>
       </div>
 
@@ -2372,6 +2365,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       const opt = el.dataset.opt;
       training[opt] = !training[opt];
       if (world.training && world.player) world.player.invincible = training.invincible;
+      if (opt === 'dummyRespawn' && !training.dummyRespawn) training.respawns.length = 0;
       showTraining();
       break;
     }
@@ -2390,7 +2384,12 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 't-clear': trainingClear(); showTraining(); break;
     case 't-hp': {
       training.dummyHp = Number(el.dataset.hp) || 0;
-      if (world.training) trainingClear();
+      // Dummies already in the ring are set up again with the new health;
+      // nothing else in the ring is touched.
+      const spots = world.enemies.filter((e) => e.type === 'dummy' && !e.dead).map((e) => [e.x, e.y]);
+      world.enemies = world.enemies.filter((e) => e.type !== 'dummy');
+      training.respawns.length = 0;
+      for (const [x, y] of spots) trainingDummy(x, y);
       showTraining();
       break;
     }

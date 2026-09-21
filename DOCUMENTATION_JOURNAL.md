@@ -4385,6 +4385,20 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.47 Training Ground: dummies called in like any foe (2026-09-22)
+
+The owner asked for the dummies to stop being built in and respawning.
+- **Called in like any foe**: the ring starts empty, and Clear room leaves it
+  empty. "dummy" is the first entry in "Call in a foe"; the old "+ dummy"
+  button is gone.
+- **"Dummies stand back up"** is a toggle, off by default. With it off, a
+  broken dummy stays broken; turning it off also cancels any pending
+  respawns.
+- **Changing the dummy health** sets up the dummies already in the ring again
+  with the new health. It no longer clears the room, so called-in foes stay.
+- The room logic already skips training rooms (`updateRoom`), so an empty ring
+  opens no doors.
+
 ### 16.46 Japanese enemies for Cloud Summit, and mini-bosses (2026-09-22)
 
 - **`enemies-yokai.js` (new)**:
