@@ -4069,6 +4069,35 @@ The walk (`gait`):
 - **Stop settle**: stopping mid-stride holds a feet-together pose for 0.14 s.
 - **Idle**: a stepped breath, and the weight moves foot to foot every 3.2 s.
 
+### 16.30 Build number and a "fetch the latest" button (2026-09-21)
+
+Owner, testing on the phone: the browser kept showing the previous version.
+Cause: GitHub Pages serves every file with `cache-control: max-age=600`, and
+the service worker's `fetch(req)` trusted the browser's HTTP cache. So a push
+took up to ten minutes to arrive, and since V5 is 71 separate modules, each
+file could be a different age.
+
+- **`v5/src/build.js`**: `BUILD` (a number) and `BUILT` (a timestamp).
+  `tools/bump-build.py` bumps them from the git pre-commit hook whenever a
+  commit touches `v5/`. Install once per clone:
+  `python tools/bump-build.py --install`. `.git/hooks` is not tracked.
+- **`v5/src/update.js`**: `latestBuild()` fetches `build.js` with
+  `cache: 'no-store'` and a `?t=` query to get past the CDN.
+  `hardRefresh()` unregisters V5's service worker, deletes the
+  `ashfall-v5-*` caches, re-fetches the shell and every module with
+  `cache: 'reload'`, then reloads. It finds the modules by following the
+  imports from `game.js` (checked: it reaches all 71).
+- **Title screen** (`buildRow`, game.js): "Build N · date · up to date with
+  GitHub" in green, or "build M is on GitHub" in gold with an Update button.
+  The button is always there as "Force refresh".
+- **Service worker** (`CACHE` bumped to 2): subresource fetches now use
+  `cache: 'no-cache'`, so every load asks the server whether each file changed
+  (a 304 if not). Navigations are left as they are, because a navigate
+  request can't be rebuilt with new options.
+
+The workflow: after each push, the owner is told the build number to expect.
+If the title screen shows an older one, tap the button.
+
 ## 17. Version 6 (`v6/`) — a 3D demo on the 2D simulation (started 2026-09-20)
 
 > **Shelved 2026-09-21.** The owner stopped the 3D direction: a polished 3D

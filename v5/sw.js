@@ -7,7 +7,7 @@
 // only ever deletes caches with its own prefix, so the two versions can't
 // wipe each other's offline copy.
 const PREFIX = 'ashfall-v5-';
-const CACHE = `${PREFIX}1`;
+const CACHE = `${PREFIX}2`;
 const LEGACY = [];
 
 const SHELL = [
@@ -44,8 +44,16 @@ self.addEventListener('fetch', (ev) => {
 
   // Network-first: a dev refresh should always get fresh code, and the cache
   // is only there to keep the game playable offline.
+  //
+  // GitHub Pages marks every file fresh for ten minutes, and a plain fetch
+  // here would trust the browser's copy for all of that time - so a push
+  // would take up to ten minutes to reach the phone, one script at a time.
+  // 'no-cache' asks the server whether each file has changed (a cheap 304
+  // when it hasn't). Page loads themselves are left alone: a navigation
+  // request cannot be rebuilt with new options.
+  const net = req.mode === 'navigate' ? req : new Request(req, { cache: 'no-cache' });
   ev.respondWith(
-    fetch(req)
+    fetch(net)
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});

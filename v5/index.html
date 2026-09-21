@@ -128,6 +128,12 @@
        border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent;color:var(--dim);
        font:inherit;font-weight:800;font-size:13px;letter-spacing:.06em;cursor:pointer}
   .ver small{font-weight:600;font-size:10.5px;letter-spacing:.04em;opacity:.8}
+  .build{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap;
+    margin:-6px auto 12px;font-size:12px;letter-spacing:.03em;color:rgba(242,236,255,.6)}
+  .build .btn.small{padding:5px 12px;font-size:12px;min-height:0}
+  .build.fresh #buildtext{color:#9fe0a0}
+  .build.stale #buildtext{color:var(--gold)}
+  .build.stale .btn{border-color:rgba(255,200,97,.7);color:var(--gold)}
   .ver.on{color:var(--gold);border-color:rgba(255,200,97,.6);background:rgba(255,200,97,.08);cursor:default}
   .ver:not(.on):active{transform:scale(.96)}
   /* Version 5 Training Ground. */

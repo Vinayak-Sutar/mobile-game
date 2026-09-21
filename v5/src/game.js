@@ -55,6 +55,7 @@ import {
 } from './gamepad.js';
 import { dualsense, dualSenseSupported, connectDualSense, probe as probeDualSense } from './dualsense.js';
 import { look } from './wanderer.js';
+import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets } from './bake.js';
 import { PLAYER_SKELETON, PLAYER_CLIPS } from './rigs.js';
 import { resolvePose, drawSkeleton } from './anim.js';
@@ -717,6 +718,7 @@ function showTitle() {
       <div class="eyebrow">top-down action roguelike · prototype</div>
       <h1>Ashfall</h1>
       ${versionRow()}
+      ${buildRow()}
       <p class="sub">Every guardian stands between you and the surface, one in every other chamber.
       You have three lives.
       Clear a room, choose a door, take a boon, go deeper.
@@ -750,6 +752,38 @@ function showTitle() {
         <kbd>Options</kbd> pause
       </div>
     </div>`);
+}
+
+/**
+ * Which build this is, and whether GitHub has a newer one (update.js). The
+ * button always fetches everything fresh; it just says "Update" when there is
+ * something newer to get.
+ */
+function buildRow() {
+  checkBuild();
+  return `
+    <div class="build" id="buildline">
+      <span id="buildtext">Build ${BUILD} · ${BUILT} · checking GitHub…</span>
+      <button class="btn ghost small" data-act="update" id="buildbtn">Force refresh</button>
+    </div>`;
+}
+
+async function checkBuild() {
+  const latest = await latestBuild();
+  const text = document.getElementById('buildtext');
+  const btn = document.getElementById('buildbtn');
+  const line = document.getElementById('buildline');
+  if (!text || !btn || !line) return;              // the title has gone
+  if (latest === null) {
+    text.textContent = `Build ${BUILD} · ${BUILT} · couldn't reach GitHub (offline?)`;
+  } else if (latest > BUILD) {
+    text.textContent = `Build ${BUILD} · build ${latest} is on GitHub`;
+    btn.textContent = `Update to build ${latest}`;
+    line.classList.add('stale');
+  } else {
+    text.textContent = `Build ${BUILD} · ${BUILT} · up to date with GitHub`;
+    line.classList.add('fresh');
+  }
 }
 
 let pendingBiome = null;
@@ -1815,6 +1849,10 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'title': pendingTrial = null; showTitle(); break;
     case 'version': location.href = el.dataset.href; break;
     case 'version-here': break;
+    case 'update':
+      el.disabled = true;
+      hardRefresh((msg) => { el.textContent = msg; });
+      break;
     case 'trials': showTrials(); break;
     // Like Begin Run, the Training Ground and the tutorial go fullscreen on a phone.
     case 'training': phoneFullscreen(); showTraining(); break;

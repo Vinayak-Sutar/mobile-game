@@ -240,6 +240,13 @@ LAN address. The certificate lives in `.certs/`, which is never committed.
 - **Installable PWA.** Each version has a manifest and a network-first
   service worker. "Add to Home screen" on Android gives a full-screen app
   that works offline.
+- **Is the phone on the latest build?** Version 5's title screen shows its
+  build number and checks it against the copy on GitHub Pages ("up to date",
+  or "build N is on GitHub" in gold). The button next to it (Force refresh /
+  Update) clears that version's offline copy, re-downloads every script from
+  the server and reloads. The number lives in `v5/src/build.js` and is bumped
+  by a git pre-commit hook on every commit that touches `v5/`; install the
+  hook once per clone with `python tools/bump-build.py --install`.
 - **Single-file build:** `npm run build` bundles **Version 4** with esbuild
   into `dist/ashfall.html`, a standalone file you can double-click to play.
   It also produces `Ashfall.zip` and `Ashfall-web.zip` for messaging apps and
