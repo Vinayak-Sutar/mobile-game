@@ -25,7 +25,17 @@ const CELL = 12;
 const PAD = 200;            // the grid reaches this far past the screen
 const C2 = 0.22;            // wave speed (stable below 0.5)
 const DAMP = 0.982;         // energy lost each step
-const LIGHT = 3.2;          // how strongly a slope catches the light
+// The light, as calm as the Drowned Vault's and the Mire's (journal 16.10):
+// the owner found white crests read as glare - and as attacks. So the slope
+// light is gentle, crests are capped glints tinted with the water's own
+// colour, troughs only darken a little, and the rings are muted.
+const LIGHT = 0.8;          // how strongly a slope catches the light
+const GLINT_CAP = 0.7;      // the brightest a crest may get
+// The water's own tint: blue-teal, or swamp green in the Mire.
+const TINTS = {
+  clear: { glint: [120, 176, 196], ring: '143,184,200' },
+  swamp: { glint: [96, 150, 120], ring: '143,196,168' },
+};
 
 export function createWildsWater() {
   const S = {
@@ -33,7 +43,7 @@ export function createWildsWater() {
     hgt: null, vel: null, wet: null,
     canvas: null, cx: null, img: null,
     ripples: [], lapT: 0, dripT: 0, stepT: 0, lastP: null,
-    any: false, t: 0,
+    any: false, t: 0, tint: TINTS.clear,
   };
 
   const isWet = (t) => t === TT.WATER || t === TT.SHALLOW;
@@ -207,19 +217,24 @@ export function createWildsWater() {
     const { w, h, hgt, wet } = S;
     const d = S.img.data;
     const t = S.t;
+    const tint = S.tint.glint;
     for (let j = 0; j < h; j++) {
       for (let i = 0; i < w; i++) {
         const k = j * w + i, o = k * 4;
         if (!wet[k] || i === 0 || j === 0 || i === w - 1 || j === h - 1) { d[o + 3] = 0; continue; }
-        const gx = hgt[k + 1] - hgt[k - 1], gy = hgt[k + w] - hgt[k - w];
-        // A slow swell over it all, so open water is never glassy.
-        const wx = (S.gx0 + i) * CELL, wy = (S.gy0 + j) * CELL;
-        const swell = Math.sin(wx * 0.021 + wy * 0.013 + t * 1.3) * 0.05 + Math.sin(wx * 0.009 - wy * 0.017 - t * 0.8) * 0.04;
-        const light = -(gx + gy) * LIGHT + swell;
+        // Lit by its slope from the upper left, as in the arenas' engine, with
+        // a faint slow swell so open water is never glassy.
+        const wx = S.gx0 + i, wy = S.gy0 + j;
+        let light = (hgt[k - 1] - hgt[k + 1] + hgt[k - w] - hgt[k + w]) * LIGHT
+          + Math.sin(wx * 0.55 + t * 0.9) * Math.sin(wy * 0.7 - t * 0.6) * 0.05;
+        if (light > 1.3) light = 1.3; else if (light < -1.3) light = -1.3;
         if (light > 0) {
-          d[o] = 226; d[o + 1] = 242; d[o + 2] = 250; d[o + 3] = Math.min(170, light * 300);
+          // A capped glint in the water's own colour - never a white crest.
+          const q = Math.min(light, GLINT_CAP);
+          d[o] = tint[0]; d[o + 1] = tint[1]; d[o + 2] = tint[2]; d[o + 3] = q * 120;
         } else {
-          d[o] = 0; d[o + 1] = 18; d[o + 2] = 36; d[o + 3] = Math.min(120, -light * 240);
+          // Troughs darken a little.
+          d[o] = 0; d[o + 1] = 14; d[o + 2] = 22; d[o + 3] = Math.min(90, -light * 0.5 * 160);
         }
       }
     }
@@ -229,18 +244,21 @@ export function createWildsWater() {
     ctx.drawImage(S.canvas, 1, 1, w - 2, h - 2, (S.gx0 + 1) * CELL, (S.gy0 + 1) * CELL, (w - 2) * CELL, (h - 2) * CELL);
     ctx.restore();
 
-    // Rings spreading from every splash and step.
+    // Rings spreading from every splash and step: crisp, but muted and at
+    // 40% (the arenas' rippleAlpha).
     ctx.lineWidth = 1.4;
     for (const r of S.ripples) {
       const k = r.t / r.life;
       const rad = r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k));
-      ctx.strokeStyle = `rgba(230,244,252,${(r.alpha * (1 - k)).toFixed(3)})`;
+      ctx.strokeStyle = `rgba(${S.tint.ring},${(r.alpha * 0.4 * (1 - k)).toFixed(3)})`;
       ctx.beginPath(); ctx.ellipse(r.x, r.y, rad, rad * 0.62, 0, 0, TAU); ctx.stroke();
     }
   }
 
   return {
     update, draw, disturb,
+    /** 'clear' or 'swamp': the colour its glints and rings take. */
+    setTint(name) { S.tint = TINTS[name] || TINTS.clear; },
     splash(x, y, r, amt) { disturb(x, y, r, amt); ripple(x, y, r * 0.4, r * 2.4, 1, 0.5); },
     wetAt,
     /** For tests: how much of the grid is water. */

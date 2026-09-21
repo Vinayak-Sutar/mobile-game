@@ -4260,6 +4260,21 @@ Owner: a setting to see the whole map without walking it.
 - **Drawing**: the explored map is drawn on top, so walked land keeps its
   detail. All region names show. The real fog and exploration are unchanged.
 
+### 16.36 Calmer water in the Wilds (2026-09-21)
+
+Owner: the Wilds' water was too reflective, the same complaint as the Vault
+and the Mire (16.10). It now gets the same fix:
+
+- **Slope light**: `LIGHT` goes from 3.2 to 0.8, with the arenas' lighting formula and clamp
+  (±1.3) and their faint cell-scale swell.
+- **Crests**: glints are capped (`GLINT_CAP` 0.7) and tinted with the water's own
+  colour, at most about 33% opaque, never white. Troughs darken at most about 35%.
+- **Ripple rings**: muted, at 40% of their alpha.
+- **Tint**: `setTint('clear' | 'swamp')` gives blue-teal, or green in the Mire.
+- **Removed**: the baked white glints in deep water (`terrain.js`) and the
+  old drifting shimmer strokes on water tiles (`wilds-draw.js`). The live
+  water is now the only light on it.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

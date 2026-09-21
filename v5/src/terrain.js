@@ -277,9 +277,9 @@ export function createTerrain(opts) {
         break;
       }
       case TT.WATER: {
-        // Deep water: dark, with the odd glint.
+        // Deep water: dark and matt - the live water (wilds-water.js) adds
+        // what light there is.
         r = 20 + m * 12 + n * 6; g = 48 + m * 16 + n * 8; bl = 68 + m * 20 + n * 8;
-        if (h > 0.993) { r += 60; g += 70; bl += 70; }
         break;
       }
       case TT.SHALLOW: {

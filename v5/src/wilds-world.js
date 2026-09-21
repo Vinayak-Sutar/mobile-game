@@ -841,7 +841,8 @@ export function updateOverworld(dt) {
   p.groundMult = b.stairs.some((r) => inRect(r, p.x, p.y)) ? 0.72 : 1;
   if (W.terrain.typeAt(p.x, p.y + p.r * 0.5) === TT.SHALLOW) p.groundMult *= 0.62;
 
-  // The live water in view.
+  // The live water in view: clear, or green in the Mire.
+  W.water.setTint(regionAt(camera.x + view.w / 2, camera.y + view.h / 2).id === 'mire' ? 'swamp' : 'clear');
   W.water.update(dt, W.terrain);
 
   // The grass in view: wind, everyone walking through it; your blows cut it.

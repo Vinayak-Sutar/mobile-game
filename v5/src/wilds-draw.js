@@ -54,8 +54,8 @@ export function drawOverworldBelow(ctx, time) {
     ctx.globalAlpha = 1;
   }
 
-  // The hand-placed things that need more than paint: water's shimmer, the
-  // bridge's railings - and the boulders and cactus grown in the sectors.
+  // The hand-placed things that need more than paint: the bridges' railings -
+  // and the boulders and cactus grown in the sectors.
   const x0 = cx - 120, y0 = cy - 120, x1 = cx + vw + 120, y1 = cy + vh + 120;
   for (const o of W.hash.query(x0, y0, x1, y1)) drawObstacle(ctx, o, time);
 
@@ -79,20 +79,6 @@ export function drawOverworldBelow(ctx, time) {
 
 function drawObstacle(ctx, o, time) {
   switch (o.kind) {
-    case 'water': {
-      // Light running across the water: a few short strokes drifting along.
-      ctx.strokeStyle = 'rgba(170,214,236,0.16)';
-      ctx.lineWidth = 1.5;
-      const n = Math.max(1, Math.floor(o.w / 140));
-      for (let k = 0; k < n; k++) {
-        const off = ((time * 18 + k * 97 + o.y * 0.7) % (o.w + 60)) - 30;
-        const y = o.y + 12 + ((k * 13 + o.x) % 16);
-        const x = o.x + off;
-        if (x < o.x || x + 26 > o.x + o.w) continue;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 26, y); ctx.stroke();
-      }
-      break;
-    }
     case 'rail':
       // Timber railings along a bridge, posts every forty units.
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + 5, o.y + 6, o.w, o.h);
