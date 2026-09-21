@@ -107,41 +107,32 @@ slots, or on PC hover a spell and press 1–4).
   Kobold Sapper, Kappa, Preta, Draugr, Duende.
 
 ### The Wilds: an open-world mode
-A 3600×2400 region (about 3×4 screens), seen through a camera that follows
-you. It has its own art style and a short quest.
+**Being rebuilt as a large souls-like world, in steps.** The land itself is
+in: guardians, lamps, fights and progression arrive in the next steps.
 
-- **Six zones:** Ashen Meadow, Whispering Woods (with one deep forest),
-  the Old Quarry, Mirror Lake, the Broken Road ruins, and the snowy
-  Silverback Ridge.
-- **The quest:**
-  - Four **guardian sites** sit at the four ends of the land. Each offers a
-    choice of guardian from its group. Beating one wins that site's
-    **stone**, a heart fragment, gold and a spell.
-  - Set all four stones in the **Ashen Statue** at the centre and the last
-    gate opens. There you choose one of the four hardest guardians (the
-    Warden, the Monkey King, the Twin Wardens or Ser Aldric) for the ending.
-- **Exploration:**
-  - Shrines heal you and become your respawn point.
-  - A watchtower reveals the map.
-  - Chests, heart fragments (four make a heart), lore stones and hidden
-    secrets.
-  - A lever that opens a vault across the map.
-  - Brambles you cut through into a hidden grove.
-  - A dash across water.
-  - Five enemy camps. Each gives a spell when cleared.
-  - A minimap with fog of war.
-- **Ground:** painted procedurally with lighting and soft shadows, in nine
-  types: grass, tall grass, moss, dirt, rock, gravel, snow, sand and flagstones.
-- **A live grass field:** wind gusts roll across it, it bends around anyone
-  walking through, and your blows cut it.
-- **Snow:** snowfall and footprints.
-- **Terrain feel:** dust from your footsteps, a colour tint for each zone,
-  and pines on the heights.
-- **Higher ground (2.5D):**
-  - Plateaus have cliff faces seen from the front.
-  - Stairs are the only way up; you can hop down anywhere.
-  - Dashing off an edge lands you in a plunge attack.
-  - High ground reveals more of the map.
+- **Size:** 36,000 × 24,000 units, about 3–4 minutes to cross on foot.
+- **Fourteen regions** round the Ashen Heartland, each with its own ground,
+  trees, weather and colour: the Webwood, Mirror Lake, the Dust Gulch, the
+  Blackwater Mire, the Gilded Deep, the Echo Cliffs, the Sunken Sands, the
+  Broken Peaks, the Coil Gorge, the Hollow Moors, Cloud Summit, the Great
+  Bridge and the Moon Citadel.
+- **The layout is fixed**, the same on every visit, so it can be learned.
+  Hand-placed roads, rivers with bridges where roads cross, lakes, a sea
+  coast, and a chasm that only the Great Bridge crosses. The fine detail
+  (trees, boulders, flowers, grass) grows from a fixed seed.
+- **Height:** plateaus with cliff faces seen from the front. Stairs are the
+  only way up, you can hop down anywhere, and dashing off an edge lands a
+  plunge. Tiers stack: the Broken Peaks are a three-tier climb, and Cloud
+  Summit is four tiers of switchback stairs. High ground reveals more of the map.
+- **Ground:** fifteen painted types, including volcanic ash, swamp mud, a
+  frozen lake, palace marble, water and the chasm. A live grass field, and
+  prints in snow, ash and mud.
+- **Map:** a minimap window round you, and a full-screen map (Tab, tap the
+  minimap, or the DualSense touchpad). Fog of war covers it until you have
+  walked there. Drag to pan, zoom in two steps.
+- **Streaming:** only the land near you exists at any moment: detail in
+  2048-unit sectors, walls in a spatial hash, and collision against an
+  active set. That is what lets a world this size run on a phone.
 - **Pause menu:** switch to **any weapon at any time**.
 
 ### Characters
@@ -275,7 +266,7 @@ v5/
 | Combat | `combat.js` (all damage flows through it), `projectiles.js`, `hazards.js`, `spawn.js`, `ai.js` |
 | Enemies and bosses | `enemies.js`, `enemies-folk.js`, `enemies-folk2.js`, `enemy-rigs.js`, `boss-kit.js` (the shared boss brain), `bosses.js`, `boss-pool.js`, `boss-*.js` (one or more files per named guardian), `boss-rigs.js` |
 | Boss arenas | `water-engine.js` (a 2D wave-equation water surface), `arena-mire.js`, `arena-vault.js`, `arena-peak.js`, `arena-gulch.js`, `arena-palace.js` |
-| The Wilds | `overworld.js` (region, quest, camera, points of interest), `terrain.js` (painted ground, baked in chunks), `grass.js` (the grass simulation) |
+| The Wilds | `wilds-layout.js` (the hand-placed world: regions, roads, water, heights), `wilds-world.js` (building and streaming it, the fog), `wilds-draw.js`, `wilds-map.js` (minimap and full map), `terrain.js` (painted ground, lazily classified and baked in chunks), `grass.js` (the grass simulation) |
 | Chambers | `rooms.js` (run structure, waves, doors), `biomes.js`, `texture.js` |
 | Practice | `training.js`, `tutorial.js` |
 | Audio | `audio.js` (synthesised effects, the adaptive music, the `band` voices), `music-kit.js`, `music-samples.js` (plucked strings, tabla, reverb), `music-western.js`, `music-desh.js` |
@@ -324,8 +315,8 @@ v5/
 
 - **Pathfinding:** enemies steer straight at you and slide along cover.
 - **Balance:** measured with bots for the older content; the newer guardians,
-  weapons and The Wilds still need playtesting. The Wilds has no save
-  (progress lasts for the session).
+  weapons and The Wilds still need playtesting. The Wilds is mid-rebuild:
+  the land is in, and its fights, lamps and saving come next.
 - **Art:** everything is procedural. That reads well at this scale but isn't
   a final art direction.
 - **Hardware:** the DualSense lightbar and adaptive triggers are unverified on

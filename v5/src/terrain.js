@@ -9,21 +9,35 @@
 // wheel ruts. Borders between types are pushed about by noise so they come
 // out ragged and natural rather than on the grid.
 //
-// Painting the whole 3600×2400 region at once would cost a phone ~35 MB, so
+// Painting a whole region at once would cost a phone far too much memory, so
 // it is baked in 256-unit chunks as they come into view, a couple per frame
 // at most, and chunks far from the camera are dropped again.
+//
+// The type map itself is worked out LAZILY too: The Wilds are 36,000 x 24,000
+// units, and classifying all of it up front would take seconds. The grid is
+// filled in blocks of 32 x 32 cells the first time anything looks there, so
+// only the land you actually walk through is ever classified - and prefill()
+// lets the caller do it ahead of need, a few blocks a frame, so walking into
+// new land never waits on it.
 
 import { gfx } from './state.js';
 
-export const TT = { GRASS: 0, TALL: 1, MOSS: 2, DIRT: 3, ROCK: 4, SNOW: 5, SAND: 6, PAVE: 7, GRAVEL: 8 };
+export const TT = {
+  GRASS: 0, TALL: 1, MOSS: 2, DIRT: 3, ROCK: 4, SNOW: 5, SAND: 6, PAVE: 7, GRAVEL: 8,
+  // The big Wilds' own grounds: the Broken Peaks' ash, the Mire's mud, the
+  // Moors' frozen lake, the palace's marble, open water and the chasm.
+  ASH: 9, MUD: 10, ICE: 11, MARBLE: 12, WATER: 13, CHASM: 14,
+};
 // An average colour per type, for the minimap.
 export const TERRAIN_RGB = [
   '82,100,62', '70,96,54', '46,68,48', '112,94,70', '112,108,102', '222,228,238', '184,164,122', '104,100,98', '126,112,92',
+  '76,70,68', '70,60,46', '178,204,222', '214,206,190', '36,70,92', '14,14,20',
 ];
 // How strongly each type catches the relief light.
-const ROUGH = [0.35, 0.3, 0.3, 0.3, 1.1, 0.9, 0.45, 0.2, 0.6];
+const ROUGH = [0.35, 0.3, 0.3, 0.3, 1.1, 0.9, 0.45, 0.2, 0.6, 0.75, 0.25, 0.35, 0.12, 0.1, 0];
 
-function mulberry(seed) {
+/** A small seeded random-number generator (the same seed gives the same run). */
+export function mulberry(seed) {
   return () => {
     seed = (seed + 0x6D2B79F5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -68,33 +82,73 @@ const KEEP = 64;               // chunks kept baked
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 /**
- * opts: { W, H, classify(x, y) -> TT, roadDist(x, y) -> units to the nearest
- * road's centre line, obstacles (walls, boulders: soft shadows) }
+ * opts: { W, H, classify(x, y) -> TT, roadDist(x0, y0, x1, y1) -> a function
+ * (x, y) -> units to the nearest road's centre line for points in that box
+ * (or roadDist(x, y) directly), and, for soft shadows and the raised ground,
+ * either the whole lists (obstacles, raised) or lookups by area
+ * (shadowsNear(x0, y0, x1, y1), raisedNear(x0, y0, x1, y1)). }
  */
 export function createTerrain(opts) {
   const { W, H } = opts;
   const CELL = 20;
   const gw = Math.ceil(W / CELL) + 1, gh = Math.ceil(H / CELL) + 1;
   const grid = new Uint8Array(gw * gh);
-  const road = new Float32Array(gw * gh);
-  for (let j = 0; j < gh; j++) {
-    for (let i = 0; i < gw; i++) {
-      const x = i * CELL + CELL / 2, y = j * CELL + CELL / 2;
-      grid[j * gw + i] = opts.classify(x, y);
-      road[j * gw + i] = opts.roadDist(i * CELL, j * CELL);
+  // Distance to a road, in whole units, capped: nothing cares beyond 255.
+  const road = new Uint8Array(gw * gh);
+  const BLK = 32;
+  const bw = Math.ceil(gw / BLK), bh = Math.ceil(gh / BLK);
+  const done = new Uint8Array(bw * bh);
+
+  /** Classify one block of cells, the first time it is needed. */
+  function fill(bi, bj) {
+    done[bj * bw + bi] = 1;
+    const i0 = bi * BLK, j0 = bj * BLK;
+    const i1 = Math.min(gw, i0 + BLK), j1 = Math.min(gh, j0 + BLK);
+    // The road lookup can be narrowed to the roads near this block.
+    const near = opts.roadDist.length === 4
+      ? opts.roadDist(i0 * CELL - 300, j0 * CELL - 300, i1 * CELL + 300, j1 * CELL + 300)
+      : opts.roadDist;
+    for (let j = j0; j < j1; j++) {
+      for (let i = i0; i < i1; i++) {
+        grid[j * gw + i] = opts.classify(i * CELL + CELL / 2, j * CELL + CELL / 2);
+        road[j * gw + i] = Math.min(255, near(i * CELL, j * CELL));
+      }
     }
+  }
+  const at = (i, j) => {
+    const bi = (i / BLK) | 0, bj = (j / BLK) | 0;
+    if (!done[bj * bw + bi]) fill(bi, bj);
+    return j * gw + i;
+  };
+
+  /**
+   * Classify the blocks under a rectangle until the deadline (a
+   * performance.now() time) passes. True once all of them are done.
+   */
+  function prefill(x0, y0, x1, y1, deadline) {
+    const bi0 = Math.max(0, Math.floor(x0 / CELL / BLK)), bi1 = Math.min(bw - 1, Math.floor(x1 / CELL / BLK));
+    const bj0 = Math.max(0, Math.floor(y0 / CELL / BLK)), bj1 = Math.min(bh - 1, Math.floor(y1 / CELL / BLK));
+    for (let bj = bj0; bj <= bj1; bj++) {
+      for (let bi = bi0; bi <= bi1; bi++) {
+        if (done[bj * bw + bi]) continue;
+        if (performance.now() > deadline) return false;
+        fill(bi, bj);
+      }
+    }
+    return true;
   }
 
   function typeAt(x, y) {
     const i = Math.min(gw - 1, Math.max(0, Math.floor(x / CELL)));
     const j = Math.min(gh - 1, Math.max(0, Math.floor(y / CELL)));
-    return grid[j * gw + i];
+    return grid[at(i, j)];
   }
 
   function roadAt(x, y) {
     const fx = Math.min(gw - 1.001, Math.max(0, x / CELL)), fy = Math.min(gh - 1.001, Math.max(0, y / CELL));
     const i = fx | 0, j = fy | 0, u = fx - i, v = fy - j;
-    const k = j * gw + i;
+    // All four corners must be classified (they can straddle a block edge).
+    const k = at(i, j); at(i + 1, j); at(i, j + 1); at(i + 1, j + 1);
     const a = road[k], b = road[k + 1], c = road[k + gw], d = road[k + gw + 1];
     return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
@@ -182,11 +236,65 @@ export function createTerrain(opts) {
         }
         break;
       }
+      case TT.ASH: {
+        // Volcanic ash: dark and soft, pocked, with the odd live ember in it.
+        r = 66 + m * 22 + n * 12; g = 60 + m * 20 + n * 11; bl = 58 + m * 18 + n * 10;
+        if (h < 0.06) { r *= 0.78; g *= 0.78; bl *= 0.78; }
+        else if (h > 0.9975) { r = 236; g = 120; bl = 52; }
+        else if (h > 0.985) { r += 28; g += 26; bl += 24; }
+        break;
+      }
+      case TT.MUD: {
+        // Swamp mud: brown-black, with wet sheens where the water stands.
+        r = 60 + m * 20 + n * 10; g = 50 + m * 16 + n * 8; bl = 36 + m * 10 + n * 6;
+        if (m > 0.66) { const k = (m - 0.66) * 3; r += (40 - r) * k; g += (58 - g) * k; bl += (60 - bl) * k; }
+        if (h < 0.05) { r *= 0.8; g *= 0.8; bl *= 0.8; }
+        break;
+      }
+      case TT.ICE: {
+        // A frozen lake: pale and glassy, cracked, snow drifted across it.
+        r = 170 + m * 30 + n * 8; g = 198 + m * 26 + n * 8; bl = 218 + m * 20 + n * 6;
+        const c = Math.abs(crackN - 0.5);
+        if (c < 0.014) { r = 238; g = 246; bl = 252; }
+        else if (c < 0.03) { r *= 0.9; g *= 0.93; bl *= 0.96; }
+        if (m > 0.7) { r += 24; g += 20; bl += 12; }
+        break;
+      }
+      case TT.MARBLE: {
+        // Palace marble: big pale slabs, gold inlay along every seam.
+        const row = Math.floor(wy / 64), col = Math.floor(wx / 64);
+        const lx = wx - col * 64, ly = wy - row * 64;
+        const edge = Math.min(lx, ly, 64 - lx, 64 - ly);
+        const th = hash(col * 5 + 1, row * 11 + 7);
+        if (edge < 1.8) { r = 196; g = 160; bl = 82; }                             // the gold inlay
+        else {
+          const vein = Math.abs(vnoise(wx * 0.05 + th * 9, wy * 0.05) - 0.5) < 0.02 ? 0.88 : 1;
+          const tint = (th - 0.5) * 16;
+          r = (204 + tint + n * 10) * vein; g = (198 + tint + n * 10) * vein; bl = (186 + tint + n * 8) * vein;
+        }
+        break;
+      }
+      case TT.WATER: {
+        // Deep in the middle, shallow and lighter at the edge; a glint here and there.
+        const shore = typeAt(wx + 26, wy) !== TT.WATER || typeAt(wx - 26, wy) !== TT.WATER
+          || typeAt(wx, wy + 26) !== TT.WATER || typeAt(wx, wy - 26) !== TT.WATER;
+        r = (shore ? 44 : 22) + m * 12 + n * 6; g = (shore ? 88 : 52) + m * 16 + n * 8; bl = (shore ? 100 : 70) + m * 18 + n * 8;
+        if (h > 0.992) { r += 60; g += 70; bl += 70; }
+        break;
+      }
+      case TT.CHASM: {
+        // Bottomless: black, a cold haze far down, a broken lip of rock at the edge.
+        const lip = typeAt(wx, wy - 22) !== TT.CHASM || typeAt(wx - 22, wy) !== TT.CHASM || typeAt(wx + 22, wy) !== TT.CHASM;
+        if (lip) { r = 70 + n * 20; g = 64 + n * 18; bl = 60 + n * 16; }
+        else { r = 10 + m * 10; g = 10 + m * 10; bl = 16 + m * 16; }
+        break;
+      }
       default: r = g = bl = 60;
     }
 
     // Roads, worn into whatever they cross: two wheel ruts and a crown.
-    const rd = roadAt(wx + (n - 0.5) * 8, wy + (m - 0.5) * 8);
+    // (Not across open water or a chasm: those are bridges, paved already.)
+    const rd = t === TT.WATER || t === TT.CHASM ? 99 : roadAt(wx + (n - 0.5) * 8, wy + (m - 0.5) * 8);
     if (rd < 30) {
       const k = clamp01((30 - rd) / 9);
       let dr, dg, db;
@@ -304,8 +412,8 @@ export function createTerrain(opts) {
     c.width = S; c.height = S;
     const cc = c.getContext('2d');
     const img = cc.createImageData(S, S);
-    const shadowRects = (opts.obstacles || []).filter((o) => o.shadow
-      && o.x < x0 + S + 30 && o.x + o.w > x0 - 30 && o.y < y0 + S + 30 && o.y + o.h > y0 - 30);
+    const shadowRects = (opts.shadowsNear ? opts.shadowsNear(x0 - 30, y0 - 30, x0 + S + 30, y0 + S + 30) : (opts.obstacles || []))
+      .filter((o) => o.shadow && o.x < x0 + S + 30 && o.x + o.w > x0 - 30 && o.y < y0 + S + 30 && o.y + o.h > y0 - 30);
     const P = Math.ceil(S / G) + 2;
     const F = new Float32Array(P * P * NF);
     for (let j = 0; j < P; j++) {
@@ -319,7 +427,8 @@ export function createTerrain(opts) {
         F[o + 4] = fbm(wx * 0.03 + 40, wy * 0.03 + 12);
       }
     }
-    const R0 = opts.raised || { tops: [], faces: [], stairs: [], rims: [] };
+    const R0 = opts.raisedNear ? opts.raisedNear(x0 - 40, y0 - 40, x0 + S + 40, y0 + S + 40)
+      : opts.raised || { tops: [], faces: [], stairs: [], rims: [] };
     const near = (r) => r.x < x0 + S + 40 && r.x + r.w > x0 - 40 && r.y < y0 + S + 40 && r.y + r.h > y0 - 40;
     const J = {
       tops: R0.tops.filter(near), faces: R0.faces.filter(near), stairs: R0.stairs.filter(near), rims: R0.rims.filter(near),
@@ -424,5 +533,5 @@ export function createTerrain(opts) {
     }
   }
 
-  return { typeAt, roadAt, draw, warm, CELL };
+  return { typeAt, roadAt, draw, warm, prefill, CELL };
 }

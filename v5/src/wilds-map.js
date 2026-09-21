@@ -1,0 +1,184 @@
+// The Wilds' maps: the minimap in the corner and the full map screen.
+//
+// Both are drawn from one picture (wilds-world.js mapCanvas): two pixels for
+// every 100-unit cell of the world, painted in as you clear the fog. Where you
+// have not been is simply not painted, so the fog is free - the map is dark
+// parchment until you walk there, the way maps work in Hollow Knight, Elden
+// Ring and most games like them.
+//
+// The minimap shows a window about 6000 units across round you (the whole
+// world at that size would be unreadable). Tap it - or press Tab, or the
+// touchpad on a DualSense - for the full map, which pans by dragging and
+// zooms in two steps.
+
+import { world, view } from './state.js';
+import { TAU, clamp, roundRect } from './util.js';
+import { input } from './input.js';
+import { REGIONS } from './wilds-layout.js';
+import { wildsState, WILDS, FOG } from './wilds-world.js';
+
+const PX = 2 / FOG;                      // map pixels per world unit
+const INK = '#16121c';
+
+function arrow(ctx, x, y, a, s) {
+  ctx.beginPath();
+  ctx.moveTo(x + Math.cos(a) * s, y + Math.sin(a) * s);
+  ctx.lineTo(x + Math.cos(a + 2.4) * s * 0.8, y + Math.sin(a + 2.4) * s * 0.8);
+  ctx.lineTo(x + Math.cos(a - 2.4) * s * 0.8, y + Math.sin(a - 2.4) * s * 0.8);
+  ctx.closePath();
+}
+
+/** The minimap, top right, under the pause button. */
+export function drawOverworldMap(ctx) {
+  const W = wildsState();
+  const p = world.player;
+  if (!W || !p || !W.mapCanvas) return;
+  const mw = 180, mh = 120;
+  const x = view.w - mw - 16, y = 60;
+  const span = 6000;                                     // world units across
+  const s = mw / span;
+
+  ctx.fillStyle = 'rgba(8,6,13,0.78)';
+  roundRect(ctx, x - 4, y - 4, mw + 8, mh + 8, 8); ctx.fill();
+  // The window, kept inside the world at its edges.
+  const wx = clamp(p.x - span / 2, 0, WILDS.W - span), wy = clamp(p.y - (span * mh / mw) / 2, 0, WILDS.H - span * mh / mw);
+  ctx.save();
+  roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
+  ctx.fillStyle = INK; ctx.fillRect(x, y, mw, mh);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(W.mapCanvas, wx * PX, wy * PX, span * PX, span * PX * mh / mw, x, y, mw, mh);
+  ctx.imageSmoothingEnabled = true;
+  ctx.restore();
+
+  ctx.fillStyle = '#ffffff';
+  arrow(ctx, x + (p.x - wx) * s, y + (p.y - wy) * s, p.face ?? p.aimAngle, 6);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+  roundRect(ctx, x, y, mw, mh, 6); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.font = '700 10px system-ui';
+  ctx.textAlign = 'right';
+  ctx.fillText(input.touchMode ? 'tap for the map' : 'Tab · map', x + mw, y + mh + 14);
+  ctx.textAlign = 'left';
+
+  // Where a tap opens the full map (input.js checks it).
+  input.mapRect = { x: x - 4, y: y - 4, w: mw + 8, h: mh + 22 };
+}
+
+// --- the full map ------------------------------------------------------------------
+
+/**
+ * Mount the full map on a canvas (the map screen's). Returns controls for the
+ * screen's buttons, and a destroy to call when the screen closes.
+ */
+export function mountWildsMap(canvas) {
+  const W = wildsState();
+  const p = world.player;
+  const st = { zoom: 1, cx: p ? p.x : WILDS.W / 2, cy: p ? p.y : WILDS.H / 2, raf: 0 };
+  const ctx = canvas.getContext('2d');
+  let cw = 0, ch = 0, dpr = 1;
+
+  const fit = () => Math.min(cw / WILDS.W, ch / WILDS.H) * 0.94;
+  const scale = () => fit() * st.zoom;
+  const clampCentre = () => {
+    const s = scale();
+    const hw = cw / s / 2, hh = ch / s / 2;
+    st.cx = hw * 2 >= WILDS.W ? WILDS.W / 2 : clamp(st.cx, hw, WILDS.W - hw);
+    st.cy = hh * 2 >= WILDS.H ? WILDS.H / 2 : clamp(st.cy, hh, WILDS.H - hh);
+  };
+
+  function size() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cw = canvas.clientWidth; ch = canvas.clientHeight;
+    canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+    clampCentre();
+  }
+
+  function draw(time) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // Parchment, darkening to the edges.
+    const g = ctx.createRadialGradient(cw / 2, ch / 2, 0, cw / 2, ch / 2, Math.max(cw, ch) * 0.7);
+    g.addColorStop(0, '#2a2330'); g.addColorStop(1, '#0e0b12');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, cw, ch);
+    if (!W || !W.mapCanvas) return;
+    const s = scale();
+    const ox = cw / 2 - st.cx * s, oy = ch / 2 - st.cy * s;
+    const toX = (x) => ox + x * s, toY = (y) => oy + y * s;
+
+    // The world's outline, and the land you have seen.
+    ctx.strokeStyle = 'rgba(255,240,220,0.12)'; ctx.lineWidth = 1;
+    ctx.strokeRect(toX(0), toY(0), WILDS.W * s, WILDS.H * s);
+    ctx.imageSmoothingEnabled = st.zoom < 1.5;
+    ctx.drawImage(W.mapCanvas, toX(0), toY(0), WILDS.W * s, WILDS.H * s);
+    ctx.imageSmoothingEnabled = true;
+
+    // The names of the lands you have walked.
+    ctx.textAlign = 'center';
+    ctx.font = `800 ${st.zoom > 1.5 ? 15 : 12}px system-ui`;
+    for (const r of REGIONS) {
+      if (!W.visited.has(r.id)) continue;
+      const tx = toX(r.x), ty = toY(r.y);
+      ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(r.name, tx + 1, ty + 1);
+      ctx.fillStyle = 'rgba(255,236,200,0.92)'; ctx.fillText(r.name, tx, ty);
+    }
+
+    // You.
+    if (p) {
+      const px = toX(p.x), py = toY(p.y);
+      const pulse = 1 + Math.sin(time * 0.006) * 0.25;
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, 12 * pulse, 0, TAU); ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      arrow(ctx, px, py, p.face ?? p.aimAngle, 8); ctx.fill();
+    }
+
+    // How much of the world you have seen.
+    let seen = 0;
+    for (let k = 0; k < W.fog.length; k++) seen += W.fog[k];
+    ctx.textAlign = 'left';
+    ctx.font = '700 12px system-ui';
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillText(`Explored ${(seen / W.fog.length * 100).toFixed(1)}%  ·  lands found ${W.visited.size} / ${REGIONS.length}`, 14, 22);
+  }
+
+  function loop(t) {
+    draw(t);
+    st.raf = requestAnimationFrame(loop);
+  }
+
+  // Dragging pans (mouse or finger).
+  let drag = null;
+  const down = (ev) => {
+    canvas.setPointerCapture?.(ev.pointerId);
+    drag = { x: ev.clientX, y: ev.clientY, cx: st.cx, cy: st.cy };
+  };
+  const move = (ev) => {
+    if (!drag) return;
+    const s = scale();
+    st.cx = drag.cx - (ev.clientX - drag.x) / s;
+    st.cy = drag.cy - (ev.clientY - drag.y) / s;
+    clampCentre();
+  };
+  const up = () => { drag = null; };
+  const wheel = (ev) => { ev.preventDefault(); ev.deltaY < 0 ? api.zoomIn() : api.zoomOut(); };
+  canvas.addEventListener('pointerdown', down);
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', wheel, { passive: false });
+  window.addEventListener('resize', size);
+
+  const api = {
+    zoomIn() { st.zoom = Math.min(6, st.zoom * 2); clampCentre(); },
+    zoomOut() { st.zoom = Math.max(1, st.zoom / 2); clampCentre(); },
+    centre() { if (p) { st.cx = p.x; st.cy = p.y; clampCentre(); } },
+    destroy() {
+      cancelAnimationFrame(st.raf);
+      window.removeEventListener('resize', size);
+    },
+  };
+  size();
+  st.raf = requestAnimationFrame(loop);
+  return api;
+}

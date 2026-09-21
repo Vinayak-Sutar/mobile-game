@@ -50,10 +50,12 @@ let navRepeat = 0;
 let focusIndex = 0;
 let onPause = null;
 let onMute = null;
+let onMap = null;
 
-export function initGamepad({ pause, mute } = {}) {
+export function initGamepad({ pause, mute, map } = {}) {
   onPause = pause;
   onMute = mute;
+  onMap = map;
   window.addEventListener('gamepadconnected', (e) => {
     pad.connected = true;
     pad.index = e.gamepad.index;
@@ -180,6 +182,9 @@ export function pollGamepad(overlayOpen) {
   }
   pad.pausePressed = pressed(gp, BTN.OPTIONS);
   pad.mutePressed = pressed(gp, BTN.CREATE);
+  // The touchpad opens The Wilds' map - and closes it again from the map.
+  const mapPressed = pressed(gp, BTN.TOUCHPAD);
+  if (mapPressed && onMap) onMap();
   pad.confirmPressed = pressed(gp, BTN.CROSS);
   pad.backPressed = pressed(gp, BTN.CIRCLE);
 

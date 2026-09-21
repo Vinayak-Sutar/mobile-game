@@ -4091,6 +4091,72 @@ throws you out, and the toast says a shrine gives the lives back. Shrines now re
 shrine. This is milestone M0 of the plan to rebuild The Wilds as a large souls-like
 world (Ashlamps, Cinders, fourteen lairs).
 
+### 16.32 The big Wilds, M1: the land, streamed (2026-09-21)
+
+The Wilds is being rebuilt as a large souls-like world, in milestones. The
+plan (owner-approved): the land (M1), then Ashlamps with Cinders, levelling,
+death drop and save (M2), encounter sites (M3), the 14 lairs (M4 and M5),
+and world texture (M6). M1 replaces `overworld.js` entirely.
+
+- **`wilds-layout.js`**: pure data.
+  - The world is 36,000 × 24,000 (`WILDS`). `START` is south of the Ashen Gate's dais.
+  - 14 `REGIONS`, each with a centre, radius, tier, tree kind, density, weather and grade.
+  - `ROADS` (polylines that pass through every stair), `LAKES` (ellipses with
+    `holes` for islands and `cuts` for causeways), `RIVERS` (polylines with a
+    width), the `SEA` along the Echo Cliffs, and `CHASMS` plus `BRIDGES` (the
+    citadel is only reachable over the Great Bridge).
+  - `PLATEAUS` (tiers stack), free-standing `RIMS` (the gorge walls, with
+    gaps where the road passes), and `CLEARINGS`.
+- **`wilds-world.js`**: builds and streams the world.
+  - **Region lookup**: `regionAt` is noise-warped nearest-centre in units of each region's radius.
+  - **Water**: `waterAt` covers lakes, rivers and the sea. Bridges are worked
+    out wherever a road segment crosses a river segment.
+  - **Collision**: water becomes collision as a 40-unit mask merged into runs
+    along each row (about 1,300 static obstacles in all).
+  - **Spatial hash**: statics go into a 512-cell hash.
+  - **Sectors**: 2048² sectors (`growSector`) hold trees, boulders and decals,
+    grown from `mulberry(SEED ^ sector)`. Grass is grown per quarter (1024²).
+    The 3×3 around the player is kept, and anything beyond 2 is dropped.
+  - **Active set**: `room.obstacles` is the hash query ±2400×1800 round the
+    player, refreshed every 256 units moved. Every existing collision loop
+    uses it unchanged.
+  - **Streaming budget**: `stream(p, 3)` does 3 ms of work a frame: at most one
+    sector or one grass quarter, then `terrain.prefill` of the ring two sectors
+    out, so the ground is classified before you arrive. `arriveAt(x, y)` grows
+    everything at once, for spawning and respawning.
+  - **Fog**: one byte per 100-unit cell. Each cell that clears paints 2×2
+    pixels of the map picture (`mapCanvas`).
+- **`terrain.js`**:
+  - **Lazy classification**: the type and road grids are classified lazily in
+    32×32-cell blocks (`prefill` does it ahead of need).
+  - **Road grid**: the road grid is a byte capped at 255.
+  - **New types**: ASH, MUD, ICE, MARBLE, WATER, CHASM, with paint, rough and
+    minimap colours.
+  - **Area lookups**: `shadowsNear` and `raisedNear` for per-chunk lookups.
+  - `mulberry` is exported.
+  - `wetNear` in wilds-world.js skips the shore checks for 640-unit patches
+    with no water nearby. This was the main cost.
+- **`grass.js`**: a field covers `(x0, y0, W, H)`; queries outside it return at once.
+- **`wilds-draw.js`**:
+  - trees by kind: broad, dark, pine, dead, cypress, and cactus as an obstacle;
+  - regional decals (flowers, reeds, stumps, webs, mushrooms, skulls, embers,
+    graves);
+  - water shimmer, bridge railings;
+  - weather: leaves, snow, ash with embers, dust, mist, cloud, petals, motes,
+    wind.
+- **`wilds-map.js`**: the minimap is a 6000-unit window. The full map is
+  mounted on the `.mapview` overlay's canvas, with drag to pan, `+`/`−`, and
+  "Find me". It opens with Tab (`input.mapPressed`), a tap on the minimap
+  (`input.mapRect`, checked first in `pointerdown`), or the DualSense touchpad
+  (`initGamepad({ map })`). The game state is `'map'` while it's open.
+- **Measured in Node** across a 28k-unit walk (north to the caldera, then east
+  to the Sands):
+  - update average 0.13 ms, worst frame 7.9 ms;
+  - at most 183 active obstacles and 16 live sectors;
+  - arriving takes about 190 ms;
+  - a check that no road crosses a wall, water or the chasm now passes. It
+    caught three layout mistakes.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

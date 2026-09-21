@@ -11,6 +11,9 @@
 //
 // Only tufts near the camera are simulated or drawn; the blades of a frame
 // go into a few batched paths (one per shade), so it is cheap to stroke.
+//
+// A field covers one rectangle (opts.x0, opts.y0, W, H). The big Wilds grow
+// one per sector as you approach and let it go when you leave.
 
 import { world } from './state.js';
 import { TT } from './terrain.js';
@@ -25,13 +28,14 @@ const SHADES_SHORT = ['#4a6536', '#56733e', '#6c8a48', '#8aa65a'];
 
 export function createGrass(terrain, opts) {
   const { W, H } = opts;
+  const OX = opts.x0 || 0, OY = opts.y0 || 0;      // where this field starts
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const xs = [], ys = [], hs = [], hues = [], tall = [];
 
   // Sow: dense tall grass, a lighter scatter of short grass.
   const sow = (step, want, isTall, hMin, hMax) => {
-    for (let gy = 0; gy < H; gy += step) {
-      for (let gx = 0; gx < W; gx += step) {
+    for (let gy = OY; gy < OY + H; gy += step) {
+      for (let gx = OX; gx < OX + W; gx += step) {
         const x = gx + rand(0, step), y = gy + rand(0, step);
         if (terrain.typeAt(x, y) !== want) continue;
         if (terrain.roadAt(x, y) < 32) continue;
@@ -48,8 +52,8 @@ export function createGrass(terrain, opts) {
   // Sort into buckets so a patch of the world is a contiguous run of tufts.
   const nbx = Math.ceil(W / BUCKET), nby = Math.ceil(H / BUCKET);
   const order = [...Array(n).keys()].sort((a, b) => {
-    const ka = Math.floor(ys[a] / BUCKET) * nbx + Math.floor(xs[a] / BUCKET);
-    const kb = Math.floor(ys[b] / BUCKET) * nbx + Math.floor(xs[b] / BUCKET);
+    const ka = Math.floor((ys[a] - OY) / BUCKET) * nbx + Math.floor((xs[a] - OX) / BUCKET);
+    const kb = Math.floor((ys[b] - OY) / BUCKET) * nbx + Math.floor((xs[b] - OX) / BUCKET);
     return ka - kb || ys[a] - ys[b];
   });
   const X = new Float32Array(n), Y = new Float32Array(n), Hh = new Float32Array(n);
@@ -60,15 +64,16 @@ export function createGrass(terrain, opts) {
   const start = new Int32Array(nbx * nby + 1);
   order.forEach((src, i) => {
     X[i] = xs[src]; Y[i] = ys[src]; Hh[i] = hs[src]; HUE[i] = hues[src]; TALL[i] = tall[src];
-    start[Math.floor(Y[i] / BUCKET) * nbx + Math.floor(X[i] / BUCKET) + 1]++;
+    start[clamp(Math.floor((Y[i] - OY) / BUCKET), 0, nby - 1) * nbx + clamp(Math.floor((X[i] - OX) / BUCKET), 0, nbx - 1) + 1]++;
   });
   for (let k = 1; k < start.length; k++) start[k] += start[k - 1];
 
   const range = (x0, y0, x1, y1) => ({
-    i0: clamp(Math.floor(x0 / BUCKET), 0, nbx - 1), i1: clamp(Math.floor(x1 / BUCKET), 0, nbx - 1),
-    j0: clamp(Math.floor(y0 / BUCKET), 0, nby - 1), j1: clamp(Math.floor(y1 / BUCKET), 0, nby - 1),
+    i0: clamp(Math.floor((x0 - OX) / BUCKET), 0, nbx - 1), i1: clamp(Math.floor((x1 - OX) / BUCKET), 0, nbx - 1),
+    j0: clamp(Math.floor((y0 - OY) / BUCKET), 0, nby - 1), j1: clamp(Math.floor((y1 - OY) / BUCKET), 0, nby - 1),
   });
   function each(x0, y0, x1, y1, fn) {
+    if (x1 < OX || y1 < OY || x0 > OX + W || y0 > OY + H) return;
     const r = range(x0, y0, x1, y1);
     for (let j = r.j0; j <= r.j1; j++) {
       for (let i = r.i0; i <= r.i1; i++) {

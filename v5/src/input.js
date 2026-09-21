@@ -25,6 +25,10 @@ export const input = {
   specialVec: { x: 0, y: 0 },
   grenadeAbs: null,
   pausePressed: false,
+  // The Wilds: open the full map (Tab, a tap on the minimap, the pad's
+  // touchpad). mapRect is where the minimap is this frame, or null.
+  mapPressed: false,
+  mapRect: null,
   touchMode: false,
   padMode: false,
   anyPressed: false,
@@ -135,6 +139,14 @@ export function initInput(canvas) {
     canvas.setPointerCapture?.(ev.pointerId);
     const { x, y } = toWorld(ev.clientX, ev.clientY);
     input.anyPressed = true;
+
+    // A tap or click on the minimap opens the map, and goes no further.
+    const m = input.mapRect;
+    if (m && x >= m.x && x <= m.x + m.w && y >= m.y && y <= m.y + m.h) {
+      input.mapPressed = true;
+      if (ev.pointerType === 'touch') input.touchMode = true;
+      return;
+    }
 
     if (ev.pointerType === 'touch') {
       input.touchMode = true;
@@ -265,7 +277,8 @@ export function initInput(canvas) {
     keys.add(k);
     input.anyPressed = true;
     input.touchMode = false;
-    if (k === ' ' || k === 'shift') ev.preventDefault();
+    if (k === ' ' || k === 'shift' || k === 'tab') ev.preventDefault();
+    if (k === 'tab') input.mapPressed = true;
     if (k === ' ') press('dash', 'key');
     if (k === 'j' || k === 'e') press('attack', 'key');
     if (k === 'k' || k === 'shift') press('special', 'key');
@@ -417,6 +430,7 @@ export function endFrameInput() {
   input.spellCast = null;
   input.grenadeCancel = false;
   input.pausePressed = false;
+  input.mapPressed = false;
   input.anyPressed = false;
 }
 

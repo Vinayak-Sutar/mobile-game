@@ -4,9 +4,10 @@
 import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
-  overworldProgress, FINALS,
-  bindOverworldSpawner, drawOverworldBelow, drawOverworldAbove, drawOverworldMap,
-} from './overworld.js';
+  overworldProgress, FINALS, bindOverworldSpawner, arriveAt,
+} from './wilds-world.js';
+import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
+import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
@@ -315,8 +316,9 @@ function onDeath() {
     p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
     p.attack = null; p.dashing = false;
     clearBullets();
+    arriveAt(p.x, p.y);
     snapCamera();
-    showToast('YOU WAKE BY THE SHRINE', 'The Wilds keep what they took, nothing more');
+    showToast('YOU WAKE AGAIN', 'The Wilds keep what they took, nothing more');
     state = 'playing';
     return;
   }
@@ -377,6 +379,10 @@ function tick(dt) {
   if (state === 'playing' && input.pausePressed) {
     input.pausePressed = false;
     showPause();
+  }
+  if (state === 'playing' && input.mapPressed && world.overworld) {
+    input.mapPressed = false;
+    showWildsMap();
   }
 
   if (state === 'playing') {
@@ -528,6 +534,7 @@ function render() {
 
   if (inRun) {
     drawHud(ctx, world.runTime);
+    input.mapRect = null;                 // only where the minimap is drawn this frame
     if (world.overworld) drawOverworldMap(ctx);
     drawTrainingHud(ctx);
     if (world.tutorial && state === 'playing') drawTutorialHud(ctx);
@@ -1246,10 +1253,11 @@ function startTraining() {
   hideOverlay();
 }
 
-// --- The Wilds: the open-world prototype -----------------------------------------------
-// A region to walk around in rather than a run of rooms (overworld.js). It uses
-// the Training Ground's weapon and spells, so a build is set up there first.
-// Nothing is banked. Two gates lead to guardians and back out again.
+// --- The Wilds: the open world ------------------------------------------------------------
+// A world to walk around in rather than a run of rooms (wilds-world.js and its
+// neighbours). It uses the Training Ground's weapon and spells, so a build is
+// set up there first. Being built in steps: this one is the land itself -
+// fourteen regions, their climbs, rivers and lakes, and the map.
 
 bindOverworldSpawner(spawnEnemyDebug);
 let owBossT = 0;
@@ -1259,12 +1267,14 @@ function showWildsIntro() {
   const w = WEAPONS[training.weapon];
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">prototype &middot; nothing is banked</div>
+      <div class="eyebrow">in construction &middot; the land first</div>
       <h2>The Wilds</h2>
-      <p class="sub">Four guardians hold the four ends of this land, each at a gate where you
-      choose which of them to face. Beat one at every gate to win its stone, set the four stones
-      in the Ashen Statue at the centre, and the last gate opens to the hardest guardians of all.
-      Clear enemy camps and beat guardians for new spells; explore for hearts, secrets and gold.</p>
+      <p class="sub">A land of fourteen regions round the Ashen Heartland: the Webwood, Mirror
+      Lake, the Dust Gulch, the Blackwater Mire, the Gilded Deep, the Echo Cliffs, the Sunken
+      Sands, the Broken Peaks, the Coil Gorge, the Hollow Moors, Cloud Summit, the Great Bridge
+      and the Moon Citadel. Walk it end to end: it takes minutes, not seconds. Climb the tiers of
+      the Peaks and the Summit, cross the rivers at their bridges, and fill in the map.</p>
+      <p class="sub">Its guardians, lamps and fights arrive in the next steps. For now the land is empty.</p>
       <p class="sub">You carry <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells. Change them there first.</p>
       ${playerRows(showWildsIntro)}
@@ -1292,8 +1302,9 @@ function startWilds() {
   const at = overworldRespawn();
   const p = world.player;
   p.x = at.x; p.y = at.y;
+  arriveAt(p.x, p.y);
   snapCamera();
-  showToast('THE WILDS', 'Four guardians at the four ends of the land hold the stones the statue needs', 4);
+  showToast('THE WILDS', 'Walk it end to end. Tab or tap the minimap for the map.', 4);
   state = 'playing';
   hideOverlay();
 }
@@ -1387,8 +1398,8 @@ function showWildsVictory(first) {
       <div class="stats">
         <div class="stat"><b>${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}</b><span>Time</span></div>
         <div class="stat"><b>${world.kills}</b><span>Kills</span></div>
-        <div class="stat"><b>${pr ? pr.camps : 0}/${pr ? pr.campsTotal : 0}</b><span>Camps cleared</span></div>
-        <div class="stat"><b>${pr ? pr.secrets : 0}</b><span>Secrets</span></div>
+        <div class="stat"><b>${pr ? pr.regions.length : 0}/${pr ? pr.regionsTotal : 0}</b><span>Lands found</span></div>
+        <div class="stat"><b>${pr ? (pr.explored * 100).toFixed(0) : 0}%</b><span>Explored</span></div>
       </div>
       <div class="row">
         <button class="btn" data-act="w-resume">Keep exploring</button>
@@ -1427,6 +1438,7 @@ function leaveGateFight(won) {
   const p = world.player;
   p.dead = false;
   p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
+  arriveAt(p.x, p.y);
   p.attack = null; p.dashing = false; p.aiming = null;
   p.invuln = 1.5;
   if (!won) p.hp = p.stats.maxHp;
@@ -1456,18 +1468,43 @@ function leaveWilds() {
   showTitle();
 }
 
-/** The quest at a glance: the four stones, camps, hearts. */
+/** How much of the land you have walked. */
 function wildsQuestRow() {
   const pr = overworldProgress();
   if (!pr) return '';
-  const stones = pr.stones.map((S) => `
-    <span class="tgl ${S.got ? 'on' : ''}" style="${S.got ? `border-color:${S.color};color:${S.color}` : ''}">${S.stone}</span>`).join('');
+  const lands = pr.regions.map((n) => `<span class="tgl on">${n}</span>`).join('');
   return `
-    <p class="sub" style="margin-bottom:6px">${pr.finalWon ? 'The ash has lifted. The land is yours to wander.'
-      : pr.stones.every((S) => S.got) ? 'All four stones are yours: go to the Ashen Statue at the centre.'
-      : 'Win a stone from a guardian at each end of the land and set them in the Ashen Statue.'}</p>
-    <div class="chips">${stones}</div>
-    <p class="sub" style="margin-top:6px">Camps cleared ${pr.camps} / ${pr.campsTotal} &middot; heart fragments ${pr.hearts % 4} / 4 &middot; secrets ${pr.secrets}</p>`;
+    <p class="sub" style="margin-bottom:6px">Lands found ${pr.regions.length} / ${pr.regionsTotal}
+      &middot; explored ${(pr.explored * 100).toFixed(1)}%</p>
+    <div class="chips">${lands}</div>
+    <div class="row"><button class="btn ghost" data-act="w-map">Open the map</button></div>`;
+}
+
+// --- the map screen ------------------------------------------------------------------
+
+let wildsMap = null;
+
+function showWildsMap() {
+  state = 'map';
+  resetInput();
+  showOverlay(`
+    <div class="mapview">
+      <canvas id="wmap"></canvas>
+      <div class="maprow">
+        <button class="btn ghost small" data-act="map-out" aria-label="Zoom out">&minus;</button>
+        <button class="btn ghost small" data-act="map-in" aria-label="Zoom in">+</button>
+        <button class="btn ghost small" data-act="map-you">Find me</button>
+        <button class="btn" data-act="map-close">Close</button>
+      </div>
+    </div>`);
+  wildsMap = mountWildsMap(document.getElementById('wmap'));
+}
+
+function closeWildsMap() {
+  if (wildsMap) wildsMap.destroy();
+  wildsMap = null;
+  wildsResume();
+  input.mapPressed = false;          // the Tab that closed it must not reopen it
 }
 
 /** Any weapon, any time, keeping everything else about you. */
@@ -1901,6 +1938,11 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'w-leave': leaveWilds(); break;
+    case 'w-map': showWildsMap(); break;
+    case 'map-in': if (wildsMap) wildsMap.zoomIn(); break;
+    case 'map-out': if (wildsMap) wildsMap.zoomOut(); break;
+    case 'map-you': if (wildsMap) wildsMap.centre(); break;
+    case 'map-close': closeWildsMap(); break;
     case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 't-leave': world.training = false; clearEntities(); showTitle(); break;
     case 't-weapon': trainingSetWeapon(idx); showTraining(); break;
@@ -2050,6 +2092,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
 window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === 'm') { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); }
+  if (state === 'map' && (k === 'escape' || k === 'tab' || k === 'p')) { closeWildsMap(); return; }
   if (k === 'escape' || k === 'p') {
     if (state === 'playing') showPause();
     else if (state === 'paused') { state = 'playing'; hideOverlay(); resetInput(); }
@@ -2139,6 +2182,10 @@ initGamepad({
     else if (state === 'paused') { state = 'playing'; hideOverlay(); resetInput(); }
   },
   mute: () => { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); },
+  map: () => {
+    if (state === 'map') closeWildsMap();
+    else if (state === 'playing' && world.overworld) showWildsMap();
+  },
 });
 showTitle();
 requestAnimationFrame((t) => { last = t; rafId = requestAnimationFrame(frame); });

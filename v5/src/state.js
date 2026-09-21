@@ -12,7 +12,7 @@ export const world = {
   corpses: [],      // bodies left by kills, for the Vetala (enemies-folk.js)
   training: false,  // the Training Ground, not a run
   tutorial: false,  // the tutorial chamber (tutorial.js)
-  overworld: false, // The Wilds, the open-world prototype (overworld.js)
+  overworld: false, // The Wilds, the open world (wilds-world.js)
   owBoss: null,     // a guardian fought from one of The Wilds' gates
   room: null,
   depth: 1,

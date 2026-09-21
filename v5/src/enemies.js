@@ -749,7 +749,7 @@ export function updateEnemies(dt) {
       e.stunT -= dt;
       if (e.state !== 'chase') { e.state = 'chase'; e.t = 0; e.cd = Math.max(e.cd || 0, 0.4); }
     } else if (e.asleep && e.asleep(e)) {
-      // Dozing by a campfire in The Wilds (overworld.js): nothing until woken.
+      // Dozing in The Wilds until you come near: nothing until woken.
     } else {
       e.def.update(e, dt);
     }
