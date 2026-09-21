@@ -15,7 +15,7 @@ import { world, view } from './state.js';
 import { TAU, clamp, roundRect } from './util.js';
 import { input } from './input.js';
 import { REGIONS } from './wilds-layout.js';
-import { wildsState, WILDS, FOG } from './wilds-world.js';
+import { wildsState, WILDS, FOG, chartOverview, chartProgress } from './wilds-world.js';
 
 const PX = 2 / FOG;                      // map pixels per world unit
 const INK = '#16121c';
@@ -46,6 +46,7 @@ export function drawOverworldMap(ctx) {
   roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
   ctx.fillStyle = INK; ctx.fillRect(x, y, mw, mh);
   ctx.imageSmoothingEnabled = false;
+  if (W.fogOff && W.overview && W.overview.canvas) ctx.drawImage(W.overview.canvas, wx * PX, wy * PX, span * PX, span * PX * mh / mw, x, y, mw, mh);
   ctx.drawImage(W.mapCanvas, wx * PX, wy * PX, span * PX, span * PX * mh / mw, x, y, mw, mh);
   ctx.imageSmoothingEnabled = true;
   ctx.restore();
@@ -112,6 +113,10 @@ export function mountWildsMap(canvas, opts = {}) {
     ctx.strokeStyle = 'rgba(255,240,220,0.12)'; ctx.lineWidth = 1;
     ctx.strokeRect(toX(0), toY(0), WILDS.W * s, WILDS.H * s);
     ctx.imageSmoothingEnabled = st.zoom < 1.5;
+    if (W.fogOff && W.overview && W.overview.canvas) {
+      chartOverview(performance.now() + 8);          // keep charting while the map is open
+      ctx.drawImage(W.overview.canvas, toX(0), toY(0), WILDS.W * s, WILDS.H * s);
+    }
     ctx.drawImage(W.mapCanvas, toX(0), toY(0), WILDS.W * s, WILDS.H * s);
     ctx.imageSmoothingEnabled = true;
 
@@ -119,7 +124,7 @@ export function mountWildsMap(canvas, opts = {}) {
     ctx.textAlign = 'center';
     ctx.font = `800 ${st.zoom > 1.5 ? 15 : 12}px system-ui`;
     for (const r of REGIONS) {
-      if (!W.visited.has(r.id)) continue;
+      if (!W.visited.has(r.id) && !W.fogOff) continue;
       const tx = toX(r.x), ty = toY(r.y);
       ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillText(r.name, tx + 1, ty + 1);
       ctx.fillStyle = 'rgba(255,236,200,0.92)'; ctx.fillText(r.name, tx, ty);
@@ -142,9 +147,16 @@ export function mountWildsMap(canvas, opts = {}) {
     ctx.font = '700 12px system-ui';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(`Explored ${(seen / W.fog.length * 100).toFixed(1)}%  ·  lands found ${W.visited.size} / ${REGIONS.length}`, 14, 22);
+    let line = 40;
+    if (W.fogOff) {
+      const k = chartProgress();
+      ctx.fillStyle = '#ffd45e';
+      ctx.fillText(k < 1 ? `Fog off \u00b7 charting the whole map ${Math.round(k * 100)}%` : 'Fog off \u00b7 the whole map', 14, line);
+      line += 18;
+    }
     if (opts.onPick) {
       ctx.fillStyle = '#9fe8ff';
-      ctx.fillText('Ghost mode: tap anywhere to go there', 14, 40);
+      ctx.fillText('Ghost mode: tap anywhere to go there', 14, line);
     }
   }
 

@@ -4,7 +4,7 @@
 import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
-  overworldProgress, FINALS, bindOverworldSpawner, arriveAt,
+  overworldProgress, FINALS, bindOverworldSpawner, arriveAt, setMapFog,
 } from './wilds-world.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
@@ -1340,6 +1340,7 @@ function startWilds() {
   world.overworld = true;
   const room = enterOverworld(true);
   world.room = room;
+  setMapFog(!!save.mapNoFog);
   const at = overworldRespawn();
   const p = world.player;
   p.x = at.x; p.y = at.y;
@@ -1535,6 +1536,7 @@ function showWildsMap() {
         <button class="btn ghost small" data-act="map-out" aria-label="Zoom out">&minus;</button>
         <button class="btn ghost small" data-act="map-in" aria-label="Zoom in">+</button>
         <button class="btn ghost small" data-act="map-you">Find me</button>
+        <button class="btn ghost small" data-act="map-fog" id="mapfogbtn">${save.mapNoFog ? 'Fog: off' : 'Fog: on'}</button>
         <button class="btn" data-act="map-close">Close</button>
       </div>
     </div>`);
@@ -1569,6 +1571,21 @@ function setGhost(on) {
   if (p) { p.ghost = on; p.invincible = on; }
   showToast(on ? 'GHOST MODE' : 'GHOST MODE OFF',
     on ? 'Fast, through walls, unhurt \u00b7 tap the map to go anywhere' : 'Back on your feet', 2.6);
+}
+
+/** The map's fog, on or off (a saved setting). */
+function fogRow() {
+  return `
+    <div class="volrow">
+      <span class="vollabel">Map fog</span>
+      <button class="tgl ${save.mapNoFog ? '' : 'on'}" data-act="w-fog">${save.mapNoFog ? 'Off: whole map shown' : 'On: only where you have been'}</button>
+    </div>`;
+}
+
+function toggleMapFog() {
+  save.mapNoFog = !save.mapNoFog;
+  writeSave();
+  setMapFog(save.mapNoFog);
 }
 
 function ghostRow() {
@@ -1617,6 +1634,7 @@ function showWildsPause() {
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
       ${ghostRow()}
+      ${fogRow()}
       ${wildsWeaponRow()}
       ${playerRows(showWildsPause)}
       ${spellSlotsRow()}
@@ -2024,6 +2042,11 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'map-out': if (wildsMap) wildsMap.zoomOut(); break;
     case 'map-you': if (wildsMap) wildsMap.centre(); break;
     case 'map-close': closeWildsMap(); break;
+    case 'map-fog':
+      toggleMapFog();
+      el.textContent = save.mapNoFog ? 'Fog: off' : 'Fog: on';
+      break;
+    case 'w-fog': toggleMapFog(); showWildsPause(); break;
     case 't-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 't-leave': world.training = false; clearEntities(); showTitle(); break;
     case 't-weapon': trainingSetWeapon(idx); showTraining(); break;

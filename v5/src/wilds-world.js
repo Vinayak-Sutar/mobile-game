@@ -439,9 +439,10 @@ function build() {
   }
   for (const o of statics) hash.add(o);
 
+  const classify = makeClassify(raised);
   const terrain = createTerrain({
     W: WILDS.W, H: WILDS.H,
-    classify: makeClassify(raised),
+    classify,
     roadDist: roadDistIn,
     shadowsNear: (x0, y0, x1, y1) => hash.query(x0, y0, x1, y1),
     raisedNear: raised.near,
@@ -449,7 +450,7 @@ function build() {
 
   const fogW = Math.ceil(WILDS.W / FOG), fogH = Math.ceil(WILDS.H / FOG);
   return {
-    terrain, raised, hash, statics,
+    terrain, raised, hash, statics, classify,
     sectors: new Map(),
     room: { type: 'overworld', training: true, overworld: true, obstacles: [], waves: [], doors: [], doorsOpen: false, intro: 0 },
     ax: -1e9, ay: -1e9, activeDirty: true,
@@ -712,6 +713,52 @@ export function reveal(x, y, r) {
   }
 }
 
+// --- the whole map, without the fog ------------------------------------------------------
+// A setting (and a help while the world is being built): the map shows every
+// land, not just where you have been. Clearing the real fog would classify
+// the ground of the whole world - millions of cells, seconds on a phone - so
+// instead a separate overview is CHARTED: one sample per 100-unit cell, taken
+// straight from the classifier without filling its grid, a few rows a frame.
+// It takes about a second, and the map shows it filling in.
+
+/** Turn the fog on the map off (or back on). */
+export function setMapFog(off) {
+  if (!W) return;
+  W.fogOff = off;
+  if (off && !W.overview) {
+    W.overview = { canvas: typeof document !== 'undefined' ? makeCanvas(W.fogW * 2, W.fogH * 2) : null, row: 0, done: false };
+  }
+}
+
+/** Chart more of the overview, until the deadline (a performance.now() time). */
+export function chartOverview(deadline) {
+  const O = W && W.overview;
+  if (!O || O.done || !W.fogOff) return;
+  const g = O.canvas && O.canvas.getContext('2d');
+  while (O.row < W.fogH) {
+    const j = O.row, y = j * FOG + FOG / 2;
+    const road = roadDistIn(0, y - 60, WILDS.W, y + 60);
+    for (let i = 0; i < W.fogW; i++) {
+      const x = i * FOG + FOG / 2;
+      const t = W.classify(x, y);
+      const isRoad = t !== TT.WATER && t !== TT.SHALLOW && t !== TT.CHASM && road(x, y) < 44;
+      if (g) {
+        g.fillStyle = `rgb(${isRoad ? ROAD_RGB : TERRAIN_RGB[t]})`;
+        g.fillRect(i * 2, j * 2, 2, 2);
+      }
+    }
+    O.row++;
+    if (performance.now() > deadline) break;
+  }
+  if (O.row >= W.fogH) O.done = true;
+}
+
+/** How far the overview has got, 0..1 (1 when it is not being charted). */
+export function chartProgress() {
+  const O = W && W.overview;
+  return O && W.fogOff ? O.row / W.fogH : 1;
+}
+
 // --- entering and leaving ------------------------------------------------------------
 
 /** Set the arena to the whole world (after a resize too). */
@@ -776,6 +823,7 @@ export function updateOverworld(dt) {
   // A ghost crosses sectors four times as fast, so it gets more time for them.
   stream(p, p.ghost ? 8 : 3);
   refreshActive(p);
+  if (W.fogOff) chartOverview(performance.now() + 3);
 
   // The camera leads a little the way you aim.
   const lead = 60;

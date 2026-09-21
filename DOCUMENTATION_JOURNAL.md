@@ -4243,6 +4243,23 @@ A ship comes later; this is recorded in memory.
   - the coast reads land, sand, shallows, deep;
   - the world build takes about 150 ms.
 
+### 16.35 Map fog off (2026-09-21)
+
+Owner: a setting to see the whole map without walking it.
+
+- **The setting**: `save.mapNoFog` is toggled by "Map fog" in the Wilds pause
+  menu, or the "Fog: on/off" button on the map screen, and is applied on
+  entering the Wilds (`setMapFog`).
+- **How it works**: clearing the real fog would classify the whole world (about 3.4M
+  cells, seconds on a phone). Instead `chartOverview` paints a separate
+  overview canvas from one direct `classify` sample per 100-unit cell,
+  including roads, without filling the terrain grid.
+- **Cost**: it runs 3 ms a frame while playing and 8 ms a frame while the map is
+  open. In Node, 71 slices of 3 ms (243 ms of work in all), worst slice
+  4.9 ms.
+- **Drawing**: the explored map is drawn on top, so walked land keeps its
+  detail. All region names show. The real fog and exploration are unchanged.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

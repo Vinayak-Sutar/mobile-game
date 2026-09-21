@@ -20,6 +20,7 @@ const DEFAULTS = {
   character: 'auto',     // the player's look: auto (the Wanderer in The Wilds) | hooded | wanderer
   tutorialSeen: false,   // the tutorial is offered once, before the first run
   showFps: false,        // frames per second and frame cost, in the corner
+  mapNoFog: false,       // The Wilds' map shows everything, not just where you have been
 };
 
 export const UPGRADES = [
