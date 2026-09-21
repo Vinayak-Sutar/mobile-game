@@ -4069,6 +4069,18 @@ The walk (`gait`):
 - **Stop settle**: stopping mid-stride holds a feet-together pose for 0.14 s.
 - **Idle**: a stepped breath, and the weight moves foot to foot every 3.2 s.
 
+### 16.29a Follow-up — no head lag; diagonals that read (2026-09-21, build 2)
+
+Owner: the head wobbled, and down-right/down-left looked like the side view.
+- The head now rides with the body. The one-pose lag (`headY`) is gone; under the
+  wide hat it read as the head wobbling.
+- The octants were reached, but the diagonal only differed from the profile by
+  a couple of pixels. It now has hair over the back third of the head plus an ear
+  (the profile gets hair over the back half), eyes spread across the turned face,
+  a lapel V swung toward the facing side, legs apart
+  (`spread = 1.8 + 1.5·|depth|`), boots angled down the diagonal, and the off
+  hand in view.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

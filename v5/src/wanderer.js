@@ -217,8 +217,9 @@ export function wandererHold(p, lifted, bob) {
 //   - The rise and fall is UNEVEN: down a unit, down again, then up two at the
 //     passing pose. The rise is quicker than the fall, and that unevenness is
 //     what stops a walk reading as a machine (SLYNYRD's top-down guides).
-//   - The head takes the body's rise and fall one pose late, like a weight on
-//     a neck, and the hips shift over whichever foot is carrying them.
+//   - The head rides with the body (a lag behind it read as the head
+//     wobbling under the hat), and the hips shift over whichever foot is
+//     carrying them.
 //   - The cadence is driven by GROUND COVERED, not by a clock: a slow, the
 //     speed setting, stairs, slowing to swing - the steps always match.
 //   - The planted foot stays put and slides back under the body; only the
@@ -283,7 +284,7 @@ function gait(p, s, dt) {
   const speed = dt > 0 ? step / dt : 0;
   const R = 4.5 * clamp(speed / 228, 0.6, 1.15) * Math.max(0.45, Math.abs(along));
 
-  let near, far, bodyY = 0, headY = 0, lean = 0, shift = 0;
+  let near, far, bodyY = 0, lean = 0, shift = 0;
   if (p.dead) {
     near = { x: 1.5, lift: 0 }; far = { x: -1.5, lift: 0 };
   } else if (air) {
@@ -291,29 +292,27 @@ function gait(p, s, dt) {
   } else if (p.dashing) {
     const d = Math.cos(angleDiff(p.wFace ?? p.dashDir, p.dashDir)) < -0.2 ? -1 : 1;
     near = { x: 7 * d, lift: 0 }; far = { x: -7 * d, lift: 2.5 };     // a held lunge
-    bodyY = 1; headY = 1; lean = 0.12 * d;
+    bodyY = 1; lean = 0.12 * d;
   } else if (walking) {
     const u = frame / FRAMES;
     const a = footAt(u, R, 4), b = footAt((u + 0.5) % 1, R, 4);
     near = { x: a.x * dir, lift: a.lift };
     far = { x: b.x * dir, lift: b.lift };
     bodyY = BOB[frame];
-    headY = BOB[(frame + FRAMES - 1) % FRAMES];          // a pose behind the body
     lean = 0.04 * dir;
     shift = u < 0.5 ? 0.8 : -0.8;                        // over the planted foot
   } else if (p.wSettle > 0) {
     near = { x: 1.2, lift: 0.8 }; far = { x: -1, lift: 0 };          // feet coming together
-    bodyY = 1; headY = 0.5;
+    bodyY = 1;
   } else {
     // At rest: a stepped breath, and every few seconds the weight moves from
     // one foot to the other.
     const w = Math.floor(now / 3.2) % 2;
     near = { x: w ? 1.8 : 1.2, lift: 0 }; far = { x: w ? -1.6 : -2.2, lift: 0 };
     bodyY = Math.floor(now / 0.9) % 2 ? 0.5 : 0;
-    headY = bodyY;
     shift = w ? 0.5 : -0.5;
   }
-  return { near, far, bodyY, headY, lean, shift };
+  return { near, far, bodyY, lean, shift };
 }
 
 export function drawWanderer(p, ctx, world, bob) {
@@ -357,9 +356,13 @@ export function drawWanderer(p, ctx, world, bob) {
 
   // --- legs: hips ride with the body, feet stay on the ground -----------------
   // Seen in profile the legs nearly overlap; turned toward or away from the
-  // camera they stand apart, at the hips' full width.
+  // camera - diagonals included - they stand apart.
   const hipY = HIP_Y + G.bodyY;
-  const spread = lerp(3.1, 1.8, V.side);
+  const spread = 1.8 + 1.5 * Math.abs(V.depth);
+  // Boots point the way the figure faces: along the ground in profile, down
+  // or up the screen on a diagonal, toe-on (round) straight at the camera.
+  const diagonal = !profile && !square;
+  const toe = diagonal ? 0.5 * Math.sign(V.depth) : 0;
   const leg = (f, hipX, width, color) => {
     const hx = hipX + jolt + shift;
     // The stride runs across the screen in profile and up and down it
@@ -380,7 +383,7 @@ export function drawWanderer(p, ctx, world, bob) {
     // The boot: long with the toe forward in profile, short and round seen
     // toe-on or heel-on; tipped up a little in the air.
     ctx.beginPath();
-    ctx.ellipse(L.fx + 1.4 * V.side, L.fy + 1, 2.5 + 1.3 * V.side, 2.1, f.lift > 0.5 ? -0.25 * V.side : 0, 0, TAU);
+    ctx.ellipse(L.fx + 1.4 * V.side, L.fy + 1 + 0.8 * toe, 2.5 + 1.3 * V.side, 2.1, toe + (f.lift > 0.5 ? -0.25 * V.side : 0), 0, TAU);
     fillOut(col(C.boot), 1.4);
   };
   leg(G.far, -spread, 4.2, col(C.trouserShade));       // the far leg, in shade
@@ -424,7 +427,7 @@ export function drawWanderer(p, ctx, world, bob) {
     x: lerp(-SIDE_HAND_X, -4.5, V.side) - G.far.x * 0.5 * V.side,
     y: -19 - G.far.x * 0.35 * V.depth * (1 - V.side),
   };
-  const offInFront = V.side < 0.5 || back;
+  const offInFront = !profile || back;
   if (!offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the coat -----------------------------------------------------------------
@@ -454,6 +457,16 @@ export function drawWanderer(p, ctx, world, bob) {
     ctx.strokeStyle = C.coatShade; ctx.lineWidth = 1.2;
     if (!back) {
       ctx.beginPath(); ctx.moveTo(openX, -29); ctx.lineTo(openX + 0.5 + hem * 0.2, -11); ctx.stroke();
+      if (!profile) {
+        // The lapels: a V down from the collar, centred facing the camera and
+        // swung toward the facing side on a diagonal - the clearest sign, at
+        // this size, of which way the chest is turned.
+        const wl = square ? 3.2 : 4.2, wr = square ? 3.2 : 1.6;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(openX - wl, -30.5); ctx.lineTo(openX, -23.5); ctx.lineTo(openX + wr, -30.5);
+        ctx.stroke();
+      }
     } else if (square) {
       // From straight behind: the seam down the back.
       ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, -11); ctx.stroke();
@@ -476,9 +489,22 @@ export function drawWanderer(p, ctx, world, bob) {
   if (offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the head -----------------------------------------------------------------
-  // It rides the body's rise and fall one pose late.
-  const hx = 0.5 * V.side, hy = -36 + (G.headY - G.bodyY);
+  // Turned toward the camera, how much of the head is face and how much is
+  // hair says which way it looks: all face straight on, hair over the back
+  // third on a diagonal, the back half in profile - with the ear where the
+  // two meet.
+  const hx = (profile ? 0.5 : diagonal ? 1.2 : 0), hy = -36;
   ctx.beginPath(); ctx.arc(hx, hy, 6.2, 0, TAU); fillOut(col(back ? C.hair : C.skin), 1.5);
+  if (!back && !square && !flashing) {
+    const edge = profile ? hx - 1 : hx - 3.2;         // where the hair begins
+    ctx.save();
+    ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, TAU); ctx.clip();
+    ctx.fillStyle = C.hair;
+    ctx.fillRect(hx - 7, hy - 7, edge - (hx - 7), 9.5);
+    ctx.restore();
+    ctx.fillStyle = C.skinShade;
+    ctx.beginPath(); ctx.arc(edge + 0.6, hy + 1, 1.5, 0, TAU); ctx.fill();   // the ear
+  }
   if (back && !square && !flashing) {
     // Three-quarters from behind: a sliver of cheek and ear on the facing side.
     ctx.fillStyle = C.skin;
@@ -497,15 +523,15 @@ export function drawWanderer(p, ctx, world, bob) {
       ctx.fillStyle = C.skinShade;
       if (s > 0) { ctx.beginPath(); ctx.arc(hx + 2.2, hy + 1, 4.4, -0.9, 1.9); ctx.fill(); }
       else { ctx.beginPath(); ctx.arc(hx - 2.2, hy + 1, 4.4, 1.25, 4.05); ctx.fill(); }
-      // Eyes in the hat's shade, looking the way you face. On a diagonal they
-      // sit nearer the middle of the face, the far one a little narrower.
+      // Eyes in the hat's shade, looking the way you face. On a diagonal
+      // both show, spaced across the turned face, the far one narrower.
       ctx.fillStyle = OUT;
       if (profile) {
         ctx.fillRect(hx + 1.2, hy - 0.6, 1.5, 2);
         ctx.fillRect(hx + 4, hy - 0.6, 1.4, 2);
       } else {
-        ctx.fillRect(hx - 1.2, hy - 0.6, 1.2, 2);
-        ctx.fillRect(hx + 2.2, hy - 0.6, 1.5, 2);
+        ctx.fillRect(hx - 0.8, hy - 0.6, 1.5, 2);
+        ctx.fillRect(hx + 3.1, hy - 0.6, 1.2, 2);
       }
     }
   }
