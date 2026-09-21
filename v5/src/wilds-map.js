@@ -54,6 +54,21 @@ function placeWon(W, P) {
   const c = W.sites.find((q) => q.id === `${P.id}:champ`);
   return !!(c && c.claimed);
 }
+
+/** A lair on a map: a pale diamond round a dark heart; ash grey once its guardian is gone. */
+function lairIcon(ctx, x, y, beaten, r) {
+  ctx.fillStyle = beaten ? '#8a8490' : '#e8dcff';
+  ctx.beginPath(); ctx.moveTo(x, y - r * 1.3); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 1.3); ctx.lineTo(x - r, y); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#1a1014'; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = beaten ? '#3a3440' : '#6a2a8a';
+  ctx.beginPath(); ctx.arc(x, y, r * 0.38, 0, TAU); ctx.fill();
+}
+
+/** A place or a lair, as the map shows it. */
+function markIcon(ctx, x, y, W, P, r) {
+  if (P.kind === 'lair') lairIcon(ctx, x, y, P.beaten, r * 1.15);
+  else placeIcon(ctx, x, y, placeWon(W, P), r);
+}
 const INK = '#16121c';
 
 function arrow(ctx, x, y, a, s) {
@@ -90,7 +105,7 @@ export function drawOverworldMap(ctx) {
   ctx.save();
   roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
   for (const q of W.sites) if (q.seen && q.kind === 'site') siteIcon(ctx, x + (q.x - wx) * s, y + (q.y - wy) * s, q.cleared, 2.5);
-  for (const P of W.places) if (P.seen) placeIcon(ctx, x + (P.x - wx) * s, y + (P.y - wy) * s, placeWon(W, P), 4);
+  for (const P of W.places) if (P.seen) markIcon(ctx, x + (P.x - wx) * s, y + (P.y - wy) * s, W, P, 4);
   for (const l of W.lamps) if (l.seen || l.lit) lampIcon(ctx, x + (l.x - wx) * s, y + (l.y - wy) * s, l.lit, 3);
   if (journey.smoulder) smoulderIcon(ctx, x + (journey.smoulder.x - wx) * s, y + (journey.smoulder.y - wy) * s, 3.5);
   ctx.restore();
@@ -179,8 +194,8 @@ export function mountWildsMap(canvas, opts = {}) {
     ctx.textAlign = 'center';
     for (const P of W.places) {
       if (!P.seen && !W.fogOff) continue;
-      placeIcon(ctx, toX(P.x), toY(P.y), placeWon(W, P), st.zoom > 1.5 ? 8 : 5);
-      if (st.zoom > 1.5) { ctx.fillStyle = 'rgba(255,200,180,0.9)'; ctx.fillText(P.name, toX(P.x), toY(P.y) + 20); }
+      markIcon(ctx, toX(P.x), toY(P.y), W, P, st.zoom > 1.5 ? 8 : 5);
+      if (st.zoom > 1.5) { ctx.fillStyle = P.kind === 'lair' ? 'rgba(232,220,255,0.95)' : 'rgba(255,200,180,0.9)'; ctx.fillText(P.name, toX(P.x), toY(P.y) + 20); }
     }
     ctx.font = '700 11px system-ui';
     ctx.textAlign = 'center';

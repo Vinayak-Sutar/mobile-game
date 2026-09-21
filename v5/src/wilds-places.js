@@ -27,7 +27,8 @@
 
 import { TAU } from './util.js';
 import { mulberry } from './terrain.js';
-import { WILDS, START, LAMPS, PLACES } from './wilds-layout.js';
+import { WILDS, START, LAMPS, PLACES, LAIRS } from './wilds-layout.js';
+import { buildLair, drawLairProp, drawLairDeco } from './wilds-lairs.js';
 
 const inR = (r, x, y) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
 
@@ -66,6 +67,17 @@ export function planPlaces(ctx) {
     return !ctx.waterAt(x, y);
   };
 
+  // The lairs first, exactly where they are drawn: the places keep clear of them.
+  for (const Lr of LAIRS) {
+    const cy = Lr.y + Math.round(Lr.r * 0.55);
+    const lair = {
+      ...Lr, kind: 'lair', gx: Lr.x, gy: Lr.y, x: Lr.x, y: cy, moved: 0, beaten: false,
+      region: ctx.regionAt(Lr.x, cy), obs: [], plateaus: [], floors: [], deco: [], groups: [], champ: null, relic: null,
+    };
+    build(lair, mulberry((WILDS.SEED ^ hashStr(Lr.id)) | 0), roadNear);
+    placed.push(lair);
+  }
+
   for (const P of PLACES) {
     // The authored spot, or the nearest spot that fits, spiralling out.
     let spot = null;
@@ -96,8 +108,13 @@ function hashStr(s) {
 
 // --- the builders -----------------------------------------------------------------------------
 
-function build(P, rng, roadNear) {
-  const cx = P.x, cy = P.y;
+/**
+ * The tools a template builds with, all writing into P: ob (any obstacle),
+ * wall, building, prop, deco, floor, tower (raised ground with stairs; returns
+ * where archers stand on it) and group (a post of enemies). Nothing but the
+ * lairs' fronts may go across a road.
+ */
+export function makeKit(P, rng, roadNear) {
   const clearOfRoad = (x, y, w, h, pad = 60) => {
     for (const [px, py] of [[x, y], [x + w, y], [x, y + h], [x + w, y + h], [x + w / 2, y + h / 2]]) if (roadNear(px, py, pad + 20)) return false;
     // Along the long sides too, for long walls.
@@ -109,7 +126,7 @@ function build(P, rng, roadNear) {
     return true;
   };
   const ob = (x, y, w, h, kind, extra = {}) => {
-    if (!clearOfRoad(x, y, w, h)) return null;
+    if (!extra.force && !clearOfRoad(x, y, w, h)) return null;
     const o = { x: Math.round(x), y: Math.round(y), w: Math.round(w), h: Math.round(h), kind, place: P.id, ...extra };
     P.obs.push(o);
     return o;
@@ -139,6 +156,13 @@ function build(P, rng, roadNear) {
     return { x: x + w / 2, y: y + h / 2 };
   };
   const group = (x, y, r, n, extra = {}) => P.groups.push({ x, y, r, n, ...extra });
+  return { ob, wall, building, prop, deco, floor, tower, group };
+}
+
+function build(P, rng, roadNear) {
+  const cx = P.x, cy = P.y;
+  const K = makeKit(P, rng, roadNear);
+  const { ob, wall, building, prop, deco, floor, tower, group } = K;
 
   const style = P.region.id;
   const hut = style === 'mire' || style === 'isle' || style === 'webwood' ? 'hut' : 'house';
@@ -337,6 +361,7 @@ function build(P, rng, roadNear) {
       P.relic = { x: cx, y: cy - 300 };
       break;
     }
+    case 'lair': buildLair(P, K, rng); break;
     case 'garden': {
       const S = 620;
       floor(cx - S, cy - 50, 2 * S, 100, 'marble');
@@ -448,7 +473,7 @@ export function drawPlaceObstacle(ctx, o, time) {
       // The base and the front wall, with its door; the roof comes later, over everyone.
       const wallH = o.style === 'tent' ? 22 : 34;
       ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(o.x + 8, o.y + 8, o.w, o.h);
-      const col = o.style === 'crypt' ? '#6a6670' : o.style === 'tent' ? '#8a7858' : o.style === 'hut' ? '#6a5038' : '#8a7a68';
+      const col = o.style === 'crypt' ? '#6a6670' : o.style === 'tent' ? '#8a7858' : o.style === 'hut' || o.style === 'saloon' ? '#6a5038' : '#8a7a68';
       ctx.fillStyle = col; ctx.fillRect(o.x, o.y + o.h - wallH, o.w, wallH);
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x, o.y + o.h - wallH, o.w, 4);
       if (o.style !== 'tent') { ctx.fillStyle = '#3a2a1c'; ctx.fillRect(o.x + o.w / 2 - 11, o.y + o.h - 26, 22, 26); }
@@ -513,7 +538,7 @@ function drawProp(ctx, o, time) {
       ctx.beginPath(); ctx.ellipse(x, o.y + o.h / 2, 8 + k * 26, (8 + k * 26) * 0.6, 0, 0, TAU); ctx.stroke();
       break;
     }
-    default: break;
+    default: drawLairProp(ctx, o); break;
   }
 }
 
@@ -535,6 +560,8 @@ export function drawPlaceDeco(ctx, d, time) {
     const flap = Math.sin(time * 3 + d.ph) * 4;
     ctx.fillStyle = '#8a2a24';
     ctx.beginPath(); ctx.moveTo(d.x + 2, d.y - 68); ctx.lineTo(d.x + 34 + flap, d.y - 60); ctx.lineTo(d.x + 2, d.y - 44); ctx.closePath(); ctx.fill();
+  } else {
+    drawLairDeco(ctx, d, time);
   }
 }
 
@@ -554,7 +581,7 @@ export function drawRoof(ctx, o, p) {
     ctx.fillStyle = 'rgba(0,0,0,0.18)';
     ctx.beginPath(); ctx.moveTo(x + w / 2, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x + w / 2, y + h); ctx.closePath(); ctx.fill();
   } else {
-    const base = o.style === 'crypt' ? [86, 84, 94] : o.style === 'hut' ? [110, 90, 54] : o.style === 'hall' ? [96, 60, 40] : [128, 64, 48];
+    const base = o.style === 'crypt' ? [86, 84, 94] : o.style === 'hut' ? [110, 90, 54] : o.style === 'hall' ? [96, 60, 40] : o.style === 'saloon' ? [90, 76, 62] : [128, 64, 48];
     const [r, g, b] = base.map((v) => v + t * 18);
     ctx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
     ctx.fillRect(x, y + 10, w, h - 10);
@@ -566,6 +593,14 @@ export function drawRoof(ctx, o, p) {
     for (let k = x + 14; k < x + w; k += 14) { ctx.beginPath(); ctx.moveTo(k, y + 12); ctx.lineTo(k, y + h); ctx.stroke(); }
     if (o.style === 'crypt') {
       ctx.fillStyle = '#a8a4ae'; ctx.fillRect(x + w / 2 - 3, y - 6, 6, 22); ctx.fillRect(x + w / 2 - 10, y, 20, 5);
+    }
+    if (o.style === 'saloon') {
+      // A tall, flat false front over the street, grey with age.
+      ctx.fillStyle = `rgb(${120 + t * 20 | 0},${104 + t * 14 | 0},${84})`;
+      ctx.fillRect(x + 6, y + h - 34, w - 12, 34);
+      ctx.fillRect(x + 20, y + h - 52, w - 40, 20);
+      ctx.fillStyle = 'rgba(0,0,0,0.2)';
+      for (let k = x + 12; k < x + w - 8; k += 10) ctx.fillRect(k, y + h - 34, 1, 34);
     }
   }
   ctx.globalAlpha = 1;

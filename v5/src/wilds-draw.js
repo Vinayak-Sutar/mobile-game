@@ -14,6 +14,7 @@ import { TAU, dist } from './util.js';
 import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
+import { drawLairFront } from './wilds-lairs.js';
 import { relicAt } from './wilds-sites.js';
 
 const inView = (x, y, pad = 80) => x > camera.x - pad && x < camera.x + view.w + pad && y > camera.y - pad && y < camera.y + view.h + pad;
@@ -73,6 +74,11 @@ export function drawOverworldBelow(ctx, time) {
   for (const P of W.places) {
     if (!inView(P.x, P.y, P.r + 100)) continue;
     for (const d of P.deco) if (inView(d.x, d.y, 90)) drawPlaceDeco(ctx, d, time);
+  }
+  // A lair's front, when you stand before it (behind it, it is drawn over you).
+  const me = world.player;
+  for (const P of W.places) {
+    if (P.kind === 'lair' && inView(P.gx, P.gy - 150, 420) && !(me && me.y < P.gy - 150)) drawLairFront(ctx, P, time);
   }
   for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
 
@@ -445,6 +451,14 @@ export function drawOverworldAbove(ctx, time) {
   for (const P of W.places) {
     if (!inView(P.x, P.y, P.r + 120)) continue;
     for (const o of P.obs) if (o.kind === 'building' && inView(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h))) drawRoof(ctx, o, p);
+  }
+  for (const P of W.places) {
+    if (P.kind === 'lair' && p && p.y < P.gy - 150 && inView(P.gx, P.gy - 150, 420)) {
+      // Behind a lair: its front over you, see-through where you stand.
+      ctx.globalAlpha = Math.abs(p.x - P.gx) < P.front.w / 2 + 20 && p.y > P.gy - 150 - P.front.H - 60 ? 0.35 : 1;
+      drawLairFront(ctx, P, time);
+      ctx.globalAlpha = 1;
+    }
   }
   // Champions wear their names.
   ctx.textAlign = 'center';

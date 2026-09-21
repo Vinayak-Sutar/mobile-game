@@ -31,6 +31,8 @@ import { createWildsWater } from './wilds-water.js';
 import { takeSmoulder } from './wilds-progress.js';
 import { planSites, updateSites, resetSites, unitsFromPlaces } from './wilds-sites.js';
 import { planPlaces, floorLookup } from './wilds-places.js';
+import { inGate } from './wilds-lairs.js';
+import { BOSS_INFO } from './bosses.js';
 import { packBits, unpackBits } from './wilds-save.js';
 
 export { WILDS };
@@ -880,7 +882,28 @@ export function worldSnapshot() {
     fog: packBits(W.fog),
     visited: [...W.visited],
     claimed: W.sites.filter((s) => s.claimed).map((s) => s.id),
+    lairs: lairs().filter((P) => P.beaten).map((P) => P.id),
   };
+}
+
+// --- the lairs ---------------------------------------------------------------------------------
+
+const lairs = () => (W ? W.places.filter((P) => P.kind === 'lair') : []);
+export const lairById = (id) => lairs().find((P) => P.id === id) || null;
+
+/** A guardian has fallen: its lair stands open, and the lamp outside it is lit. */
+export function markLairBeaten(id) {
+  const P = lairById(id);
+  if (!P) return null;
+  P.beaten = true;
+  const l = P.lamp && lampById(P.lamp);
+  if (l) l.lit = true;
+  return P;
+}
+
+/** Remnants taken: one for every guardian beaten in its lair. */
+export function remnantCount() {
+  return lairs().filter((P) => P.beaten).length;
 }
 
 /** Every site's enemies back (a rest, or waking from a fall). */
@@ -908,6 +931,8 @@ export function restoreWorld(snap) {
   for (const id of snap.visited || []) W.visited.add(id);
   const claimed = new Set(snap.claimed || []);
   for (const s of W.sites) { s.claimed = claimed.has(s.id); if (s.claimed) s.seen = true; }
+  const beaten = new Set(snap.lairs || []);
+  for (const P of lairs()) { P.beaten = beaten.has(P.id); if (P.beaten) P.seen = true; }
   W.repaint = { row: 0 };
 }
 
@@ -1021,15 +1046,26 @@ export function updateOverworld(dt) {
   const siteAct = updateSites(W.sites, p, dt, spawnFn);
   if (siteAct) action = siteAct;
 
-  // Walking into a place: its name.
+  // Walking into a place: its name - and a lair's, whose guardian waits.
   const P = W.places.find((q) => Math.hypot(p.x - q.x, p.y - q.y) < q.r);
   if (P !== W.inPlace) {
     W.inPlace = P || null;
-    if (P) {
+    if (P && P.kind === 'lair') {
+      P.seen = true;
+      const title = (BOSS_INFO[P.boss] || { title: 'Its guardian' }).title;
+      action = { toast: [P.name.toUpperCase(), P.beaten ? `${title} is no more` : `${title} waits beyond the fog`] };
+    } else if (P) {
       P.seen = true;
       const champ = W.sites.find((s) => s.id === `${P.id}:champ`);
       action = { toast: [P.name.toUpperCase(), champ && champ.claimed ? 'Its champion has fallen' : champ ? `${champ.name} holds it` : 'The Wilds'] };
     }
+  }
+  // Into a lair's fog: asked whether to go on. Asked once each time you step in.
+  const L = P && P.kind === 'lair' ? P : null;
+  if (L && !L.beaten && !p.dead && !p.ghost && inGate(L, p.x, p.y)) {
+    if (W.atGate !== L.id) { W.atGate = L.id; action = { lair: L }; }
+  } else if (!L || !inGate(L, p.x, p.y)) {
+    W.atGate = null;
   }
   for (const q of W.places) if (!q.seen && Math.hypot(p.x - q.x, p.y - q.y) < q.r + 900) q.seen = true;
 

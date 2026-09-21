@@ -3,8 +3,8 @@
 
 import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
-  enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
-  overworldProgress, FINALS, bindOverworldSpawner, arriveAt, setMapFog,
+  enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn,
+  overworldProgress, bindOverworldSpawner, arriveAt, setMapFog, lairById, markLairBeaten, remnantCount,
   lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld, resetWildsSites, sitesProgress,
 } from './wilds-world.js';
 import { siteFx } from './wilds-sites.js';
@@ -317,28 +317,7 @@ function revivePlayer() {
 
 function onDeath() {
   if (world.owBoss) { leaveGateFight(false); return; }
-  if (world.overworld) {
-    // No life to spare: your Cinders stay where you fell (your smoulder), and
-    // you wake at the last Ashlamp you rested at, whole again.
-    const p = world.player;
-    const lost = world.gold;
-    dropSmoulder(p.x, p.y);
-    resetWildsSites();
-    const at = overworldRespawn();
-    p.dead = false; p.invuln = 2;
-    restore(p);
-    p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
-    p.attack = null; p.dashing = false;
-    clearBullets();
-    arriveAt(p.x, p.y);
-    snapCamera();
-    const lamp = lampById(journey.lastLampId) || null;
-    showToast(`YOU WAKE${lamp ? ` AT ${lamp.name.toUpperCase()}` : ' AGAIN'}`,
-      lost ? `Your ${lost} Cinders smoulder where you fell. Go back for them.` : 'You carried no Cinders', 4);
-    state = 'playing';
-    saveWilds();
-    return;
-  }
+  if (world.overworld) { wakeAtLamp(world.player.x, world.player.y); return; }
   if (world.training || world.tutorial) {
     const p = world.player;
     if (p) { p.dead = false; p.hp = p.stats.maxHp; p.invuln = 1.2; }
@@ -350,6 +329,31 @@ function onDeath() {
   bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
   state = 'dead';
   showRunEnd(false);
+}
+
+/**
+ * Fallen in the Wilds with no life to spare: your Cinders stay where you fell
+ * (x, y - your smoulder), and you wake at the last Ashlamp you rested at,
+ * whole again, with the land's enemies back.
+ */
+function wakeAtLamp(x, y) {
+  const p = world.player;
+  const lost = world.gold;
+  dropSmoulder(x, y);
+  resetWildsSites();
+  const at = overworldRespawn();
+  p.dead = false; p.invuln = 2;
+  restore(p);
+  p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
+  p.attack = null; p.dashing = false;
+  clearBullets();
+  arriveAt(p.x, p.y);
+  snapCamera();
+  const lamp = lampById(journey.lastLampId) || null;
+  showToast(`YOU WAKE${lamp ? ` AT ${lamp.name.toUpperCase()}` : ' AGAIN'}`,
+    lost ? `Your ${lost} Cinders smoulder where you fell. Go back for them.` : 'You carried no Cinders', 4);
+  state = 'playing';
+  saveWilds();
 }
 
 function onVictory() {
@@ -465,9 +469,7 @@ function tick(dt) {
         // Kept safe every half minute, whatever happens.
         wildsSaveT -= dt;
         if (wildsSaveT <= 0) { wildsSaveT = 30; saveWilds(); }
-        if (act && act.site) showSiteChoice(act.site);
-        else if (act && act.final) showFinalChoice();
-        else if (act && act.spell) showSpellSelect(false, { eyebrow: 'spoils of the camp', done: wildsResume });
+        if (act && act.lair) showLairGate(act.lair);
       }
       if (world.owBoss && world.room && world.room.cleared) {
         owBossT += dt;
@@ -1640,50 +1642,27 @@ function wildsResume() {
 
 let owFight = null;         // { site, boss } or { final: true, boss } while fighting
 
-/** A site's gate: which of its guardians will you face? */
-function showSiteChoice(q) {
+/** A lair's fog gate: go on, or not yet. */
+function showLairGate(L) {
   state = 'paused';
-  const cards = q.group.map((type) => {
-    const info = BOSS_INFO[type] || { title: type, subtitle: '', color: '#fff', animal: '' };
-    const beat = q.beaten.includes(type);
-    return `
-      <div class="card" data-act="w-boss" data-site="${q.site}" data-type="${type}" style="border-color:${info.color}88">
-        <div class="tag" style="color:${info.color}">${info.animal}${beat ? ' &middot; beaten' : ''}</div>
-        <div class="name" style="color:${info.color}">${info.title}</div>
-        <div class="desc">${info.subtitle}</div>
-      </div>`;
-  }).join('');
+  const info = BOSS_INFO[L.boss] || { title: L.boss, subtitle: '', color: '#fff', animal: '' };
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">${q.done ? `${q.stone} already won &middot; fight again for gold` : `win the ${q.stone} here`}</div>
-      <h2 style="color:${q.color}">${q.name}</h2>
-      <p class="sub">${q.done ? 'The stone is yours. Any guardian here can be fought again.'
-        : `Beat any one of these guardians to take the ${q.stone}, a heart fragment and a spell. Bring all four stones to the Ashen Statue at the centre of the land.`}</p>
-      <div class="cards">${cards}</div>
-      <div class="row"><button class="btn ghost" data-act="w-away">Not yet</button></div>
-    </div>`);
-}
-
-/** All four stones set: the last gate wakes. */
-function showFinalChoice() {
-  state = 'paused';
-  const cards = FINALS.map((type) => {
-    const info = BOSS_INFO[type] || { title: type, subtitle: '', color: '#fff', animal: '' };
-    return `
-      <div class="card" data-act="w-final" data-type="${type}" style="border-color:${info.color}88">
-        <div class="tag" style="color:${info.color}">${info.animal}</div>
-        <div class="name" style="color:${info.color}">${info.title}</div>
-        <div class="desc">${info.subtitle}</div>
-      </div>`;
-  }).join('');
-  showOverlay(`
-    <div class="panel">
-      <div class="eyebrow">the four stones burn in their sockets</div>
-      <h2>The Last Gate</h2>
-      <p class="sub">The statue opens a way to the hardest of them all. Choose who you will end this with.
-      ${world.beaten.length ? 'The Trickster remembers every guardian you have beaten here.' : ''}</p>
-      <div class="cards">${cards}</div>
-      <div class="row"><button class="btn ghost" data-act="w-away">Not yet</button></div>
+      <div class="eyebrow">a wall of fog</div>
+      <h2>${L.name}</h2>
+      <div class="cards">
+        <div class="card" style="border-color:${info.color}88">
+          <div class="tag" style="color:${info.color}">${info.animal}</div>
+          <div class="name" style="color:${info.color}">${info.title}</div>
+          <div class="desc">${info.subtitle}</div>
+        </div>
+      </div>
+      <p class="sub">Beyond the fog there is no way out until one of you falls. Your lives go in with you.
+      Fall with none to spare and you wake at your last Ashlamp, your Cinders left smouldering at this door.</p>
+      <div class="row">
+        <button class="btn" data-act="w-lair" data-id="${L.id}">Walk into the fog</button>
+        <button class="btn ghost" data-act="w-away">Not yet</button>
+      </div>
     </div>`);
 }
 
@@ -1733,10 +1712,10 @@ function enterGateFight(bossType, name, ctx = null) {
   chamberArena();
   clearEntities();
   clearFx();
-  // The final guardian comes at full strength; the sites' guardians as a
-  // Boss Trial plays them.
-  const final = !!(ctx && ctx.final);
-  startRoom(generateRoom(world.depth, 0, { bossType, slot: final ? 3 : 1, tier: final ? 2 : 1 }));
+  // A guardian comes as hard as its land: the first lands' a little softer
+  // than a Boss Trial, the next a little harder.
+  const tier = ctx && ctx.tier !== undefined ? ctx.tier : 1;
+  startRoom(generateRoom(world.depth, 0, { bossType, slot: 1, tier }));
   showToast(name.toUpperCase(), BOSS_INFO[bossType] ? BOSS_INFO[bossType].title : '');
 }
 
@@ -1749,27 +1728,30 @@ function leaveGateFight(won) {
   clearFx();
   clearBullets();
   world.room = enterOverworld(false);
-  const at = overworldReturn(ctx, won);
+  const L = ctx && ctx.lair ? lairById(ctx.lair) : null;
+  // Back out through the lair's door (or, if it is somehow gone, at your lamp).
+  const at = L ? { x: L.gx, y: L.gy + 90 } : overworldRespawn();
   const p = world.player;
+  p.attack = null; p.dashing = false; p.aiming = null;
+  // Fallen with no life left: your Cinders stay at the lair's door.
+  if (!won) { wakeAtLamp(at.x, at.y); return; }
   p.dead = false;
   p.x = at.x; p.y = at.y; p.vx = p.vy = 0;
   arriveAt(p.x, p.y);
-  p.attack = null; p.dashing = false; p.aiming = null;
   p.invuln = 1.5;
-  if (!won) p.hp = p.stats.maxHp;
   snapCamera();
   state = 'playing';
-  if (!won) { showToast('THROWN BACK OUT', 'The gate still waits · a shrine gives your lives back', 3.4); return; }
   p.hp = p.stats.maxHp;
-  if (at.final) { showWildsVictory(at.first); return; }
-  if (at.first) {
-    // Every step pays: the stone, a heart fragment, gold, and a spell.
-    showToast(`THE ${at.stone.toUpperCase()} \u00b7 ${at.count} / 4`,
-      at.count >= 4 ? 'All four. Take them to the Ashen Statue.' : 'Bring it to the Ashen Statue', 3.4);
-    showSpellSelect(false, { eyebrow: 'the guardian\'s gift', done: wildsResume });
-  } else {
-    showToast('THE GUARDIAN FALLS', 'Gold for the practice', 3);
-  }
+  if (!L) return;
+  // Its Remnant, a great many Cinders, and a spell.
+  markLairBeaten(L.id);
+  const info = BOSS_INFO[L.boss] || { title: 'The guardian' };
+  const bonus = Math.round(600 * (1 + L.region.tier));
+  world.gold += bonus;
+  sfx.boon();
+  saveWilds();
+  showToast(`${info.title.toUpperCase()} FALLS`, `Its Remnant is yours (${remnantCount()} of 13) \u00b7 ${bonus} Cinders`, 4);
+  showSpellSelect(false, { eyebrow: 'the guardian\'s gift', done: () => { saveWilds(); wildsResume(); } });
 }
 
 function leaveWilds() {
@@ -1793,7 +1775,8 @@ function wildsQuestRow() {
     <p class="sub" style="margin-bottom:6px">Lands found ${pr.regions.length} / ${pr.regionsTotal}
       &middot; explored ${(pr.explored * 100).toFixed(1)}%</p>
     <div class="chips">${lands}</div>
-    ${sitesProgress() ? `<p class="sub" style="margin-top:6px">Champions felled ${sitesProgress().claimed} / ${sitesProgress().total}</p>` : ''}
+    ${sitesProgress() ? `<p class="sub" style="margin-top:6px">Champions felled ${sitesProgress().claimed} / ${sitesProgress().total}
+      &middot; Remnants ${remnantCount()} / 13</p>` : ''}
     <div class="row"><button class="btn ghost" data-act="w-map">Open the map</button></div>`;
 }
 
@@ -2328,22 +2311,16 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'w-resume': wildsResume(); break;
     case 'w-away': wildsStepAway(); break;
     case 'w-weapon': swapWeapon(idx); showWildsPause(); break;
-    case 'w-boss': {
-      const type = el.dataset.type;
-      const info = BOSS_INFO[type];
+    case 'w-lair': {
+      const L = lairById(el.dataset.id);
+      if (!L) { wildsResume(); break; }
+      const info = BOSS_INFO[L.boss];
       hideOverlay();
       resetInput();
       state = 'playing';
-      enterGateFight(type, info ? info.title : type, { site: el.dataset.site, boss: type });
-      break;
-    }
-    case 'w-final': {
-      const type = el.dataset.type;
-      const info = BOSS_INFO[type];
-      hideOverlay();
-      resetInput();
-      state = 'playing';
-      enterGateFight(type, info ? info.title : type, { final: true, boss: type });
+      saveWilds();
+      // Tier 0 lands: 0.5; tier 1: 1.2 (a Boss Trial is 1).
+      enterGateFight(L.boss, info ? info.title : L.boss, { lair: L.id, boss: L.boss, tier: 0.5 + L.region.tier * 0.7 });
       break;
     }
     case 'w-leave': leaveWilds(); break;

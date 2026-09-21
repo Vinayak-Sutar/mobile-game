@@ -4385,6 +4385,71 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.40 The Wilds, M4: seven lairs, fog gates, Remnants (2026-09-21)
+
+The first seven guardians (lands of tier 0 and 1) now wait in lairs of their
+own in the Wilds.
+- **Data**: `LAIRS` in wilds-layout.js gives each lair an id, boss, name,
+  style, the doorway point (x, y), a forecourt radius r and its lamp. There
+  are 5 new Ashlamps outside the lairs; the Vault uses the Drowned Isle lamp
+  and Last Chance uses the Gulch well.
+- **Placement**: lairs are planned first and exactly where they are drawn.
+  They go into `W.places` as `kind: 'lair'`, so trees, small sites and the
+  other places keep clear of them. Silkweaver Camp moved 150 to make room.
+  They are also built with the places' kit: `makeKit` is now exported from
+  wilds-places.js.
+- **`wilds-lairs.js` (new)**:
+  - `buildLair` lays out each style:
+    - `vault`: the Drowned Vault (Gravemaw), a stairwell with turtle statues;
+    - `tree`: the Story-Tree (Anansi), a vast hollow trunk, webs and logs;
+    - `town`: Last Chance (Vesper), a street of false-fronted buildings to a
+      mine door, with a water tower for a slinger;
+    - `sink`: the Sinkhole (Mawgrim), a plank frame, stakes, swamp lanterns;
+    - `court`: the Peacock Court (Solenne), on the Gilded terraces' top tier,
+      with a marble avenue of columns and hedges;
+    - `stage`: the Echoing Amphitheatre (the Maestro), a curtained stage with
+      three curved rows of seats;
+    - `pyramid`: the Nine Tombs (Mau), a stepped pyramid with obelisks and
+      cat statues.
+  - **The front is the same shape for every lair**: three `lairwall` blocks
+    leave a doorway 120 wide and 80 deep facing south. `P.gate` is that
+    doorway, checked by `inGate`.
+  - **Drawing**: `drawLairFront` draws the front and the fog (moving wisps,
+    clipped to the doorway, spilling light on the ground), or a dark open
+    doorway once the guardian is beaten. It is drawn with the ground while
+    you stand south of the front, and over you (see-through) when you are
+    behind it.
+- **The world** (`updateOverworld`):
+  - entering a lair toasts "<boss> waits beyond the fog" (or "is no more");
+  - stepping into the doorway returns `{ lair }` once, and again only after
+    you have stepped out;
+  - `markLairBeaten` and `remnantCount` are exported; the snapshot saves
+    `lairs`.
+- **game.js**:
+  - `showLairGate` offers "Walk into the fog" or "Not yet".
+  - The fight is `enterGateFight` with `tier` 0.5 + 0.7·(land tier), which is
+    0.5 in the first lands and 1.2 in the next (a Boss Trial is 1). Lives
+    revive as before.
+  - **Winning**: back out at the doorway, the lair open, its lamp lit, a
+    Remnant (n of 13), 600·(1 + land tier) Cinders and a spell.
+  - **Losing the last life**: goes through the new `wakeAtLamp(x, y)`,
+    shared with deaths in the open. The smoulder is left at the lair's door,
+    you wake at your last lamp, and the land's enemies return.
+  - The prototype's four-site guardian choice and statue finale are removed
+    (`showSiteChoice`, `showFinalChoice`, `overworldReturn`'s old use).
+    `showWildsVictory` is kept for M5's ending.
+  - The pause screen shows "Remnants n / 13".
+- **Maps**: a lair is a pale diamond (grey once beaten), with its name when
+  zoomed in.
+- **Verified in Node**:
+  - every lair's door is open, its sides are solid, it is not on a cliff
+    face, and nothing solid stands directly south of the door except a
+    column (Vault) and the fountain (Court);
+  - toasts and the fog prompt, a beaten lair's save round trip, and the
+    open door after it;
+  - a stub canvas draws every front, prop and roof without error;
+  - the old tests still pass, and the worst frame on every route is 7.9 ms.
+
 ### 16.39 The Wilds, M3 redone: thirty designed places, champions, patrols (2026-09-21)
 
 The owner's verdict on M3's small sealed circles was that they limited play

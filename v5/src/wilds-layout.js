@@ -242,6 +242,33 @@ const RAW_LAMPS = [
   { id: 'mooncourt', name: 'Moon Court', x: 24400, y: 3000 },
   { id: 'terracefoot', name: 'Terrace Foot', x: 30300, y: 7100 },
   { id: 'cloudperch', name: 'Cloud Perch', x: 32300, y: 2100 },
+  // Outside the lairs.
+  { id: 'sinkhole', name: "The Sinkhole's Edge", x: 18300, y: 21000 },
+  { id: 'storytree', name: 'Story-Tree Roots', x: 5600, y: 12650 },
+  { id: 'peacockstair', name: 'Peacock Stair', x: 28700, y: 18950 },
+  { id: 'chorus', name: 'The Chorus Steps', x: 2000, y: 7950 },
+  { id: 'necropolis', name: 'Necropolis Gate', x: 32400, y: 15250 },
+];
+
+// --- lairs: where the guardians wait ----------------------------------------------------
+// Each boss has a LAIR in its own land: a forecourt dressed for it, guarded,
+// ending at a doorway filled with a FOG GATE. Walk into the fog and you are
+// asked whether to go on; beyond it is the boss's own arena, and there is no
+// way out but one of you falling. Win, and its REMNANT is yours (one for each
+// socket of the Ashen Gate), with a great many Cinders and a spell. An Ashlamp
+// waits just outside every lair.
+//
+// x, y is the doorway (the bottom middle of the lair's front); the forecourt
+// runs south from it, r across. `style` picks the lair's look (wilds-lairs.js).
+// M4 has the seven of tiers 0 and 1; the other seven come with M5.
+const RAW_LAIRS = [
+  { id: 'drownedvault', boss: 'turtle', name: 'The Drowned Vault', style: 'vault', x: 7400, y: 19560, r: 300, lamp: 'drowned' },
+  { id: 'storytree', boss: 'anansi', name: 'The Story-Tree', style: 'tree', x: 5600, y: 11800, r: 450, lamp: 'storytree' },
+  { id: 'lastchance', boss: 'vesper', name: 'Last Chance', style: 'town', x: 26800, y: 12200, r: 450, lamp: 'gulch' },
+  { id: 'sinkhole', boss: 'croc', name: 'The Sinkhole', style: 'sink', x: 18300, y: 20250, r: 420, lamp: 'sinkhole' },
+  { id: 'peacockcourt', boss: 'peacock', name: 'The Peacock Court', style: 'court', x: 28400, y: 17960, r: 380, lamp: 'peacockstair' },
+  { id: 'amphitheatre', boss: 'maestro', name: 'The Echoing Amphitheatre', style: 'stage', x: 2000, y: 7050, r: 450, lamp: 'chorus' },
+  { id: 'necropolis', boss: 'mau', name: 'The Nine Tombs', style: 'pyramid', x: 32400, y: 14350, r: 450, lamp: 'necropolis' },
 ];
 
 // --- places: the big designed fights ------------------------------------------------------
@@ -339,6 +366,7 @@ export const PLATEAUS = RAW_PLATEAUS.map(([x, y, w, h, f, stairs]) => [x + OX, y
 export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
 export const PLACES = RAW_PLACES.map(at);
+export const LAIRS = RAW_LAIRS.map(at);
 export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
 export const AMBUSHES = RAW_AMBUSHES.map(at);
 export const CLEARINGS = [...RAW_CLEARINGS.map(at), ...LAMPS.map((l) => ({ x: l.x, y: l.y, r: 160 }))];
