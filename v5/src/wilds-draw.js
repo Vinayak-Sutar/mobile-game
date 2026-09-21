@@ -66,6 +66,9 @@ export function drawOverworldBelow(ctx, time) {
   }
   for (const S of secs) for (const g of S.grass) g.draw(ctx, time, { x: cx, y: cy, w: vw, h: vh });
 
+  // The encounter sites: their seals, braziers and reliquaries.
+  for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
+
   // The Ashlamps, and your smoulder.
   for (const l of W.lamps) if (inView(l.x, l.y, 120)) drawLamp(ctx, l, time);
   if (journey.smoulder && inView(journey.smoulder.x, journey.smoulder.y, 80)) drawSmoulder(ctx, journey.smoulder, time);
@@ -109,6 +112,49 @@ function drawObstacle(ctx, o, time) {
         ctx.fillStyle = 'rgba(255,120,50,0.6)';
         ctx.beginPath(); ctx.arc(cx + o.w * 0.2, cy + o.h * 0.1, 2, 0, TAU); ctx.fill();
       }
+      break;
+    }
+    case 'stake': {
+      // A sharpened timber stake.
+      const x = o.x + o.w / 2, y = o.y + o.h;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 3, y - 2, 12, 5);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(o.lean || 0);
+      ctx.fillStyle = '#5a3e26'; ctx.fillRect(-5, -30, 10, 30);
+      ctx.fillStyle = '#7a5636'; ctx.fillRect(-5, -30, 3, 30);
+      ctx.beginPath(); ctx.moveTo(-5, -30); ctx.lineTo(0, -40); ctx.lineTo(5, -30); ctx.closePath(); ctx.fillStyle = '#8a6a48'; ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'stone': {
+      // A standing stone, weathered and leaning a little.
+      const x = o.x + o.w / 2, y = o.y + o.h;
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x + 8, y, 16, 6, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#6a6670';
+      ctx.beginPath(); ctx.moveTo(x - 12, y); ctx.lineTo(x - 10, y - o.tall); ctx.quadraticCurveTo(x, y - o.tall - 8, x + 10, y - o.tall + 2); ctx.lineTo(x + 12, y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#86828c'; ctx.fillRect(x - 10, y - o.tall + 2, 5, o.tall - 4);
+      ctx.fillStyle = 'rgba(120,200,160,0.35)'; ctx.fillRect(x - 4, y - o.tall * 0.6, 7, 4);
+      break;
+    }
+    case 'ruinwall': {
+      const top = o.column ? 26 : 14;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + 6, o.y + 6, o.w, o.h);
+      ctx.fillStyle = '#5e5854'; ctx.fillRect(o.x, o.y - top, o.w, o.h + top);
+      ctx.fillStyle = '#7e7874'; ctx.fillRect(o.x, o.y - top, o.w, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+      for (let x = o.x + 18; x < o.x + o.w; x += 18) { ctx.beginPath(); ctx.moveTo(x, o.y - top + 5); ctx.lineTo(x, o.y + o.h); ctx.stroke(); }
+      break;
+    }
+    case 'thorn': {
+      const x = o.x + o.w / 2, y = o.y + o.h / 2;
+      ctx.fillStyle = '#2e3a24';
+      ctx.beginPath(); ctx.ellipse(x, y - 6, o.w / 2, o.h / 2 + 4, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#5a4630'; ctx.lineWidth = 1.6;
+      for (let k = 0; k < 6; k++) {
+        const a = k * 1.1 + x * 0.01;
+        ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + Math.cos(a) * o.w * 0.55, y - 6 + Math.sin(a) * o.h * 0.6); ctx.stroke();
+      }
+      ctx.fillStyle = '#9a2a3a';
+      for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x - 8 + k * 8, y - 10 + (k % 2) * 6, 1.8, 0, TAU); ctx.fill(); }
       break;
     }
     case 'cactus': {
@@ -176,6 +222,94 @@ function drawLamp(ctx, l, time) {
       if (k > 0) {
         ctx.strokeStyle = '#ffb35e'; ctx.lineWidth = 3;
         ctx.beginPath(); ctx.arc(x, y - 49, 18, -Math.PI / 2, -Math.PI / 2 + k * TAU); ctx.stroke();
+      }
+    }
+  }
+}
+
+/**
+ * A site's own drawing (its stakes, stones, walls and thorns are obstacles,
+ * drawn with the rest): a faint ring on the ground so you can see where its
+ * ground ends, the seal while it is closed, braziers, and the reliquary once
+ * it is cleared.
+ */
+function drawSite(ctx, s, time) {
+  // Its edge: a worn ring on the ground.
+  ctx.strokeStyle = s.sealed ? 'rgba(255,110,60,0.55)' : 'rgba(0,0,0,0.16)';
+  ctx.lineWidth = s.sealed ? 3 : 6;
+  ctx.setLineDash(s.sealed ? [] : [14, 10]);
+  ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (s.kind === 'circle') {
+    // Braziers inside the stones; lit while the circle is awake.
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * TAU + Math.PI / 4;
+      const bx = s.x + Math.cos(a) * s.r * 0.62, by = s.y + Math.sin(a) * s.r * 0.62;
+      ctx.fillStyle = '#3a3230'; ctx.fillRect(bx - 7, by - 14, 14, 14);
+      if (s.members || s.sealed) {
+        const fl = 0.8 + Math.sin(time * 10 + k) * 0.2;
+        ctx.fillStyle = s.region === 'moors' || s.region === 'citadel' ? '#9fd8ff' : '#ff8a3a';
+        ctx.beginPath(); ctx.ellipse(bx, by - 18, 5, 8 * fl, 0, 0, TAU); ctx.fill();
+      }
+    }
+  }
+
+  // The seal: fire between the stones, a barricade in the gate, thorns closing - all read as a
+  // wall of light round the edge.
+  if (s.sealed) {
+    const n = Math.round((TAU * s.r) / 26);
+    const c = s.kind === 'thorns' ? '120,180,90' : s.kind === 'circle' && (s.region === 'moors' || s.region === 'citadel') ? '150,210,255' : '255,120,50';
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * TAU;
+      const h = 10 + Math.sin(time * 9 + k * 1.7) * 5;
+      ctx.fillStyle = `rgba(${c},${(0.35 + Math.sin(time * 7 + k) * 0.15).toFixed(2)})`;
+      ctx.beginPath(); ctx.ellipse(s.x + Math.cos(a) * s.r, s.y + Math.sin(a) * s.r - h / 2, 5, h, 0, 0, TAU); ctx.fill();
+    }
+    if (s.kind === 'palisade' && s.gate !== undefined) {
+      // The barricade dropped across the gate: spiked logs.
+      const gx = s.x + Math.cos(s.gate) * s.r, gy = s.y + Math.sin(s.gate) * s.r;
+      ctx.save(); ctx.translate(gx, gy); ctx.rotate(s.gate + Math.PI / 2);
+      ctx.fillStyle = '#4a3220'; ctx.fillRect(-40, -8, 80, 16);
+      ctx.fillStyle = '#8a6a48';
+      for (let k = -3; k <= 3; k++) { ctx.beginPath(); ctx.moveTo(k * 12 - 4, -8); ctx.lineTo(k * 12, -22); ctx.lineTo(k * 12 + 4, -8); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+  }
+
+  // An outpost's banner on the heights.
+  if (s.perch) {
+    const bx = s.perch.x + 90, by = s.perch.y;
+    ctx.fillStyle = '#3a2a1c'; ctx.fillRect(bx - 2, by - 60, 4, 60);
+    ctx.fillStyle = s.claimed ? '#6a6862' : '#a0342c';
+    const flap = Math.sin(time * 3 + bx) * 4;
+    ctx.beginPath(); ctx.moveTo(bx + 2, by - 58); ctx.lineTo(bx + 30 + flap, by - 52); ctx.lineTo(bx + 2, by - 40); ctx.closePath(); ctx.fill();
+  }
+
+  // The reliquary: a chest that lights when the site is cleared.
+  if (s.cleared) {
+    const rx = s.perch ? s.perch.x : s.x, ry = s.perch ? s.perch.y : s.y;
+    if (!s.opened) {
+      const g = 0.7 + Math.sin(time * 4) * 0.3;
+      ctx.globalCompositeOperation = 'lighter';
+      const gr = ctx.createRadialGradient(rx, ry - 8, 2, rx, ry - 8, 60);
+      gr.addColorStop(0, `rgba(255,224,138,${(0.45 * g).toFixed(2)})`);
+      gr.addColorStop(1, 'rgba(255,200,90,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(rx, ry - 8, 60, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(rx - 16, ry - 2, 36, 10);
+    ctx.fillStyle = s.opened ? '#4a3a2a' : '#6a4a2a'; ctx.fillRect(rx - 18, ry - 18, 36, 20);
+    ctx.fillStyle = s.opened ? '#6a5a44' : '#e0b050';
+    ctx.fillRect(rx - 18, ry - 11, 36, 3); ctx.fillRect(rx - 3, ry - 16, 6, 9);
+    if (!s.opened) {
+      ctx.textAlign = 'center';
+      ctx.font = '800 11px system-ui';
+      ctx.fillStyle = '#ffe08a';
+      ctx.fillText(s.claimed ? 'stand on it: Cinders' : 'stand on it: a spell', rx, ry - 30);
+      if (s.relT > 0) {
+        ctx.strokeStyle = '#ffe08a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(rx, ry - 8, 26, -Math.PI / 2, -Math.PI / 2 + Math.min(1, s.relT) * TAU); ctx.stroke();
       }
     }
   }

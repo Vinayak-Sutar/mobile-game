@@ -4332,6 +4332,59 @@ and the Mire (16.10). It now gets the same fix:
   at frame 57 and rest at frame 110 walking up to the Hearth; the save
   round-trips fog, lamps and Cinders.
 
+### 16.38 The Wilds, M3: encounter sites (2026-09-21)
+
+The owner found the old camps' enemies chased you across the map, with no
+telling where their ground ended. Now every fight has a place (`wilds-sites.js`):
+
+- **Placement** (`planSites`, from the seed, at world build; 96 sites):
+  - the hand-placed ones first: 11 `OUTPOSTS` under cliff faces, with ranged
+    foes on a `perch` up top, and 2 `AMBUSHES` at bridge ends
+    (wilds-layout.js);
+  - then along every road every 2300 units, 480-840 off to alternating sides;
+  - then a 2600-unit scatter across the open land.
+  - `ok()` wants the whole disc dry and open, and keeps it clear of hard
+    walls, stairs, any road (r + 90), lamps (r + 650), the start (1400) and
+    other sites (1500 or 2000).
+  - Trees keep out via `inClearing`.
+- **Kinds**, whose walls are hash obstacles:
+  - **palisade**: stakes with a gate facing the world's middle;
+  - **circle**: 8 standing stones and braziers, with 2 waves. Blue braziers on
+    the Moors and at the Citadel.
+  - **ruins**: wall pieces and broken columns;
+  - **thorns**: thorn clumps with 2 gaps;
+  - **outpost**: a stake arc along the yard front;
+  - **ambush**: no walls.
+  - The kind is picked by region.
+- **Foes**: `REGION_FOES` per region. Count is 3 + tier + 0..1 (a second wave
+  of count − 1). `scale` is 1 + 0.35·tier, and there's an elite chance from
+  tier 1.
+- **Spawning and the leash**:
+  - A site spawns within 1400 and is dropped past 2600 unless sealed.
+  - Enemies get `e.leash`, enforced in `collideWorld` (ai.js), and `e.asleep`
+    until you are within r + 220 or one is hit.
+- **The seal**: within 0.78 r (not in ghost mode) it seals, and the player is
+  held inside until the last wave falls. It is drawn as a ring of fire,
+  frost or thorn light, plus a spiked barricade across a palisade's gate.
+- **The reliquary**:
+  - Cleared, it lights at the centre (or the perch). Stand on it for 1 s:
+    `60·(1 + tier)` Cinders, and the first time also a spell
+    (`showSpellSelect`). It is marked `claimed`, which is saved in the
+    world snapshot.
+  - A claimed site pays half after later clears.
+- **Resets**: resting, travelling or waking from a fall (`resetWildsSites`)
+  brings every site back.
+- **Cinders**: gold pickups in the Wilds are worth `8·(1 + 0.6·tier)` each
+  (`world.cinderMult`) and drawn as embers.
+- **Map**: sites you have seen show as crossed blades on both maps (red, or
+  green once claimed). The pause menu shows reliquaries claimed.
+- **Verified in Node** with real enemies:
+  - spawned asleep, sealed on entry;
+  - the player is held 17 units inside the edge, and an enemy pushed out is
+    pulled back;
+  - wave two, then clear, then the reliquary opens, then reset;
+  - every road clear; worst frame on every route about 11 ms; build 308 ms.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

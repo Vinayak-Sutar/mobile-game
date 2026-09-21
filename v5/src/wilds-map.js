@@ -25,6 +25,13 @@ function lampIcon(ctx, x, y, lit, r) {
   else { ctx.strokeStyle = 'rgba(255,200,150,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
 }
 
+/** A site on a map: crossed blades, red while it waits, green once its reliquary is yours. */
+function siteIcon(ctx, x, y, claimed, r) {
+  ctx.strokeStyle = claimed ? '#9fe0a0' : '#ff6a5a';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke();
+}
+
 /** Your smoulder on a map: a pulsing ember. */
 function smoulderIcon(ctx, x, y, r) {
   const k = 0.7 + Math.sin(performance.now() * 0.006) * 0.3;
@@ -68,6 +75,7 @@ export function drawOverworldMap(ctx) {
 
   ctx.save();
   roundRect(ctx, x, y, mw, mh, 6); ctx.clip();
+  for (const q of W.sites) if (q.seen) siteIcon(ctx, x + (q.x - wx) * s, y + (q.y - wy) * s, q.claimed, 2.5);
   for (const l of W.lamps) if (l.seen || l.lit) lampIcon(ctx, x + (l.x - wx) * s, y + (l.y - wy) * s, l.lit, 3);
   if (journey.smoulder) smoulderIcon(ctx, x + (journey.smoulder.x - wx) * s, y + (journey.smoulder.y - wy) * s, 3.5);
   ctx.restore();
@@ -150,7 +158,8 @@ export function mountWildsMap(canvas, opts = {}) {
       ctx.fillStyle = 'rgba(255,236,200,0.92)'; ctx.fillText(r.name, tx, ty);
     }
 
-    // The Ashlamps (kindled, or seen), and your smoulder.
+    // The sites you have seen, the Ashlamps (kindled, or seen), and your smoulder.
+    for (const q of W.sites) if (q.seen || W.fogOff) siteIcon(ctx, toX(q.x), toY(q.y), q.claimed, st.zoom > 1.5 ? 5 : 3);
     ctx.font = '700 11px system-ui';
     ctx.textAlign = 'center';
     for (const l of W.lamps) {

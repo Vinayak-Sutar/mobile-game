@@ -574,9 +574,10 @@ export function updatePickups(dt) {
     }
     if (d < p.r + k.r + 4) {
       if (k.type === 'gold') {
-        world.gold += k.value;
+        // In the Wilds these are Cinders, worth more the harder the land.
+        world.gold += world.overworld ? Math.round(k.value * (world.cinderMult || 1)) : k.value;
         sfx.pickup();
-        burst(k.x, k.y, { count: 5, color: '#ffc861', speed: 130, size: 3, life: 0.28, drag: 5 });
+        burst(k.x, k.y, { count: 5, color: world.overworld ? '#ff8a3a' : '#ffc861', speed: 130, size: 3, life: 0.28, drag: 5 });
       } else {
         healPlayer(k.value);
       }
@@ -595,12 +596,12 @@ export function drawPickups(ctx) {
     ctx.translate(k.x, k.y + bob);
     if (k.type === 'gold') {
       ctx.globalAlpha = 0.25;
-      ctx.fillStyle = '#ffc861';
+      ctx.fillStyle = world.overworld ? '#ff8a3a' : '#ffc861';
       ctx.beginPath();
       ctx.arc(0, 0, k.r * 2, 0, TAU);
       ctx.fill();
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#ffc861';
+      ctx.fillStyle = world.overworld ? '#ff8a3a' : '#ffc861';
       // Squashed circle reads as a spinning coin.
       ctx.beginPath();
       ctx.ellipse(0, 0, k.r * Math.abs(Math.cos(k.bob * 0.6)) * 0.8 + 3, k.r, 0, 0, TAU);

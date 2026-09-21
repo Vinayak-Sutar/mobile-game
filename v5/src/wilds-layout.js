@@ -244,6 +244,30 @@ const RAW_LAMPS = [
   { id: 'cloudperch', name: 'Cloud Perch', x: 32300, y: 2100 },
 ];
 
+// --- hand-placed encounter sites -------------------------------------------------------
+// Most fights are placed by wilds-sites.js along the roads; these few are set
+// against the heights on purpose. An OUTPOST fights in the yard below a cliff
+// face with its archers on the top: climb the stairs to reach them, or hop
+// down on the ones below. `perch` is where the ranged foes stand. An AMBUSH
+// waits at the far end of a bridge.
+const RAW_OUTPOSTS = [
+  { x: 25450, y: 10300, r: 420, perch: { x: 25450, y: 9950 } },    // Gulch mesa
+  { x: 28280, y: 13200, r: 380, perch: { x: 28280, y: 12950 } },   // Gulch mesa
+  { x: 26020, y: 13600, r: 360, perch: { x: 26020, y: 13400 } },   // Gulch mesa
+  { x: 34250, y: 13000, r: 480, perch: { x: 34250, y: 12600 } },   // the Sands' temple mound
+  { x: 15050, y: 10220, r: 380, perch: { x: 15050, y: 10000 } },   // Heartland knoll
+  { x: 21280, y: 15060, r: 340, perch: { x: 21280, y: 14880 } },   // Heartland knoll
+  { x: 5960, y: 9700, r: 460, perch: { x: 5960, y: 9350 } },       // the Webwood ridge
+  { x: 1975, y: 9000, r: 420, perch: { x: 1975, y: 8700 } },       // the Echo Cliffs' table
+  { x: 24670, y: 2200, r: 420, perch: { x: 24670, y: 1900 } },     // the Moon Citadel's keep
+  { x: 17375, y: 4600, r: 420, perch: { x: 17375, y: 4300 } },     // the Broken Peaks' second tier
+  { x: 31075, y: 5000, r: 420, perch: { x: 31075, y: 4700 } },     // Cloud Summit's second tier
+];
+const RAW_AMBUSHES = [
+  { x: 24000, y: 5450, r: 420 },     // the south end of the Great Bridge
+  { x: 39300, y: 12820, r: 400 },    // where the Saltwind Bridge reaches the isle
+];
+
 // Places that must stay clear of trees and rocks: where you start, the gate
 // dais, and every spot something will stand later (lamps, lairs, sites).
 const RAW_CLEARINGS = [
@@ -272,5 +296,7 @@ export const BRIDGES = RAW_BRIDGES.map(at);
 export const PLATEAUS = RAW_PLATEAUS.map(([x, y, w, h, f, stairs]) => [x + OX, y + OY, w, h, f, stairs.map(([sx, sw]) => [sx + OX, sw])]);
 export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
+export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
+export const AMBUSHES = RAW_AMBUSHES.map(at);
 export const CLEARINGS = [...RAW_CLEARINGS.map(at), ...LAMPS.map((l) => ({ x: l.x, y: l.y, r: 160 }))];
 export const LAND = { main: at(MAIN), isles: ISLES.map(at) };

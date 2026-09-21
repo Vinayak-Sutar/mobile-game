@@ -40,6 +40,16 @@ export function collideWorld(e) {
       if (resolveCircleRect(e, o)) bumped = true;
     }
   }
+  // The Wilds' encounter sites hold their enemies to their ground.
+  const L = e.leash;
+  if (L) {
+    const dx = e.x - L.x, dy = e.y - L.y, d = Math.hypot(dx, dy);
+    if (d > L.r - e.r && d > 0) {
+      const k = (L.r - e.r) / d;
+      e.x = L.x + dx * k; e.y = L.y + dy * k;
+      bumped = true;
+    }
+  }
   return bumped;
 }
 

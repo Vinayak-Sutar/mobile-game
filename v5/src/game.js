@@ -5,8 +5,9 @@ import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn, overworldReturn,
   overworldProgress, FINALS, bindOverworldSpawner, arriveAt, setMapFog,
-  lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld,
+  lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld, resetWildsSites, sitesProgress,
 } from './wilds-world.js';
+import { siteFx } from './wilds-sites.js';
 import {
   journey, resetJourney, applyLevels, buyLevel, levelCost, totalLevel, ATTRS,
   dropSmoulder, restore,
@@ -322,6 +323,7 @@ function onDeath() {
     const p = world.player;
     const lost = world.gold;
     dropSmoulder(p.x, p.y);
+    resetWildsSites();
     const at = overworldRespawn();
     p.dead = false; p.invuln = 2;
     restore(p);
@@ -449,6 +451,11 @@ function tick(dt) {
           saveWilds();
         }
         if (act && act.rest) restAtLamp(act.rest);
+        if (act && (act.seal || act.wave || act.clear || act.reliquary)) siteFx(act);
+        if (act && act.seal) showToast('THERE IS NO WAY OUT', 'Not until the last of them falls', 2.2);
+        if (act && act.wave) showToast('MORE OF THEM', 'A second wave', 2);
+        if (act && act.clear) { showToast('CLEARED', act.clear.claimed ? 'The reliquary holds Cinders' : 'A reliquary lights: stand on it', 3); saveWilds(); }
+        if (act && act.reliquary) openReliquary(act.reliquary);
         if (act && act.smoulder) {
           showToast('YOUR SMOULDER', `${act.smoulder} Cinders taken back`, 2.6);
           sfx.pickup();
@@ -1367,7 +1374,9 @@ function showWildsIntro(confirmNew = false) {
       three lives back and save; spend <b>Cinders</b> there to grow stronger; travel between the
       ones you have lit. Fall with no life left and you wake at your last lamp, your Cinders left
       smouldering where you fell.</p>
-      <p class="sub">The land's enemies and guardians arrive in the next steps.</p>
+      <p class="sub">Its fights wait in places of their own - behind palisades, inside stone
+      circles, among ruins, under the cliffs - and seal behind you. Clear one and its reliquary
+      gives a spell. The guardians arrive in the next steps.</p>
       <p class="sub">A new journey takes <b style="color:${w.color}">${w.name}</b> and the Training
       Ground's spells (as many as your spell slots hold).</p>
       ${playerRows(() => showWildsIntro(confirmNew))}
@@ -1464,6 +1473,7 @@ function restAtLamp(lamp) {
   restore(p);
   setLastLamp(lamp.id);
   journey.lastLampId = lamp.id;
+  resetWildsSites();                 // the land's enemies return, souls-style
   sfx.heal();
   saveWilds();
   showLampMenu(lamp);
@@ -1578,12 +1588,31 @@ function travelTo(id) {
   restore(p);
   setLastLamp(l.id);
   journey.lastLampId = l.id;
+  resetWildsSites();
   saveWilds();
   wildsResume();
   showToast(l.name.toUpperCase(), 'You rest, and rise', 2.4);
 }
 
-/** Testing, while the Wilds have no enemies yet: Cinders to spend. */
+/**
+ * A reliquary opens: Cinders every time; the first time at a site, a spell as
+ * well (chosen from three, as at a Spell door).
+ */
+function openReliquary(site) {
+  const bonus = Math.round(60 * (1 + site.tier) * (site.claimed ? 0.5 : 1));
+  world.gold += bonus;
+  const first = !site.claimed;
+  site.claimed = true;
+  saveWilds();
+  if (first) {
+    showToast('THE RELIQUARY', `${bonus} Cinders, and a spell`, 2.6);
+    showSpellSelect(false, { eyebrow: 'the reliquary', done: () => { saveWilds(); wildsResume(); } });
+  } else {
+    showToast('THE RELIQUARY', `${bonus} Cinders`, 2.4);
+  }
+}
+
+/** Testing: Cinders to spend. */
 function testRow() {
   return `
     <div class="volrow">
@@ -1761,6 +1790,7 @@ function wildsQuestRow() {
     <p class="sub" style="margin-bottom:6px">Lands found ${pr.regions.length} / ${pr.regionsTotal}
       &middot; explored ${(pr.explored * 100).toFixed(1)}%</p>
     <div class="chips">${lands}</div>
+    ${sitesProgress() ? `<p class="sub" style="margin-top:6px">Reliquaries claimed ${sitesProgress().claimed} / ${sitesProgress().total}</p>` : ''}
     <div class="row"><button class="btn ghost" data-act="w-map">Open the map</button></div>`;
 }
 

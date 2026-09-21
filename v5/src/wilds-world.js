@@ -28,7 +28,8 @@ import {
   WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
-import { journey, takeSmoulder } from './wilds-progress.js';
+import { takeSmoulder } from './wilds-progress.js';
+import { planSites, updateSites, resetSites } from './wilds-sites.js';
 import { packBits, unpackBits } from './wilds-save.js';
 
 export { WILDS };
@@ -442,6 +443,16 @@ function build() {
   for (const o of statics) hash.add(o);
 
   const classify = makeClassify(raised);
+  // The encounter sites, placed once from the seed; their stakes, stones,
+  // walls and thorns go in the hash like any wall.
+  const sites = planSites({
+    classify,
+    query: (x0, y0, x1, y1) => hash.query(x0, y0, x1, y1),
+    stairsNear: (x0, y0, x1, y1) => raised.near(x0, y0, x1, y1).stairs,
+    regionAt,
+    roadSegs: ROAD_SEGS,
+  });
+  for (const s of sites) for (const o of s.obs) { statics.push(o); hash.add(o); }
   const terrain = createTerrain({
     W: WILDS.W, H: WILDS.H,
     classify,
@@ -452,7 +463,7 @@ function build() {
 
   const fogW = Math.ceil(WILDS.W / FOG), fogH = Math.ceil(WILDS.H / FOG);
   return {
-    terrain, raised, hash, statics, classify,
+    terrain, raised, hash, statics, classify, sites,
     sectors: new Map(),
     room: { type: 'overworld', training: true, overworld: true, obstacles: [], waves: [], doors: [], doorsOpen: false, intro: 0 },
     ax: -1e9, ay: -1e9, activeDirty: true,
@@ -496,6 +507,7 @@ const NO_TREES = new Set([TT.WATER, TT.SHALLOW, TT.CHASM, TT.ICE, TT.PAVE, TT.MA
 
 function inClearing(x, y) {
   if (Math.hypot(x - START.x, y - START.y) < 700) return true;
+  if (W && W.sites.some((s) => Math.hypot(x - s.x, y - s.y) < s.r + 70)) return true;
   return CLEARINGS.some((c) => Math.hypot(x - c.x, y - c.y) < c.r);
 }
 
@@ -854,7 +866,19 @@ export function worldSnapshot() {
     last: W.lastLamp,
     fog: packBits(W.fog),
     visited: [...W.visited],
+    claimed: W.sites.filter((s) => s.claimed).map((s) => s.id),
   };
+}
+
+/** Every site's enemies back (a rest, or waking from a fall). */
+export function resetWildsSites() {
+  if (W) resetSites(W.sites);
+}
+
+/** How the sites stand, for the pause screen. */
+export function sitesProgress() {
+  if (!W) return null;
+  return { claimed: W.sites.filter((s) => s.claimed).length, total: W.sites.length };
 }
 
 /**
@@ -868,6 +892,8 @@ export function restoreWorld(snap) {
   W.lastLamp = snap.last && lampById(snap.last) ? snap.last : null;
   W.fog = unpackBits(snap.fog, W.fogW * W.fogH);
   for (const id of snap.visited || []) W.visited.add(id);
+  const claimed = new Set(snap.claimed || []);
+  for (const s of W.sites) { s.claimed = claimed.has(s.id); if (s.claimed) s.seen = true; }
   W.repaint = { row: 0 };
 }
 
@@ -973,6 +999,13 @@ export function updateOverworld(dt) {
 
   weather(z, dt);
   world.zoneName = z.name;
+
+  // Cinders are worth more the harder the land.
+  world.cinderMult = 8 * (1 + z.tier * 0.6);
+
+  // The encounter sites.
+  const siteAct = updateSites(W.sites, p, dt, spawnFn);
+  if (siteAct) action = siteAct;
 
   // The Ashlamps; and your smoulder, if you walk back to it.
   const lampAct = updateLamps(p, dt);
