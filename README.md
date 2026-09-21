@@ -163,6 +163,15 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Draugr and gnome thieves.
 
   (`v5/figures-preview.html` shows them all.)
+- **New creatures:**
+  - Crossbowmen whose aiming line locks on;
+  - Necromancers who raise skeletons;
+  - the hopping Jiangshi, blind to you if you hold your breath;
+  - Zealots whose wards halve damage;
+  - Wolf-folk packs roused by a howl;
+  - Tengu that dive from the sky onto their shadow;
+  - Banshees whose keening fills a cone;
+  - Skeleton Spearmen.
 - **Lairs (all 14):** each guardian waits in a lair of its own:
   - the Drowned Vault on Mirror Lake's island;
   - the Story-Tree in the Webwood;

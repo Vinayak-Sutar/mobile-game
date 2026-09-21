@@ -18,6 +18,7 @@ import { BOSS_DEFS, bindBossSpawner, clearHostiles, clearBullets, drawBossExtras
 import { FOLK_DEFS, bindFolkSpawner, updateCorpses } from './enemies-folk.js';
 import { TRAINING_DEFS } from './training.js';
 import { FOLK_DEFS2, tickHidden } from './enemies-folk2.js';
+import { KIN_DEFS, bindKinSpawner, drawWard } from './enemies-kin.js';
 
 const SPAWN_TIME = 0.75;
 
@@ -615,7 +616,7 @@ export const ENEMY_DEFS = {
 
 // The four creature bosses and their minions live in bosses.js, and the
 // folk enemies (Chinthe, Adze, Vetala) in enemies-folk.js.
-Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, FOLK_DEFS2, TRAINING_DEFS);
+Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, FOLK_DEFS2, KIN_DEFS, TRAINING_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -697,6 +698,7 @@ export function spawnEnemy(type, x, y, opts = {}) {
 // factory rather than importing it back.
 bindBossSpawner(spawnEnemy);
 bindFolkSpawner(spawnEnemy);
+bindKinSpawner(spawnEnemy);
 
 function defaultDamage(type) {
   return {
@@ -712,6 +714,7 @@ export function updateEnemies(dt) {
     if (e.dead) { world.enemies.splice(i, 1); continue; }
 
     e.flash = Math.max(0, e.flash - dt);
+    if (e.wardT > 0) e.wardT -= dt;
 
     // Spawn telegraph: a growing portal so nothing appears on top of you.
     if (e.spawning) {
@@ -817,6 +820,9 @@ export function drawEnemies(ctx) {
     ctx.fill();
     ctx.globalAlpha = 1;
 
+    // What it is about to do, on the ground: an aiming line, a cone, a landing shadow.
+    if (e.def.under) e.def.under(e, ctx);
+
     // Burning glows orange, slowed goes icy.
     e.tint = e.flash > 0 ? '#ffffff' : e.burn ? '#ff8a3d' : e.slow && e.slow.mult < 0.9 ? '#9fd8ff' : e.color;
     // With the Wanderer's look, a little figure; otherwise the old shapes.
@@ -824,6 +830,7 @@ export function drawEnemies(ctx) {
     if (!drawFigure(e, ctx) && !drawEnemyRig(e, ctx)) e.def.draw(e, ctx);
     const top = e.figTop ?? e.y - e.r;
     if (e.boss || e.def.extras) drawBossExtras(e, ctx);
+    drawWard(e, ctx);
 
     // Stunned: little stars circling the head.
     if (!e.boss && (e.stunT || 0) > 0) {

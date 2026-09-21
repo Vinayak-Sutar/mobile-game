@@ -393,6 +393,65 @@ function drawPlate(ctx, g, center, halfW, halfH, color, trim) {
 const kOf = (e, total) => clamp(1 - (e.t || 0) / total, 0, 1);
 const ease = (k) => k * k * (3 - 2 * k);
 
+/** A skull: bone white, dark sockets with a point of light, a row of teeth. */
+function skull(ctx, g, light = '#5ee0c8') {
+  headBall(ctx, g, '#e8e0cc');
+  if (g.flash) return;
+  const R = g.head.R;
+  for (const s of [1, -1]) {
+    if (!g.vis(R * 0.8, s * 2.3)) continue;
+    const [x, y] = g.hp(R * 0.75, s * 2.3, 0.8);
+    ctx.fillStyle = '#1a1210'; ctx.beginPath(); ctx.ellipse(x, y, 1.6, 1.9, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = light; ctx.fillRect(x - 0.5, y - 0.4, 1, 1);
+  }
+  if (g.vis(R * 0.8, 0)) {
+    const [x, y] = g.hp(R * 0.7, 0, -3);
+    ctx.fillStyle = '#1a1210';
+    for (let k = -1; k <= 1; k++) ctx.fillRect(x + k * 1.4 - 0.4, y, 0.8, 1.6);
+  }
+}
+
+/** A hood over the head: a dark cowl, the face in shadow inside it. */
+function hood(ctx, g, color, face, eyeColor, glow = false) {
+  const { x, y, R } = g.head;
+  ctx.beginPath(); ctx.arc(x, y, R + 1.6, 0, TAU); g.fillOut(g.col(color), 1.4);
+  if (g.away || g.flash) return;
+  const [fx, fy] = g.hp(R * 0.55, 0, -0.5);
+  ctx.fillStyle = face; ctx.beginPath(); ctx.ellipse(fx, fy, R * 0.62, R * 0.72, 0, 0, TAU); ctx.fill();
+  eyes(ctx, g, eyeColor, 1.9, 0.2, 1.4, glow);
+}
+
+/** A robe to the ground (no legs showing), ragged or plain at the hem. */
+function robe(color, ragged) {
+  return Object.assign((ctx, g) => {
+    const { B, sa, ca, pr } = g;
+    const hw = 0.5 * (Math.abs(sa) * B.torsoW + Math.abs(ca) * B.torsoD);
+    const [tx, ty] = g.body(0, 0, g.shH);
+    const [bx, by] = pr(0, 0, g.P.float ? -g.P.float * 0.2 : 0);
+    ctx.beginPath();
+    ctx.moveTo(tx - hw * 0.8, ty + 1);
+    ctx.quadraticCurveTo(tx, ty - 3, tx + hw * 0.8, ty + 1);
+    ctx.lineTo(bx + hw * 1.2, by);
+    if (ragged) for (let k = 1; k <= 5; k++) ctx.lineTo(bx + hw * 1.2 - (k / 5) * hw * 2.4, by - (k % 2 ? 3 : 0) + Math.sin(g.t * 5 + k) * 0.8);
+    else ctx.quadraticCurveTo(bx, by + 2, bx - hw * 1.2, by);
+    ctx.closePath();
+    g.fillOut(g.flash ? '#ffffff' : (g.main !== g.C.main ? g.main : color), 1.5);
+    if (!g.flash) {
+      ctx.save(); ctx.clip();
+      ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(tx + hw * 0.2, ty - 4, hw * 2, by - ty + 8);
+      ctx.restore();
+    }
+  }, { replace: true });
+}
+
+function drawSpear(ctx, g, hand, dir, len, back = 8, head = '#c8ccd0') {
+  const tip = along(g, hand, dir, len), butt = along(g, hand, dir, -back);
+  g.limb([g.pr(...butt), g.pr(...tip)], 1.8, g.col('#6a4a2c'));
+  const [x, y] = g.pr(...tip), [bx, by] = g.pr(...along(g, hand, dir, len - 4));
+  ctx.beginPath(); ctx.moveTo(x + (x - bx) * 0.9, y + (y - by) * 0.9); ctx.lineTo(bx - 2, by); ctx.lineTo(bx + 2, by); ctx.closePath();
+  g.fillOut(g.col(head), 1);
+}
+
 // --- the roster ----------------------------------------------------------------------------
 // Each creature: its build (body), palette (c), head, weapon, pose - and which
 // states turn it to face you (aimAt).
@@ -995,6 +1054,300 @@ const FIGS = {
       if (!g.away) nub(ctx, g, R * 0.7, 0, -R * 0.7, 3.4, 2.8, '#f0ece0');
       ctx.beginPath(); ctx.moveTo(x - R - 0.5, y - R * 0.2); ctx.quadraticCurveTo(x - 1, y - R * 2.8, x + 4 - g.ca * 4, y - R * 2.6); ctx.lineTo(x + R + 0.5, y - R * 0.2); ctx.closePath();
       g.fillOut(g.col('#c8302a'), 1.3);
+    },
+  },
+  // --- the Crossbowman: a masked bandit; the crossbow comes up to the shoulder.
+  crossbow: {
+    scale: 1.2,
+    body: { legL: 11, torsoH: 11, torsoW: 11, torsoD: 7.5, shW: 5.2, armL: 10, headR: 5.8, legW: 3.2, armW: 2.8 },
+    c: { main: '#6a4a30', leg: '#3a3440', arm: '#7a5a3a', hand: '#e2b489', skin: '#e2b489', foot: '#2a1e16' },
+    aimAt: (e) => e.state === 'aim',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'aim') return { stance: 'wide', handR: [5, 2, shH - 1], handL: [B.armL - 1, -1, shH - 1], frontL: true, wR: [1, 0, 0] };
+      if (e.state === 'reload') return { handR: [4, 3, shH - 7], handL: [5, -2, shH - 6], wR: [0.6, 0, -0.8], crank: true };
+      return { handR: [2, 5, shH - 7], handL: [3, -3, shH - 6], wR: [0.7, -0.2, -0.6] };
+    },
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      // The stock along the aim, the bow across its end.
+      const tip = along(g, hand, dir, 12), butt = along(g, hand, dir, -3);
+      g.limb([g.pr(...butt), g.pr(...tip)], 2.4, g.col('#5a3a22'));
+      const side = [-dir[1] || 0.001, dir[0], 0];
+      const n = Math.hypot(side[0], side[1]) || 1;
+      const a = g.pr(tip[0] + side[0] / n * 6, tip[1] + side[1] / n * 6, tip[2] - 1);
+      const b = g.pr(tip[0] - side[0] / n * 6, tip[1] - side[1] / n * 6, tip[2] - 1);
+      const c = g.pr(tip[0] - dir[0] * 2, tip[1], tip[2]);
+      ctx.strokeStyle = OUT; ctx.lineWidth = 3.6;
+      ctx.beginPath(); ctx.moveTo(...a); ctx.quadraticCurveTo(...c, ...b); ctx.stroke();
+      ctx.strokeStyle = g.col('#8a6a44'); ctx.lineWidth = 1.8; ctx.stroke();
+      if (g.e.state === 'aim' && !g.flash) {
+        const [x, y] = g.pr(...tip);
+        ctx.fillStyle = g.e.t <= 0.28 ? '#ff5a3c' : '#ffb070'; ctx.beginPath(); ctx.arc(x, y, 1.8, 0, TAU); ctx.fill();
+      }
+    },
+    torso(ctx, g, T) {
+      if (!T || g.flash) return;
+      ctx.strokeStyle = '#2a1e14'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(T.tx - T.hwT, T.ty + 2); ctx.lineTo(T.bx + T.hwB, T.by - 2); ctx.stroke();
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#e2b489');
+      eyes(ctx, g, '#1a1210', 2.2, 1.2, 1.3);
+      // A bandana over the mouth and a hood over the head.
+      const { x, y, R } = g.head;
+      if (!g.away && g.vis(R, 0)) {
+        const [mx, my] = g.hp(R * 0.6, 0, -2);
+        ctx.fillStyle = g.col('#8a2a24'); ctx.beginPath(); ctx.ellipse(mx, my, R * 0.9, R * 0.5, 0, 0, Math.PI); ctx.fill();
+      }
+      ctx.beginPath(); ctx.arc(x, y - 0.5, R + 0.8, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); g.fillOut(g.col('#4a3a2a'), 1.2);
+    },
+  },
+
+  // --- the Necromancer: a hooded cultist with a skull staff; arms up for the rite.
+  necro: {
+    scale: 1.15,
+    body: { legL: 11, torsoH: 13, torsoW: 12, torsoD: 9, shW: 5.2, armL: 11, headR: 5.8, legs: false, armW: 2.8 },
+    c: { main: '#4a2a5a', arm: '#4a2a5a', hand: '#c8b8a0', skin: '#c8b8a0' },
+    crown: 4,
+    aimAt: (e) => e.state === 'rite',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'rite') return { handR: [3, 7, shH + 8], handL: [3, -7, shH + 8], wR: [0.1, 0.1, 1], glow: 1 - (e.t || 0) / 1.3 };
+      if (e.state === 'reel') return { shake: 0.5, lean: -0.2, handR: [1, 7, shH - 8], wR: [0.3, 0.3, 1] };
+      return { handR: [3, 6, shH - 5], wR: [0.15, 0, 1] };
+    },
+    torso: robe('#4a2a5a', true),
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      const top = along(g, hand, dir, 14), bot = along(g, hand, dir, -10);
+      g.limb([g.pr(...bot), g.pr(...top)], 2, g.col('#3a2a1c'));
+      const [x, y] = g.pr(...top);
+      const glow = g.P.glow || 0;
+      if (!g.flash) { ctx.fillStyle = `rgba(140,255,160,${(0.25 + 0.5 * glow).toFixed(2)})`; ctx.beginPath(); ctx.arc(x, y - 2, 5 + glow * 5, 0, TAU); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(x, y - 2, 3, 0, TAU); g.fillOut(g.col('#e8e0cc'), 1);
+    },
+    head(ctx, g) { hood(ctx, g, '#2e1a3a', '#1a1020', '#8cffa0', true); },
+  },
+
+  // --- the Boneling: a little skeleton with a rusty blade.
+  boneling: {
+    scale: 1.2,
+    body: { legL: 8, torsoH: 8, torsoW: 8, torsoD: 5, shW: 4, armL: 8, headR: 5.4, legW: 2, armW: 1.8, neck: 2, cycle: 55 },
+    c: { main: '#d8d0bc', leg: '#d8d0bc', arm: '#e0d8c4', hand: '#e8e0cc', skin: '#d8d0bc', foot: '#b8b0a0' },
+    aimAt: (e) => e.state === 'windup' || e.state === 'swipe',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'windup') return { lean: -0.1, handR: [-2, 4, shH + 3], wR: [-0.3, 0.2, 1] };
+      if (e.state === 'swipe') return { lean: 0.3, handR: [B.armL, -1, shH - 3], wR: [1, -0.6, -0.2] };
+      return { lean: 0.1, handR: [3, 4, shH - 6], wR: [0.8, 0.2, -0.5] };
+    },
+    weapon(ctx, g, key, hand, dir) { if (key === 'R') drawBlade(ctx, g, hand, dir, 7, '#a08a6a', '#3a2818', 2); },
+    head(ctx, g) { skull(ctx, g, '#8cffa0'); },
+  },
+
+  // --- the Jiangshi: a hopping corpse in an official's robe, arms held out stiff.
+  jiangshi: {
+    scale: 1.15,
+    body: { legL: 11, hipW: 2, torsoH: 13, torsoW: 12, torsoD: 8, shW: 5.2, armL: 11, headR: 5.8, legW: 3.4, armW: 3 },
+    c: { main: '#2a3a6a', leg: '#1e2a4a', arm: '#2a3a6a', hand: '#b8d0c0', skin: '#b8d0c0', foot: '#141414' },
+    crown: 5,
+    aimAt: () => true,
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      const set = e.state === 'set' ? 1 - (e.t || 0) / 0.42 : 0;
+      return {
+        crouch: set * 2.5, feet: [0.5, 0.3], air: e.state === 'hop',
+        handR: [B.armL, 2.5, shH - 1], handL: [B.armL, -2.5, shH - 1], frontR: true, frontL: true,
+      };
+    },
+    torso(ctx, g, T) {
+      if (!T || g.flash || g.away) return;
+      // The rank badge: a square of gold on the chest.
+      ctx.fillStyle = '#c8a040'; ctx.fillRect(T.tx - 2.8, T.ty + 3.5, 5.6, 5.6);
+      ctx.fillStyle = '#8a2a24'; ctx.fillRect(T.tx - 1.2, T.ty + 5, 2.4, 2.4);
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#b8d0c0');
+      eyes(ctx, g, '#1a1210', 2.2, 1, 1.3);
+      // A round official's hat, and the paper charm hanging over the face.
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.55, R + 1.5, R * 0.55, 0, Math.PI, TAU); ctx.closePath(); g.fillOut(g.col('#1a1a24'), 1.2);
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.55, R + 3, 1.6, 0, 0, TAU); g.fillOut(g.col('#1a1a24'), 1);
+      if (!g.away && g.vis(R, 0)) {
+        const [cx, cy] = g.hp(R * 0.95, 0, R * 0.2);
+        const sway = Math.sin(g.t * 4) * 0.6;
+        ctx.fillStyle = g.col('#f0d060'); ctx.fillRect(cx - 1.8 + sway, cy - 3, 3.6, 9);
+        if (!g.flash) { ctx.fillStyle = '#c83020'; ctx.fillRect(cx - 0.6 + sway, cy - 1.5, 1.2, 6); }
+      }
+    },
+  },
+
+  // --- the Zealot: a masked cultist in gold and white, swinging a censer.
+  zealot: {
+    scale: 1.15,
+    body: { legL: 10, torsoH: 12, torsoW: 11, torsoD: 8, shW: 5, armL: 10, headR: 5.6, legs: false, armW: 2.6 },
+    c: { main: '#e8dcc0', arm: '#e8dcc0', hand: '#e2b489', skin: '#e2b489' },
+    crown: 4,
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      const swing = Math.sin((world.runTime || 0) * 3 + (e.seed || 0)) * 3;
+      if (e.state === 'flee') return { lean: 0.25, handR: [-3, 5, shH - 3], handL: [-3, -5, shH - 3] };
+      return { handR: [5 + swing, 5, shH - 3], handL: [2, -5, shH - 7] };
+    },
+    torso: robe('#e8dcc0', false),
+    over(ctx, g) {
+      // The censer on its chain, smoking gold.
+      const h = g.hands.R;
+      if (!h) return;
+      const [x, y] = g.pr(...h.hand);
+      ctx.strokeStyle = g.col('#8a7a5a'); ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y + 9, 2.6, 0, TAU); g.fillOut(g.col('#c8a040'), 1);
+      if (!g.flash) { ctx.fillStyle = 'rgba(255,214,110,0.35)'; ctx.beginPath(); ctx.arc(x + Math.sin(g.t * 2) * 2, y + 3, 4, 0, TAU); ctx.fill(); }
+    },
+    head(ctx, g) {
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.arc(x, y, R + 1.4, 0, TAU); g.fillOut(g.col('#c8b890'), 1.3);
+      if (!g.away && !g.flash) {
+        const [mx, my] = g.hp(R * 0.6, 0, 0);
+        ctx.fillStyle = '#e8c050'; ctx.beginPath(); ctx.ellipse(mx, my, R * 0.6, R * 0.72, 0, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#2a1e10';
+        for (const s of [1, -1]) { const [ex, ey] = g.hp(R * 0.95, s * 1.8, 0.6); ctx.fillRect(ex - 0.8, ey - 0.3, 1.6, 0.9); }
+      }
+      // A tall pointed cowl.
+      ctx.beginPath(); ctx.moveTo(x - R, y - R * 0.3); ctx.lineTo(x, y - R * 2.3); ctx.lineTo(x + R, y - R * 0.3); ctx.closePath(); g.fillOut(g.col('#c8b890'), 1.2);
+    },
+  },
+
+  // --- the Wolf-folk: grey fur, a long muzzle, a tail; they howl to rouse the pack.
+  wolf: {
+    scale: 1.15,
+    body: { legL: 11, hipW: 3, torsoH: 11, torsoW: 12, torsoD: 9, shW: 5.5, armL: 10, headR: 5.8, legW: 3.4, armW: 3, cycle: 70, stride: 4.4 },
+    c: { main: '#6a6a74', leg: '#5a5a64', arm: '#7a7a84', hand: '#4a4a54', skin: '#8a8a94', foot: '#3a3a44' },
+    crown: 4,
+    aimAt: (e) => e.state === 'crouch' || e.state === 'pounce' || e.state === 'howl',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'howl') return { lean: -0.3, handR: [0, 7, shH - 10], handL: [0, -7, shH - 10], howl: true };
+      if (e.state === 'crouch') { const k = ease(kOf(e, 0.32)); return { crouch: 4 * k, lean: 0.3 * k, stance: 'wide', handR: [-3, 6, shH - 6], handL: [-3, -6, shH - 6] }; }
+      if (e.state === 'pounce') return { air: true, lean: 0.5, handR: [B.armL, 4, shH], handL: [B.armL, -4, shH], frontR: true, frontL: true };
+      if (e.state === 'recover') return { lean: 0.15, crouch: 1.5 };
+      return { lean: e.hasteT > 0 ? 0.3 : 0.18, crouch: 1 };
+    },
+    items(g) {
+      return [{ f: -4, r: 0, bias: -2, draw: (ctx) => {
+        const [x, y] = g.body(-3, 0, g.hipH + 1);
+        const w = Math.sin(g.t * 7) * 2;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - g.ca * 7 + w, y + 2, x - g.ca * 11 + w, y + 6);
+        ctx.strokeStyle = OUT; ctx.lineWidth = 5.4; ctx.stroke(); ctx.strokeStyle = g.col('#8a8a94'); ctx.lineWidth = 3.6; ctx.stroke();
+      } }];
+    },
+    head(ctx, g) {
+      spikes(ctx, g, [-0.5, 3.4, 3.5], [-1, 4.4, 8.5], 2, '#6a6a74');
+      headBall(ctx, g, '#8a8a94');
+      // The muzzle: raised to the sky when it howls.
+      const up = g.P.howl ? 3 : 0;
+      nub(ctx, g, 6.5, 0, -1.5 + up, 3.4, 2.2, '#9a9aa4');
+      nub(ctx, g, 9.2, 0, -1.2 + up, 1.1, 1, '#1a1210');
+      eyes(ctx, g, g.e.hasteT > 0 ? '#ff5a3c' : '#ffd45e', 2.3, 1.4, 1.4, true);
+    },
+  },
+
+  // --- the Tengu: a crow-winged goblin with a red face and a long nose.
+  tengu: {
+    scale: 1.15,
+    body: { legL: 10, torsoH: 11, torsoW: 11, torsoD: 8, shW: 5, armL: 10, headR: 5.8, legW: 2.8, armW: 2.6 },
+    c: { main: '#2a2a3a', leg: '#e8dcc0', arm: '#2a2a3a', hand: '#c84a3a', skin: '#c84a3a', foot: '#c8a040' },
+    crown: 3,
+    aimAt: (e) => e.state !== 'chase',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'rise' || e.state === 'sky') return { air: true, handR: [0, 7, shH + 2], handL: [0, -7, shH + 2], wings: 1 };
+      if (e.state === 'dive') return { air: true, lean: 0.2, handR: [2, 4, shH - 2], handL: [2, -4, shH - 2], wings: 0.2 };
+      if (e.state === 'dazed') return { crouch: 3, shake: 0.4, handR: [2, 6, shH - 11], handL: [2, -6, shH - 11], wings: 0.4 };
+      return { handR: [3, 5, shH - 6], wR: [0.3, 0, 1], wings: 0.3 };
+    },
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      // A monk's staff with rings.
+      const top = along(g, hand, dir, 12), bot = along(g, hand, dir, -9);
+      g.limb([g.pr(...bot), g.pr(...top)], 1.8, g.col('#6a4a2c'));
+      const [x, y] = g.pr(...top);
+      ctx.strokeStyle = g.col('#c8a040'); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(x, y - 2, 2.6, 0, TAU); ctx.stroke();
+    },
+    items(g) {
+      const k = g.P.wings ?? 0.3;
+      return [{ f: -4, r: 0, bias: -3, draw: (ctx) => {
+        // Black wings: folded along the back, or spread and beating.
+        const beat = k > 0.8 ? Math.sin(g.t * 22) * 0.4 : 0;
+        for (const s of [1, -1]) {
+          const [x, y] = g.body(-3, s * 3, g.shH - 1);
+          const span = 6 + 12 * k;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.quadraticCurveTo(x + s * span * 0.6 * (g.away ? -1 : 1) * Math.abs(g.sa) - g.ca * span * 0.6, y - span * (0.5 + beat), x + s * span * Math.abs(g.sa) * (g.away ? -1 : 1) - g.ca * span, y - 2 - span * 0.2);
+          ctx.lineTo(x - g.ca * 3, y + 9);
+          ctx.closePath();
+          g.fillOut(g.col('#1e1e2a'), 1.2);
+        }
+      } }];
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#c84a3a');
+      // The long nose, and white brows.
+      nub(ctx, g, 7.5, 0, -0.5, 3.6, 1.4, '#d85a4a');
+      eyes(ctx, g, '#1a1210', 2.2, 1.2, 1.3);
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.75, 3, 2, 0, 0, TAU); g.fillOut(g.col('#1a1a24'), 1);
+    },
+  },
+
+  // --- the Banshee: a pale woman in a tattered dress, long dark hair, drifting.
+  banshee: {
+    scale: 1.15,
+    body: { legL: 10, torsoH: 12, torsoW: 10, torsoD: 7, shW: 4.6, armL: 10, headR: 5.4, legs: false, armW: 2.2, neck: 2 },
+    c: { main: '#cfe0ff', arm: '#dfe8ff', hand: '#eef4ff', skin: '#dfe8ff' },
+    aimAt: (e) => e.state === 'wail',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      const bob = Math.sin((world.runTime || 0) * 2 + (e.seed || 0)) * 2.5;
+      if (e.state === 'wail') { const k = kOf(e, 0.85); return { float: 6 + bob, lean: -0.2 * k, handR: [-3, 8, shH + 3 * k], handL: [-3, -8, shH + 3 * k], wail: k, alpha: 0.92 }; }
+      return { float: 6 + bob, handR: [2, 4, shH - 1], handL: [2, -4, shH - 1], frontR: true, frontL: true, alpha: 0.85 };
+    },
+    torso: robe('#cfe0ff', true),
+    head(ctx, g) {
+      const { x, y, R } = g.head;
+      // Long hair falling behind.
+      ctx.beginPath(); ctx.ellipse(x - g.ca * 1.5, y + R * 0.8, R + 1.8, R * 1.8, 0, 0, TAU); g.fillOut(g.col('#2a2a3a'), 1.2);
+      headBall(ctx, g, '#eef4ff');
+      eyes(ctx, g, '#3a4a6a', 2, 0.8, 1.4);
+      if (!g.flash && g.vis(R, 0)) {
+        const [mx, my] = g.hp(R * 0.9, 0, -2.4);
+        const k = g.P.wail || 0;
+        ctx.fillStyle = '#1a1a2a'; ctx.beginPath(); ctx.ellipse(mx, my, 1 + k * 1.2, 0.7 + k * 2, 0, 0, TAU); ctx.fill();
+      }
+    },
+  },
+
+  // --- the Skeleton Spearman: a helmeted skeleton; the spear drawn back, then two thrusts.
+  spearman: {
+    scale: 1.25,
+    body: { legL: 12, torsoH: 11, torsoW: 9, torsoD: 6, shW: 5, armL: 11, headR: 5.8, legW: 2.4, armW: 2.2, neck: 2.5 },
+    c: { main: '#d8d0bc', leg: '#d8d0bc', arm: '#e0d8c4', hand: '#e8e0cc', skin: '#d8d0bc', foot: '#b8b0a0' },
+    crown: 2,
+    aimAt: (e) => e.state === 'draw' || e.state === 'thrust',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'draw') return { stance: 'wide', lean: -0.1, handR: [-5, 3, shH - 3], handL: [3, -2, shH - 3], wR: [1, -0.05, 0.02] };
+      if (e.state === 'thrust') return { stance: 'wide', lean: 0.3, handR: [B.armL - 1, 1, shH - 2], handL: [B.armL - 4, -1, shH - 2], wR: [1, 0, 0] };
+      if (e.state === 'recover') return { lean: 0.2, handR: [4, 4, shH - 8], wR: [0.8, 0, -0.7] };
+      return { handR: [2, 5, shH - 7], wR: [0.2, 0, 1] };
+    },
+    weapon(ctx, g, key, hand, dir) { if (key === 'R') drawSpear(ctx, g, hand, dir, 18, 10); },
+    head(ctx, g) {
+      skull(ctx, g, '#ffd45e');
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.35, R + 1, R * 0.75, 0, Math.PI, TAU); ctx.closePath(); g.fillOut(g.col('#8a7a5a'), 1.2);
     },
   },
 };

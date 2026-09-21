@@ -75,6 +75,7 @@ export function dealDamage(e, amount, opts = {}) {
   }
   const exposed = e.exposed > 0;
   if (exposed) dmg *= EXPOSED_MULT;
+  if (e.wardT > 0) dmg *= 0.5;              // a Zealot's ward
   if (e.vulnerable) dmg *= e.vulnerable;     // e.g. an Oathbroken knight takes more
   dmg = Math.max(1, Math.round(dmg));
 

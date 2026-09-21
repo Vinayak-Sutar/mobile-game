@@ -15,10 +15,13 @@ const STATES = {
   chinthe: ['chase', 'wind', 'bash', 'open'], adze: ['gather', 'feed'], vetala: ['chase', 'ride', 'aim'],
   sapper: ['chase', 'wind', 'hop'], kappa: ['chase', 'crouch', 'leap', 'spill'], preta: ['chase', 'bloat', 'heave'],
   draugr: ['chase', 'rise', 'wind', 'recover'], duende: ['chase', 'flee'],
+  crossbow: ['chase', 'aim', 'reload'], necro: ['chase', 'rite', 'reel'], boneling: ['chase', 'windup', 'swipe'],
+  jiangshi: ['set', 'hop'], zealot: ['chase', 'flee'], wolf: ['chase', 'howl', 'crouch', 'pounce'],
+  tengu: ['chase', 'rise', 'dive', 'dazed'], banshee: ['chase', 'wail'], spearman: ['chase', 'draw', 'thrust', 'recover'],
 };
 const c = document.getElementById('c');
-const S = Number(new URLSearchParams(location.search).get('s') || 2), CW = 70, RH = 84;
 const params = new URLSearchParams(location.search);
+const S = Number(params.get('s') || 2), CW = 70, RH = 84;
 const only = params.get('only');
 const types = only ? only.split(',') : FIGURE_TYPES;
 c.width = (1 + 4 * 3 + 2) * CW * S; c.height = (types.length * RH + 20) * S;
@@ -26,13 +29,13 @@ const ctx = c.getContext('2d');
 world.player = { x: 0, y: 0, r: 17 };
 const cells = [];
 types.forEach((type, row) => {
-  const views = [2, 0, 6];      // facing the camera, right, away
+  const views = (params.get('v') || '2,0,6').split(',').map(Number);      // facing the camera, right, away
   STATES[type].forEach((st, col) => views.forEach((o, v) => {
     const e = spawnEnemy(type, 0, 0, { instant: true });
     e.spawning = false; e.state = st; e.t = 0.12; e.belly = ['#ff5e6e', '#5ee0c8']; e.loot = 30;
-    cells.push({ e, st, o, x: (1 + col * 3 + v) * CW + CW / 2, y: row * RH + 66, walk: false });
+    cells.push({ e, st, o, x: (1 + col * views.length + v) * CW + CW / 2, y: row * RH + 66, walk: false });
   }));
-  for (const o of [1, 3]) {
+  if (!params.get('v')) for (const o of [1, 3]) {
     const e = spawnEnemy(type, 0, 0, { instant: true }); e.spawning = false; e.state = 'chase';
     cells.push({ e, st: 'walk', o, x: (13 + (o === 1 ? 0 : 1)) * CW + CW / 2, y: row * RH + 66, walk: true });
   }

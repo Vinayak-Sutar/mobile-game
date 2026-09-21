@@ -30,23 +30,23 @@ import { WILDS, START, LAMPS, OUTPOSTS, AMBUSHES } from './wilds-layout.js';
 
 // Which enemies live where.
 export const REGION_FOES = {
-  heartland: ['wretch', 'slinger', 'charger', 'bomber'],
-  webwood: ['adze', 'chinthe', 'splitter', 'spitter'],
-  lake: ['kappa', 'wretch', 'slinger'],
-  gulch: ['sapper', 'charger', 'slinger', 'bomber'],
-  mire: ['kappa', 'preta', 'spitter', 'splitter'],
-  gilded: ['chinthe', 'duende', 'slinger', 'charger'],
-  echo: ['draugr', 'vetala', 'slinger'],
-  sands: ['sapper', 'preta', 'brute', 'bomber'],
-  isle: ['kappa', 'duende', 'wretch', 'slinger'],
-  peaks: ['brute', 'bomber', 'charger', 'sapper'],
-  gorge: ['adze', 'spitter', 'vetala', 'kappa'],
-  moors: ['draugr', 'vetala', 'preta', 'wretch'],
-  summit: ['duende', 'chinthe', 'brute', 'slinger'],
-  bridge: ['brute', 'charger', 'draugr'],
-  citadel: ['draugr', 'vetala', 'brute', 'chinthe'],
+  heartland: ['wretch', 'slinger', 'charger', 'bomber', 'crossbow', 'wolf'],
+  webwood: ['adze', 'chinthe', 'splitter', 'spitter', 'wolf'],
+  lake: ['kappa', 'wretch', 'slinger', 'banshee'],
+  gulch: ['sapper', 'charger', 'slinger', 'bomber', 'crossbow'],
+  mire: ['kappa', 'preta', 'spitter', 'splitter', 'necro'],
+  gilded: ['chinthe', 'duende', 'slinger', 'charger', 'zealot'],
+  echo: ['draugr', 'vetala', 'slinger', 'banshee', 'spearman'],
+  sands: ['sapper', 'preta', 'brute', 'bomber', 'necro', 'spearman'],
+  isle: ['kappa', 'duende', 'wretch', 'slinger', 'crossbow'],
+  peaks: ['brute', 'bomber', 'charger', 'sapper', 'tengu'],
+  gorge: ['adze', 'spitter', 'vetala', 'kappa', 'jiangshi'],
+  moors: ['draugr', 'vetala', 'preta', 'wretch', 'banshee', 'necro', 'spearman'],
+  summit: ['duende', 'chinthe', 'brute', 'slinger', 'tengu'],
+  bridge: ['brute', 'charger', 'draugr', 'spearman'],
+  citadel: ['draugr', 'vetala', 'brute', 'chinthe', 'spearman', 'zealot', 'jiangshi'],
 };
-const RANGED = new Set(['slinger', 'spitter', 'bomber']);
+const RANGED = new Set(['slinger', 'spitter', 'bomber', 'crossbow']);
 // The heavy hitters a champion is made from, best first.
 const CHAMPION_KINDS = ['brute', 'draugr', 'charger', 'kappa', 'chinthe', 'vetala', 'adze', 'preta', 'duende', 'sapper', 'wretch'];
 const TITLES = ['the Warlord', 'the Butcher', 'the Iron Hand', 'the Bone Keeper', 'the Ash Chief', 'the Pale Warden',

@@ -4385,6 +4385,57 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.44 Enemy variety (E2): nine new creatures (2026-09-21)
+
+The owner asked for more enemy variety and for mini-bosses. Variety comes
+first, as its own step; mini-bosses are next (they can use these, such as the
+necromancer's skeletons and the wolf pack).
+
+- **`enemies-kin.js` (new)**: nine types, each with one job, one tell and one
+  answer, and none that can hurt without a telegraph.
+
+  | Type | Job | Its answer |
+  |---|---|---|
+  | `crossbow`, Crossbowman | a red aiming line follows you, locks bright 0.28 s before the shot, then one 760-speed bolt and a reload | step aside after the lock |
+  | `necro`, Necromancer | keeps away; a 1.3 s rite opens two green circles and raises two `boneling`s (at most 4 at once) | hit it mid-rite and the rite breaks; kill it and its skeletons fall |
+  | `jiangshi` | moves only by hops, in straight lines, stamping the ground where it lands | hold still (not moving or fighting) for 0.6 s and it loses you, hopping blind |
+  | `zealot`, Zealot | shelters behind its nearest ally and wards its three nearest allies (half damage, `wardT`, a golden shell) | it is frail; catch it |
+  | `wolf`, Wolf-folk | the pack's first to see you howls (exposed, 0.9 s), and wolves within 600 run 35% faster for 6 s; they circle, crouch, then pounce with a double bite | kill the howler while it howls |
+  | `tengu`, Tengu | beats up out of reach (invulnerable); its shadow follows you, then locks, darkens and grows; it dives | step off the shadow; it lands dazed and exposed for 1.1 s |
+  | `banshee`, Banshee | a pale wedge opens on the ground for 0.85 s, then a scream fills it with a push | leave the wedge, or get behind her |
+  | `spearman`, Skeleton Spearman | two thrusts down a lit line 118 long | sidestep, then punish the 0.7 s recovery |
+
+- **Ground telegraphs** are `def.under(e, ctx)`, drawn beneath the body in
+  both looks. `draw` is a simple top-down shape for the Hooded One.
+- **Wards**: `combat.js` halves damage while `wardT > 0`.
+- **Where they appear**:
+  - in chamber waves (`SPAWNABLE`, with new roles `hopper`, `diver` and
+    `caster`);
+  - in the training ring and the death-screen names;
+  - in the Wilds' `REGION_FOES`, by land. The crossbowman also takes the
+    tower and ledge perches.
+- **Figures**: all nine have one (helpers `skull`, `hood`, `robe`,
+  `drawSpear`):
+  - a masked bandit whose crossbow comes up to the shoulder;
+  - a purple-robed necromancer, arms raised for the rite;
+  - the little bonelings;
+  - a jiangshi in an official's robe and hat, a paper charm over its face,
+    arms out stiff;
+  - a gold-masked zealot with a censer;
+  - a grey wolf-folk that lifts its muzzle to howl;
+  - a red-faced, long-nosed tengu with black wings;
+  - a drifting banshee whose mouth opens as she keens;
+  - a helmeted skeleton spearman.
+- **Verified in Node**:
+  - every state, all 8 directions, no bad numbers;
+  - each type simulated for 12 s against a moving player: every one attacks,
+    through all its states;
+  - the rite is interrupted by a hit; the bonelings rise, and fall with
+    their master;
+  - the zealot keeps 1.85 of 2 allies warded;
+  - the jiangshi lands 12 hits while you move and 2 while you hold still;
+  - the Wilds' fights still pass.
+
 ### 16.43 Enemies redrawn as figures (E1 of the enemy redesign) (2026-09-21)
 
 The owner asked for enemies designed for Version 5: little humanoids,

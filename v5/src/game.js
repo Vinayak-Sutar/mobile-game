@@ -8,6 +8,7 @@ import {
   lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld, resetWildsSites, sitesProgress,
 } from './wilds-world.js';
 import { siteFx } from './wilds-sites.js';
+import { KIN_NAMES } from './enemies-kin.js';
 import {
   journey, resetJourney, applyLevels, buyLevel, levelCost, totalLevel, ATTRS,
   dropSmoulder, restore,
@@ -1139,6 +1140,7 @@ const KILLER_NAMES = {
   warden: 'the Warden of Ash', explosion: 'an explosion',
   turtle: 'Gravemaw the Shellback', croc: 'Mawgrim, the Mire King',
   gorilla: 'Kharn, the Ashen Silverback', peacock: 'Solenne, the Hundred-Eyed',
+  ...KIN_NAMES,
 };
 
 // --- Boss Trials ------------------------------------------------------------
@@ -1238,6 +1240,7 @@ const DUMMY_HP_CHOICES = [100, 500, 1000, 3000, 0];
 const TRAINING_FOES = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
   'adze', 'chinthe', 'vetala', 'sapper', 'kappa', 'preta', 'draugr', 'duende',
+  'crossbow', 'necro', 'jiangshi', 'zealot', 'wolf', 'tengu', 'banshee', 'spearman',
 ];
 
 function trainingLoadout() {
