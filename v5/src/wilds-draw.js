@@ -475,7 +475,7 @@ export function drawOverworldAbove(ctx, time) {
   ctx.font = '800 12px system-ui';
   for (const e of world.enemies) {
     if (!e.champion || e.dead || !inView(e.x, e.y, 60)) continue;
-    const y = e.y - e.r - 34;
+    const y = (e.figTop ?? e.y - e.r) - 22;
     ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(e.champion, e.x + 1, y + 1);
     ctx.fillStyle = '#ffb35e'; ctx.fillText(e.champion, e.x, y);
     const k = Math.max(0, e.hp / e.maxHp);

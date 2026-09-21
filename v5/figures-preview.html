@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Figures preview</title>
+<style>body{margin:0;background:#1a1a1a;color:#ddd;font:12px system-ui}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+import { world, view, resetWorld } from './src/state.js';
+import { spawnEnemy } from './src/enemies.js';
+import { drawFigure, FIGURE_TYPES } from './src/figures.js';
+import { look } from './src/wanderer.js';
+view.w = 1100; view.h = 600; resetWorld();
+look.skin = 'wanderer';
+const STATES = {
+  wretch: ['chase', 'windup', 'lunge'], slinger: ['chase', 'aim', 'fire'], brute: ['chase', 'wind', 'recover'],
+  charger: ['chase', 'aim', 'charge', 'stun'], bomber: ['chase', 'fuse'], splitter: ['chase'], spitter: ['chase', 'wind'],
+  chinthe: ['chase', 'wind', 'bash', 'open'], adze: ['gather', 'feed'], vetala: ['chase', 'ride', 'aim'],
+  sapper: ['chase', 'wind', 'hop'], kappa: ['chase', 'crouch', 'leap', 'spill'], preta: ['chase', 'bloat', 'heave'],
+  draugr: ['chase', 'rise', 'wind', 'recover'], duende: ['chase', 'flee'],
+};
+const c = document.getElementById('c');
+const S = Number(new URLSearchParams(location.search).get('s') || 2), CW = 70, RH = 84;
+const params = new URLSearchParams(location.search);
+const only = params.get('only');
+const types = only ? only.split(',') : FIGURE_TYPES;
+c.width = (1 + 4 * 3 + 2) * CW * S; c.height = (types.length * RH + 20) * S;
+const ctx = c.getContext('2d');
+world.player = { x: 0, y: 0, r: 17 };
+const cells = [];
+types.forEach((type, row) => {
+  const views = [2, 0, 6];      // facing the camera, right, away
+  STATES[type].forEach((st, col) => views.forEach((o, v) => {
+    const e = spawnEnemy(type, 0, 0, { instant: true });
+    e.spawning = false; e.state = st; e.t = 0.12; e.belly = ['#ff5e6e', '#5ee0c8']; e.loot = 30;
+    cells.push({ e, st, o, x: (1 + col * 3 + v) * CW + CW / 2, y: row * RH + 66, walk: false });
+  }));
+  for (const o of [1, 3]) {
+    const e = spawnEnemy(type, 0, 0, { instant: true }); e.spawning = false; e.state = 'chase';
+    cells.push({ e, st: 'walk', o, x: (13 + (o === 1 ? 0 : 1)) * CW + CW / 2, y: row * RH + 66, walk: true });
+  }
+});
+let t0 = performance.now();
+function frame(now) {
+  world.runTime = (now - t0) / 1000;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#5a7a3e'; ctx.fillRect(0, 0, c.width, c.height);
+  ctx.setTransform(S, 0, 0, S, 0, 0);
+  ctx.fillStyle = '#fff'; ctx.font = '10px system-ui';
+  types.forEach((t, i) => ctx.fillText(t, 4, i * RH + 30));
+  for (const q of cells) {
+    const e = q.e;
+    if (q.walk) { e.x = q.x + Math.sin(world.runTime * 0.001) ; e.gLX = e.x - Math.cos(q.o * Math.PI / 4) * 2.2; e.gLY = q.y - Math.sin(q.o * Math.PI / 4) * 2.2; }
+    else { e.x = q.x; e.gLX = q.x; e.gLY = q.y; }
+    e.y = q.y; e.gOct = q.o; e.gTurn = 9;
+    e.t = q.st === 'fire' ? 0.02 : 0.12;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(e.x, e.y + e.r * 0.72, e.r * 0.85, e.r * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+    drawFigure(e, ctx);
+    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = '8px system-ui'; ctx.fillText(q.st, q.x - 14, q.y + 18);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script></body></html>

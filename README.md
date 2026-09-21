@@ -153,6 +153,16 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   heart fights you in a closing ring and guards a reliquary with a spell.
   Between the places: smaller fights (a ring of stones, a palisade, ruins)
   and **patrols** walking the roads. Resting brings them all back.
+- **Enemies as figures:** with the Wanderer, every enemy is a little
+  character that walks and winds up in 8 directions:
+  - Goblin Cutthroats and Skeleton Archers;
+  - Boar-folk Brutes with mauls and Bull Raiders;
+  - Imp Firebrands with lit kegs, Mushroom-folk and Frog Shamans;
+  - Lion Guards with shields and spears, and Firefly Imps;
+  - corpse-spirits, Rat-folk Sappers, Kappa and Hungry Ghosts;
+  - Draugr and gnome thieves.
+
+  (`v5/figures-preview.html` shows them all.)
 - **Lairs (all 14):** each guardian waits in a lair of its own:
   - the Drowned Vault on Mirror Lake's island;
   - the Story-Tree in the Webwood;

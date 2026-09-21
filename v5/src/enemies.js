@@ -9,6 +9,8 @@ import { damagePlayer, explode, dealDamage } from './combat.js';
 import { burst, ring, shake, flash as screenFlash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { createEnemyAnimator, updateEnemyAnim, drawEnemyRig } from './enemy-rigs.js';
+import { drawFigure } from './figures.js';
+import { look } from './wanderer.js';
 import {
   player, stepToward, stepAway, strafe, collideWorld, contactDamage, telegraphRing,
 } from './ai.js';
@@ -116,7 +118,7 @@ export const ENEMY_DEFS = {
           spawnProjectile({
             x: e.x + Math.cos(a) * 18, y: e.y + Math.sin(a) * 18,
             vx: Math.cos(a) * 310, vy: Math.sin(a) * 310,
-            r: 8, damage: e.damage, color: e.color, shape: 'orb', life: 3, srcType: 'slinger',
+            r: 8, damage: e.damage, color: e.color, shape: look.skin === 'wanderer' ? 'arrow' : 'orb', life: 3, srcType: 'slinger',
           });
           sfx.shoot();
           burst(e.x + Math.cos(a) * 18, e.y + Math.sin(a) * 18, {
@@ -817,7 +819,10 @@ export function drawEnemies(ctx) {
 
     // Burning glows orange, slowed goes icy.
     e.tint = e.flash > 0 ? '#ffffff' : e.burn ? '#ff8a3d' : e.slow && e.slow.mult < 0.9 ? '#9fd8ff' : e.color;
-    if (!drawEnemyRig(e, ctx)) e.def.draw(e, ctx);
+    // With the Wanderer's look, a little figure; otherwise the old shapes.
+    e.figTop = null;
+    if (!drawFigure(e, ctx) && !drawEnemyRig(e, ctx)) e.def.draw(e, ctx);
+    const top = e.figTop ?? e.y - e.r;
     if (e.boss || e.def.extras) drawBossExtras(e, ctx);
 
     // Stunned: little stars circling the head.
@@ -826,7 +831,7 @@ export function drawEnemies(ctx) {
         const a = world.runTime * 5 + (k / 3) * TAU;
         ctx.fillStyle = '#ffe27a';
         ctx.beginPath();
-        ctx.arc(e.x + Math.cos(a) * e.r * 0.8, e.y - e.r - 4 + Math.sin(a) * 4, 2.6, 0, TAU);
+        ctx.arc(e.x + Math.cos(a) * e.r * 0.8, top - 4 + Math.sin(a) * 4, 2.6, 0, TAU);
         ctx.fill();
       }
     }
@@ -841,7 +846,7 @@ export function drawEnemies(ctx) {
     // Health bar for anything meaningfully tanky.
     if (!e.boss && !e.def.noBar && e.hp < e.maxHp && e.maxHp > 45) {
       const w = e.r * 2.2, h = 4;
-      const x = e.x - w / 2, y = e.y - e.r - 12;
+      const x = e.x - w / 2, y = top - 12;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
       ctx.fillStyle = e.elite ? '#ffc861' : '#ff5e6e';

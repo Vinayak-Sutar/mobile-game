@@ -4385,6 +4385,62 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.43 Enemies redrawn as figures (E1 of the enemy redesign) (2026-09-21)
+
+The owner asked for enemies designed for Version 5: little humanoids,
+skeletons and beast-folk with walk and attack animations. Decisions (asked):
+- match the Wanderer's drawn style;
+- keep each behaviour and add new creatures with new behaviours;
+- skeletons and undead, beast-folk, goblins and imps, bandits and cultists;
+- research other games and mythology.
+
+This first step redraws the 15 existing enemies. New creatures come next.
+
+- **`figures.js` (new): one puppet**, built in its own 3D frame (f forward,
+  r right, h up). It is turned to one of 8 directions and projected (the
+  ground plane at half height).
+  - The parts are sorted by depth, so the far limbs are drawn first and a
+    figure turned away shows its back.
+  - **Legs**: two-bone IK, knees forward. The walk is the Wanderer's stepped
+    stride, on twos, driven by the ground covered.
+  - **Arms**: the elbows bend back and out. The hands go where the POSE puts
+    them.
+  - **Facing**: at you in the attacking states (`aimAt`), the way it walks
+    otherwise. It turns one direction at a time.
+  - **A creature** is a build (numbers), a palette, a head, a weapon, items
+    (quiver, shell, sack, keg, tail, wings, belly, shield) and a pose
+    function that reads the enemy's own state machine. The drawing and the
+    hitboxes never disagree, and no behaviour changed.
+  - It is drawn only with the Wanderer's look (`look.skin`); the Hooded One
+    keeps the old shapes.
+  - `e.figTop` places the health bars, stun stars and champion names over
+    the head.
+- **The cast**:
+  - wretch: Goblin Cutthroat (crouch, lunge with a knife);
+  - slinger: Skeleton Archer (draws, a glowing arrowhead, looses arrows; its
+    shots use the `arrow` shape);
+  - brute: Boar-folk Brute (maul overhead, slammed down);
+  - charger: Bull Raider (paws the ground, head down, charges, dazed);
+  - bomber: Imp Firebrand (a lit keg overhead, blinking on the fuse);
+  - splitter: Mushroom-folk (its sprouts are orange-capped);
+  - spitter: Frog Shaman (squats, throat swells, skull staff);
+  - chinthe: Lion Guard (tower shield and spear; the shield drops when open);
+  - adze: Firefly Imp (still sparks while swarming; a winged imp with a
+    glowing tail while it gathers and feeds);
+  - vetala: a hooded corpse-spirit (legless robe; threads to the body it
+    rides);
+  - sapper: Rat-folk Sapper (miner's helmet and lamp, lit charge, tail);
+  - kappa: shell, beak, and a dish that spills when its leap misses;
+  - preta: Hungry Ghost (gaunt, long neck, a belly holding what it swallowed);
+  - draugr: Draugr (mail, nasal helm, axe; climbs out of the ground as it
+    rises);
+  - duende: a gnome thief (red hat, beard, a sack that fills with your gold).
+- **Checked**:
+  - a stub canvas draws every creature in every state and all 8 directions,
+    walking and still, with no bad numbers, at about 67 µs a figure;
+  - the art was checked by eye on `v5/figures-preview.html` (a sheet of
+    every figure; `?only=brute,kappa&s=3` to zoom in).
+
 ### 16.42 The Wilds, M5: the last seven guardians, the Great Bridge, the Ashen Gate (2026-09-21)
 
 All fourteen bosses are now in the world. With them, the Wilds can be
