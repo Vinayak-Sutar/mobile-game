@@ -52,6 +52,7 @@ const SPAWNABLE = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
   'adze', 'chinthe', 'vetala', 'sapper', 'kappa', 'preta', 'draugr', 'duende',
   'crossbow', 'necro', 'jiangshi', 'zealot', 'wolf', 'tengu', 'banshee', 'spearman',
+  'ronin', 'kitsune', 'ninja',
 ];
 
 /** How many of a role a single wave may hold. */

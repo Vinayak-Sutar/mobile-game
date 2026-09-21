@@ -6,6 +6,7 @@ import { TAU, clamp, lerp, roundRect, polygon } from './util.js';
 import { input, controls } from './input.js';
 import { GODS, boonById } from './boons.js';
 import { bossInRoom } from './enemies.js';
+import { miniInFight } from './enemies-mini.js';
 import { FINAL_DEPTH, isBossDepth } from './rooms.js';
 import { BOSS_INFO } from './bosses.js';
 import { audio } from './audio.js';
@@ -249,6 +250,28 @@ export function drawHud(ctx, time) {
     ctx.font = `800 12px ${FONT}`;
     const tag = boss.exposed > 0 ? '  ·  EXPOSED' : '';
     ctx.fillText(boss.title.toUpperCase() + tag, view.w / 2, byy + bh + 13);
+  }
+
+  // A mini-boss in a fight near you: a bar of its own, with its name.
+  const mini = !boss && bosses.length < 2 ? miniInFight() : null;
+  if (mini) {
+    const bw = Math.min(520, view.w - 260), bh = 12;
+    const bxx = view.w / 2 - bw / 2, byy = 64;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    roundRect(ctx, bxx - 3, byy - 3, bw + 6, bh + 6, 5);
+    ctx.fill();
+    ctx.fillStyle = mini.exposed > 0 ? '#ffe27a' : mini.color;
+    roundRect(ctx, bxx, byy, bw * clamp(mini.hp / mini.maxHp, 0, 1), bh, 3);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bxx + bw * 0.5, byy); ctx.lineTo(bxx + bw * 0.5, byy + bh); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,220,180,0.5)'; ctx.lineWidth = 1.5;
+    roundRect(ctx, bxx, byy, bw, bh, 3);
+    ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = mini.exposed > 0 ? '#ffe27a' : '#ffd9a0';
+    ctx.font = `800 11px ${FONT}`;
+    ctx.fillText((mini.champion || mini.title || '').toUpperCase() + (mini.exposed > 0 ? '  ·  EXPOSED' : ''), view.w / 2, byy + bh + 12);
   }
 
   // --- weapon name, and the ability bar (keyboard and pad) ----------------

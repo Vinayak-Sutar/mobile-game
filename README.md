@@ -172,6 +172,13 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Tengu that dive from the sky onto their shadow;
   - Banshees whose keening fills a cone;
   - Skeleton Spearmen.
+- **Mini-bosses:** eight named foes hold places across the Wilds, each with
+  a bar of its own, a second phase and a rich reliquary:
+  - Kyubi, the Nine-Tailed, and Sasaki, the Wandering Blade, on Cloud Summit;
+  - the Oni Warlord, the Bone Captain, the Alpha and the Bandit Queen;
+  - the Bog Hag and the Hierophant.
+
+  Ronin, kitsune and ninja walk the Summit's roads.
 - **Cloud Summit, in blossom:** a Japanese mountain. Tunnels of red torii
   climb its roads, stone lanterns glow and red paper lanterns hang along the
   way, and cherry trees drop petals onto the wind and around your feet. At

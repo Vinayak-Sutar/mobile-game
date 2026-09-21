@@ -27,6 +27,7 @@ import { ring, burst, shake } from './fx.js';
 import { sfx } from './audio.js';
 import { TT, mulberry } from './terrain.js';
 import { WILDS, START, LAMPS, OUTPOSTS, AMBUSHES } from './wilds-layout.js';
+import { MINI_DEFS } from './enemies-mini.js';
 
 // Which enemies live where.
 export const REGION_FOES = {
@@ -42,9 +43,15 @@ export const REGION_FOES = {
   peaks: ['brute', 'bomber', 'charger', 'sapper', 'tengu'],
   gorge: ['adze', 'spitter', 'vetala', 'kappa', 'jiangshi'],
   moors: ['draugr', 'vetala', 'preta', 'wretch', 'banshee', 'necro', 'spearman'],
-  summit: ['duende', 'chinthe', 'brute', 'slinger', 'tengu'],
+  summit: ['ronin', 'ninja', 'kitsune', 'tengu', 'kappa'],
   bridge: ['brute', 'charger', 'draugr', 'spearman'],
   citadel: ['draugr', 'vetala', 'brute', 'chinthe', 'spearman', 'zealot', 'jiangshi'],
+};
+// Places held by a mini-boss instead of a champion: one to a land, a Japanese
+// pair on Cloud Summit.
+const MINI_AT = {
+  cloudtemple: 'kyubi', terracevillage: 'sasaki', scorchpass: 'oni', barrows: 'captain',
+  hollowkeep: 'alpha', dustwall: 'queen', stiltmoor: 'hag', sunterrace: 'hierophant',
 };
 const RANGED = new Set(['slinger', 'spitter', 'bomber', 'crossbow']);
 // The heavy hitters a champion is made from, best first.
@@ -92,6 +99,15 @@ export function unitsFromPlaces(places, ctx) {
         perches: g.perches || null,
       }, rng, region, g.n + (region.tier >= 2 ? 1 : 0)));
     });
+    // A mini-boss holds some places in its champion's stead.
+    if (P.champ && MINI_AT[P.id] && MINI_DEFS[MINI_AT[P.id]]) {
+      const type = MINI_AT[P.id];
+      units.push(unit({
+        id: `${P.id}:champ`, kind: 'champion', mini: true, place: P.id, x: P.champ.x, y: P.champ.y, r: CHAMP_R + 60,
+        relic: P.relic, reward: 'spell', name: MINI_DEFS[type].title, waves: [[type]], elite: false,
+      }, rng, region, 1));
+      continue;
+    }
     if (P.champ) {
       const foes = REGION_FOES[region.id] || REGION_FOES.heartland;
       const type = CHAMPION_KINDS.find((t) => foes.includes(t)) || foes[0];
@@ -300,15 +316,17 @@ function spawnWave(s, spawn) {
       leash = { x: s.x, y: s.y, r: s.r - 12 };
     }
     const champ = s.kind === 'champion';
-    const e = spawn(type, x, y, { instant: true, scale: s.scale, elite: champ || (s.elite && last && i === 0) });
+    const e = spawn(type, x, y, { instant: true, scale: s.scale, elite: (champ && !s.mini) || (s.elite && last && i === 0) });
     if (!e) return;
     e.leash = leash;
     e.site = s.id;
     e.asleep = () => !s.awake;
     if (champ) {
       e.champion = s.name;
-      e.r *= 1.15;
-      e.damage = Math.round(e.damage * 1.25);
+      if (!s.mini) {
+        e.r *= 1.15;
+        e.damage = Math.round(e.damage * 1.25);
+      }
     }
     s.members.push(e);
   });

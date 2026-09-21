@@ -4385,6 +4385,57 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.46 Japanese enemies for Cloud Summit, and mini-bosses (2026-09-22)
+
+- **`enemies-yokai.js` (new)**:
+
+  | Type | Job | Its answer |
+  |---|---|---|
+  | `ronin` | hand on the hilt, a pale line to you that locks 0.22 s before the draw, then a dash of 270 through it | step off the line; he is exposed for 0.8 s while he sheathes |
+  | `kitsune` | a fox-masked spirit in white; slow homing foxfire | at 60% health she leaves a `foxclone` and blinks 160 away; the illusion is harmless, pops in one hit and casts no shadow (`def.noShadow`) |
+  | `ninja` | vanishes in smoke (hidden, invulnerable) and reappears behind you to throw three stars | a faint smoke ring marks where he will step out |
+
+- **Cloud Summit's posts** are now ronin, ninja, kitsune, tengu and kappa.
+  The three new types also join the chamber waves.
+- **`enemies-mini.js` (new): eight mini-bosses**, each a boss-kit spec run by
+  `runBoss`: moves chosen by weight and range, a second phase at half health,
+  punish windows (`expose`). They are marked `mini` (not `boss`), so there is
+  no arena and no boss-room logic.
+
+  | Mini-boss | Place | Moves |
+  |---|---|---|
+  | **Kyubi, the Nine-Tailed** | Cloud Temple | fans of homing foxfire (5, then 7); illusions round you, and she becomes one of them (the real one has a shadow); a dash ending in a tail sweep, exposed after in phase 1 |
+  | **Sasaki, the Wandering Blade** | Terrace Village | the iai draw on a locking line (twice in phase 2), then exposed; a three-cut combo; a flying crescent (3 in phase 2); in phase 2 a COUNTER STANCE: strike him while he glows (a blue ring) and the blow is turned and answered |
+  | **the Oni Warlord** | Scorch Pass | a club slam down a lit line (plus a gapped shockwave when berserk); a spinning sweep; a charge, exposed after; BERSERK at half (faster everything) |
+  | **the Bone Captain** | the Hollow Barrows | guarded from the front while idle; a three-cut combo; a shield rush; raises bonelings (3, then 4) |
+  | **the Alpha** | Hollow Keep | chains of pounces (3, then 4), exposed after; a howl (exposed) that calls wolves |
+  | **the Bandit Queen** | Fort Dustwall | five (then seven) locking lines, then a bolt fan; a smoke bomb and knives from where the smoke ring was; a double knife dash |
+  | **the Bog Hag** | Stiltmoor | lobbed poison (3, then 5); calls kappa; a great leap onto its shadow, exposed after |
+  | **the Hierophant** | the Sun Terrace | a halo of orbs bursting outward (two rings later); a lance of light (a beam hazard whose warning line tracks you, then locks); calls zealots; a blink away |
+
+- **In the Wilds** they take those places' champion slot (`MINI_AT` in
+  wilds-sites.js):
+  - a 360 duel ring;
+  - no elite boost;
+  - their own bar at the top of the screen (`miniInFight`, with a mark at
+    half) and fight music;
+  - a reliquary worth 380·(1 + tier) Cinders plus a spell.
+- All of them, and the three new types, are in the **training ring** for
+  practice.
+- **Figures** for all eleven, among them:
+  - Kyubi's nine tails, which glow blue as she casts;
+  - Sasaki's kasa and long katana;
+  - the Oni's white mane, horns, tiger-skin wrap and studded kanabo;
+  - the Captain's plumed helm and round shield;
+  - the Queen's feathered hat and red cloak;
+  - the Hag's lantern-staff;
+  - the Hierophant's mitre, halo and sun staff.
+- **Verified in Node**:
+  - each mini-boss fought for 25 s: every move ran, phase 2 was reached where
+    the damage allowed, and every figure drew with no bad numbers;
+  - all eight are placed in their lands;
+  - the art was checked on the preview sheet.
+
 ### 16.45 Cloud Summit becomes a Japanese mountain in blossom (2026-09-21)
 
 The owner asked for a Japan-inspired area (red shrine gates, red lanterns,

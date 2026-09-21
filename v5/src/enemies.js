@@ -19,6 +19,8 @@ import { FOLK_DEFS, bindFolkSpawner, updateCorpses } from './enemies-folk.js';
 import { TRAINING_DEFS } from './training.js';
 import { FOLK_DEFS2, tickHidden } from './enemies-folk2.js';
 import { KIN_DEFS, bindKinSpawner, drawWard } from './enemies-kin.js';
+import { YOKAI_DEFS, bindYokaiSpawner } from './enemies-yokai.js';
+import { MINI_DEFS } from './enemies-mini.js';
 
 const SPAWN_TIME = 0.75;
 
@@ -616,7 +618,7 @@ export const ENEMY_DEFS = {
 
 // The four creature bosses and their minions live in bosses.js, and the
 // folk enemies (Chinthe, Adze, Vetala) in enemies-folk.js.
-Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, FOLK_DEFS2, KIN_DEFS, TRAINING_DEFS);
+Object.assign(ENEMY_DEFS, BOSS_DEFS, FOLK_DEFS, FOLK_DEFS2, KIN_DEFS, YOKAI_DEFS, MINI_DEFS, TRAINING_DEFS);
 
 function chooseWardenAction(e, p) {
   const d = dist(e.x, e.y, p.x, p.y);
@@ -699,6 +701,7 @@ export function spawnEnemy(type, x, y, opts = {}) {
 bindBossSpawner(spawnEnemy);
 bindFolkSpawner(spawnEnemy);
 bindKinSpawner(spawnEnemy);
+bindYokaiSpawner(spawnEnemy);
 
 function defaultDamage(type) {
   return {
@@ -813,7 +816,8 @@ export function drawEnemies(ctx) {
     // things (a leaping gorilla) leave it on the ground, shrinking as they rise.
     const z = e.z || 0;
     const shadowK = 1 / (1 + z / 160);
-    ctx.globalAlpha = 0.3 + (z > 0 ? 0.15 : 0);
+    // (An illusion casts none: that is how to tell it.)
+    ctx.globalAlpha = e.def.noShadow ? 0 : 0.3 + (z > 0 ? 0.15 : 0);
     ctx.fillStyle = '#000';
     ctx.beginPath();
     ctx.ellipse(e.x, e.y + e.r * 0.72, e.r * 0.85 * shadowK, e.r * 0.34 * shadowK, 0, 0, TAU);
@@ -851,7 +855,7 @@ export function drawEnemies(ctx) {
     }
 
     // Health bar for anything meaningfully tanky.
-    if (!e.boss && !e.def.noBar && e.hp < e.maxHp && e.maxHp > 45) {
+    if (!e.boss && !e.mini && !e.def.noBar && e.hp < e.maxHp && e.maxHp > 45) {
       const w = e.r * 2.2, h = 4;
       const x = e.x - w / 2, y = top - 12;
       ctx.fillStyle = 'rgba(0,0,0,0.55)';

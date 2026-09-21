@@ -116,7 +116,7 @@ function prepare(e, F) {
  */
 export function drawFigure(e, ctx) {
   if (look.skin !== 'wanderer') return false;
-  const F = FIGS[e.type];
+  const F = e.type === 'foxclone' && e.look ? FIGS[e.look] : FIGS[e.type];
   if (!F || (F.skip && F.skip(e))) return false;
   F.B = F.B || { ...BODY, ...F.body };
   const B = F.B;
@@ -450,6 +450,52 @@ function drawSpear(ctx, g, hand, dir, len, back = 8, head = '#c8ccd0') {
   const [x, y] = g.pr(...tip), [bx, by] = g.pr(...along(g, hand, dir, len - 4));
   ctx.beginPath(); ctx.moveTo(x + (x - bx) * 0.9, y + (y - by) * 0.9); ctx.lineTo(bx - 2, by); ctx.lineTo(bx + 2, by); ctx.closePath();
   g.fillOut(g.col(head), 1);
+}
+
+/** A katana: a long thin blade, a dark wrapped hilt. */
+function drawKatana(ctx, g, hand, dir, len = 15) {
+  drawBlade(ctx, g, hand, dir, len, '#e8eef4', '#1e1a24', 2);
+}
+
+/** A straw hat (kasa): a wide shallow cone. */
+function kasa(ctx, g, color = '#c8a860', w = 1) {
+  const { x, y, R } = g.head;
+  ctx.beginPath(); ctx.moveTo(x - (R + 7) * w, y - R * 0.35); ctx.lineTo(x, y - R * 1.7); ctx.lineTo(x + (R + 7) * w, y - R * 0.35);
+  ctx.quadraticCurveTo(x, y - R * 0.1, x - (R + 7) * w, y - R * 0.35); ctx.closePath();
+  g.fillOut(g.col(color), 1.3);
+  if (!g.flash) { ctx.strokeStyle = 'rgba(80,60,30,0.4)'; ctx.lineWidth = 0.8; for (const k of [-0.5, 0, 0.5]) { ctx.beginPath(); ctx.moveTo(x, y - R * 1.7); ctx.lineTo(x + k * (R + 7) * w, y - R * 0.3); ctx.stroke(); } }
+}
+
+/** A fox's head: orange, white cheeks and muzzle, tall ears. */
+function foxHead(ctx, g, fur = '#e8843a', mask = false) {
+  spikes(ctx, g, [-0.5, 3.4, 3.5], [-1, 4.6, 9.5], 2.2, mask ? '#f4ece0' : fur);
+  headBall(ctx, g, mask ? '#f4ece0' : fur);
+  nub(ctx, g, 6, 0, -1.5, 3, 2, '#f4ece0');
+  nub(ctx, g, 8.4, 0, -1.3, 1, 0.9, '#1a1210');
+  if (!g.flash && g.vis(g.head.R, 0)) {
+    for (const s2 of [1, -1]) {
+      if (!g.vis(g.head.R * 0.8, s2 * 2.3)) continue;
+      const [x, y] = g.hp(g.head.R * 0.8, s2 * 2.3, 1);
+      ctx.strokeStyle = mask ? '#c8302a' : '#1a1210'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(x - 1.6, y + 0.6); ctx.lineTo(x + 1.6, y - 0.6); ctx.stroke();
+    }
+  }
+}
+
+/** Fox tails, fanned up behind: n of them, tipped white (glowing blue as it casts). */
+function foxTails(g, n, glow) {
+  return { f: -4, r: 0, bias: -3, draw: (ctx) => {
+    const [bx, by] = g.body(-3, 0, g.hipH + 2);
+    for (let k = 0; k < n; k++) {
+      const a = -Math.PI / 2 + (n === 1 ? 0.9 : (k / (n - 1) - 0.5) * 2.2) + Math.sin(g.t * 2 + k) * 0.08;
+      const len = 13 + (k % 2) * 3;
+      const tx = bx + Math.cos(a) * len - g.ca * 3, ty = by + Math.sin(a) * len * 0.9;
+      ctx.beginPath(); ctx.ellipse((bx + tx) / 2, (by + ty) / 2, len * 0.55, 3.4, a, 0, TAU); g.fillOut(g.col('#e8843a'), 1.1);
+      ctx.beginPath(); ctx.ellipse(tx - Math.cos(a) * 2, ty - Math.sin(a) * 2, 3.2, 2.6, a, 0, TAU);
+      g.fillOut(g.col(glow ? '#bfe8ff' : '#f8f0e8'), 1);
+      if (glow && !g.flash) { ctx.fillStyle = 'rgba(160,220,255,0.35)'; ctx.beginPath(); ctx.arc(tx, ty, 6, 0, TAU); ctx.fill(); }
+    }
+  } };
 }
 
 // --- the roster ----------------------------------------------------------------------------
@@ -1350,6 +1396,384 @@ const FIGS = {
       ctx.beginPath(); ctx.ellipse(x, y - R * 0.35, R + 1, R * 0.75, 0, Math.PI, TAU); ctx.closePath(); g.fillOut(g.col('#8a7a5a'), 1.2);
     },
   },
+  // --- the Ronin: a masterless swordsman, hand on the hilt.
+  ronin: {
+    scale: 1.2,
+    body: { legL: 11, torsoH: 12, torsoW: 12, torsoD: 8, shW: 5.4, armL: 10.5, headR: 5.6, legW: 3.6, armW: 3 },
+    c: { main: '#5a5a6a', leg: '#3a3a48', arm: '#5a5a6a', hand: '#e2b489', skin: '#e2b489', foot: '#1e1a1a' },
+    crown: 3,
+    aimAt: (e) => e.state === 'stance' || e.state === 'draw',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'stance') return { crouch: 3, stance: 'wide', lean: 0.2, handR: [1, 2, shH - 9], handL: [2, -2, shH - 9], wR: [-0.6, 0.3, -0.5] };
+      if (e.state === 'draw') return { lean: 0.5, stance: 'wide', handR: [B.armL, 2, shH - 2], wR: [1, 0.1, 0.05] };
+      if (e.state === 'sheathe') return { lean: 0.1, handR: [2, 3, shH - 8], wR: [-0.4, 0.2, -0.8] };
+      return { lean: 0.08, handR: [1, 5, shH - 9], wR: [-0.5, 0.2, -0.7] };
+    },
+    weapon(ctx, g, key, hand, dir) { if (key === 'R') drawKatana(ctx, g, hand, dir, 15); },
+    torso(ctx, g, T) {
+      if (!T || g.flash || g.away) return;
+      ctx.strokeStyle = '#e8e0cc'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(T.tx - 3, T.ty + 1); ctx.lineTo(T.tx + 1, T.ty + 7); ctx.lineTo(T.tx + 3, T.ty + 1); ctx.stroke();
+      ctx.fillStyle = '#2a2a34'; ctx.fillRect(T.bx - T.hwB, T.by - 5, T.hwB * 2, 2.6);
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#e2b489');
+      eyes(ctx, g, '#1a1210', 2.2, 1, 1.3);
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.arc(x, y - 0.5, R + 0.4, Math.PI * 1.02, Math.PI * 1.98); ctx.closePath(); g.fillOut(g.col('#1a1414'), 1.1);
+      ctx.beginPath(); ctx.ellipse(x - g.ca * 1.5, y - R - 1.5, 2.2, 1.6, 0, 0, TAU); g.fillOut(g.col('#1a1414'), 1);
+    },
+  },
+
+  // --- the Kitsune: a fox spirit in a white robe, a fox mask, one tail.
+  kitsune: {
+    scale: 1.15,
+    body: { legL: 10, torsoH: 12, torsoW: 10, torsoD: 7, shW: 4.8, armL: 10, headR: 5.4, legs: false, armW: 2.4 },
+    c: { main: '#f4ece0', arm: '#f4ece0', hand: '#f0d8c0', skin: '#f0d8c0' },
+    crown: 5,
+    aimAt: (e) => e.state === 'wind',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'wind') return { handR: [B.armL - 1, 3, shH], frontR: true, handL: [2, -5, shH - 7], fire: 1 };
+      return { handR: [3, 5, shH - 6], handL: [3, -5, shH - 6], fire: 0.3 };
+    },
+    torso: robe('#f4ece0', false),
+    items(g) {
+      const out = [foxTails(g, 1, false)];
+      const h = g.hands.R;
+      if (h) out.push({ f: h.hand[0], r: h.hand[1], bias: 4, draw: (ctx) => {
+        if (g.flash) return;
+        const [x, y] = g.pr(...h.hand);
+        const k = g.P.fire || 0;
+        ctx.fillStyle = `rgba(160,220,255,${(0.3 * k).toFixed(2)})`; ctx.beginPath(); ctx.arc(x, y - 4, 7 * k + 2, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#e8f6ff'; ctx.beginPath(); ctx.ellipse(x, y - 4, 2 * k + 1, 3.5 * k + 1, 0, 0, TAU); ctx.fill();
+      } });
+      return out;
+    },
+    over(ctx, g) {
+      // A red sash across the robe.
+      if (g.flash || g.away) return;
+      const [x, y] = g.body(0, 0, g.hipH + g.B.torsoH * 0.45);
+      ctx.fillStyle = '#c8302a'; ctx.fillRect(x - 5, y - 1.5, 10, 3);
+    },
+    head(ctx, g) { foxHead(ctx, g, '#e8843a', true); },
+  },
+
+  // --- the Ninja: black-clad, masked, a red scarf; three stars from behind you.
+  ninja: {
+    scale: 1.2,
+    body: { legL: 10, torsoH: 10, torsoW: 10, torsoD: 7, shW: 4.6, armL: 9.5, headR: 5.2, legW: 2.8, armW: 2.4, cycle: 55, stride: 4.4 },
+    c: { main: '#2a2a34', leg: '#22222c', arm: '#2a2a34', hand: '#22222c', skin: '#e2b489', foot: '#141418' },
+    aimAt: (e) => e.state === 'throw',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'smoke') return { crouch: 3, handR: [2, 2, shH], handL: [2, -2, shH], frontR: true };
+      if (e.state === 'throw') { const k = kOf(e, 0.28); return { stance: 'wide', lean: 0.2, handR: [-3 + k * (B.armL + 3), 3, shH + 2 - k * 3], star: true }; }
+      if (e.state === 'recover') return { lean: 0.3, handR: [B.armL, 2, shH - 2] };
+      return { lean: 0.3, crouch: 1.5, handR: [-3, 5, shH - 5], handL: [-3, -5, shH - 5] };
+    },
+    items(g) {
+      return [{ f: -3, r: 0, bias: -2, draw: (ctx) => {
+        // The scarf, streaming out behind.
+        const [x, y] = g.body(-1, 0, g.shH + 1);
+        const w = Math.sin(g.t * 9) * 2;
+        ctx.strokeStyle = OUT; ctx.lineWidth = 4.4;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - g.ca * 8, y + w, x - g.ca * 14, y + 3 - w); ctx.stroke();
+        ctx.strokeStyle = g.col('#c8302a'); ctx.lineWidth = 2.6; ctx.stroke();
+      } }];
+    },
+    over(ctx, g) {
+      const h = g.hands.R;
+      if (!h || !g.P.star || g.flash) return;
+      const [x, y] = g.pr(...h.hand);
+      ctx.save(); ctx.translate(x, y - 2); ctx.rotate(g.t * 20);
+      ctx.fillStyle = '#c8ccd8';
+      for (let k = 0; k < 4; k++) { ctx.rotate(Math.PI / 2); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(4, 1); ctx.lineTo(0, 1.6); ctx.fill(); }
+      ctx.restore();
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#2a2a34');
+      if (!g.away && !g.flash && g.vis(g.head.R, 0)) {
+        const [x, y] = g.hp(g.head.R * 0.7, 0, 1);
+        ctx.fillStyle = '#e2b489'; ctx.fillRect(x - 3.4, y - 1.2, 6.8, 2.6);
+      }
+      eyes(ctx, g, '#1a1210', 1.8, 1, 1.1);
+    },
+  },
+
+  // --- Kyubi, the Nine-Tailed: a fox spirit in white and red, nine tails fanned.
+  kyubi: {
+    scale: 1.1,
+    body: { legL: 11, torsoH: 13, torsoW: 12, torsoD: 9, shW: 5.4, armL: 11, headR: 5.8, legs: false, armW: 2.8 },
+    c: { main: '#f4ece0', arm: '#c83a2a', hand: '#f0d8c0', skin: '#f0d8c0' },
+    crown: 6,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      const a = e.action, s2 = e.sub;
+      if (a === 'foxfire' && s2 === 'wind') return { handR: [B.armL - 1, 4, shH + 1], handL: [B.armL - 1, -4, shH + 1], frontR: true, frontL: true, glow: true };
+      if (a === 'illusion') return { handR: [0, 7, shH + 5], handL: [0, -7, shH + 5], glow: true, shake: 0.3 };
+      if (a === 'sweep') return s2 === 'crouch' ? { lean: 0.35, crouch: 2, handR: [-3, 6, shH - 6], handL: [-3, -6, shH - 6] } : { lean: 0.45, handR: [-4, 7, shH - 2], handL: [-4, -7, shH - 2] };
+      if (a === 'exposed') return { shake: 0.4, lean: -0.15, handR: [1, 7, shH - 11], handL: [1, -7, shH - 11] };
+      if (a === 'phase') return { handR: [0, 8, shH + 6], handL: [0, -8, shH + 6], glow: true, shake: 0.5 };
+      return { handR: [3, 5, shH - 5], handL: [3, -5, shH - 5] };
+    },
+    torso: robe('#f4ece0', false),
+    items(g) { return [foxTails(g, 9, !!g.P.glow)]; },
+    over(ctx, g) {
+      if (g.flash || g.away) return;
+      const [x, y] = g.body(0, 0, g.hipH + g.B.torsoH * 0.45);
+      ctx.fillStyle = '#c8302a'; ctx.fillRect(x - 6, y - 2, 12, 4);
+    },
+    head(ctx, g) { foxHead(ctx, g, '#e8843a', false); },
+  },
+
+  // --- Sasaki, the Wandering Blade: a ronin master in blue, a straw hat, a long katana.
+  sasaki: {
+    scale: 1.2,
+    body: { legL: 12, torsoH: 13, torsoW: 12, torsoD: 8, shW: 5.6, armL: 11.5, headR: 5.6, legW: 3.8, armW: 3 },
+    c: { main: '#2a3a5a', leg: '#1e2a44', arm: '#2a3a5a', hand: '#e2b489', skin: '#e2b489', foot: '#141418' },
+    crown: 6,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      if (a === 'iaido' && s2 === 'stance') return { crouch: 3.5, stance: 'wide', lean: 0.25, handR: [1, 2, shH - 9], handL: [2, -2, shH - 9], wR: [-0.6, 0.3, -0.5] };
+      if (a === 'iaido' && s2 === 'dash') return { lean: 0.55, stance: 'wide', handR: [B.armL, 2, shH - 2], wR: [1, 0.1, 0.05] };
+      if (a === 'combo') { const side = e.cutSide || 1; return s2 === 'wind' ? { stance: 'wide', handR: [-1, 4 * side, shH + 5], wR: [-0.3, side * 0.6, 1] } : { stance: 'wide', lean: 0.3, handR: [B.armL - 1, -3 * side, shH - 5], wR: [0.6, -side, -0.4] }; }
+      if (a === 'wave') return s2 === 'wind' ? { handR: [-2, 3, shH + 7], wR: [-0.4, 0, 1] } : { lean: 0.3, handR: [B.armL, 1, shH - 6], wR: [1, 0, -0.5] };
+      if (a === 'parry') return { stance: 'wide', handR: [5, 1, shH - 3], handL: [5, -1, shH - 3], wR: [0.1, 0, 1], guard: true };
+      if (a === 'exposed') return { lean: 0.1, shake: 0.3, handR: [2, 5, shH - 10], wR: [0.3, 0.3, -1] };
+      return { lean: 0.05, handR: [1, 5, shH - 9], wR: [-0.5, 0.2, -0.7] };
+    },
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      drawKatana(ctx, g, hand, dir, 19);
+      if (g.P.guard && !g.flash) {
+        const [x, y] = g.pr(...along(g, hand, dir, 10));
+        ctx.fillStyle = 'rgba(190,224,255,0.35)'; ctx.beginPath(); ctx.arc(x, y, 10, 0, TAU); ctx.fill();
+      }
+    },
+    torso(ctx, g, T) {
+      if (!T || g.flash || g.away) return;
+      ctx.strokeStyle = '#e8e0cc'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.moveTo(T.tx - 3.5, T.ty + 1); ctx.lineTo(T.tx + 1, T.ty + 8); ctx.lineTo(T.tx + 3.5, T.ty + 1); ctx.stroke();
+      ctx.fillStyle = '#e8e0cc'; ctx.fillRect(T.bx - T.hwB, T.by - 5, T.hwB * 2, 2.6);
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#e2b489');
+      eyes(ctx, g, '#1a1210', 2.2, 0.8, 1.3);
+      kasa(ctx, g, '#c8a860', 1.1);
+    },
+  },
+
+  // --- the Oni Warlord: red-skinned, horned, a tiger-skin wrap, an iron club.
+  oni: {
+    scale: 1,
+    body: { legL: 11, hipW: 4.2, torsoH: 14, torsoW: 17, torsoD: 12, shW: 8, armL: 12, headR: 6.6, legW: 5, armW: 4.8, cycle: 95, stride: 3.4 },
+    c: { main: '#c83a2a', leg: '#b8342a', arm: '#c83a2a', hand: '#b8342a', skin: '#c83a2a', foot: '#3a1a14' },
+    crown: 6,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      const rage = e.phase >= 2 ? 0.3 : 0;
+      if (a === 'smash' && s2 === 'raise') return { lean: -0.18, stance: 'wide', handR: [-2, 3, shH + 12], handL: [-1, -3, shH + 11], wR: [-0.8, 0, 1], shake: rage };
+      if (a === 'smash') return { lean: 0.35, crouch: 3, stance: 'wide', handR: [B.armL, 2, shH - 9], handL: [B.armL - 1, -2, shH - 9], wR: [1, 0, -0.9] };
+      if (a === 'sweep') return s2 === 'wind' ? { crouch: 2, handR: [-3, 9, shH - 2], handL: [-2, 5, shH - 3], wR: [-0.8, 0.8, 0.1] } : { crouch: 2, handR: [3, -9, shH - 2], handL: [2, -5, shH - 3], wR: [0.6, -1, 0.1] };
+      if (a === 'charge') return { lean: 0.5, crouch: 2, handR: [-3, 7, shH - 3], wR: [-0.6, 0.3, 0.6] };
+      if (a === 'exposed') return { lean: -0.1, shake: 0.5, handR: [3, 8, shH - 12], wR: [0.6, 0.3, -1] };
+      return { lean: 0.08, handR: [2, 7, shH - 3], wR: [-0.6, 0.2, 1], shake: rage * 0.3 };
+    },
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      // The kanabo: a long club, thicker to the end, studded with iron.
+      const tip = along(g, hand, dir, 22), butt = along(g, hand, dir, -3);
+      const a = g.pr(...butt), b = g.pr(...tip);
+      g.limb([a, g.pr(...along(g, hand, dir, 8))], 3, g.col('#3a3a42'));
+      g.limb([g.pr(...along(g, hand, dir, 8)), b], 6.5, g.col('#4a4a54'));
+      if (!g.flash) {
+        ctx.fillStyle = '#9a9aa8';
+        for (let k = 10; k < 22; k += 3) { const [x, y] = g.pr(...along(g, hand, dir, k)); ctx.beginPath(); ctx.arc(x + 1.5, y - 1, 1.1, 0, TAU); ctx.fill(); }
+      }
+    },
+    torso(ctx, g, T) {
+      if (!T || g.flash) return;
+      // The tiger-skin wrap at the hips.
+      ctx.fillStyle = '#e8b040'; ctx.fillRect(T.bx - T.hwB - 0.5, T.by - 6, T.hwB * 2 + 1, 6);
+      ctx.fillStyle = '#1a1210';
+      for (let k = -2; k <= 2; k++) ctx.fillRect(T.bx + k * T.hwB * 0.38 - 0.8, T.by - 6, 1.6, 6);
+    },
+    head(ctx, g) {
+      // Wild white hair, horns, fangs.
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x - g.ca * 1.2, y - 1, R + 3, R + 2.5, 0, 0, TAU); g.fillOut(g.col('#e8e4dc'), 1.2);
+      spikes(ctx, g, [0.5, 3, 4.5], [1, 5, 11], 1.8, '#e8dcc0');
+      headBall(ctx, g, '#c83a2a');
+      eyes(ctx, g, g.e.phase >= 2 ? '#ffe24a' : '#ffd45e', 2.4, 1.2, 1.6, true);
+      if (!g.flash && g.vis(R, 0)) {
+        for (const s2 of [1, -1]) { const [fx, fy] = g.hp(R * 0.85, s2 * 1.8, -2.6); ctx.fillStyle = '#f4f0e8'; ctx.beginPath(); ctx.moveTo(fx - 0.8, fy); ctx.lineTo(fx, fy + 2.4); ctx.lineTo(fx + 0.8, fy); ctx.fill(); }
+      }
+    },
+  },
+
+  // --- the Bone Captain: a skeleton knight - breastplate, plumed helm, sword and shield.
+  captain: {
+    scale: 1.15,
+    body: { legL: 12, torsoH: 12, torsoW: 11, torsoD: 7, shW: 5.6, armL: 11, headR: 5.8, legW: 2.6, armW: 2.4, neck: 2.5 },
+    c: { main: '#8a8a94', leg: '#d8d0bc', arm: '#e0d8c4', hand: '#e8e0cc', skin: '#d8d0bc', foot: '#b8b0a0' },
+    crown: 7,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      const shield = { handL: [6, -3, shH - 5], frontL: true };
+      if (a === 'combo') { const side = e.cutSide || 1; return s2 === 'wind' ? { ...shield, handR: [-1, 4 * side, shH + 5], wR: [-0.3, side * 0.6, 1] } : { ...shield, lean: 0.3, handR: [B.armL - 1, -3 * side, shH - 5], wR: [0.6, -side, -0.4] }; }
+      if (a === 'rush') return { ...shield, lean: 0.4, stance: 'wide', handL: [B.armL, -1, shH - 3], handR: [-3, 6, shH - 6], wR: [-0.4, 0.3, 1] };
+      if (a === 'raise') return { handR: [2, 5, shH + 6], wR: [0, 0, 1], handL: [3, -6, shH - 6], rite: true };
+      if (a === 'exposed') return { shake: 0.4, lean: -0.1, handR: [2, 6, shH - 10], wR: [0.5, 0.3, -1], handL: [2, -8, shH - 11] };
+      return { ...shield, handR: [2, 5, shH - 7], wR: [0.3, 0.1, 1] };
+    },
+    weapon(ctx, g, key, hand, dir) { if (key === 'R') drawBlade(ctx, g, hand, dir, 14, '#c8ccd0', '#6a4a2c', 2.6); },
+    items(g) {
+      const h = g.hands.L;
+      if (!h) return [];
+      const c = [h.hand[0] + 1.5, h.hand[1], h.hand[2] - 1];
+      return [{ f: c[0] + 3, r: c[1], bias: g.P.rite ? -6 : 4, draw: (ctx) => drawPlate(ctx, g, c, 5.5, 5.5, '#6a5a4a', '#c8a050') }];
+    },
+    torso(ctx, g, T) {
+      if (!T || g.flash) return;
+      ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(T.tx - T.hwT * 0.6, T.ty + 2, T.hwT * 0.5, 7);
+      ctx.strokeStyle = '#c8a050'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(T.tx - T.hwT, T.ty + 1.5); ctx.lineTo(T.tx + T.hwT, T.ty + 1.5); ctx.stroke();
+    },
+    head(ctx, g) {
+      skull(ctx, g, '#ff5a3c');
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.35, R + 1, R * 0.8, 0, Math.PI, TAU); ctx.closePath(); g.fillOut(g.col('#7a7a84'), 1.2);
+      ctx.beginPath(); ctx.moveTo(x, y - R * 1.1); ctx.quadraticCurveTo(x - g.ca * 8, y - R * 2.2, x - g.ca * 11, y - R * 0.9); ctx.lineTo(x - g.ca * 2, y - R * 1.1); ctx.closePath();
+      g.fillOut(g.col('#c8302a'), 1);
+    },
+  },
+
+  // --- the Bandit Queen: a red cloak, a wide feathered hat, a crossbow.
+  queen: {
+    scale: 1.2,
+    body: { legL: 11, torsoH: 11, torsoW: 11, torsoD: 7.5, shW: 5.2, armL: 10, headR: 5.6, legW: 3.2, armW: 2.6 },
+    c: { main: '#5a3a2a', leg: '#2a2430', arm: '#6a4a34', hand: '#e2b489', skin: '#e2b489', foot: '#1e1612' },
+    crown: 7,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      if (a === 'fan' && s2 === 'aim') return { stance: 'wide', handR: [5, 2, shH - 1], handL: [B.armL - 1, -1, shH - 1], frontL: true, wR: [1, 0, 0] };
+      if (a === 'knives') return s2 === 'wind' ? { crouch: 2, lean: 0.25, handR: [-3, 5, shH - 4], wR: [0.2, 0.3, 1] } : { lean: 0.5, handR: [B.armL, 2, shH - 3], wR: [1, 0, 0] };
+      if (a === 'smoke') return { crouch: 2, handR: [2, 2, shH], handL: [2, -2, shH] };
+      if (a === 'exposed') return { shake: 0.4, handR: [2, 6, shH - 9], wR: [0.6, 0, -0.8] };
+      return { handR: [2, 5, shH - 7], handL: [3, -3, shH - 6], wR: [0.7, -0.2, -0.6] };
+    },
+    weapon(ctx, g, key, hand, dir) { FIGS.crossbow.weapon(ctx, g, key, hand, dir); },
+    items(g) {
+      return [{ f: -4, r: 0, bias: -2, draw: (ctx) => {
+        // The red cloak, hanging from the shoulders.
+        const [x0, y0] = g.body(-2, 5, g.shH);
+        const [x1, y1] = g.body(-2, -5, g.shH);
+        const [x2, y2] = g.pr(-5, -6, 1), [x3, y3] = g.pr(-5, 6, 1);
+        const w = Math.sin(g.t * 4) * 1.5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.lineTo(x2 + w, y2); ctx.lineTo(x3 + w, y3); ctx.closePath();
+        g.fillOut(g.col('#a8282a'), 1.2);
+      } }];
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#e2b489');
+      eyes(ctx, g, '#1a1210', 2.2, 1, 1.3);
+      const { x, y, R } = g.head;
+      // Dark hair, and a wide hat with a feather.
+      ctx.beginPath(); ctx.ellipse(x - g.ca * 2, y + R * 0.5, R * 0.9, R * 1.1, 0, 0, TAU); g.fillOut(g.col('#3a2418'), 1);
+      headBall(ctx, g, '#e2b489', R * 0.92);
+      eyes(ctx, g, '#1a1210', 2.1, 1, 1.3);
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.6, R + 6, 2.6, 0, 0, TAU); g.fillOut(g.col('#3a2a22'), 1.2);
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.95, R * 0.8, R * 0.6, 0, Math.PI, TAU); ctx.closePath(); g.fillOut(g.col('#3a2a22'), 1.1);
+      ctx.beginPath(); ctx.moveTo(x + 2, y - R * 1.1); ctx.quadraticCurveTo(x + 10 - g.ca * 4, y - R * 2.4, x + 13 - g.ca * 6, y - R * 1.3); ctx.quadraticCurveTo(x + 8, y - R * 1.5, x + 2, y - R * 1.1);
+      g.fillOut(g.col('#e8e0cc'), 1);
+    },
+  },
+
+  // --- the Bog Hag: hunched in a green shawl, a long nose, a lantern-staff.
+  hag: {
+    scale: 1.15,
+    body: { legL: 9, torsoH: 12, torsoW: 12, torsoD: 9, shW: 5.2, armL: 10, headR: 5.6, legs: false, armW: 2.6 },
+    c: { main: '#6a7a44', arm: '#7a8a4e', hand: '#b0c890', skin: '#b0c890' },
+    crown: 3,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+      if (a === 'globs' && s2 === 'wind') return { lean: 0.15, handR: [-3, 6, shH + 5], wR: [-0.2, 0.2, 1], handL: [B.armL - 1, -3, shH], frontL: true };
+      if (a === 'frogs') return { lean: 0.35, handR: [4, 6, shH - 8], handL: [5, -6, shH - 8], wR: [0.3, 0.2, 1] };
+      if (a === 'leap') return s2 === 'crouch' ? { lean: 0.4, crouch: 2, handR: [2, 6, shH - 6], wR: [0.2, 0.2, 1] } : { lean: 0.2, handR: [2, 7, shH + 2], wR: [0, 0.2, 1] };
+      if (a === 'exposed') return { shake: 0.4, lean: 0.1, handR: [2, 6, shH - 10], wR: [0.6, 0.3, -1] };
+      return { lean: 0.3, handR: [4, 6, shH - 6], wR: [0.1, 0.05, 1] };
+    },
+    torso: robe('#6a7a44', true),
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      const top = along(g, hand, dir, 15), bot = along(g, hand, dir, -9);
+      g.limb([g.pr(...bot), g.pr(...top)], 2, g.col('#4a3624'));
+      const [x, y] = g.pr(...top);
+      if (!g.flash) { ctx.fillStyle = 'rgba(160,230,120,0.35)'; ctx.beginPath(); ctx.arc(x, y + 5, 9, 0, TAU); ctx.fill(); }
+      ctx.fillStyle = g.col('#c8f08a'); ctx.fillRect(x - 2.5, y + 2, 5, 6);
+    },
+    head(ctx, g) {
+      hood(ctx, g, '#7a8a4e', '#2a3420', '#c8f08a', true);
+      nub(ctx, g, 6.8, 0, -1, 2.6, 1.4, '#9ab080');
+    },
+  },
+
+  // --- the Hierophant: tall in gold and white, a mitre, a halo, a sun on her staff.
+  hierophant: {
+    scale: 1.15,
+    body: { legL: 11, torsoH: 14, torsoW: 12, torsoD: 9, shW: 5.4, armL: 11, headR: 5.6, legs: false, armW: 2.6 },
+    c: { main: '#f0e8d0', arm: '#e8c050', hand: '#f0d8c0', skin: '#f0d8c0' },
+    crown: 11,
+    aimAt: (e) => e.action !== 'idle',
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH, a = e.action;
+      if (a === 'halo') return { handR: [1, 8, shH + 5], handL: [1, -8, shH + 5], wR: [0, 0.3, 1], glow: true };
+      if (a === 'lance') return { handR: [B.armL - 1, 2, shH], frontR: true, wR: [1, 0, 0.4], handL: [2, -6, shH - 6], glow: true };
+      if (a === 'wardens' || a === 'phase') return { handR: [1, 7, shH + 6], handL: [1, -7, shH + 6], wR: [0, 0.2, 1], glow: true };
+      if (a === 'blink') return { alpha: 0.5, handR: [2, 5, shH - 5], wR: [0, 0.1, 1] };
+      if (a === 'exposed') return { shake: 0.4, handR: [2, 6, shH - 10], wR: [0.5, 0.3, -1] };
+      return { handR: [3, 6, shH - 4], wR: [0.05, 0.05, 1] };
+    },
+    torso: robe('#f0e8d0', false),
+    weapon(ctx, g, key, hand, dir) {
+      if (key !== 'R') return;
+      const top = along(g, hand, dir, 16), bot = along(g, hand, dir, -10);
+      g.limb([g.pr(...bot), g.pr(...top)], 2, g.col('#c8a040'));
+      const [x, y] = g.pr(...top);
+      if (!g.flash && g.P.glow) { ctx.fillStyle = 'rgba(255,224,138,0.4)'; ctx.beginPath(); ctx.arc(x, y - 2, 10, 0, TAU); ctx.fill(); }
+      ctx.beginPath(); ctx.arc(x, y - 2, 3.4, 0, TAU); g.fillOut(g.col('#ffe08a'), 1);
+      if (!g.flash) { ctx.strokeStyle = '#e8c050'; ctx.lineWidth = 1; for (let k = 0; k < 8; k++) { const a = (k / 8) * TAU; ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 4.5, y - 2 + Math.sin(a) * 4.5); ctx.lineTo(x + Math.cos(a) * 7, y - 2 + Math.sin(a) * 7); ctx.stroke(); } }
+    },
+    items(g) {
+      return [{ f: -2, r: 0, bias: -4, draw: (ctx) => {
+        // The halo, behind the head.
+        if (g.flash) return;
+        const { x, y, R } = g.head;
+        ctx.strokeStyle = g.P.glow ? '#ffe08a' : 'rgba(255,224,138,0.7)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.ellipse(x, y - 2, R + 6, R + 6, 0, 0, TAU); ctx.stroke();
+      } }];
+    },
+    over(ctx, g) {
+      if (g.flash || g.away) return;
+      const [x, y] = g.body(0, 0, g.hipH + g.B.torsoH * 0.55);
+      ctx.fillStyle = '#e8c050'; ctx.fillRect(x - 1.2, y - 7, 2.4, 14); ctx.fillRect(x - 5, y - 3, 10, 2.4);
+    },
+    head(ctx, g) {
+      headBall(ctx, g, '#f0d8c0');
+      eyes(ctx, g, '#3a2a1a', 2, 0.6, 1.2);
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.moveTo(x - R * 0.9, y - R * 0.5); ctx.lineTo(x - R * 0.7, y - R * 2.4); ctx.lineTo(x, y - R * 2.9); ctx.lineTo(x + R * 0.7, y - R * 2.4); ctx.lineTo(x + R * 0.9, y - R * 0.5); ctx.closePath();
+      g.fillOut(g.col('#f4ecd8'), 1.2);
+      if (!g.flash) { ctx.fillStyle = '#e8c050'; ctx.fillRect(x - 1, y - R * 2.5, 2, R * 1.9); ctx.fillRect(x - R * 0.9, y - R * 0.75, R * 1.8, 1.6); }
+    },
+  },
 };
 
 // Rising from the grave: the draugr is drawn climbing out of the ground.
@@ -1360,6 +1784,25 @@ drawDraugr.pose = (e, G, B) => {
   if (P.rise !== undefined) P.float = -(1 - P.rise) * 26;
   return P;
 };
+
+// The Alpha: a wolf-folk grown huge and grey-black, its moves read off the boss brain.
+FIGS.alpha = {
+  ...FIGS.wolf,
+  scale: 1,
+  c: { main: '#3a3a44', leg: '#2e2e38', arm: '#4a4a54', hand: '#2a2a34', skin: '#5a5a66', foot: '#1e1e26' },
+  aimAt: (e) => e.action !== 'idle',
+  pose(e, G, B) {
+    const shH = B.legL + B.torsoH, a = e.action, s2 = e.sub;
+    if (a === 'howl') return { lean: -0.3, handR: [0, 7, shH - 10], handL: [0, -7, shH - 10], howl: true };
+    if (a === 'pounce') return s2 === 'crouch' ? { crouch: 4, lean: 0.35, stance: 'wide', handR: [-3, 6, shH - 6], handL: [-3, -6, shH - 6] }
+      : { air: true, lean: 0.5, handR: [B.armL, 4, shH], handL: [B.armL, -4, shH], frontR: true, frontL: true };
+    if (a === 'exposed') return { shake: 0.4, crouch: 2, lean: 0.1 };
+    return { lean: 0.2, crouch: 1 };
+  },
+};
+
+// Illusions look like whoever cast them.
+FIGS.foxclone = { ...FIGS.kitsune, skip: () => false };
 
 /** The types that have a figure (for tests). */
 export const FIGURE_TYPES = Object.keys(FIGS);

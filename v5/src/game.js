@@ -9,6 +9,8 @@ import {
 } from './wilds-world.js';
 import { siteFx } from './wilds-sites.js';
 import { KIN_NAMES } from './enemies-kin.js';
+import { YOKAI_NAMES } from './enemies-yokai.js';
+import { MINI_NAMES, miniInFight } from './enemies-mini.js';
 import {
   journey, resetJourney, applyLevels, buyLevel, levelCost, totalLevel, ATTRS,
   dropSmoulder, restore,
@@ -482,7 +484,7 @@ function tick(dt) {
 
       // Music follows the fight: calm between waves, full kit in combat,
       // a harder variation once the Warden is up.
-      setMusicIntensity(bossInRoom() ? 2 : world.enemies.some((e) => !e.dead) ? 1 : 0);
+      setMusicIntensity(bossInRoom() || miniInFight() ? 2 : world.enemies.some((e) => !e.dead) ? 1 : 0);
       // A guardian with its own theme (Vesper's western) plays it instead.
       {
         const guard = bossInRoom();
@@ -1141,6 +1143,8 @@ const KILLER_NAMES = {
   turtle: 'Gravemaw the Shellback', croc: 'Mawgrim, the Mire King',
   gorilla: 'Kharn, the Ashen Silverback', peacock: 'Solenne, the Hundred-Eyed',
   ...KIN_NAMES,
+  ...YOKAI_NAMES,
+  ...MINI_NAMES,
 };
 
 // --- Boss Trials ------------------------------------------------------------
@@ -1241,6 +1245,9 @@ const TRAINING_FOES = [
   'wretch', 'slinger', 'bomber', 'charger', 'splitter', 'brute', 'spitter',
   'adze', 'chinthe', 'vetala', 'sapper', 'kappa', 'preta', 'draugr', 'duende',
   'crossbow', 'necro', 'jiangshi', 'zealot', 'wolf', 'tengu', 'banshee', 'spearman',
+  'ronin', 'kitsune', 'ninja',
+  // The mini-bosses, to practise on.
+  'kyubi', 'sasaki', 'oni', 'captain', 'alpha', 'queen', 'hag', 'hierophant',
 ];
 
 function trainingLoadout() {
@@ -1607,7 +1614,7 @@ function travelTo(id) {
  */
 function openReliquary(site) {
   const champ = site.kind === 'champion';
-  const bonus = Math.round((champ ? 160 : 50) * (1 + site.tier) * (site.claimed ? 0.5 : 1));
+  const bonus = Math.round((site.mini ? 380 : champ ? 160 : 50) * (1 + site.tier) * (site.claimed ? 0.5 : 1));
   world.gold += bonus;
   const first = champ && !site.claimed;
   site.claimed = true;
