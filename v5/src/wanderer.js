@@ -3,8 +3,9 @@
 // The Hooded One is drawn straight from above and turns bodily with your
 // aim, which suits the chambers' flat floors. The Wilds are drawn in a 3/4
 // view - cliff faces from the front, pines standing up - so the Wanderer
-// stands up too: feet on the ground, head above them, turning left or right
-// and showing the face or the back, as characters in 3/4 games do.
+// stands up too: feet on the ground, head above them, and drawn at eight
+// angles - profile, front, back and the diagonals - as characters in 3/4
+// games are.
 //
 // Nothing about how the player moves or fights changes. The Wanderer is a
 // different drawing of the same animation: the same skeleton and clips
@@ -23,7 +24,6 @@
 import { TAU, clamp, lerp, angleDiff } from './util.js';
 import { boneAt } from './anim.js';
 import { PLAYER_SKELETON } from './rigs.js';
-import { tuning } from './state.js';
 
 /** Which look is drawn: 'hooded' | 'wanderer' (set by game.js). */
 export const look = { skin: 'hooded' };
@@ -128,20 +128,40 @@ export function prepareWanderer(p) {
   p.wBodyY = p.wG.bodyY;
 }
 
+// --- how the figure is turned for the camera -----------------------------------
+// One figure, drawn at eight angles - the way 8-direction sprites are made: five
+// distinct views (profile, front, back, and the two diagonals), mirrored for the
+// other three. Rather than five separate drawings, every part is placed from two
+// numbers, so the views always agree with each other:
+//   side   1 in profile, 0.71 on a diagonal, 0 facing or leaving the camera;
+//   depth  +1 facing the camera (walking down the screen), -1 facing away.
+// In profile the legs overlap and the stride runs across the screen; seen from
+// the front or back they stand side by side and the stride runs up and down it,
+// foreshortened.
+function viewOf(p) {
+  const a = (p.wOct ?? 0) * OCT;
+  const side = Math.round(Math.abs(Math.cos(a)) * 100) / 100;
+  const depth = Math.round(Math.sin(a) * 100) / 100;
+  return { side, depth, front: depth > 0.3, back: depth < -0.3 };
+}
+
 // --- the weapon at rest ----------------------------------------------------------
 // Walking about, a person carries a weapon; they do not point it. Each weapon
 // has a resting carry in the figure's own frame (x toward the way it faces,
 // y up from the feet): where the hand is and which way the weapon points.
-// Angles are canvas angles for a figure facing right (positive is downward).
+// `a` is the canvas angle in profile, facing right (positive is downward);
+// `front` is the angle seen from the front or back, where "ahead" is toward or
+// away from the camera and the weapon hangs at the figure's side instead.
 const CARRY = {
-  blade: { x: 6, y: -17, a: 0.62 },      // low at the side, point down and ahead
-  spear: { x: 6, y: -18, a: -1.92 },     // upright, slanted back, butt by the heel
-  maul: { x: 7, y: -16, a: -2.3 },       // haft in the fist, head on the shoulder
-  bow: { x: 6, y: -18, a: 0.15 },        // held low, limbs up and down
-  gun: { x: 6, y: -17, a: 0.9 },         // muzzle down, ahead of the feet
-  longarm: { x: 6, y: -17, a: 0.8 },
-  shield: { x: 7, y: -19, a: 1.2 },      // on the forearm at the side
+  blade: { x: 6, y: -17, a: 0.62, front: 1.3 },      // low, point down and ahead
+  spear: { x: 6, y: -18, a: -1.92, front: -1.72 },   // upright, butt by the heel
+  maul: { x: 7, y: -16, a: -2.3, front: -2.05 },     // head resting on the shoulder
+  bow: { x: 6, y: -18, a: 0.15, front: 0.15 },       // held low, limbs up and down
+  gun: { x: 6, y: -17, a: 0.9, front: 1.3 },         // muzzle down
+  longarm: { x: 6, y: -17, a: 0.8, front: 1.25 },
+  shield: { x: 7, y: -19, a: 1.2, front: 1.4 },      // on the forearm at the side
 };
+const SIDE_HAND_X = 8.6;      // seen from the front or back: the hand at the hip
 
 /** The rig's weapon hand, where every swing has always been drawn from. */
 function rigHand(p, lifted) {
@@ -167,13 +187,16 @@ export function wandererHold(p, lifted, bob) {
   if (rig && k >= 0.999) return { ...rig, behind };
 
   const s = p.wS || 1;
+  const V = viewOf(p);
   const c = CARRY[p.weapon.id] || CARRY.blade;
   const G = p.wG;
-  // The carrying arm counter-swings the legs, a little.
+  // The carrying arm counter-swings the legs: across the screen in profile,
+  // toward and away from the camera (so up and down it) seen from the front.
   const swing = G && !p.dead ? G.far.x * 0.35 : 0;
-  const x = p.x + s * (c.x + swing);
-  const y = p.y + 12 + bob + (p.wBodyY || 0) + c.y;
-  const angle = s > 0 ? c.a : Math.PI - c.a;
+  const x = p.x + s * (lerp(SIDE_HAND_X, c.x, V.side) + swing * V.side);
+  const y = p.y + 12 + bob + (p.wBodyY || 0) + c.y + swing * 0.6 * V.depth * (1 - V.side);
+  const a = lerp(c.front, c.a, V.side);
+  const angle = s > 0 ? a : Math.PI - a;
   if (!rig || k <= 0.001) return { x, y, angle, behind };
 
   const e = k * k * (3 - 2 * k);
@@ -190,19 +213,26 @@ export function wandererHold(p, lifted, bob) {
 //   - A stride is a handful of KEY POSES, each HELD for a moment (animating
 //     "on twos"): contact (heel down, legs apart), down (weight lands, body
 //     lowest), passing (the free leg swings under the body, knee up) and up
-//     (pushing off, body highest) - then the same on the other leg. Eight
-//     poses per stride, about twenty pose changes a second at a run.
-//   - The planted foot stays put on the ground and slides back under the
-//     body; only the swinging foot leaves the ground, in an arc.
-//   - Each leg is a thigh and a shin of fixed length, placed by two-bone IK
-//     from the hip to where the foot must be, so the knee bends like a knee
-//     and a leg never stretches or wobbles.
-//   - The body does not squash, stretch or rock: it drops a unit on "down"
-//     and rises a unit on "up", and the hips carry it. That small, stepped
-//     rise and fall is what reads as weight.
+//     (pushing off, body highest) - then the same on the other leg.
+//   - The rise and fall is UNEVEN: down a unit, down again, then up two at the
+//     passing pose. The rise is quicker than the fall, and that unevenness is
+//     what stops a walk reading as a machine (SLYNYRD's top-down guides).
+//   - The head takes the body's rise and fall one pose late, like a weight on
+//     a neck, and the hips shift over whichever foot is carrying them.
+//   - The cadence is driven by GROUND COVERED, not by a clock: a slow, the
+//     speed setting, stairs, slowing to swing - the steps always match.
+//   - The planted foot stays put and slides back under the body; only the
+//     swinging foot leaves the ground, in an arc. Each leg is a thigh and a
+//     shin of fixed length placed by two-bone IK, so a knee bends like a knee.
+//   - Stopping mid-stride brings the feet together for a beat before idling.
 const FRAMES = 8;
-const BOB = [0, 1, 0, -1, 0, 1, 0, -1];      // contact, down, passing, up (x2)
+// contact, down, passing, up - twice. (+ is lower.)
+const BOB = [0, 1, -1, -1, 0, 1, -1, -1];
 const THIGH = 6.2, SHIN = 6.2, HIP_Y = -14, ANKLE_Y = -2.5;   // legs straight at contact, soft at rest
+// Ground covered per full cycle (two steps). At the default speed that is a
+// little over two strides a second - brisk, not scurrying.
+const CYCLE = 108;
+const SETTLE = 0.14;          // seconds the feet take to come together on stopping
 
 /** Where a foot is at a point of its own cycle: planted, then swinging. */
 function footAt(u, R, L) {
@@ -223,43 +253,67 @@ function ik(hx, hy, fx, fy) {
   return { kx: hx + Math.cos(a - b) * THIGH, ky: hy + Math.sin(a - b) * THIGH, fx, fy };
 }
 
-/** This frame's pose for the legs and the body (all in the figure's frame). */
+/**
+ * This frame's pose for the legs and the body. Feet are given along the
+ * figure's own line of travel (`x`, + ahead) and off the ground (`lift`); the
+ * drawing turns that into the screen for whichever view the figure is in.
+ */
 function gait(p, s, dt) {
   const now = performance.now() * 0.001;
   const air = !!(p.hop || p.leap || (p.z || 0) > 0.5);
   const walking = p.moveMag > 0.08 && !p.dead && !p.dashing && !air;
-  // Steps come quicker the faster you move (the speed setting too), so the
-  // feet keep up with the ground instead of skating over it.
-  if (walking) p.wPhase = ((p.wPhase || 0) + dt * (1.5 + 0.8 * p.moveMag) * (p.groundMult || 1) * (0.4 + 0.6 * tuning.speed / 0.85)) % 1;
+
+  // Ground actually covered since the last frame (a teleport does not count).
+  const moved = Math.hypot(p.x - (p.wLX ?? p.x), p.y - (p.wLY ?? p.y));
+  p.wLX = p.x; p.wLY = p.y;
+  const step = moved < 60 ? moved : 0;
+  if (walking) p.wPhase = ((p.wPhase || 0) + step / CYCLE) % 1;
   const frame = Math.floor((p.wPhase || 0) * FRAMES) % FRAMES;
 
-  // The way you walk, in the figure's frame: backing away steps backwards;
-  // walking up or down the screen takes shorter, deeper steps.
-  const mx = Math.cos(p.moveAngle), my = Math.sin(p.moveAngle);
-  const dir = mx * s < -0.2 ? -1 : 1;
-  const R = 4.5 * Math.max(0.3, Math.abs(mx));            // half a step
+  // Stopping mid-stride: hold a feet-together pose for a beat.
+  if (p.wWalked && !walking && !air && !p.dashing && !p.dead) p.wSettle = SETTLE;
+  p.wWalked = walking;
+  p.wSettle = Math.max(0, (p.wSettle || 0) - dt);
 
-  let near, far, bodyY = 0, lean = 0;
+  // Walking against the way the body faces (mid-fight) steps backwards;
+  // sidling across it takes short steps rather than full strides.
+  const along = Math.cos(angleDiff(p.wFace ?? p.moveAngle, p.moveAngle));
+  const dir = along < -0.2 ? -1 : 1;
+  // Longer steps at speed, shorter when slowed.
+  const speed = dt > 0 ? step / dt : 0;
+  const R = 4.5 * clamp(speed / 228, 0.6, 1.15) * Math.max(0.45, Math.abs(along));
+
+  let near, far, bodyY = 0, headY = 0, lean = 0, shift = 0;
   if (p.dead) {
     near = { x: 1.5, lift: 0 }; far = { x: -1.5, lift: 0 };
   } else if (air) {
     near = { x: 3, lift: 4.5 }; far = { x: -2, lift: 5.5 };           // tucked in the air
   } else if (p.dashing) {
-    const d = Math.cos(p.dashDir) * s < -0.2 ? -1 : 1;
+    const d = Math.cos(angleDiff(p.wFace ?? p.dashDir, p.dashDir)) < -0.2 ? -1 : 1;
     near = { x: 7 * d, lift: 0 }; far = { x: -7 * d, lift: 2.5 };     // a held lunge
-    bodyY = 1; lean = 0.12 * d;
+    bodyY = 1; headY = 1; lean = 0.12 * d;
   } else if (walking) {
     const u = frame / FRAMES;
     const a = footAt(u, R, 4), b = footAt((u + 0.5) % 1, R, 4);
-    near = { x: a.x * dir, lift: a.lift, y: a.x * my * 0.45 };
-    far = { x: b.x * dir, lift: b.lift, y: b.x * my * 0.45 };
+    near = { x: a.x * dir, lift: a.lift };
+    far = { x: b.x * dir, lift: b.lift };
     bodyY = BOB[frame];
+    headY = BOB[(frame + FRAMES - 1) % FRAMES];          // a pose behind the body
     lean = 0.04 * dir;
+    shift = u < 0.5 ? 0.8 : -0.8;                        // over the planted foot
+  } else if (p.wSettle > 0) {
+    near = { x: 1.2, lift: 0.8 }; far = { x: -1, lift: 0 };          // feet coming together
+    bodyY = 1; headY = 0.5;
   } else {
-    near = { x: 1.8, lift: 0 }; far = { x: -1.6, lift: 0 };
-    bodyY = Math.floor(now / 0.9) % 2 ? 0.5 : 0;                        // breathing, stepped
+    // At rest: a stepped breath, and every few seconds the weight moves from
+    // one foot to the other.
+    const w = Math.floor(now / 3.2) % 2;
+    near = { x: w ? 1.8 : 1.2, lift: 0 }; far = { x: w ? -1.6 : -2.2, lift: 0 };
+    bodyY = Math.floor(now / 0.9) % 2 ? 0.5 : 0;
+    headY = bodyY;
+    shift = w ? 0.5 : -0.5;
   }
-  return { near, far, bodyY, lean };
+  return { near, far, bodyY, headY, lean, shift };
 }
 
 export function drawWanderer(p, ctx, world, bob) {
@@ -269,7 +323,10 @@ export function drawWanderer(p, ctx, world, bob) {
   const accent = col(p.weapon.color);
 
   const s = p.wS || 1;                                  // facing right or left
-  const back = wandererFacingAway(p);
+  const V = viewOf(p);
+  const back = V.back;
+  const profile = V.side > 0.9;                         // straight across the screen
+  const square = V.side < 0.1;                          // straight at or away from the camera
   const torso = p.anim.pose.torso || {};
   // The death clip collapses the torso; read it as a fall onto one side.
   const fall = p.dead ? clamp((1.3 - (torso.sy ?? 1)) / 0.8, 0, 1) : 0;
@@ -277,6 +334,9 @@ export function drawWanderer(p, ctx, world, bob) {
   const G = p.wG || gait(p, s, 0);
   // Knocked back a step when hit: a held jolt, not a squash.
   const jolt = p.hurtFlash > 0.2 && !p.dead ? -1.5 : 0;
+  // The weight shift only shows side to side when the figure faces the camera
+  // or away from it; in profile it would be toward the viewer.
+  const shift = G.shift * (1 - V.side);
 
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -296,31 +356,48 @@ export function drawWanderer(p, ctx, world, bob) {
   };
 
   // --- legs: hips ride with the body, feet stay on the ground -----------------
+  // Seen in profile the legs nearly overlap; turned toward or away from the
+  // camera they stand apart, at the hips' full width.
   const hipY = HIP_Y + G.bodyY;
+  const spread = lerp(3.1, 1.8, V.side);
   const leg = (f, hipX, width, color) => {
-    const L = ik(hipX + jolt, hipY, hipX + f.x, ANKLE_Y - f.lift + (f.y || 0));
+    const hx = hipX + jolt + shift;
+    // The stride runs across the screen in profile and up and down it
+    // (foreshortened) facing the camera or away: a step toward the camera
+    // lands lower on the screen.
+    const fx = hipX + shift + f.x * V.side;
+    const fy = ANKLE_Y - f.lift + f.x * V.depth * 0.5;
+    const L = ik(hx, hipY, fx, fy);
+    // A knee bends toward the way the figure faces. Facing the camera that is
+    // straight out of the screen, so it shows as the leg shortening rather
+    // than bowing sideways.
+    const mx = (hx + L.fx) / 2, my = (hipY + L.fy) / 2;
+    const kx = lerp(mx, L.kx, V.side), ky = lerp(my, L.ky, V.side);
     ctx.strokeStyle = OUT; ctx.lineWidth = width + 3;
-    ctx.beginPath(); ctx.moveTo(hipX + jolt, hipY); ctx.lineTo(L.kx, L.ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
     ctx.strokeStyle = color; ctx.lineWidth = width;
-    ctx.beginPath(); ctx.moveTo(hipX + jolt, hipY); ctx.lineTo(L.kx, L.ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
-    // The boot: flat on the ground, toe forward; tipped up a little in the air.
-    ctx.beginPath(); ctx.ellipse(L.fx + 1.4, L.fy + 1, 3.8, 2.1, f.lift > 0.5 ? -0.25 : 0, 0, TAU); fillOut(col(C.boot), 1.4);
+    ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+    // The boot: long with the toe forward in profile, short and round seen
+    // toe-on or heel-on; tipped up a little in the air.
+    ctx.beginPath();
+    ctx.ellipse(L.fx + 1.4 * V.side, L.fy + 1, 2.5 + 1.3 * V.side, 2.1, f.lift > 0.5 ? -0.25 * V.side : 0, 0, TAU);
+    fillOut(col(C.boot), 1.4);
   };
-  leg(G.far, -1.8, 4.2, col(C.trouserShade));       // the far leg, in shade
-  leg(G.near, 1.8, 4.4, col(C.trouser));            // the near leg
+  leg(G.far, -spread, 4.2, col(C.trouserShade));       // the far leg, in shade
+  leg(G.near, spread, 4.4, col(C.trouser));            // the near leg
 
-  // Everything above the hips rides the body's rise and fall, and a slight
-  // forward lean while walking or dashing.
-  ctx.translate(jolt, G.bodyY);
-  ctx.rotate(G.lean);
+  // Everything above the hips rides the body's rise and fall, the weight
+  // shift, and a slight lean into the walk (only visible in profile).
+  ctx.translate(jolt + shift * 0.6, G.bodyY);
+  ctx.rotate(G.lean * V.side);
 
   // --- the scarf, streaming behind (drawn over the back when facing away) --
   const cloakA = p.anim.pose.cloakA || {};
-  const scarfLen = 12 * (cloakA.sx ?? 1) + (moving ? 4 : 0);
+  const scarfLen = (12 * (cloakA.sx ?? 1) + (moving ? 4 : 0)) * lerp(0.55, 1, V.side);
   const t = performance.now() * 0.001;
   const wave = Math.sin(t * (moving ? 7 : 3) + p.x * 0.01) * (moving ? 1.6 : 0.8);
   const drawScarf = () => {
-    const nx = -1, ny = -29;
+    const nx = -1 * V.side, ny = -29;
     ctx.strokeStyle = OUT; ctx.lineWidth = 6.5;
     ctx.beginPath(); ctx.moveTo(nx, ny); ctx.quadraticCurveTo(nx - scarfLen * 0.5, ny + 1 + wave * 0.4, nx - scarfLen, ny + 4 + wave); ctx.stroke();
     ctx.strokeStyle = accent; ctx.lineWidth = 3.8;
@@ -330,20 +407,28 @@ export function drawWanderer(p, ctx, world, bob) {
   };
   if (!back) drawScarf();
 
-  // --- the bedroll, peeking over a shoulder from the front ------------------
-  const drawRoll = (y) => {
-    ctx.beginPath(); ctx.ellipse(-2, y, 9.5, 3.4, -0.08, 0, TAU); fillOut(col(C.roll), 1.4);
-    ctx.fillStyle = col(C.rollShade); ctx.fillRect(-5, y - 3, 1.6, 6.4); ctx.fillRect(2, y - 3, 1.6, 6.4);
+  // --- the bedroll, peeking over the shoulders from the front ---------------
+  const drawRoll = (y, x) => {
+    ctx.beginPath(); ctx.ellipse(x, y, 9.5, 3.4, -0.08 * V.side, 0, TAU); fillOut(col(C.roll), 1.4);
+    ctx.fillStyle = col(C.rollShade); ctx.fillRect(x - 3, y - 3, 1.6, 6.4); ctx.fillRect(x + 4, y - 3, 1.6, 6.4);
   };
-  if (!back) drawRoll(-31);
+  if (!back) drawRoll(-31, -2 * V.side);
 
-  // --- the far arm (the off hand), counter-swinging -------------------------
-  // Arms swing against the legs: the far arm forward as the far leg goes back.
-  const offHand = { x: -4.5 - G.far.x * 0.5, y: -19 };
-  if (!back) limb(-4.5, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
+  // --- the off hand, counter-swinging ---------------------------------------
+  // Arms swing against the legs: the off hand forward as the far leg goes
+  // back. In profile it is the far arm, behind the body; turned toward or away
+  // from the camera it hangs at the figure's other side, in plain view, and
+  // its swing is toward and away from the viewer - up and down the screen.
+  const shX = lerp(-7.2, -4.5, V.side);
+  const offHand = {
+    x: lerp(-SIDE_HAND_X, -4.5, V.side) - G.far.x * 0.5 * V.side,
+    y: -19 - G.far.x * 0.35 * V.depth * (1 - V.side),
+  };
+  const offInFront = V.side < 0.5 || back;
+  if (!offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the coat -----------------------------------------------------------------
-  const hem = G.near.x * 0.25;
+  const hem = G.near.x * 0.25 * V.side;
   ctx.beginPath();
   ctx.moveTo(-6.5, -30);
   ctx.quadraticCurveTo(-8.5, -21, -9 + hem * 0.3, -11);
@@ -352,6 +437,9 @@ export function drawWanderer(p, ctx, world, bob) {
   ctx.quadraticCurveTo(0, -33, -6.5, -30);
   ctx.closePath();
   fillOut(col(C.coat));
+  // Where the coat opens: down the middle facing the camera, turned toward
+  // the way the figure faces on a diagonal, near the front edge in profile.
+  const openX = square ? 0 : profile ? 1 : 2.6;
   // Lit from the upper left: a light edge on the left, shade on the right.
   if (!flashing) {
     ctx.save(); ctx.clip();
@@ -363,33 +451,63 @@ export function drawWanderer(p, ctx, world, bob) {
     ctx.globalAlpha = alpha * 0.8;
     ctx.fillRect(s > 0 ? 3.5 : -11.5, -34, 8, 24);
     ctx.globalAlpha = alpha;
-    // The coat's opening and its hem line.
-    if (!back) { ctx.strokeStyle = C.coatShade; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(1, -29); ctx.lineTo(1.5 + hem * 0.2, -11); ctx.stroke(); }
+    ctx.strokeStyle = C.coatShade; ctx.lineWidth = 1.2;
+    if (!back) {
+      ctx.beginPath(); ctx.moveTo(openX, -29); ctx.lineTo(openX + 0.5 + hem * 0.2, -11); ctx.stroke();
+    } else if (square) {
+      // From straight behind: the seam down the back.
+      ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, -11); ctx.stroke();
+    }
     ctx.restore();
   }
   // The belt and its buckle.
   ctx.fillStyle = col(C.belt); ctx.fillRect(-8.2, -18.5, 16.4, 2.6);
-  if (!back) { ctx.fillStyle = col(C.buckle); ctx.fillRect(0, -18.8, 3, 3.2); }
+  if (!back) { ctx.fillStyle = col(C.buckle); ctx.fillRect(openX - 1.5, -18.8, 3, 3.2); }
+  // Facing the camera, the scarf's knot shows at the throat.
+  if (V.front && !square) { ctx.fillStyle = accent; ctx.fillRect(openX - 2.4, -31, 4.4, 2.6); }
+  else if (square && !back) { ctx.fillStyle = accent; ctx.fillRect(-2.2, -31, 4.4, 2.6); }
 
   if (back) {
     // From behind: the bedroll across the shoulders, strapped on.
-    drawRoll(-28);
+    drawRoll(-28, -2 * V.side);
     ctx.strokeStyle = col(C.strap); ctx.lineWidth = 1.6;
     ctx.beginPath(); ctx.moveTo(-6, -31); ctx.lineTo(5, -17); ctx.stroke();
-    limb(-4.5, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
   }
+  if (offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
 
   // --- the head -----------------------------------------------------------------
-  const hx = 0.5, hy = -36;
+  // It rides the body's rise and fall one pose late.
+  const hx = 0.5 * V.side, hy = -36 + (G.headY - G.bodyY);
   ctx.beginPath(); ctx.arc(hx, hy, 6.2, 0, TAU); fillOut(col(back ? C.hair : C.skin), 1.5);
+  if (back && !square && !flashing) {
+    // Three-quarters from behind: a sliver of cheek and ear on the facing side.
+    ctx.fillStyle = C.skin;
+    ctx.beginPath(); ctx.arc(hx + 4.4, hy + 1, 2, -1.2, 1.6); ctx.fill();
+  }
   if (!back && !flashing) {
-    ctx.fillStyle = C.skinShade;
-    if (s > 0) { ctx.beginPath(); ctx.arc(hx + 2.2, hy + 1, 4.4, -0.9, 1.9); ctx.fill(); }
-    else { ctx.beginPath(); ctx.arc(hx - 2.2, hy + 1, 4.4, 1.25, 4.05); ctx.fill(); }
-    // Eyes in the hat's shade, looking the way you face.
-    ctx.fillStyle = OUT;
-    ctx.fillRect(hx + 1.2, hy - 0.6, 1.5, 2);
-    ctx.fillRect(hx + 4, hy - 0.6, 1.4, 2);
+    if (square) {
+      // Straight at the camera: shade under the chin, two eyes either side
+      // of the middle.
+      ctx.fillStyle = C.skinShade;
+      ctx.beginPath(); ctx.ellipse(hx, hy + 3.6, 4.4, 2, 0, 0, Math.PI); ctx.fill();
+      ctx.fillStyle = OUT;
+      ctx.fillRect(hx - 3, hy - 0.6, 1.5, 2);
+      ctx.fillRect(hx + 1.5, hy - 0.6, 1.5, 2);
+    } else {
+      ctx.fillStyle = C.skinShade;
+      if (s > 0) { ctx.beginPath(); ctx.arc(hx + 2.2, hy + 1, 4.4, -0.9, 1.9); ctx.fill(); }
+      else { ctx.beginPath(); ctx.arc(hx - 2.2, hy + 1, 4.4, 1.25, 4.05); ctx.fill(); }
+      // Eyes in the hat's shade, looking the way you face. On a diagonal they
+      // sit nearer the middle of the face, the far one a little narrower.
+      ctx.fillStyle = OUT;
+      if (profile) {
+        ctx.fillRect(hx + 1.2, hy - 0.6, 1.5, 2);
+        ctx.fillRect(hx + 4, hy - 0.6, 1.4, 2);
+      } else {
+        ctx.fillRect(hx - 1.2, hy - 0.6, 1.2, 2);
+        ctx.fillRect(hx + 2.2, hy - 0.6, 1.5, 2);
+      }
+    }
   }
   if (back) drawScarf();
 
@@ -410,13 +528,19 @@ export function drawWanderer(p, ctx, world, bob) {
 
 /**
  * The weapon arm, drawn from the shoulder to the hand the weapon is held in
- * (`wandererHold`). In world space, since the hand swings all round.
+ * (`wandererHold`). In world space, since the hand swings all round. The
+ * shoulder moves out to the edge of the coat as the figure turns to face the
+ * camera or away from it.
  */
 export function drawWandererArm(p, ctx, hold, bob, behind) {
   if (!hold || p.dead) return;
   const hx = hold.x, hy = hold.y;
   const s = p.wS || 1;
-  const sx0 = p.x + s * 5, sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
+  const V = viewOf(p);
+  const G = p.wG;
+  const shift = G ? G.shift * (1 - V.side) * 0.6 : 0;
+  const sx0 = p.x + s * (lerp(7.2, 5, V.side) + shift);
+  const sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   ctx.globalAlpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;
   ctx.lineCap = 'round';

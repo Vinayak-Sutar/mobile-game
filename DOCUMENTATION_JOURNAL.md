@@ -4035,6 +4035,40 @@ walked. Fixed in drawing only; the simulation and the hitboxes are untouched.
 Next (Step 25): eight real views (front, back, side and both diagonals,
 mirrored) and a distance-locked walk with an uneven bob.
 
+### 16.29 Step 25 — eight views and a natural walk (2026-09-21)
+
+The Wanderer is now one figure drawn at eight angles (`viewOf`, wanderer.js):
+five views (profile, front, back, front-diagonal, back-diagonal), mirrored for
+the rest, the way 8-direction top-down sprites are made. Every part is placed
+from two numbers, `side` (1 in profile, 0 facing or leaving the camera) and
+`depth` (+1 toward the camera), so the views always agree:
+
+- **Legs** stand apart at full hip width facing the camera and overlap in
+  profile. The stride runs across the screen in profile and up/down it
+  (foreshortened) seen from the front or back. There a bent knee shows as the
+  leg shortening, not bowing sideways. Boots are long in profile and round
+  toe-on.
+- **Face**: two centred eyes and a chin shade from the front, eyes nearer the
+  middle on the diagonal, the profile as before. Hair and a sliver of cheek
+  and ear from three-quarters behind. The coat opening, buckle and scarf knot
+  move with the view, and there's a back seam from straight behind.
+- **Arms**: seen from the front or back, both hang at the sides in plain view
+  and swing toward and away from the viewer. The carried weapon hangs at the
+  hip (`CARRY.front` angles).
+
+The walk (`gait`):
+- **Cadence locked to ground covered**: `CYCLE` = 108 units per two steps,
+  about 4.2 steps/s at the default speed and 1.4 while swinging. Slows, stairs
+  and the speed setting all follow automatically. This replaces the clock and
+  the `tuning.speed` fudge. Steps lengthen with speed.
+- **Uneven bob**: `BOB` = [0, 1, -1, -1] per step (contact, down, passing,
+  up). Down one, down one, up two, so the rise is faster than the fall (SLYNYRD).
+- **Head lag**: the head takes the bob one pose late (`headY`).
+- **Weight shift**: the hips move toward the planted foot (visible facing the
+  camera or away).
+- **Stop settle**: stopping mid-stride holds a feet-together pose for 0.14 s.
+- **Idle**: a stepped breath, and the weight moves foot to foot every 3.2 s.
+
 ## 17. Version 6 (`v6/`) — a 3D demo on the 2D simulation (started 2026-09-20)
 
 > **Shelved 2026-09-21.** The owner stopped the 3D direction: a polished 3D
