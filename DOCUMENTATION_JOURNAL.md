@@ -4008,7 +4008,41 @@ Guardian.
 
 ---
 
+### 16.28 Step 24 — the Wanderer carries its weapon, and faces the way it walks (2026-09-21)
+
+Owner: walking up the screen, the Wanderer held the bow upside down over his
+shoulder. Cause: the rig's root angle is `p.aimAngle` and the weapon is drawn
+at the rig's `armR` hand, and on the phone the aim falls back to the move
+direction (`aimAngle()`, player.js), so the weapon always pointed where you
+walked. Fixed in drawing only; the simulation and the hitboxes are untouched.
+
+- **Facing follows movement** (`updateFacing`, wanderer.js). The body turns to
+  `p.aimAngle` only while fighting (`attack`, `charging`, `aiming`, `holding`,
+  `fan`, `channel`) and holds it for `LINGER` = 0.45 s afterwards. The facing is
+  one of eight octants (`p.wOct`) with hysteresis, and a turn steps through the
+  octants in between (0.05 s each, 0.02 s in a fight). `p.wS` is the left/right
+  mirror; straight up or down keep the last side.
+- **Weapon carry** (`CARRY`, `wandererHold`). Each weapon has a resting hand
+  position and angle (blade low with the point down and ahead, spear upright,
+  maul on the shoulder, bow held low and vertical, guns muzzle-down, shield at
+  the side). `p.wCombat` blends it into the rig's aimed hand: up in 0.06 s, down
+  in 0.25 s. Fully raised it *is* the rig's hand, so swings still match their
+  hitboxes.
+- `prepareWanderer(p)` works out the facing, the blend and the gait once per
+  frame before anything is drawn. `drawWeapon` is split so the Wanderer passes
+  its own hand to `drawWeaponAt`. The Hooded One is unchanged.
+
+Next (Step 25): eight real views (front, back, side and both diagonals,
+mirrored) and a distance-locked walk with an uneven bob.
+
 ## 17. Version 6 (`v6/`) — a 3D demo on the 2D simulation (started 2026-09-20)
+
+> **Shelved 2026-09-21.** The owner stopped the 3D direction: a polished 3D
+> action game needs a AAA-sized team, and Ashfall is an indie game. The folder
+> is kept on the owner's disk but is **no longer tracked** (`v6/` is in
+> `.gitignore`; the last tracked state is commit `29d94f6`), and the Version 6
+> button is gone from the title screens. Work continues on Version 5. The notes
+> below are kept as a record of what was tried.
 
 A standalone experiment, agreed with the owner: the 2D game (V5) stays the
 mobile product; V6 asks whether the same game works in 3D on the web. Scope is

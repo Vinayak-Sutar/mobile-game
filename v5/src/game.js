@@ -678,7 +678,6 @@ function versionRow() {
       <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
       <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
       <button class="ver on" data-act="version-here" aria-current="true">Version 5<small>enemy variety · minibosses</small></button>
-      <button class="ver" data-act="version" data-href="../v6/">Version 6<small>3D · WebGL demo</small></button>
     </div>`;
 }
 

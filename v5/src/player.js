@@ -11,7 +11,7 @@ import { nearestEnemy, dealDamage, enemiesInRadius } from './combat.js';
 import { burst, ring, trail, shake, slash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform, playerWorld } from './rigs.js';
-import { look, liftWorld, drawWanderer, drawWandererArm, wandererFacingAway, WANDERER_LIFT } from './wanderer.js';
+import { look, liftWorld, drawWanderer, drawWandererArm, prepareWanderer, wandererHold, WANDERER_LIFT } from './wanderer.js';
 import { updateSpells } from './spells.js';
 import { updateGrenade, GRENADE } from './grenade.js';
 
@@ -652,11 +652,14 @@ export function drawPlayer(p, ctx) {
   if (standing) {
     // The Wanderer carries its own stepped rise and fall (wanderer.js), so
     // the Hooded One's smooth walking bob is left out.
+    // The weapon rests in a carry while walking and rises to the aim only to
+    // fight (wandererHold); the arm and the weapon share the one hand.
     const lifted = liftWorld(playerWorld(p, -lift));
-    const behind = wandererFacingAway(p);
-    if (behind && !p.dead) { drawWandererArm(p, ctx, lifted, -lift, true); drawWeapon(p, ctx, lifted, -lift); }
+    prepareWanderer(p);
+    const hold = wandererHold(p, lifted, -lift);
+    if (hold.behind && !p.dead) { drawWandererArm(p, ctx, hold, -lift, true); drawWeaponAt(p, ctx, hold); }
     drawWanderer(p, ctx, lifted, -lift);
-    if (!behind && !p.dead) { drawWandererArm(p, ctx, lifted, -lift, false); drawWeapon(p, ctx, lifted, -lift); }
+    if (!hold.behind && !p.dead) { drawWandererArm(p, ctx, hold, -lift, false); drawWeaponAt(p, ctx, hold); }
   } else {
     const world = drawPlayerRig(p, ctx, { bob: bob - lift });
     if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
@@ -765,12 +768,19 @@ function drawScope(p, ctx) {
 }
 
 function drawWeapon(p, ctx, world, bob) {
-  const w = p.weapon;
   // Anchor to the animated hand so blade and arm can never disagree.
   const hand = playerHandTransform(p, world);
   const angle = hand ? hand.angle : p.aimAngle;
-  const hx = hand ? hand.x + Math.cos(angle) * p.anim.pose.armR.sx * 11 : p.x;
-  const hy = hand ? hand.y + Math.sin(angle) * p.anim.pose.armR.sx * 11 : p.y + bob;
+  drawWeaponAt(p, ctx, {
+    x: hand ? hand.x + Math.cos(angle) * p.anim.pose.armR.sx * 11 : p.x,
+    y: hand ? hand.y + Math.sin(angle) * p.anim.pose.armR.sx * 11 : p.y + bob,
+    angle,
+  });
+}
+
+/** Draws the weapon from a hand: its grip at (x, y), pointing along `angle`. */
+function drawWeaponAt(p, ctx, { x: hx, y: hy, angle }) {
+  const w = p.weapon;
   const extend = p.attack ? 6 : 0;
 
   ctx.save();

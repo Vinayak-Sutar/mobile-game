@@ -20,7 +20,7 @@
 // colours that stand out on green, grey and snow, lit from the upper left
 // like the ground, with a dark outline so it reads on any terrain.
 
-import { TAU, clamp } from './util.js';
+import { TAU, clamp, lerp, angleDiff } from './util.js';
 import { boneAt } from './anim.js';
 import { PLAYER_SKELETON } from './rigs.js';
 import { tuning } from './state.js';
@@ -49,7 +49,140 @@ export function liftWorld(world) {
 
 /** Is the Wanderer facing away (the weapon goes behind the body)? */
 export function wandererFacingAway(p) {
-  return Math.sin(p.aimAngle) < -0.25;
+  const o = p.wOct ?? 0;
+  return o === 5 || o === 6 || o === 7;
+}
+
+// --- which way the body faces --------------------------------------------------
+// The body faces the way it WALKS. It turns to the aim only while it is
+// actually fighting - swinging, drawing the bow, winding up the maul, scoped,
+// fanning the hammer, channelling - and holds that for a moment afterwards, so
+// a burst of swings does not flick the figure back and forth between blows.
+// (This is drawing only: the hitboxes still go wherever p.aimAngle says.)
+//
+// The facing is one of eight directions, the way top-down sprites are drawn,
+// and a turn steps through the directions in between - turning from right to
+// left passes through facing the camera for a beat - instead of snapping.
+// Octants, in screen terms: 0 right, 1 down-right, 2 down (toward the camera),
+// 3 down-left, 4 left, 5 up-left, 6 up (away), 7 up-right.
+const LINGER = 0.45;          // seconds the aim facing is held after fighting
+const TURN_STEP = 0.05;       // seconds each in-between direction is shown
+const OCT = Math.PI / 4;
+
+/** Is the Wanderer doing something that points the weapon at the aim? */
+function fighting(p) {
+  return !!(p.attack || p.charging || p.aiming || p.holding || p.fan || p.channel);
+}
+
+const octOf = (a) => ((Math.round(a / OCT) % 8) + 8) % 8;
+
+function updateFacing(p, dt) {
+  const combat = fighting(p);
+  p.wLinger = combat ? LINGER : Math.max(0, (p.wLinger || 0) - dt);
+
+  let want = p.wFace ?? p.aimAngle;
+  if (combat || p.wLinger > 0) want = p.aimAngle;
+  else if (p.dashing) want = p.dashDir;
+  else if (p.moveMag > 0.08 && !p.dead) want = p.moveAngle;
+  p.wFace = want;
+
+  // Quantise to an octant, with a little hysteresis so a heading that sits on
+  // a boundary does not flicker between two drawings.
+  if (p.wOct === undefined) p.wOct = octOf(want);
+  let target = p.wOct;
+  if (Math.abs(angleDiff(p.wOct * OCT, want)) > OCT / 2 + 0.14) target = octOf(want);
+
+  // Step toward it the short way round, one direction at a time.
+  p.wTurnT = Math.max(0, (p.wTurnT || 0) - dt);
+  if (target !== p.wOct && p.wTurnT <= 0) {
+    const d = (target - p.wOct + 8) % 8;
+    p.wOct = (p.wOct + (d <= 4 ? 1 : 7)) % 8;
+    p.wTurnT = combat ? TURN_STEP * 0.4 : TURN_STEP;   // a fight turns you faster
+  }
+
+  // Left or right, for the drawing's mirror. Straight up or down keep
+  // whichever side the figure was last turned to.
+  const o = p.wOct;
+  if (o === 0 || o === 1 || o === 7) p.wS = 1;
+  else if (o === 3 || o === 4 || o === 5) p.wS = -1;
+  else if (!p.wS) p.wS = 1;
+
+  // How far the weapon is raised toward the aim: up fast (even the bow's
+  // 50 ms draw gets there), down slowly once the fight has passed.
+  const up = combat || p.wLinger > 0;
+  p.wCombat = up
+    ? Math.min(1, (p.wCombat || 0) + dt / 0.06)
+    : Math.max(0, (p.wCombat || 0) - dt / 0.25);
+}
+
+/**
+ * Everything the Wanderer's drawing needs this frame, worked out once before
+ * any of it is drawn (the weapon may be drawn behind the body, before it).
+ */
+export function prepareWanderer(p) {
+  const now = performance.now() * 0.001;
+  const dt = Math.min(0.05, Math.max(0, now - (p.wT ?? now)));
+  p.wT = now;
+  updateFacing(p, dt);
+  p.wG = gait(p, p.wS, dt);
+  p.wBodyY = p.wG.bodyY;
+}
+
+// --- the weapon at rest ----------------------------------------------------------
+// Walking about, a person carries a weapon; they do not point it. Each weapon
+// has a resting carry in the figure's own frame (x toward the way it faces,
+// y up from the feet): where the hand is and which way the weapon points.
+// Angles are canvas angles for a figure facing right (positive is downward).
+const CARRY = {
+  blade: { x: 6, y: -17, a: 0.62 },      // low at the side, point down and ahead
+  spear: { x: 6, y: -18, a: -1.92 },     // upright, slanted back, butt by the heel
+  maul: { x: 7, y: -16, a: -2.3 },       // haft in the fist, head on the shoulder
+  bow: { x: 6, y: -18, a: 0.15 },        // held low, limbs up and down
+  gun: { x: 6, y: -17, a: 0.9 },         // muzzle down, ahead of the feet
+  longarm: { x: 6, y: -17, a: 0.8 },
+  shield: { x: 7, y: -19, a: 1.2 },      // on the forearm at the side
+};
+
+/** The rig's weapon hand, where every swing has always been drawn from. */
+function rigHand(p, lifted) {
+  const hand = boneAt(lifted, PLAYER_SKELETON, 'armR');
+  if (!hand) return null;
+  const reach = (p.anim.pose.armR && p.anim.pose.armR.sx) || 1;
+  return {
+    x: hand.x + Math.cos(hand.angle) * reach * 11,
+    y: hand.y + Math.sin(hand.angle) * reach * 11,
+    angle: hand.angle,
+  };
+}
+
+/**
+ * Where the weapon hand is and which way the weapon points: the resting carry,
+ * blended into the rig's aimed hand as the Wanderer starts to fight. Fully
+ * raised it IS the rig's hand, so every swing still lines up with its hitbox.
+ */
+export function wandererHold(p, lifted, bob) {
+  const rig = rigHand(p, lifted);
+  const behind = wandererFacingAway(p);
+  const k = p.wCombat || 0;
+  if (rig && k >= 0.999) return { ...rig, behind };
+
+  const s = p.wS || 1;
+  const c = CARRY[p.weapon.id] || CARRY.blade;
+  const G = p.wG;
+  // The carrying arm counter-swings the legs, a little.
+  const swing = G && !p.dead ? G.far.x * 0.35 : 0;
+  const x = p.x + s * (c.x + swing);
+  const y = p.y + 12 + bob + (p.wBodyY || 0) + c.y;
+  const angle = s > 0 ? c.a : Math.PI - c.a;
+  if (!rig || k <= 0.001) return { x, y, angle, behind };
+
+  const e = k * k * (3 - 2 * k);
+  return {
+    x: lerp(x, rig.x, e),
+    y: lerp(y, rig.y, e),
+    angle: angle + angleDiff(angle, rig.angle) * e,   // the short way round
+    behind,
+  };
 }
 
 // --- the walk ----------------------------------------------------------------
@@ -91,10 +224,8 @@ function ik(hx, hy, fx, fy) {
 }
 
 /** This frame's pose for the legs and the body (all in the figure's frame). */
-function gait(p, s) {
+function gait(p, s, dt) {
   const now = performance.now() * 0.001;
-  const dt = Math.min(0.05, Math.max(0, now - (p.wT ?? now)));
-  p.wT = now;
   const air = !!(p.hop || p.leap || (p.z || 0) > 0.5);
   const walking = p.moveMag > 0.08 && !p.dead && !p.dashing && !air;
   // Steps come quicker the faster you move (the speed setting too), so the
@@ -137,14 +268,13 @@ export function drawWanderer(p, ctx, world, bob) {
   const col = (c) => (flashing ? '#ffffff' : c);
   const accent = col(p.weapon.color);
 
-  const s = Math.cos(p.aimAngle) >= 0 ? 1 : -1;        // facing right or left
+  const s = p.wS || 1;                                  // facing right or left
   const back = wandererFacingAway(p);
   const torso = p.anim.pose.torso || {};
   // The death clip collapses the torso; read it as a fall onto one side.
   const fall = p.dead ? clamp((1.3 - (torso.sy ?? 1)) / 0.8, 0, 1) : 0;
   const moving = p.moveMag > 0.08 && !p.dead;
-  const G = gait(p, s);
-  p.wBodyY = G.bodyY;
+  const G = p.wG || gait(p, s, 0);
   // Knocked back a step when hit: a held jolt, not a squash.
   const jolt = p.hurtFlash > 0.2 && !p.dead ? -1.5 : 0;
 
@@ -280,15 +410,12 @@ export function drawWanderer(p, ctx, world, bob) {
 
 /**
  * The weapon arm, drawn from the shoulder to the hand the weapon is held in
- * (the rig's hand, lifted). In world space, since the hand swings all round.
+ * (`wandererHold`). In world space, since the hand swings all round.
  */
-export function drawWandererArm(p, ctx, lifted, bob, behind) {
-  const hand = boneAt(lifted, PLAYER_SKELETON, 'armR');
-  if (!hand || p.dead) return;
-  const reach = (p.anim.pose.armR && p.anim.pose.armR.sx) || 1;
-  const hx = hand.x + Math.cos(hand.angle) * reach * 11;
-  const hy = hand.y + Math.sin(hand.angle) * reach * 11;
-  const s = Math.cos(p.aimAngle) >= 0 ? 1 : -1;
+export function drawWandererArm(p, ctx, hold, bob, behind) {
+  if (!hold || p.dead) return;
+  const hx = hold.x, hy = hold.y;
+  const s = p.wS || 1;
   const sx0 = p.x + s * 5, sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   ctx.globalAlpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;

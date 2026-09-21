@@ -10,3 +10,6 @@ dist/
 node_modules/
 __pycache__/
 *.log
+
+# Version 6 (the 3D experiment) is shelved: kept on disk, out of the repo.
+v6/
