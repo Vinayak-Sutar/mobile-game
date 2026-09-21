@@ -37,8 +37,9 @@ export function drawOverworldBelow(ctx, time) {
   if (!W) return;
   const cx = camera.x, cy = camera.y, vw = view.w, vh = view.h;
 
-  // The painted ground.
+  // The painted ground, and the live water's light over it.
   W.terrain.draw(ctx, cx, cy, vw, vh);
+  W.water.draw(ctx);
 
   // Prints in the snow, the ash and the mud, filling back in.
   if (W.prints.length) {
@@ -93,10 +94,12 @@ function drawObstacle(ctx, o, time) {
       break;
     }
     case 'rail':
-      // Timber railings on the Great Bridge.
+      // Timber railings along a bridge, posts every forty units.
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + 5, o.y + 6, o.w, o.h);
       ctx.fillStyle = '#3a2c20'; ctx.fillRect(o.x, o.y, o.w, o.h);
       ctx.fillStyle = '#6a5038';
-      for (let y = o.y; y < o.y + o.h; y += 40) ctx.fillRect(o.x - 2, y, o.w + 4, 8);
+      if (o.h >= o.w) for (let y = o.y; y < o.y + o.h; y += 40) ctx.fillRect(o.x - 2, y, o.w + 4, 8);
+      else for (let x = o.x; x < o.x + o.w; x += 40) ctx.fillRect(x, o.y - 2, 8, o.h + 4);
       break;
     case 'rock': {
       const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
@@ -187,6 +190,25 @@ function drawDecal(ctx, d, time) {
       ctx.beginPath(); ctx.arc(d.x, d.y, 2.2, 0, TAU); ctx.fill();
       break;
     }
+    case 'fissure': {
+      // A crack in the ash with lava glowing in it, brightening and dimming.
+      const glow = 0.55 + Math.sin(time * 2 + d.ph) * 0.25;
+      const ex = d.x + Math.cos(d.a) * d.len, ey = d.y + Math.sin(d.a) * d.len * 0.6;
+      const mx = (d.x + ex) / 2 + Math.sin(d.ph) * 6, my = (d.y + ey) / 2 + Math.cos(d.ph) * 4;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255,90,30,${(glow * 0.35).toFixed(2)})`; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,${150 + glow * 60 | 0},70,${glow.toFixed(2)})`; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+      ctx.lineCap = 'butt';
+      break;
+    }
+    case 'shell':
+      ctx.fillStyle = `rgba(${d.c},0.95)`;
+      ctx.beginPath(); ctx.ellipse(d.x, d.y, 4.5, 3.5, d.ph, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(150,110,90,0.6)'; ctx.lineWidth = 0.8;
+      for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(d.x + Math.cos(d.ph) * 3, d.y + Math.sin(d.ph) * 3); ctx.lineTo(d.x - Math.cos(d.ph + k * 0.6) * 4, d.y - Math.sin(d.ph + k * 0.6) * 3); ctx.stroke(); }
+      break;
     case 'grave':
       ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(d.x - 6, d.y - 1, 16, 5);
       ctx.fillStyle = '#6a6870';
@@ -219,6 +241,8 @@ export function drawOverworldAbove(ctx, time) {
         case 'pine': drawPine(ctx, t, sway); break;
         case 'dead': drawDead(ctx, t, sway); break;
         case 'cypress': drawCypress(ctx, t, sway); break;
+        case 'palm': drawPalm(ctx, t, sway, time); break;
+        case 'blossom': drawBroad(ctx, t, sway, [214, 120, 160], 1, [246, 176, 204]); break;
         case 'dark': drawBroad(ctx, t, sway, [18, 34, 26], 0.9); break;
         default: drawBroad(ctx, t, sway, null, 1);
       }
@@ -272,12 +296,12 @@ export function drawOverworldAbove(ctx, time) {
   ctx.fillRect(camera.x - 20, camera.y - 20, view.w + 40, view.h + 40);
 }
 
-function drawBroad(ctx, t, sway, tint, k) {
+function drawBroad(ctx, t, sway, tint, k, top = null) {
   const base = 40 + t.shade;
   const [r, g, b] = tint || [base - 14, base + 26, base - 6];
   ctx.fillStyle = `rgb(${r * k | 0},${g * k | 0},${b * k | 0})`;
   ctx.beginPath(); ctx.arc(t.x + sway, t.y - 16, t.r, 0, TAU); ctx.fill();
-  ctx.fillStyle = tint ? `rgb(${r + 10},${g + 16},${b + 10})` : `rgb(${base - 4},${base + 42},${base + 4})`;
+  ctx.fillStyle = top ? `rgb(${top[0]},${top[1]},${top[2]})` : tint ? `rgb(${r + 10},${g + 16},${b + 10})` : `rgb(${base - 4},${base + 42},${base + 4})`;
   ctx.beginPath(); ctx.arc(t.x - t.r * 0.25 + sway, t.y - 22 - t.r * 0.2, t.r * 0.65, 0, TAU); ctx.fill();
   ctx.fillStyle = tint ? 'rgba(120,160,120,0.12)' : 'rgba(160,200,120,0.18)';
   ctx.beginPath(); ctx.arc(t.x - t.r * 0.35 + sway, t.y - 28 - t.r * 0.3, t.r * 0.3, 0, TAU); ctx.fill();
@@ -311,6 +335,29 @@ function drawDead(ctx, t, sway) {
     const len = t.r * (0.7 - k * 0.1);
     ctx.beginPath(); ctx.moveTo(x + sway * 0.6, by);
     ctx.lineTo(x + side * len + sway, by - len * 0.5); ctx.lineTo(x + side * len * 1.3 + sway, by - len * 0.9); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+}
+
+/** A palm: a leaning, curving trunk and a crown of fronds that stir in the wind. */
+function drawPalm(ctx, t, sway, time) {
+  const lean = (t.shade / 8) * 0.35;
+  const h = t.r * 1.9;
+  const tx = t.x + lean * h + sway * 1.5, ty = t.y - h;
+  ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(t.x, t.y - 4); ctx.quadraticCurveTo(t.x + lean * h * 0.2, t.y - h * 0.6, tx, ty); ctx.stroke();
+  ctx.strokeStyle = 'rgba(60,44,28,0.5)'; ctx.lineWidth = 7;
+  for (let k = 1; k < 6; k++) {
+    const f = k / 6, bx = t.x + (tx - t.x) * f, by = t.y - 4 + (ty - t.y + 4) * f;
+    ctx.beginPath(); ctx.moveTo(bx - 3.5, by); ctx.lineTo(bx + 3.5, by); ctx.stroke();
+  }
+  ctx.lineWidth = 5;
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * TAU + t.sway + Math.sin(time * 1.3 + k) * 0.08;
+    const len = t.r * (0.9 + (k % 2) * 0.25);
+    const ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.55 + len * 0.25;
+    ctx.strokeStyle = k % 2 ? '#3f7a3a' : '#4f8e44';
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + ex) / 2, ty - len * 0.25, ex, ey); ctx.stroke();
   }
   ctx.lineCap = 'butt';
 }

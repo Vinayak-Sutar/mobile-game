@@ -1,7 +1,7 @@
 // The Wilds: the big open world, built from wilds-layout.js and STREAMED.
 //
-// The world is 36,000 x 24,000 units - a hundred times the old prototype's
-// area - so nothing here may cost in proportion to the whole of it:
+// The world is 47,500 x 29,000 units - two islands in a sea, the main one
+// 36,000 x 24,000 - so nothing here may cost in proportion to the whole of it:
 //
 //   - SECTORS (2048 square) hold the fine detail: trees, boulders, flowers,
 //     reeds, bones, the grass field. They are grown from a fixed seed when you
@@ -25,8 +25,9 @@ import { burst } from './fx.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise, mulberry } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
 import {
-  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS,
+  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET,
 } from './wilds-layout.js';
+import { createWildsWater } from './wilds-water.js';
 
 export { WILDS };
 export const FOG = 100;                  // fog-of-war cell
@@ -126,8 +127,29 @@ function inLake(L, x, y) {
   return true;
 }
 
-/** Is there open water here (lake, pool, river or sea)? Bridges are dry. */
+// --- the land and the sea ------------------------------------------------------------
+// The main island fills its authored rectangle, and its coast wanders out past
+// it by anything up to about 1500 units - headlands and bays - so the sea
+// laps a real shoreline. The second island is an ellipse with a ragged shore.
+const M = LAND.main;
+const COAST_MAX = 1550;                  // the furthest a headland reaches past the rectangle
+
+function onLand(x, y) {
+  const dx = Math.max(M.x - x, 0, x - (M.x + M.w)), dy = Math.max(M.y - y, 0, y - (M.y + M.h));
+  if (dx === 0 && dy === 0) return true;
+  const out = Math.hypot(dx, dy);
+  if (out < 250 + fbm(x * 0.0009, y * 0.0009) * 1300) return true;
+  for (const I of LAND.isles) {
+    const e = ((x - I.x) / I.rx) ** 2 + ((y - I.y) / I.ry) ** 2;
+    if (e < 1 + (fbm(x * 0.0016 + 5, y * 0.0016 + 9) - 0.5) * 0.55) return true;
+  }
+  return false;
+}
+
+/** Is there water here (lake, pool, river, the inlet or the open sea)? Bridges are dry. */
 function waterAt(x, y) {
+  if (BRIDGES.some((b) => inRect(b, x, y))) return false;
+  if (!onLand(x, y)) return true;
   for (const b of LAKE_BOX) {
     if (x < b.x0 || x > b.x1 || y < b.y0 || y > b.y1) continue;
     if (inLake(b.L, x, y)) return true;
@@ -138,12 +160,26 @@ function waterAt(x, y) {
     if (segDist(x, y, s.ax, s.ay, s.bx, s.by) < s.w * 0.5 * wob) return !onBridge(x, y);
   }
   if (y > SEA.y0 && y < SEA.y1) {
-    // The coast: ragged, and bending in toward each end of the sea.
+    // The inlet's coast: ragged, and bending in toward each end.
     const ends = Math.min(y - SEA.y0, SEA.y1 - y);
     const coast = SEA.x + (fbm(y * 0.002, 3.7) - 0.5) * SEA.jag - Math.max(0, 600 - ends) * 0.8;
     if (x < coast) return true;
   }
   return false;
+}
+
+// Round the edge of all water there is a band you can wade; only past it is
+// the water deep enough to stop you.
+// The sea shelves more gently than a lake, so its shallows are wider: you
+// can wade along a beach.
+const SHALLOW_BAND = 50, SEA_BAND = 140;
+const seaDeep = (x, y) => !onLand(x, y) && !onLand(x + SEA_BAND, y) && !onLand(x - SEA_BAND, y)
+  && !onLand(x, y + SEA_BAND) && !onLand(x, y - SEA_BAND);
+function deepAt(x, y) {
+  if (!waterAt(x, y)) return false;
+  if (!onLand(x, y) && !seaDeep(x, y)) return false;
+  return waterAt(x + SHALLOW_BAND, y) && waterAt(x - SHALLOW_BAND, y)
+    && waterAt(x, y + SHALLOW_BAND) && waterAt(x, y - SHALLOW_BAND);
 }
 
 const inChasm = (x, y) => CHASMS.some((c) => inRect(c, x, y)) && !BRIDGES.some((b) => inRect(b, x, y));
@@ -153,24 +189,31 @@ const inChasm = (x, y) => CHASMS.some((c) => inRect(c, x, y)) && !BRIDGES.some((
 // 640-unit patch is checked once against the water's bounding boxes.
 const WET = new Map();
 function wetNear(x, y) {
-  const k = Math.floor(y / 640) * 64 + Math.floor(x / 640);
+  const k = Math.floor(y / 640) * 128 + Math.floor(x / 640);
   let v = WET.get(k);
   if (v === undefined) {
     const x0 = Math.floor(x / 640) * 640 - 120, y0 = Math.floor(y / 640) * 640 - 120, x1 = x0 + 880, y1 = y0 + 880;
     v = LAKE_BOX.some((b) => b.x1 > x0 && b.x0 < x1 && b.y1 > y0 && b.y0 < y1)
       || RIVER_SEGS.some((s) => s.x1 > x0 && s.x0 < x1 && s.y1 > y0 && s.y0 < y1)
-      || (x0 < SEA.x + SEA.jag && y1 > SEA.y0 && y0 < SEA.y1);
+      || (x0 < SEA.x + SEA.jag && y1 > SEA.y0 && y0 < SEA.y1)
+      // Near the coast: anywhere not wholly inside the main island's rectangle.
+      || x0 < M.x + 200 || y0 < M.y + 200 || x1 > M.x + M.w - 200 || y1 > M.y + M.h - 200;
     WET.set(k, v);
   }
   return v;
 }
 
 // --- the raised ground --------------------------------------------------------------
+// Each plateau: its top; its south face, broken by stairs, one-way (you can
+// hop down it, not climb it); and gentle slopes on the other three sides, which
+// are only paint - you walk up and down them freely.
+
+const SLOPE = 60;
 
 function buildRaised() {
-  const R = { tops: [], faces: [], stairs: [], rims: [] };
+  const R = { tops: [], faces: [], stairs: [], rims: [], slopes: [] };
   const walls = [];
-  for (const [x, y, w, h, faceH, stairs, sideTop, northRim] of PLATEAUS) {
+  for (const [x, y, w, h, faceH, stairs] of PLATEAUS) {
     R.tops.push({ x, y, w, h });
     let cx = x;
     for (const [sx, sw] of [...stairs, [x + w, 0]]) {
@@ -182,16 +225,9 @@ function buildRaised() {
       if (sw) R.stairs.push({ x: sx, y: y + h - 8, w: sw, h: faceH + 8 });
       cx = sx + sw;
     }
-    for (const rx of [x, x + w - 14]) {
-      const r = { x: rx, y: sideTop, w: 14, h: y + h + faceH - sideTop, vertical: true };
-      R.rims.push(r);
-      walls.push({ x: r.x, y: r.y, w: r.w, h: r.h, kind: 'rim' });
-    }
-    if (northRim) {
-      const r = { x, y, w, h: 14 };
-      R.rims.push(r);
-      walls.push({ x: r.x, y: r.y, w: r.w, h: r.h, kind: 'rim' });
-    }
+    R.slopes.push({ x: x - SLOPE / 2, y, w: SLOPE, h: h + faceH, side: 'w' });
+    R.slopes.push({ x: x + w - SLOPE / 2, y, w: SLOPE, h: h + faceH, side: 'e' });
+    R.slopes.push({ x, y: y - SLOPE / 2, w, h: SLOPE, side: 'n' });
   }
   for (const r of RIMS) {
     const rr = { ...r, vertical: r.h > r.w };
@@ -204,29 +240,30 @@ function buildRaised() {
 /** File rectangles in 1024-unit buckets so a point finds its few quickly. */
 function bucketRects(lists) {
   const B = 1024, out = new Map();
+  const blank = () => ({ tops: [], faces: [], stairs: [], rims: [], slopes: [] });
   for (const [name, list] of Object.entries(lists)) {
     for (const r of list) {
       for (let j = Math.floor(r.y / B); j <= Math.floor((r.y + r.h) / B); j++) {
         for (let i = Math.floor(r.x / B); i <= Math.floor((r.x + r.w) / B); i++) {
-          const k = j * 64 + i;
-          if (!out.has(k)) out.set(k, { tops: [], faces: [], stairs: [], rims: [] });
+          const k = j * 128 + i;
+          if (!out.has(k)) out.set(k, blank());
           out.get(k)[name].push(r);
         }
       }
     }
   }
-  const EMPTY = { tops: [], faces: [], stairs: [], rims: [] };
-  const at = (x, y) => out.get(Math.floor(y / B) * 64 + Math.floor(x / B)) || EMPTY;
+  const EMPTY = blank();
+  const at = (x, y) => out.get(Math.floor(y / B) * 128 + Math.floor(x / B)) || EMPTY;
   const near = (x0, y0, x1, y1) => {
-    const got = { tops: new Set(), faces: new Set(), stairs: new Set(), rims: new Set() };
+    const got = { tops: new Set(), faces: new Set(), stairs: new Set(), rims: new Set(), slopes: new Set() };
     for (let j = Math.floor(y0 / B); j <= Math.floor(y1 / B); j++) {
       for (let i = Math.floor(x0 / B); i <= Math.floor(x1 / B); i++) {
-        const b = out.get(j * 64 + i);
+        const b = out.get(j * 128 + i);
         if (!b) continue;
         for (const k of Object.keys(got)) for (const r of b[k]) got[k].add(r);
       }
     }
-    return { tops: [...got.tops], faces: [...got.faces], stairs: [...got.stairs], rims: [...got.rims] };
+    return { tops: [...got.tops], faces: [...got.faces], stairs: [...got.stairs], rims: [...got.rims], slopes: [...got.slopes] };
   };
   return { at, near };
 }
@@ -281,13 +318,17 @@ function makeClassify(raised) {
     if (inChasm(x, y)) return TT.CHASM;
     const reg = regionAt(x, y);
     if (wetNear(x, y)) {
-      if (waterAt(x, y)) return TT.WATER;
+      if (waterAt(x, y)) return deepAt(x, y) ? TT.WATER : TT.SHALLOW;
       if (RIVER_BRIDGES.some((q) => Math.hypot(x - q.x, y - q.y) < q.r)) return TT.PAVE;
-      // A strip of sand or shingle along every shore (mud in the Mire).
-      if (waterAt(x + 70, y) || waterAt(x - 70, y) || waterAt(x, y + 70) || waterAt(x, y - 70)) {
-        return reg.id === 'mire' ? TT.MUD : TT.SAND;
+      // A strip of sand or shingle along every shore (mud in the Mire); the
+      // sea's beaches are wider.
+      const sea = !onLand(x + 150, y) || !onLand(x - 150, y) || !onLand(x, y + 150) || !onLand(x, y - 150);
+      if (sea || waterAt(x + 70, y) || waterAt(x - 70, y) || waterAt(x, y + 70) || waterAt(x, y - 70)) {
+        return reg.id === 'mire' ? TT.MUD : sea && reg.id === 'echo' ? TT.GRAVEL : TT.SAND;
       }
     }
+    // Region rules are written in the main island's own frame.
+    const u = x - OFFSET.x, v = y - OFFSET.y;
     const m = fbm(x * 0.0035, y * 0.0035);
     const m2 = fbm(x * 0.0021 + 31, y * 0.0021 + 7);
     const onTop = b.tops.some((r) => inRect(r, x, y));
@@ -303,27 +344,29 @@ function makeClassify(raised) {
       case 'gilded': {
         if (onTop) return TT.MARBLE;
         // The palace's garden grid: marble walks between the lawns.
-        const gx = Math.abs(((x - 26700) % 420 + 420) % 420 - 210), gy = Math.abs(((y - 17500) % 420 + 420) % 420 - 210);
-        if (x > 25800 && x < 31000 && y > 16800 && y < 21400 && (gx < 34 || gy < 34)) return TT.MARBLE;
+        const gx = Math.abs(((u - 26700) % 420 + 420) % 420 - 210), gy = Math.abs(((v - 17500) % 420 + 420) % 420 - 210);
+        if (u > 25800 && u < 31000 && v > 16800 && v < 21400 && (gx < 34 || gy < 34)) return TT.MARBLE;
         return m > 0.6 ? TT.TALL : TT.GRASS;
       }
       case 'echo': return m > 0.62 ? TT.ROCK : m < 0.3 ? TT.DIRT : m2 > 0.6 ? TT.TALL : TT.GRASS;
       case 'sands': return onTop ? TT.PAVE : m > 0.74 ? TT.GRAVEL : TT.SAND;
-      case 'peaks':
-        if (y < 2700 && m > 0.38) return TT.SNOW;
-        return m > 0.6 ? TT.ROCK : TT.ASH;
+      case 'isle': return m > 0.62 ? TT.TALL : m < 0.3 ? TT.SAND : TT.GRASS;
+      // Volcanic: ash and black rock, all the way up.
+      case 'peaks': return m > 0.58 ? TT.ROCK : m2 > 0.7 ? TT.GRAVEL : TT.ASH;
       case 'gorge': return m > 0.58 ? TT.ROCK : m < 0.34 ? TT.MOSS : TT.GRAVEL;
       case 'moors': {
-        const lake = ((x - 6000) / 1300) ** 2 + ((y - 2400) / 800) ** 2;
+        const lake = ((u - 6000) / 1300) ** 2 + ((v - 2400) / 800) ** 2;
         if (lake < 1 + (fbm(x * 0.003, y * 0.003) - 0.5) * 0.3) return TT.ICE;
         return m < 0.3 ? TT.ROCK : TT.SNOW;
       }
+      // Green terraces in flower; snow only on the crown.
       case 'summit':
-        if (y < 3000) return m > 0.62 ? TT.ROCK : TT.SNOW;
-        if (y < 5000) return m > 0.55 ? TT.ROCK : m < 0.3 ? TT.SNOW : TT.GRASS;
-        return m > 0.6 ? TT.TALL : m < 0.28 ? TT.ROCK : TT.GRASS;
+        if (v < 2300) return m > 0.6 ? TT.ROCK : TT.SNOW;
+        if (v < 3300) return m > 0.6 ? TT.ROCK : m < 0.35 ? TT.SNOW : TT.GRASS;
+        return m > 0.6 ? TT.TALL : m < 0.24 ? TT.ROCK : TT.GRASS;
       case 'bridge': return m > 0.55 ? TT.ROCK : TT.GRAVEL;
-      case 'citadel': return onTop ? TT.PAVE : m > 0.6 ? TT.ROCK : TT.SNOW;
+      // Pale marble courts on the mesa; frost below.
+      case 'citadel': return onTop ? (m2 > 0.72 ? TT.PAVE : TT.MARBLE) : m > 0.6 ? TT.ROCK : TT.SNOW;
       default: return TT.GRASS;
     }
   };
@@ -336,21 +379,38 @@ function build() {
   const raised = bucketRects(R);
   const hash = createHash();
 
-  // Water and chasm, as collision: the water mask on a 40-unit grid, merged
-  // into runs along each row (a lake is a few hundred rectangles, not
-  // thousands).
+  // Deep water and the chasm, as collision: a 40-unit mask merged into runs
+  // along each row. Only DEEP water blocks - the shallows are for wading. Far
+  // out at sea it is deep everywhere, so only the coast needs testing.
   const tw = Math.ceil(WILDS.W / TILE), th = Math.ceil(WILDS.H / TILE);
   const mask = new Uint8Array(tw * th);
   const mark = (x0, y0, x1, y1) => {
     for (let j = Math.max(0, Math.floor(y0 / TILE)); j <= Math.min(th - 1, Math.floor(y1 / TILE)); j++) {
       for (let i = Math.max(0, Math.floor(x0 / TILE)); i <= Math.min(tw - 1, Math.floor(x1 / TILE)); i++) {
-        if (!mask[j * tw + i] && waterAt(i * TILE + TILE / 2, j * TILE + TILE / 2)) mask[j * tw + i] = 1;
+        if (!mask[j * tw + i] && deepAt(i * TILE + TILE / 2, j * TILE + TILE / 2)) mask[j * tw + i] = 1;
       }
     }
   };
   for (const b of LAKE_BOX) mark(b.x0, b.y0, b.x1, b.y1);
   for (const s of RIVER_SEGS) mark(s.x0, s.y0, s.x1, s.y1);
   mark(0, SEA.y0, SEA.x + SEA.jag, SEA.y1);
+  // The sea: everything round the main island's rectangle, tested only near
+  // its coast and near the isles.
+  const nearCoast = (x, y) => {
+    const dx = Math.max(M.x - x, 0, x - (M.x + M.w)), dy = Math.max(M.y - y, 0, y - (M.y + M.h));
+    if (Math.hypot(dx, dy) < COAST_MAX + 100) return true;
+    return LAND.isles.some((I) => ((x - I.x) / (I.rx * 1.5)) ** 2 + ((y - I.y) / (I.ry * 1.5)) ** 2 < 1);
+  };
+  for (let j = 0; j < th; j++) {
+    for (let i = 0; i < tw; i++) {
+      const x = i * TILE + TILE / 2, y = j * TILE + TILE / 2;
+      if (x > M.x + 200 && x < M.x + M.w - 200 && y > M.y + 200 && y < M.y + M.h - 200) { i = Math.floor((M.x + M.w - 200) / TILE); continue; }
+      if (mask[j * tw + i]) continue;
+      if (BRIDGES.some((q) => inRect(q, x, y))) continue;
+      const deep = nearCoast(x, y) ? seaDeep(x, y) : !onLand(x, y);
+      if (deep) mask[j * tw + i] = 1;
+    }
+  }
   const statics = [...walls];
   for (let j = 0; j < th; j++) {
     let run = -1;
@@ -363,11 +423,19 @@ function build() {
       }
     }
   }
-  for (const c of CHASMS) statics.push({ ...c, kind: 'chasm', low: true });
-  // The Great Bridge's railings.
+  // The chasm, less every bridge deck that crosses it.
+  let chasm = CHASMS.map((q) => ({ ...q }));
+  for (const d of BRIDGES) chasm = chasm.flatMap((q) => cutRect(q, d));
+  for (const q of chasm) statics.push({ ...q, kind: 'chasm', low: true });
+  // Railings along both sides of every bridge deck, whichever way it runs.
   for (const b of BRIDGES) {
-    statics.push({ x: b.x - 16, y: b.y - 20, w: 16, h: b.h + 40, kind: 'rail' });
-    statics.push({ x: b.x + b.w, y: b.y - 20, w: 16, h: b.h + 40, kind: 'rail' });
+    if (b.h >= b.w) {
+      statics.push({ x: b.x - 16, y: b.y - 20, w: 16, h: b.h + 40, kind: 'rail' });
+      statics.push({ x: b.x + b.w, y: b.y - 20, w: 16, h: b.h + 40, kind: 'rail' });
+    } else {
+      statics.push({ x: b.x - 20, y: b.y - 16, w: b.w + 40, h: 16, kind: 'rail' });
+      statics.push({ x: b.x - 20, y: b.y + b.h, w: b.w + 40, h: 16, kind: 'rail' });
+    }
   }
   for (const o of statics) hash.add(o);
 
@@ -392,7 +460,21 @@ function build() {
     zone: null, respawn: { ...START },
     prints: [], stepT: 0, lastX: 0, lastY: 0, printX: 0, printY: 0,
     grade: [255, 228, 168, 0.05], leaves: [],
+    water: createWildsWater(),
   };
+}
+
+/** A rectangle with another cut out of it: up to four pieces round the hole. */
+function cutRect(r, h) {
+  if (h.x >= r.x + r.w || h.x + h.w <= r.x || h.y >= r.y + r.h || h.y + h.h <= r.y) return [r];
+  const out = [];
+  const x0 = Math.max(r.x, h.x), x1 = Math.min(r.x + r.w, h.x + h.w);
+  if (h.y > r.y) out.push({ x: r.x, y: r.y, w: r.w, h: h.y - r.y });                                   // above
+  if (h.y + h.h < r.y + r.h) out.push({ x: r.x, y: h.y + h.h, w: r.w, h: r.y + r.h - (h.y + h.h) });   // below
+  const y0 = Math.max(r.y, h.y), y1 = Math.min(r.y + r.h, h.y + h.h);
+  if (x0 > r.x) out.push({ x: r.x, y: y0, w: x0 - r.x, h: y1 - y0 });                                  // left
+  if (x1 < r.x + r.w) out.push({ x: x1, y: y0, w: r.x + r.w - x1, h: y1 - y0 });                       // right
+  return out;
 }
 
 function makeCanvas(w, h) {
@@ -403,7 +485,7 @@ function makeCanvas(w, h) {
 
 // --- sectors: the fine detail, grown from the seed ----------------------------------------
 
-const NO_TREES = new Set([TT.WATER, TT.CHASM, TT.ICE, TT.PAVE, TT.MARBLE]);
+const NO_TREES = new Set([TT.WATER, TT.SHALLOW, TT.CHASM, TT.ICE, TT.PAVE, TT.MARBLE]);
 
 function inClearing(x, y) {
   if (Math.hypot(x - START.x, y - START.y) < 700) return true;
@@ -463,7 +545,7 @@ function growSector(si, sj) {
       const reg = regionAt(x, y);
       if (roll > reg.rocks) continue;
       const ground = T.typeAt(x, y);
-      if (ground === TT.WATER || ground === TT.CHASM || T.roadAt(x, y) < 70 || inClearing(x, y) || blockedAt(x, y, 60)) continue;
+      if (ground === TT.WATER || ground === TT.SHALLOW || ground === TT.CHASM || T.roadAt(x, y) < 70 || inClearing(x, y) || blockedAt(x, y, 60)) continue;
       const w = between(44, 96), h = between(36, 70);
       const o = { x: x - w / 2, y: y - h / 2, w, h, kind: 'rock', shadow: true,
         snowy: ground === TT.SNOW || ground === TT.ICE, ashy: ground === TT.ASH, poly: [] };
@@ -482,10 +564,21 @@ function growSector(si, sj) {
     const ground = T.typeAt(x, y);
     if (ground === TT.WATER || ground === TT.CHASM) continue;
     const near = rng();
+    if (ground === TT.SHALLOW) {
+      if (near > 0.6) S.decals.push({ t: 'reeds', x, y, ph: rng() * TAU });
+      continue;
+    }
     let d = null;
     switch (reg.id) {
-      case 'heartland': case 'lake': case 'summit': case 'echo':
+      case 'heartland': case 'lake': case 'echo':
         if (ground === TT.GRASS || ground === TT.TALL) d = { t: 'flowers', c: ['230,140,60', '220,90,120', '240,230,180', '170,150,240'][(rng() * 4) | 0] };
+        break;
+      case 'summit':
+        if (ground === TT.GRASS || ground === TT.TALL) d = { t: 'flowers', c: near > 0.5 ? '255,176,206' : '255,230,240' };
+        break;
+      case 'isle':
+        d = ground === TT.SAND ? { t: 'shell', c: near > 0.5 ? '240,214,200' : '232,196,170' }
+          : ground === TT.GRASS || ground === TT.TALL ? { t: 'flowers', c: '255,120,90' } : null;
         break;
       case 'gilded':
         if (ground === TT.GRASS || ground === TT.TALL) d = { t: 'flowers', c: near > 0.5 ? '120,200,230' : '240,200,90' };
@@ -493,8 +586,9 @@ function growSector(si, sj) {
       case 'mire': d = near > 0.5 ? { t: 'reeds' } : { t: 'stump' }; break;
       case 'webwood': case 'gorge': d = near > 0.55 ? { t: 'web' } : { t: 'shrooms' }; break;
       case 'gulch': case 'sands': d = near > 0.7 ? { t: 'skull' } : { t: 'pebbles' }; break;
-      case 'peaks': d = near > 0.6 ? { t: 'ember' } : { t: 'pebbles' }; break;
-      case 'moors': case 'citadel': d = near > 0.6 ? { t: 'grave' } : { t: 'pebbles' }; break;
+      case 'peaks': d = near > 0.72 ? { t: 'fissure', len: 20 + rng() * 40, a: rng() * TAU } : near > 0.45 ? { t: 'ember' } : { t: 'pebbles' }; break;
+      case 'moors': d = near > 0.6 ? { t: 'grave' } : { t: 'pebbles' }; break;
+      case 'citadel': d = near > 0.8 ? { t: 'grave' } : null; break;
       default: break;
     }
     if (!d) continue;
@@ -691,12 +785,16 @@ export function updateOverworld(dt) {
   camera.x += (tx - camera.x) * f;
   camera.y += (ty - camera.y) * f;
 
-  // Higher ground sees further; stairs are slow going.
+  // Higher ground sees further; stairs are slow going, and so is wading.
   const b = W.raised.at(p.x, p.y);
   let tiers = 0;
   for (const r of b.tops) if (inRect(r, p.x, p.y)) tiers++;
   reveal(p.x, p.y, 700 + tiers * 260);
   p.groundMult = b.stairs.some((r) => inRect(r, p.x, p.y)) ? 0.72 : 1;
+  if (W.terrain.typeAt(p.x, p.y + p.r * 0.5) === TT.SHALLOW) p.groundMult *= 0.62;
+
+  // The live water in view.
+  W.water.update(dt, W.terrain);
 
   // The grass in view: wind, everyone walking through it; your blows cut it.
   const vx0 = camera.x - 40, vy0 = camera.y - 40, vx1 = camera.x + view.w + 40, vy1 = camera.y + view.h + 40;

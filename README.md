@@ -110,7 +110,10 @@ slots, or on PC hover a spell and press 1–4).
 **Being rebuilt as a large souls-like world, in steps.** The land itself is
 in: guardians, lamps, fights and progression arrive in the next steps.
 
-- **Size:** 36,000 × 24,000 units, about 3–4 minutes to cross on foot.
+- **Size:** a main island of 36,000 × 24,000 units (about 3–4 minutes to
+  cross on foot) and **Saltwind Isle** off its east coast, joined by a long
+  bridge, all in a sea: the world ends at a coastline, not a wall. (Ships are
+  planned.)
 - **Fourteen regions** round the Ashen Heartland, each with its own ground,
   trees, weather and colour: the Webwood, Mirror Lake, the Dust Gulch, the
   Blackwater Mire, the Gilded Deep, the Echo Cliffs, the Sunken Sands, the
@@ -120,10 +123,15 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   Hand-placed roads, rivers with bridges where roads cross, lakes, a sea
   coast, and a chasm that only the Great Bridge crosses. The fine detail
   (trees, boulders, flowers, grass) grows from a fixed seed.
-- **Height:** plateaus with cliff faces seen from the front. Stairs are the
-  only way up, you can hop down anywhere, and dashing off an edge lands a
-  plunge. Tiers stack: the Broken Peaks are a three-tier climb, and Cloud
-  Summit is four tiers of switchback stairs. High ground reveals more of the map.
+- **Height, without fences:** plateaus have a cliff face to the south
+  (several stairs up it, and you can hop down anywhere, or dash off to land a
+  plunge) and open slopes on the other three sides. Tiers stack: the volcanic
+  Broken Peaks are three, and the blossoming Cloud Summit four. Sky bridges
+  join the Peaks, the Moon Citadel and the Summit over the chasm. High ground
+  reveals more of the map.
+- **Live water:** lakes, rivers and the sea move like the flooded boss
+  arenas: waves lap the shore, fish rise, and you can wade the shallows,
+  leaving ripples.
 - **Ground:** fifteen painted types, including volcanic ash, swamp mud, a
   frozen lake, palace marble, water and the chasm. A live grass field, and
   prints in snow, ash and mud.

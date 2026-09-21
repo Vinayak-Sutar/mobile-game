@@ -15,7 +15,7 @@
 //
 // The type map itself is worked out LAZILY too: The Wilds are 36,000 x 24,000
 // units, and classifying all of it up front would take seconds. The grid is
-// filled in blocks of 32 x 32 cells the first time anything looks there, so
+// filled in blocks of 16 x 16 cells the first time anything looks there, so
 // only the land you actually walk through is ever classified - and prefill()
 // lets the caller do it ahead of need, a few blocks a frame, so walking into
 // new land never waits on it.
@@ -27,14 +27,16 @@ export const TT = {
   // The big Wilds' own grounds: the Broken Peaks' ash, the Mire's mud, the
   // Moors' frozen lake, the palace's marble, open water and the chasm.
   ASH: 9, MUD: 10, ICE: 11, MARBLE: 12, WATER: 13, CHASM: 14,
+  // The shallow edge of any water: you can wade it, slowly.
+  SHALLOW: 15,
 };
 // An average colour per type, for the minimap.
 export const TERRAIN_RGB = [
   '82,100,62', '70,96,54', '46,68,48', '112,94,70', '112,108,102', '222,228,238', '184,164,122', '104,100,98', '126,112,92',
-  '76,70,68', '70,60,46', '178,204,222', '214,206,190', '36,70,92', '14,14,20',
+  '76,70,68', '70,60,46', '178,204,222', '214,206,190', '36,70,92', '14,14,20', '70,126,132',
 ];
 // How strongly each type catches the relief light.
-const ROUGH = [0.35, 0.3, 0.3, 0.3, 1.1, 0.9, 0.45, 0.2, 0.6, 0.75, 0.25, 0.35, 0.12, 0.1, 0];
+const ROUGH = [0.35, 0.3, 0.3, 0.3, 1.1, 0.9, 0.45, 0.2, 0.6, 0.75, 0.25, 0.35, 0.12, 0.1, 0, 0.1];
 
 /** A small seeded random-number generator (the same seed gives the same run). */
 export function mulberry(seed) {
@@ -95,7 +97,7 @@ export function createTerrain(opts) {
   const grid = new Uint8Array(gw * gh);
   // Distance to a road, in whole units, capped: nothing cares beyond 255.
   const road = new Uint8Array(gw * gh);
-  const BLK = 32;
+  const BLK = 16;
   const bw = Math.ceil(gw / BLK), bh = Math.ceil(gh / BLK);
   const done = new Uint8Array(bw * bh);
 
@@ -275,11 +277,19 @@ export function createTerrain(opts) {
         break;
       }
       case TT.WATER: {
-        // Deep in the middle, shallow and lighter at the edge; a glint here and there.
-        const shore = typeAt(wx + 26, wy) !== TT.WATER || typeAt(wx - 26, wy) !== TT.WATER
-          || typeAt(wx, wy + 26) !== TT.WATER || typeAt(wx, wy - 26) !== TT.WATER;
-        r = (shore ? 44 : 22) + m * 12 + n * 6; g = (shore ? 88 : 52) + m * 16 + n * 8; bl = (shore ? 100 : 70) + m * 18 + n * 8;
-        if (h > 0.992) { r += 60; g += 70; bl += 70; }
+        // Deep water: dark, with the odd glint.
+        r = 20 + m * 12 + n * 6; g = 48 + m * 16 + n * 8; bl = 68 + m * 20 + n * 8;
+        if (h > 0.993) { r += 60; g += 70; bl += 70; }
+        break;
+      }
+      case TT.SHALLOW: {
+        // Shallows: the bottom shows through - sand and pebbles under clear
+        // water - with a line of foam where it meets the land.
+        const foam = typeAt(wx + 18, wy) < TT.WATER || typeAt(wx - 18, wy) < TT.WATER
+          || typeAt(wx, wy + 18) < TT.WATER || typeAt(wx, wy - 18) < TT.WATER;
+        r = 58 + m * 26 + n * 12; g = 112 + m * 24 + n * 10; bl = 118 + m * 20 + n * 8;
+        if (h < 0.05) { r -= 14; g -= 12; bl -= 10; }                     // a pebble
+        if (foam && h > 0.4) { r = 214 + n * 30; g = 230 + n * 20; bl = 232 + n * 16; }
         break;
       }
       case TT.CHASM: {
@@ -294,7 +304,7 @@ export function createTerrain(opts) {
 
     // Roads, worn into whatever they cross: two wheel ruts and a crown.
     // (Not across open water or a chasm: those are bridges, paved already.)
-    const rd = t === TT.WATER || t === TT.CHASM ? 99 : roadAt(wx + (n - 0.5) * 8, wy + (m - 0.5) * 8);
+    const rd = t === TT.WATER || t === TT.CHASM || t === TT.SHALLOW ? 99 : roadAt(wx + (n - 0.5) * 8, wy + (m - 0.5) * 8);
     if (rd < 30) {
       const k = clamp01((30 - rd) / 9);
       let dr, dg, db;
@@ -381,6 +391,16 @@ export function createTerrain(opts) {
     }
     let lift = 1;
     for (const t2 of J.tops) if (inR(t2, wx, wy)) { lift = 1.08; break; }
+    // The open sides of higher ground: a bank that falls away from the top,
+    // lit where it faces the light (upper left) and shaded where it turns away.
+    for (const sl of J.slopes) {
+      if (!inR(sl, wx, wy)) continue;
+      const u = sl.side === 'n' ? (wy - sl.y) / sl.h : (wx - sl.x) / sl.w;   // 0..1 across the bank
+      const k = sl.side === 'w' ? 1 - u : u;                                 // 0 at the top edge, 1 at the foot
+      const lit = sl.side === 'w' || sl.side === 'n' ? 1.12 : 0.8;
+      lift *= 1 + (lit - 1) * Math.sin(Math.PI * Math.min(1, k * 1.2));
+      if (k > 0.2 && k < 0.3 && h < 0.5) lift *= 0.9;                        // the break of the slope
+    }
     // The cliff's shadow on the ground below it, and east of a plateau.
     for (const f of J.faces) {
       const below = wy - (f.y + f.h);
@@ -428,12 +448,13 @@ export function createTerrain(opts) {
       }
     }
     const R0 = opts.raisedNear ? opts.raisedNear(x0 - 40, y0 - 40, x0 + S + 40, y0 + S + 40)
-      : opts.raised || { tops: [], faces: [], stairs: [], rims: [] };
+      : opts.raised || { tops: [], faces: [], stairs: [], rims: [], slopes: [] };
     const near = (r) => r.x < x0 + S + 40 && r.x + r.w > x0 - 40 && r.y < y0 + S + 40 && r.y + r.h > y0 - 40;
     const J = {
       tops: R0.tops.filter(near), faces: R0.faces.filter(near), stairs: R0.stairs.filter(near), rims: R0.rims.filter(near),
+      slopes: (R0.slopes || []).filter(near),
     };
-    J.raised = J.tops.length + J.faces.length + J.stairs.length + J.rims.length > 0;
+    J.raised = J.tops.length + J.faces.length + J.stairs.length + J.rims.length + J.slopes.length > 0;
     return { key: cy * 1000 + cx, x0, y0, S, c, cc, img, shadowRects, F, P, J, row: 0 };
   }
 

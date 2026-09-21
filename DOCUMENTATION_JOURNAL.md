@@ -4176,6 +4176,73 @@ Asked for by the owner, to survey the big Wilds quickly and watch its cost on th
   the worst frame in the last half second. It is green at 55 fps or more, amber
   at 40 or more, red below that.
 
+### 16.34 The Wilds, level-design rework: open heights, sky bridges, sea and islands, live water (2026-09-21)
+
+Owner, after surveying the land:
+- the fences (plateau side and back rims) felt restrictive, and they asked
+  for lots of freedom;
+- levels should connect by bridges: the Citadel had one way in, and the Peaks
+  and Summit weren't connected;
+- the Peaks, Citadel and Summit looked alike;
+- water should move like the turtle and crocodile arenas';
+- the world should end at the sea, not a wall, with two islands joined by a
+  bridge for now.
+
+A ship comes later; this is recorded in memory.
+
+- **Plateaus open**:
+  - `PLATEAUS` entries lost `sideTop` and `northRim`. A plateau is now its
+    top, a south face (one-way, hop down) with more stairs (2 to 4 per face),
+    and three `slopes` (west, east, north), which are paint only. You walk up
+    and down them freely.
+  - `terrain.js` shades a slope as a bank (lit facing upper left, shaded facing
+    away).
+  - The only rims left are the Gorge's canyon walls, and they have more gaps.
+- **Bridges**:
+  - Two sky bridges cross the Citadel's chasm: the West from the Broken Peaks
+    and the East to Cloud Summit.
+  - A high road runs Peaks, West Sky Bridge, the keep, East Sky Bridge, the Summit.
+  - `cutRect` subtracts every bridge deck from the chasm's collision, where
+    the Great Bridge's split had been done by hand.
+  - Railings follow each deck's direction.
+- **Distinct looks**:
+  - the Broken Peaks are volcanic, with no snow: ash, black rock, gravel, and
+    glowing lava `fissure` decals;
+  - Cloud Summit is green terraces with `blossom` trees and pink flowers, with
+    snow only on its crown;
+  - the Moon Citadel is marble courts under a blue moonlit grade, with drifting
+    motes.
+- **Sea and islands**:
+  - The world is now 47,500 × 29,000. Everything is authored in the main
+    island's frame and moved by `OFFSET` (2500, 2500).
+  - `onLand`: the main island fills `MAIN` (36,000 × 24,000) and its coast
+    wanders out up to 1550 units (headlands, bays). Saltwind Isle
+    (`ISLES`, new region `isle`, tier 1, palms and shells) lies off the east
+    coast.
+  - The 3,700-unit Saltwind Bridge joins them, and the Sands road continues
+    over it.
+  - Beaches are 150 units wide. The sea's shallows (`SEA_BAND` 140) are wider
+    than a lake's (`SHALLOW_BAND` 50).
+  - Collision is built from DEEP water only. New type `TT.SHALLOW` is wadeable
+    (speed ×0.62), painted with a visible bottom and a foam edge.
+  - Far from the coast the sea mask skips the expensive tests.
+- **Live water** (`wilds-water.js`):
+  - It uses the arenas' wave equation on a 12-unit grid that covers only the
+    screen plus 200 units and slides with the camera. Cells scrolling in are
+    filled fresh from `typeAt`, and there's no cost at all where no water is in
+    view.
+  - Disturbances: you and enemies wading, lapping at the shore, fish and drips,
+    and a swell drawn in the lighting.
+  - It is drawn as light (crests and troughs) over the painted water, plus
+    ripple rings.
+- **Classification blocks** are now 16×16 cells, so ahead-of-need work comes in
+  small pieces.
+- **Measured** (Node, camera placed as the game places it):
+  - every road route's worst frame is at most 7.2 ms;
+  - no road is blocked, including the sky bridges and the Saltwind Bridge;
+  - the coast reads land, sand, shallows, deep;
+  - the world build takes about 150 ms.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.
