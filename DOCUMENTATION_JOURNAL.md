@@ -4385,6 +4385,51 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.42 The Wilds, M5: the last seven guardians, the Great Bridge, the Ashen Gate (2026-09-21)
+
+All fourteen bosses are now in the world. With them, the Wilds can be
+finished from start to end.
+- **Six more lairs** (styles in wilds-lairs.js):
+  - Kharn's Caldera (`caldera`): on the Peaks' top tier, a black basalt arch
+    cracked with lava, basalt blocks, lava cracks, embers.
+  - The Serpent Temple (`falls`): in the Coil Gorge, a carved door with a
+    serpent round its arch behind an animated waterfall, and serpent statues.
+  - The Frozen Chapel (`chapel`): on the Moors' ice, a new `ice` floor,
+    graves and candles.
+  - The Highest Shrine (`pagoda`): on Cloud Summit's top tier, with stone
+    lanterns and cloud drifting past. The Cloud Perch lamp stands in its
+    forecourt.
+  - The Wardens' Gatehouse (`bridge`): two towers over the south end of the
+    Great Bridge, with sun and hammer banners.
+  - The Moon Keep (`keep`): on the citadel keep's top, straight up its stairs.
+- **New lamps**: Serpent Steps and Chapel Pond.
+- **A passage**:
+  - The gatehouse has `passage: true`. Its back block carries
+    `opensWith: 'gatehouse'`, and so do the two `SEALS` at the citadel ends of
+    the sky bridges (kind `seal`, an ash wall with ember runes).
+  - `markLairBeaten` calls `openFor`, which takes those out of the hash, and
+    `restoreWorld` does the same for a saved win.
+  - Walking up to a seal toasts who holds it.
+  - This makes the Twin Wardens a hard gate before the citadel, as planned.
+- **The Ashen Gate** (`needs: 13`), on the Heartland dais:
+  - 13 sockets arc over an iron door, lit by `P.sockets` (`syncSockets`).
+  - Until all are lit, the door is drawn shut (`drawSealed`) and stepping in
+    only toasts "n of 13 Remnants set".
+  - `remnantCount` leaves the gate's own Warden out.
+- **The Warden fight**: tier 2.8. Winning gives 3000 Cinders and
+  `showWildsVictory` (reworded, 500 Darkness the first time).
+- **Tiers**: lairs fight at 0.5 + 0.7·(land tier): 1.9 in tier-2 lands and
+  2.6 in tier-3 lands.
+- **The Great Bridge's small ambush site** gives way to the gatehouse (the
+  places and small sites keep clear of lairs).
+- **Verified in Node**:
+  - all 14 lairs: door open, sides solid, not on a cliff face, the fog prompt,
+    and the grammar for the Wardens;
+  - the seals toast, and the door and both seals open on the win and after a
+    save round trip into a new world;
+  - with all 13 beaten, 13 sockets are lit and the gate offers its fight;
+  - the old tests pass, and the worst frame on every route is 7.8 ms.
+
 ### 16.41 Grass drawn from an atlas: the PC frame-rate drop (2026-09-21)
 
 The owner saw 17-18 fps on PC wherever there was grass (100 fps elsewhere),

@@ -153,19 +153,27 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   heart fights you in a closing ring and guards a reliquary with a spell.
   Between the places: smaller fights (a ring of stones, a palisade, ruins)
   and **patrols** walking the roads. Resting brings them all back.
-- **Lairs (7 of 14 so far):** each guardian waits in a lair of its own:
+- **Lairs (all 14):** each guardian waits in a lair of its own:
   - the Drowned Vault on Mirror Lake's island;
   - the Story-Tree in the Webwood;
   - Last Chance, a ghost town in the Gulch;
   - the Sinkhole in the Mire;
   - the Peacock Court atop the Gilded terraces;
   - the Echoing Amphitheatre on the sea cliffs;
-  - the Nine Tombs in the Sands.
+  - the Nine Tombs in the Sands;
+  - Kharn's Caldera atop the Broken Peaks;
+  - the Serpent Temple behind the Coil Gorge's waterfall;
+  - the Frozen Chapel on the Moors' ice;
+  - the Highest Shrine on Cloud Summit;
+  - the Twin Wardens' gatehouse on the Great Bridge, the only way into the
+    Moon Citadel (the sky bridges stay sealed until they fall);
+  - the Moon Keep.
 
   Walk into the fog gate and there is no leaving until one of you falls.
   Win, and the guardian's **Remnant** is yours (one of thirteen for the
   Ashen Gate), with a heap of Cinders and a spell. An Ashlamp waits outside
-  every lair.
+  every lair. Set all thirteen Remnants and the **Ashen Gate** in the
+  Heartland opens on the Warden of Ash, the last fight of the Wilds.
 - **Streaming:** only the land near you exists at any moment: detail in
   2048-unit sectors, walls in a spatial hash, and collision against an
   active set. That is what lets a world this size run on a phone.

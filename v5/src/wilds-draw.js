@@ -175,6 +175,16 @@ function drawObstacle(ctx, o, time) {
       for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x - 8 + k * 8, y - 10 + (k % 2) * 6, 1.8, 0, TAU); ctx.fill(); }
       break;
     }
+    case 'seal': {
+      // A wall of grey ash across a sky bridge, ember runes crawling in it.
+      const k = 0.6 + Math.sin(time * 1.6) * 0.2;
+      ctx.fillStyle = 'rgba(60,54,52,0.85)'; ctx.fillRect(o.x - 6, o.y - 90, o.w + 12, o.h + 90);
+      ctx.fillStyle = 'rgba(150,140,136,0.35)';
+      for (let y = o.y - 80 + ((time * 20) % 30); y < o.y + o.h; y += 30) ctx.fillRect(o.x - 6, y, o.w + 12, 6);
+      ctx.fillStyle = `rgba(255,120,50,${k.toFixed(2)})`;
+      for (let y = o.y - 60; y < o.y + o.h - 10; y += 46) { ctx.fillRect(o.x + o.w / 2 - 4, y, 8, 3); ctx.fillRect(o.x + o.w / 2 - 1.5, y - 6, 3, 15); }
+      break;
+    }
     case 'cactus': {
       const x = o.x + o.w / 2, y = o.y + o.h;
       ctx.fillStyle = 'rgba(0,0,0,0.25)';

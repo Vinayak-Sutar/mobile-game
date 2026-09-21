@@ -25,7 +25,7 @@ import { burst } from './fx.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise, mulberry } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
 import {
-  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS,
+  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
 import { takeSmoulder } from './wilds-progress.js';
@@ -314,7 +314,7 @@ function createHash() {
 
 // --- the ground --------------------------------------------------------------------
 
-const FLOOR_TT = { dirt: TT.DIRT, pave: TT.PAVE, marble: TT.MARBLE, gravel: TT.GRAVEL };
+const FLOOR_TT = { dirt: TT.DIRT, pave: TT.PAVE, marble: TT.MARBLE, gravel: TT.GRAVEL, ice: TT.ICE };
 
 function makeClassify(raised, placeFloor) {
   return (x, y) => {
@@ -452,6 +452,8 @@ function build() {
   }
   // The places' walls, buildings and props.
   for (const P of places) for (const o of P.obs) statics.push(o);
+  // The seals across the sky bridges, until the Twin Wardens fall.
+  for (const s of SEALS) statics.push({ x: s.x, y: s.y, w: s.w, h: s.h, kind: 'seal', opensWith: s.by });
   for (const o of statics) hash.add(o);
 
   const classify = makeClassify(raised, floorLookup(places));
@@ -898,13 +900,34 @@ export function markLairBeaten(id) {
   P.beaten = true;
   const l = P.lamp && lampById(P.lamp);
   if (l) l.lit = true;
+  openFor(P.id);
+  syncSockets();
   return P;
 }
 
-/** Remnants taken: one for every guardian beaten in its lair. */
-export function remnantCount() {
-  return lairs().filter((P) => P.beaten).length;
+/** What a guardian's fall opens: a passage's door, the sky bridges' seals. */
+function openFor(id) {
+  for (const o of W.statics) {
+    if (o.opensWith !== id || o.gone) continue;
+    o.gone = true;
+    W.hash.remove(o);
+  }
+  W.activeDirty = true;
 }
+
+/** The Ashen Gate's sockets: one lit for every Remnant. */
+function syncSockets() {
+  const n = remnantCount();
+  for (const P of lairs()) if (P.needs) P.sockets = n;
+}
+
+/** Remnants taken: one for every guardian beaten in its lair (the Ashen Gate's own Warden is not one). */
+export function remnantCount() {
+  return lairs().filter((P) => P.beaten && !P.needs).length;
+}
+
+/** The last guardian has fallen. */
+export const wildsWon = () => lairs().some((P) => P.needs && P.beaten);
 
 /** Every site's enemies back (a rest, or waking from a fall). */
 export function resetWildsSites() {
@@ -932,7 +955,8 @@ export function restoreWorld(snap) {
   const claimed = new Set(snap.claimed || []);
   for (const s of W.sites) { s.claimed = claimed.has(s.id); if (s.claimed) s.seen = true; }
   const beaten = new Set(snap.lairs || []);
-  for (const P of lairs()) { P.beaten = beaten.has(P.id); if (P.beaten) P.seen = true; }
+  for (const P of lairs()) { P.beaten = beaten.has(P.id); if (P.beaten) { P.seen = true; openFor(P.id); } }
+  syncSockets();
   W.repaint = { row: 0 };
 }
 
@@ -1053,7 +1077,9 @@ export function updateOverworld(dt) {
     if (P && P.kind === 'lair') {
       P.seen = true;
       const title = (BOSS_INFO[P.boss] || { title: 'Its guardian' }).title;
-      action = { toast: [P.name.toUpperCase(), P.beaten ? `${title} is no more` : `${title} waits beyond the fog`] };
+      const many = P.boss === 'solaris';          // the Twin Wardens are two
+      action = { toast: [P.name.toUpperCase(), P.beaten ? `${title} ${many ? 'are' : 'is'} no more`
+        : P.needs && remnantCount() < P.needs ? `${remnantCount()} of ${P.needs} Remnants set` : `${title} ${many ? 'wait' : 'waits'} beyond the fog`] };
     } else if (P) {
       P.seen = true;
       const champ = W.sites.find((s) => s.id === `${P.id}:champ`);
@@ -1061,12 +1087,26 @@ export function updateOverworld(dt) {
     }
   }
   // Into a lair's fog: asked whether to go on. Asked once each time you step in.
+  // The Ashen Gate stays shut until every Remnant is set.
   const L = P && P.kind === 'lair' ? P : null;
   if (L && !L.beaten && !p.dead && !p.ghost && inGate(L, p.x, p.y)) {
-    if (W.atGate !== L.id) { W.atGate = L.id; action = { lair: L }; }
+    if (W.atGate !== L.id) {
+      W.atGate = L.id;
+      const n = remnantCount();
+      action = L.needs && n < L.needs
+        ? { toast: [L.name.toUpperCase(), `${n} of ${L.needs} Remnants set \u00b7 it will not open`] }
+        : { lair: L };
+    }
   } else if (!L || !inGate(L, p.x, p.y)) {
     W.atGate = null;
   }
+  // Against a seal: whose it is.
+  let seal = null;
+  for (const o of W.room.obstacles) {
+    if (o.kind === 'seal' && !o.gone && p.x > o.x - 60 && p.x < o.x + o.w + 60 && p.y > o.y - 20 && p.y < o.y + o.h + 20) seal = o;
+  }
+  if (seal && !W.atSeal) action = { toast: ['SEALED', 'The Twin Wardens hold the Great Bridge. Beat them to open the citadel.'] };
+  W.atSeal = !!seal;
   for (const q of W.places) if (!q.seen && Math.hypot(p.x - q.x, p.y - q.y) < q.r + 900) q.seen = true;
 
   // The Ashlamps; and your smoulder, if you walk back to it.

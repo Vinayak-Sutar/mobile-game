@@ -248,6 +248,8 @@ const RAW_LAMPS = [
   { id: 'peacockstair', name: 'Peacock Stair', x: 28700, y: 18950 },
   { id: 'chorus', name: 'The Chorus Steps', x: 2000, y: 7950 },
   { id: 'necropolis', name: 'Necropolis Gate', x: 32400, y: 15250 },
+  { id: 'serpent', name: 'Serpent Steps', x: 11500, y: 23450 },
+  { id: 'chapel', name: 'Chapel Pond', x: 6800, y: 2650 },
 ];
 
 // --- lairs: where the guardians wait ----------------------------------------------------
@@ -260,7 +262,9 @@ const RAW_LAMPS = [
 //
 // x, y is the doorway (the bottom middle of the lair's front); the forecourt
 // runs south from it, r across. `style` picks the lair's look (wilds-lairs.js).
-// M4 has the seven of tiers 0 and 1; the other seven come with M5.
+// `passage`: beating it opens a way through (the Twin Wardens' gatehouse, onto
+// the Great Bridge). `needs`: how many Remnants must be set before its fog
+// will let you in (the Ashen Gate: all thirteen).
 const RAW_LAIRS = [
   { id: 'drownedvault', boss: 'turtle', name: 'The Drowned Vault', style: 'vault', x: 7400, y: 19560, r: 300, lamp: 'drowned' },
   { id: 'storytree', boss: 'anansi', name: 'The Story-Tree', style: 'tree', x: 5600, y: 11800, r: 450, lamp: 'storytree' },
@@ -269,6 +273,21 @@ const RAW_LAIRS = [
   { id: 'peacockcourt', boss: 'peacock', name: 'The Peacock Court', style: 'court', x: 28400, y: 17960, r: 380, lamp: 'peacockstair' },
   { id: 'amphitheatre', boss: 'maestro', name: 'The Echoing Amphitheatre', style: 'stage', x: 2000, y: 7050, r: 450, lamp: 'chorus' },
   { id: 'necropolis', boss: 'mau', name: 'The Nine Tombs', style: 'pyramid', x: 32400, y: 14350, r: 450, lamp: 'necropolis' },
+  { id: 'caldera', boss: 'gorilla', name: "Kharn's Caldera", style: 'caldera', x: 15300, y: 2300, r: 380, lamp: 'caldera' },
+  { id: 'serpenttemple', boss: 'naga', name: 'The Serpent Temple', style: 'falls', x: 11500, y: 22700, r: 380, lamp: 'serpent' },
+  { id: 'frozenchapel', boss: 'bride', name: 'The Frozen Chapel', style: 'chapel', x: 6800, y: 1900, r: 380, lamp: 'chapel' },
+  { id: 'highestshrine', boss: 'monkey', name: 'The Highest Shrine', style: 'pagoda', x: 32000, y: 1950, r: 300, lamp: 'cloudperch' },
+  { id: 'gatehouse', boss: 'solaris', name: "The Wardens' Gatehouse", style: 'bridge', x: 24000, y: 5000, r: 400, lamp: 'bridgegate', passage: true },
+  { id: 'moonkeep', boss: 'aldric', name: 'The Moon Keep', style: 'keep', x: 24000, y: 1450, r: 380, lamp: 'mooncourt' },
+  { id: 'ashengate', boss: 'warden', name: 'The Ashen Gate', style: 'ashen', x: 18000, y: 11350, r: 350, lamp: 'hearth', needs: 13 },
+];
+
+// Seals: until the Twin Wardens fall, the Moon Citadel is shut. The Great
+// Bridge is their gatehouse; these close the citadel's ends of the two sky
+// bridges. `by` is the lair whose fall opens them.
+const RAW_SEALS = [
+  { x: 20996, y: 2420, w: 24, h: 220, by: 'gatehouse' },
+  { x: 27980, y: 2420, w: 24, h: 220, by: 'gatehouse' },
 ];
 
 // --- places: the big designed fights ------------------------------------------------------
@@ -367,6 +386,7 @@ export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
 export const PLACES = RAW_PLACES.map(at);
 export const LAIRS = RAW_LAIRS.map(at);
+export const SEALS = RAW_SEALS.map(at);
 export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
 export const AMBUSHES = RAW_AMBUSHES.map(at);
 export const CLEARINGS = [...RAW_CLEARINGS.map(at), ...LAMPS.map((l) => ({ x: l.x, y: l.y, r: 160 }))];

@@ -1677,7 +1677,7 @@ function wildsStepAway() {
 function showWildsVictory(first) {
   state = 'paused';
   const pr = overworldProgress();
-  const reward = 250;
+  const reward = 500;
   if (first) {
     save.darkness += reward;
     writeSave();
@@ -1685,9 +1685,10 @@ function showWildsVictory(first) {
   const t = world.runTime;
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">the ashen statue burns</div>
+      <div class="eyebrow">thirteen sockets burn</div>
       <h1>The Ash Lifts</h1>
-      <p class="sub">The last guardian falls, and for the first time in an age the sky over the Wilds clears.
+      <p class="sub">The Warden of Ash falls at its own gate, and for the first time in an age the sky over the Wilds clears.
+      The land stays yours to wander.<br>
       ${first ? `You carry <b>${reward} darkness</b> out with you, for the Mirror of Night.` : 'The ending is yours again.'}</p>
       <div class="stats">
         <div class="stat"><b>${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}</b><span>Time</span></div>
@@ -1743,14 +1744,26 @@ function leaveGateFight(won) {
   state = 'playing';
   p.hp = p.stats.maxHp;
   if (!L) return;
-  // Its Remnant, a great many Cinders, and a spell.
+  // The Warden of Ash, at the Ashen Gate: the end of the journey.
+  if (L.needs) {
+    const first = !L.beaten;
+    markLairBeaten(L.id);
+    world.gold += 3000;
+    sfx.boon();
+    saveWilds();
+    showWildsVictory(first);
+    return;
+  }
+  // Its Remnant, a great many Cinders, and a spell - and, for a passage, the way on.
   markLairBeaten(L.id);
   const info = BOSS_INFO[L.boss] || { title: 'The guardian' };
   const bonus = Math.round(600 * (1 + L.region.tier));
   world.gold += bonus;
   sfx.boon();
   saveWilds();
-  showToast(`${info.title.toUpperCase()} FALLS`, `Its Remnant is yours (${remnantCount()} of 13) \u00b7 ${bonus} Cinders`, 4);
+  showToast(`${info.title.toUpperCase()} FALLS`, L.passage
+    ? `Its Remnant is yours (${remnantCount()} of 13) \u00b7 the way to the Moon Citadel is open`
+    : `Its Remnant is yours (${remnantCount()} of 13) \u00b7 ${bonus} Cinders`, 4);
   showSpellSelect(false, { eyebrow: 'the guardian\'s gift', done: () => { saveWilds(); wildsResume(); } });
 }
 
@@ -2319,8 +2332,8 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       resetInput();
       state = 'playing';
       saveWilds();
-      // Tier 0 lands: 0.5; tier 1: 1.2 (a Boss Trial is 1).
-      enterGateFight(L.boss, info ? info.title : L.boss, { lair: L.id, boss: L.boss, tier: 0.5 + L.region.tier * 0.7 });
+      // Tier 0 lands: 0.5; tier 1: 1.2; tier 2: 1.9; tier 3: 2.6 (a Boss Trial is 1). The Warden: 2.8.
+      enterGateFight(L.boss, info ? info.title : L.boss, { lair: L.id, boss: L.boss, tier: L.needs ? 2.8 : 0.5 + L.region.tier * 0.7 });
       break;
     }
     case 'w-leave': leaveWilds(); break;
