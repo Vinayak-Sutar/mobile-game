@@ -4385,6 +4385,30 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.41 Grass drawn from an atlas: the PC frame-rate drop (2026-09-21)
+
+The owner saw 17-18 fps on PC wherever there was grass (100 fps elsewhere),
+and a steady 60 on the phone. The cause was how the grass was drawn. Every
+frame, every blade in view (about 7-9 thousand curved, round-capped strokes
+on PC, where the grass is also sown about 1.5x denser) went into eight
+screen-wide Path2Ds and was stroked. That cost grows with the canvas's
+pixels, and far more so where the browser draws canvas on the CPU.
+
+The fix is in `grass.js`:
+- **The atlas**: a tuft at rest (the wind on it and nothing else) is now one
+  `drawImage` from an atlas made once.
+  - There is a picture for each of: tall or short, 4 shades, 3 blade
+    patterns, and 15 steps of lean in the wind (0.02 to 0.58, 0.04 apart).
+  - Each is drawn at a reference height (22 or 9) and scaled to the tuft's own.
+  - The atlas is drawn at the screen's resolution (read from the context's
+    transform, in quarter steps up to 3) and made again if that changes.
+- **Still stroked blade by blade**: only tufts being pushed aside (`BY` off
+  its rest), leaning past the atlas's range, or growing back after a cut.
+  There are only a handful at a time. The blade geometry is shared
+  (`tuftPath`), so both kinds look the same.
+- **Measured in Node** in the Heartland's grass: 1565 tufts drawn as pictures
+  and 4 blades stroked, where before the same view stroked about 4000 blades.
+
 ### 16.40 The Wilds, M4: seven lairs, fog gates, Remnants (2026-09-21)
 
 The first seven guardians (lands of tier 0 and 1) now wait in lairs of their

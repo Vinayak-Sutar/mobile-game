@@ -9,8 +9,14 @@
 // Your blows cut tall grass down to stubble; clippings fly, it grows back
 // in half a minute, and now and then something was hiding in it.
 //
-// Only tufts near the camera are simulated or drawn; the blades of a frame
-// go into a few batched paths (one per shade), so it is cheap to stroke.
+// Only tufts near the camera are simulated or drawn. A tuft at rest - only
+// the wind on it - is drawn as a small ready-made picture from an ATLAS (one
+// per shade, blade pattern and lean, made once), because copying thousands
+// of little pictures a frame is cheap for any browser, where stroking
+// thousands of curved blades is not: that cost grows with the screen's
+// pixels and was what dragged a big PC screen down to under 20 frames a
+// second in the grass. Only tufts being pushed aside or growing back after a
+// cut - a handful at a time - are stroked blade by blade.
 //
 // A field covers one rectangle (opts.x0, opts.y0, W, H). The big Wilds grow
 // one per sector as you approach and let it go when you leave.
@@ -25,6 +31,67 @@ const BUCKET = 128;
 const K = 46, DAMP = 7;              // the spring: stiffness, damping
 const SHADES_TALL = ['#3d5731', '#4c6a39', '#628243', '#83a056'];
 const SHADES_SHORT = ['#4a6536', '#56733e', '#6c8a48', '#8aa65a'];
+const LEAN = [-0.4, 0.05, 0.42];
+const OFF = [-3.2, 0.4, 3.4];
+const REST_BY = -0.04;               // where the spring holds a tuft upright
+
+// --- the atlas of tufts at rest ---------------------------------------------------------
+// One picture for every (tall or short) x shade (4) x blade pattern (3) x
+// lean in the wind (NB steps of BSTEP from BX0), drawn at a reference height
+// and scaled to each tuft's own. It is drawn at the screen's own resolution
+// and made again if that changes.
+const BX0 = 0.02, BSTEP = 0.04, NB = 15;
+const KINDS = [
+  // tall: reference height, the cell round the root (world units), blade width
+  { ref: 22, x0: -10, y0: -26, w: 34, h: 30, width: 2.1, shades: SHADES_TALL, off: 1 },
+  { ref: 9, x0: -5, y0: -12, w: 16, h: 15, width: 1.5, shades: SHADES_SHORT, off: 0.7 },
+];
+let atlas = null;                    // { canvas, scale, kinds: [{ oy, cw, ch }] }
+
+/** The blades of one tuft, from its root at (x, y), into path p. */
+function tuftPath(p, x, y, hh, bx, by, pattern, off) {
+  const flat = Math.min(1, Math.abs(bx) + Math.abs(by) * 0.5);
+  for (let j = 0; j < (off === 1 ? 3 : 2); j++) {
+    const lean = LEAN[(j + pattern) % 3];
+    const ox = x + OFF[j] * off;
+    const tx = ox + lean * hh * 0.45 + bx * hh;
+    const ty = y - hh * (1 - flat * 0.45) + by * hh * 0.55;
+    p.moveTo(ox, y);
+    p.quadraticCurveTo(ox + (tx - ox) * 0.2, y - hh * 0.55, tx, ty);
+  }
+}
+
+function buildAtlas(scale) {
+  if (typeof document === 'undefined') return null;
+  const canvas = document.createElement('canvas');
+  const kinds = [];
+  let oy = 0, width = 0;
+  for (const K of KINDS) {
+    const cw = Math.ceil(K.w * scale), ch = Math.ceil(K.h * scale);
+    kinds.push({ oy, cw, ch });
+    oy += ch * 12;
+    width = Math.max(width, cw * NB);
+  }
+  canvas.width = width; canvas.height = oy;
+  const g = canvas.getContext('2d');
+  g.lineCap = 'round';
+  KINDS.forEach((K, t) => {
+    const { oy: top, cw, ch } = kinds[t];
+    g.lineWidth = K.width;
+    for (let s = 0; s < 4; s++) {
+      g.strokeStyle = K.shades[s];
+      for (let pat = 0; pat < 3; pat++) {
+        for (let b = 0; b < NB; b++) {
+          g.setTransform(scale, 0, 0, scale, b * cw - K.x0 * scale, top + (s * 3 + pat) * ch - K.y0 * scale);
+          g.beginPath();
+          tuftPath(g, 0, 0, K.ref, BX0 + b * BSTEP, REST_BY, pat, K.off);
+          g.stroke();
+        }
+      }
+    }
+  });
+  return { canvas, scale, kinds };
+}
 
 export function createGrass(terrain, opts) {
   const { W, H } = opts;
@@ -154,24 +221,11 @@ export function createGrass(terrain, opts) {
   }
 
   // --- drawing ------------------------------------------------------------------------
-  const LEAN = [-0.4, 0.05, 0.42];
-  const OFF = [-3.2, 0.4, 3.4];
+  const shadeOf = (k) => clamp(Math.round(HUE[k] * 0.5 + GUST[k] * 2.3 - 0.4), 0, 3);
 
   function blades(k, t, pt, ps) {
-    const hh = heightOf(k, t);
-    const idx = clamp(Math.round(HUE[k] * 0.5 + GUST[k] * 2.3 - 0.4), 0, 3);
-    const p = TALL[k] ? pt[idx] : ps[idx];
-    const x = X[k], y = Y[k], bx = BX[k], by = BY[k];
-    const nb = TALL[k] ? 3 : 2;
-    const flat = Math.min(1, Math.abs(bx) + Math.abs(by) * 0.5);
-    for (let j = 0; j < nb; j++) {
-      const lean = LEAN[(j + HUE[k]) % 3];
-      const ox = x + OFF[j] * (TALL[k] ? 1 : 0.7);
-      const tx = ox + lean * hh * 0.45 + bx * hh;
-      const ty = y - hh * (1 - flat * 0.45) + by * hh * 0.55;
-      p.moveTo(ox, y);
-      p.quadraticCurveTo(ox + (tx - ox) * 0.2, y - hh * 0.55, tx, ty);
-    }
+    const idx = shadeOf(k);
+    tuftPath(TALL[k] ? pt[idx] : ps[idx], X[k], Y[k], heightOf(k, t), BX[k], BY[k], HUE[k], TALL[k] ? 1 : 0.7);
   }
 
   function strokeAll(ctx, pt, ps) {
@@ -182,12 +236,33 @@ export function createGrass(terrain, opts) {
     for (let i = 0; i < 4; i++) { ctx.strokeStyle = SHADES_TALL[i]; ctx.stroke(pt[i]); }
   }
 
-  /** Every tuft in view (under the characters). */
+  /**
+   * Every tuft in view (under the characters): the ones at rest from the
+   * atlas, the few being pushed or growing back stroked blade by blade.
+   */
   function draw(ctx, t, view) {
     const pt = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
     const ps = [new Path2D(), new Path2D(), new Path2D(), new Path2D()];
-    each(view.x - 30, view.y - 10, view.x + view.w + 30, view.y + view.h + 40, (k) => blades(k, t, pt, ps));
-    strokeAll(ctx, pt, ps);
+    // The atlas is drawn at the screen's resolution (device pixels per world unit).
+    const m = ctx.getTransform ? ctx.getTransform() : null;
+    const want = m ? Math.min(3, Math.max(1, Math.round(Math.hypot(m.a, m.b) * 4) / 4)) : 0;
+    if (want && (!atlas || atlas.scale !== want)) atlas = buildAtlas(want);
+    const A = atlas;
+    let stroked = 0;
+    each(view.x - 30, view.y - 10, view.x + view.w + 30, view.y + view.h + 40, (k) => {
+      const hh = heightOf(k, t);
+      const b = Math.round((BX[k] - BX0) / BSTEP);
+      if (!A || hh !== Hh[k] || b < -1 || b > NB || Math.abs(BY[k] - REST_BY) > 0.06) {
+        blades(k, t, pt, ps);
+        stroked++;
+        return;
+      }
+      const T = TALL[k] ? 0 : 1, K = KINDS[T], C = A.kinds[T];
+      const s = hh / K.ref;
+      const sx = clamp(b, 0, NB - 1) * C.cw, sy = C.oy + (shadeOf(k) * 3 + HUE[k]) * C.ch;
+      ctx.drawImage(A.canvas, sx, sy, C.cw, C.ch, X[k] + K.x0 * s, Y[k] + K.y0 * s, K.w * s, K.h * s);
+    });
+    if (stroked) strokeAll(ctx, pt, ps);
   }
 
   /** Tall blades just in front of someone, drawn again over them: waist-deep. */
