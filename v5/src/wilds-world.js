@@ -679,7 +679,8 @@ export function updateOverworld(dt) {
   if (!W || !p) return null;
   let action = null;
 
-  stream(p, 3);
+  // A ghost crosses sectors four times as fast, so it gets more time for them.
+  stream(p, p.ghost ? 8 : 3);
   refreshActive(p);
 
   // The camera leads a little the way you aim.

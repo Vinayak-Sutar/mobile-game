@@ -71,8 +71,10 @@ export function drawOverworldMap(ctx) {
 /**
  * Mount the full map on a canvas (the map screen's). Returns controls for the
  * screen's buttons, and a destroy to call when the screen closes.
+ * opts.onPick(x, y): a tap (not a drag) on the map, in world units - ghost
+ * mode uses it to go straight there.
  */
-export function mountWildsMap(canvas) {
+export function mountWildsMap(canvas, opts = {}) {
   const W = wildsState();
   const p = world.player;
   const st = { zoom: 1, cx: p ? p.x : WILDS.W / 2, cy: p ? p.y : WILDS.H / 2, raf: 0 };
@@ -140,6 +142,10 @@ export function mountWildsMap(canvas) {
     ctx.font = '700 12px system-ui';
     ctx.fillStyle = 'rgba(255,255,255,0.6)';
     ctx.fillText(`Explored ${(seen / W.fog.length * 100).toFixed(1)}%  ·  lands found ${W.visited.size} / ${REGIONS.length}`, 14, 22);
+    if (opts.onPick) {
+      ctx.fillStyle = '#9fe8ff';
+      ctx.fillText('Ghost mode: tap anywhere to go there', 14, 40);
+    }
   }
 
   function loop(t) {
@@ -151,7 +157,7 @@ export function mountWildsMap(canvas) {
   let drag = null;
   const down = (ev) => {
     canvas.setPointerCapture?.(ev.pointerId);
-    drag = { x: ev.clientX, y: ev.clientY, cx: st.cx, cy: st.cy };
+    drag = { x: ev.clientX, y: ev.clientY, cx: st.cx, cy: st.cy, t: performance.now() };
   };
   const move = (ev) => {
     if (!drag) return;
@@ -160,7 +166,18 @@ export function mountWildsMap(canvas) {
     st.cy = drag.cy - (ev.clientY - drag.y) / s;
     clampCentre();
   };
-  const up = () => { drag = null; };
+  const up = (ev) => {
+    // A tap - hardly moved, quickly let go - picks a spot rather than panning.
+    if (drag && opts.onPick && Math.hypot(ev.clientX - drag.x, ev.clientY - drag.y) < 8 && performance.now() - drag.t < 400) {
+      const r = canvas.getBoundingClientRect();
+      const s = scale();
+      const x = st.cx + (ev.clientX - r.left - cw / 2) / s, y = st.cy + (ev.clientY - r.top - ch / 2) / s;
+      drag = null;
+      opts.onPick(clamp(x, 40, WILDS.W - 40), clamp(y, 40, WILDS.H - 40));
+      return;
+    }
+    drag = null;
+  };
   const wheel = (ev) => { ev.preventDefault(); ev.deltaY < 0 ? api.zoomIn() : api.zoomOut(); };
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);

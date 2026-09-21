@@ -4157,6 +4157,25 @@ and world texture (M6). M1 replaces `overworld.js` entirely.
   - a check that no road crosses a wall, water or the chasm now passes. It
     caught three layout mistakes.
 
+### 16.33 Testing aids: ghost mode and an FPS readout (2026-09-21)
+
+Asked for by the owner, to survey the big Wilds quickly and watch its cost on the phone.
+
+- **Ghost mode** (the Wilds pause menu, or `G`):
+  - `p.ghost` sets the walking speed to `GHOST_SPEED` (1100, about 4.8x the
+    default) and skips obstacle collision entirely in `player.js`, so you pass
+    through walls and over water;
+  - `p.invincible` is set too;
+  - the Wanderer is drawn at 45% opacity;
+  - the streamer gets 8 ms a frame instead of 3;
+  - on the full map a tap (under 8 px and 400 ms) teleports you there
+    (`mountWildsMap(canvas, { onPick })`, then `ghostTo`);
+  - it is kept through weapon swaps and switched off on entering the Wilds.
+- **Show FPS** (`save.showFps`, a toggle on every settings screen): a readout at
+  the top centre with frames per second, the average CPU cost of our frame and
+  the worst frame in the last half second. It is green at 55 fps or more, amber
+  at 40 or more, red below that.
+
 ### 16.30 Build number and a "fetch the latest" button (2026-09-21)
 
 Owner, testing on the phone: the browser kept showing the previous version.

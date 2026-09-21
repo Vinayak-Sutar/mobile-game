@@ -347,9 +347,13 @@ function onVictory() {
 let rafId = 0;
 let lastFrameAt = performance.now();
 
+// Frames per second and the cost of a frame (the setting "Show FPS").
+const perf = { frames: 0, work: 0, worst: 0, since: 0, fps: 0, avg: 0, peak: 0 };
+
 function frame(now) {
   rafId = requestAnimationFrame(frame);
   lastFrameAt = performance.now();
+  const began = lastFrameAt;
 
   // Some mobile browsers (iOS Safari's collapsing URL bar, embedded webviews)
   // resize without ever firing a resize event, and a webview can boot at 0x0.
@@ -370,6 +374,17 @@ function frame(now) {
     tick(STEP);
   }
   render();
+
+  // Half a second at a time: how many frames, and how long our work took.
+  const work = performance.now() - began;
+  perf.frames++; perf.work += work; perf.worst = Math.max(perf.worst, work);
+  if (now - perf.since >= 500) {
+    perf.fps = perf.frames * 1000 / Math.max(1, now - perf.since);
+    perf.avg = perf.work / Math.max(1, perf.frames);
+    perf.peak = perf.worst;
+    perf.frames = 0; perf.work = 0; perf.worst = 0; perf.since = now;
+  }
+  if (save.showFps) drawPerf();
   updateDualSenseFeedback();
 }
 
@@ -550,6 +565,22 @@ function render() {
   }
 }
 
+/** The FPS readout, top centre: rate, average work per frame, the worst frame. */
+function drawPerf() {
+  const s = view.dpr * view.scale;
+  ctx.setTransform(s, 0, 0, s, 0, 0);
+  const ghost = world.player && world.player.ghost && world.overworld;
+  const text = `${Math.round(perf.fps)} fps \u00b7 ${perf.avg.toFixed(1)} ms (worst ${perf.peak.toFixed(0)})${ghost ? ' \u00b7 GHOST' : ''}`;
+  ctx.font = '700 11px system-ui';
+  const w = ctx.measureText(text).width + 14;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(view.w / 2 - w / 2, 4, w, 18);
+  ctx.fillStyle = perf.fps >= 55 ? '#9fe0a0' : perf.fps >= 40 ? '#ffd45e' : '#ff7a7a';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, view.w / 2, 17);
+  ctx.textAlign = 'left';
+}
+
 function drawLowHealthVignette() {
   const p = world.player;
   if (!p) return;
@@ -645,9 +676,18 @@ function speedRow() {
     </div>`;
 }
 
+/** The FPS readout, on or off. */
+function fpsRow() {
+  return `
+    <div class="volrow">
+      <span class="vollabel">Show FPS</span>
+      <button class="tgl ${save.showFps ? 'on' : ''}" data-act="fps">${save.showFps ? 'On' : 'Off'}</button>
+    </div>`;
+}
+
 /** The player settings shown on the title and in every pause screen. */
 function playerRows(back) {
-  return characterRow(back) + speedRow();
+  return characterRow(back) + speedRow() + fpsRow();
 }
 
 function musicVolumeRow() {
@@ -1296,6 +1336,7 @@ function startWilds() {
   world.depth = FIRST_BOSS_DEPTH + BOSS_GAP;
   trainingLoadout();
   world.player.invincible = false;
+  wildsGhost = false;
   world.overworld = true;
   const room = enterOverworld(true);
   world.room = room;
@@ -1497,7 +1538,17 @@ function showWildsMap() {
         <button class="btn" data-act="map-close">Close</button>
       </div>
     </div>`);
-  wildsMap = mountWildsMap(document.getElementById('wmap'));
+  wildsMap = mountWildsMap(document.getElementById('wmap'), wildsGhost ? { onPick: ghostTo } : {});
+}
+
+/** Ghost mode: straight to a spot picked on the map. */
+function ghostTo(x, y) {
+  const p = world.player;
+  if (!p) return;
+  p.x = x; p.y = y; p.vx = p.vy = 0;
+  arriveAt(x, y);
+  snapCamera();
+  closeWildsMap();
 }
 
 function closeWildsMap() {
@@ -1505,6 +1556,28 @@ function closeWildsMap() {
   wildsMap = null;
   wildsResume();
   input.mapPressed = false;          // the Tab that closed it must not reopen it
+}
+
+// Ghost mode, for exploring the Wilds fast while it is being built: four
+// times the speed, through every wall and over water, and nothing can hurt
+// you. On the map, a tap takes you straight there.
+let wildsGhost = false;
+
+function setGhost(on) {
+  wildsGhost = on;
+  const p = world.player;
+  if (p) { p.ghost = on; p.invincible = on; }
+  showToast(on ? 'GHOST MODE' : 'GHOST MODE OFF',
+    on ? 'Fast, through walls, unhurt \u00b7 tap the map to go anywhere' : 'Back on your feet', 2.6);
+}
+
+function ghostRow() {
+  return `
+    <div class="volrow">
+      <span class="vollabel">Ghost mode (testing)</span>
+      <button class="tgl ${wildsGhost ? 'on' : ''}" data-act="w-ghost">${wildsGhost ? 'On' : 'Off'}</button>
+      <span class="vollabel" style="opacity:.7">or press G</span>
+    </div>`;
 }
 
 /** Any weapon, any time, keeping everything else about you. */
@@ -1522,7 +1595,7 @@ function swapWeapon(i) {
   const next = createPlayer(WEAPONS[i], metaBonuses());
   // Rebuilt, so no half-finished swing or reload survives; what you have
   // earned (health, hearts, embers, spells, boons) comes with you.
-  for (const k of ['x', 'y', 'face', 'aimAngle', 'stats', 'hp', 'lives', 'spells', 'spellLv', 'spellCds', 'boons', 'boonOrder']) {
+  for (const k of ['x', 'y', 'face', 'aimAngle', 'stats', 'hp', 'lives', 'spells', 'spellLv', 'spellCds', 'boons', 'boonOrder', 'ghost', 'invincible']) {
     if (old[k] !== undefined) next[k] = old[k];
   }
   next.invuln = 0.5;
@@ -1543,6 +1616,7 @@ function showWildsPause() {
         <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
         <button class="btn ghost" data-act="w-leave">Leave The Wilds</button>
       </div>
+      ${ghostRow()}
       ${wildsWeaponRow()}
       ${playerRows(showWildsPause)}
       ${spellSlotsRow()}
@@ -1908,6 +1982,13 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       (charBack || showTitle)();
       break;
     }
+    case 'fps':
+      save.showFps = !save.showFps;
+      writeSave();
+      el.classList.toggle('on', save.showFps);
+      el.textContent = save.showFps ? 'On' : 'Off';
+      break;
+    case 'w-ghost': setGhost(!wildsGhost); showWildsPause(); break;
     case 'char': {
       save.character = el.dataset.v;
       writeSave();
@@ -2093,6 +2174,7 @@ window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === 'm') { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); }
   if (state === 'map' && (k === 'escape' || k === 'tab' || k === 'p')) { closeWildsMap(); return; }
+  if (k === 'g' && state === 'playing' && world.overworld) setGhost(!wildsGhost);
   if (k === 'escape' || k === 'p') {
     if (state === 'playing') showPause();
     else if (state === 'paused') { state = 'playing'; hideOverlay(); resetInput(); }

@@ -19,6 +19,7 @@ const DEFAULTS = {
   moveSpeed: 0.85,       // walking speed multiplier (settings); 1 was the old default
   character: 'auto',     // the player's look: auto (the Wanderer in The Wilds) | hooded | wanderer
   tutorialSeen: false,   // the tutorial is offered once, before the first run
+  showFps: false,        // frames per second and frame cost, in the corner
 };
 
 export const UPGRADES = [

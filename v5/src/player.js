@@ -18,6 +18,8 @@ import { updateGrenade, GRENADE } from './grenade.js';
 const DASH_TIME = 0.17;
 const DASH_SPEED = 920;
 const BASE_SPEED = 268;
+// Ghost mode (The Wilds, for testing): this fast, through every wall.
+const GHOST_SPEED = 1100;
 
 /** Lives per run: falling with one to spare gets you back up at full health. */
 export const START_LIVES = 3;
@@ -214,6 +216,7 @@ export function updatePlayer(p, dt) {
     if (p.channel) speed *= 0.5;      // channelling a spell
     // A boss can slow you for a moment (Mau's hairball goo, her lullaby).
     if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
+    if (p.ghost) speed = GHOST_SPEED;
 
     const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;
@@ -242,7 +245,7 @@ export function updatePlayer(p, dt) {
   const b = arenaBounds();
   p.x = clamp(p.x, b.l + p.r, b.r - p.r);
   p.y = clamp(p.y, b.t + p.r, b.b - p.r);
-  if (world.room) {
+  if (world.room && !p.ghost) {
     let inGap = false;
     for (const o of world.room.obstacles) {
       // A gap of water is crossed only mid-dash; a ledge only downward.

@@ -317,7 +317,7 @@ function gait(p, s, dt) {
 
 export function drawWanderer(p, ctx, world, bob) {
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
-  const alpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;
+  const alpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   const col = (c) => (flashing ? '#ffffff' : c);
   const accent = col(p.weapon.color);
 
@@ -568,7 +568,7 @@ export function drawWandererArm(p, ctx, hold, bob, behind) {
   const sx0 = p.x + s * (lerp(7.2, 5, V.side) + shift);
   const sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
-  ctx.globalAlpha = p.invuln > 0 && !p.dashing ? 0.62 : 1;
+  ctx.globalAlpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   ctx.lineCap = 'round';
   ctx.strokeStyle = OUT; ctx.lineWidth = 7;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(hx, hy); ctx.stroke();
