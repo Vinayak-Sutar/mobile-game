@@ -354,3 +354,12 @@ export function tabla(k, bol, t, accent = false, step = 0.25) {
     default: play(k, s('ti'), hum(), dayanV * 0.6, out); break;
   }
 }
+
+/** A koto-like string: plucked with a pick near the bridge, bright, quick to fade. */
+export function koto(k, m, t, vol = 0.03) {
+  if (!ready(k)) return;
+  const buf = cached(k.ctx, `koto${m}`, (sr) => renderString(sr, midi(m), 2.2, { t60: 1.6, damp: 0.3, bright: 0.55, pick: 0.14 }));
+  play(k, buf, t, vol * rand(0.9, 1.05), room(k).mix);
+}
+export const warmKoto = (m) => (c) => cached(c, `koto${m}`, (sr) => renderString(sr, midi(m), 2.2, { t60: 1.6, damp: 0.3, bright: 0.55, pick: 0.14 }));
+export const warmSantoor = (m) => (c) => cached(c, `sant${m}`, (sr) => renderString(sr, midi(m), 1.5, { t60: 1.2, damp: 0.22, bright: 1, pick: 0.05, click: 0.3 }));

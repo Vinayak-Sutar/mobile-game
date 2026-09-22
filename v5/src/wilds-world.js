@@ -1079,6 +1079,7 @@ export function updateOverworld(dt) {
 
   weather(z, dt);
   world.zoneName = z.name;
+  world.zoneId = z.id;
 
   // Cinders are worth more the harder the land.
   world.cinderMult = 8 * (1 + z.tier * 0.6);

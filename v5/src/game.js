@@ -16,7 +16,10 @@ import {
   dropSmoulder, restore,
 } from './wilds-progress.js';
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
-import { LAMPS } from './wilds-layout.js';
+import { LAMPS, REGIONS } from './wilds-layout.js';
+import { REGION_THEMES, themeForRegion } from './music-regions.js';
+import { DESH_THEME } from './music-desh.js';
+import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
@@ -25,6 +28,7 @@ import { clamp, TAU, shuffle } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, setBossTheme, unlockAudio,
+  setAmbientTheme,
   setMusicVolume, previewMusic, outputLevel,
 } from './audio.js';
 import {
@@ -509,6 +513,10 @@ function tick(dt) {
         const spec = guard && guard.def && guard.def.spec;
         setBossTheme(spec && spec.music ? spec.music : null, guard);
       }
+      // The place's own piece: each land of the Wilds has its raga, and the
+      // dungeons theirs (music-regions.js). A region must hold for 2 s
+      // before its music takes over, so walking along a border never flickers.
+      setAmbientTheme(placeTheme(dt));
 
       const room = world.room;
       if (room && room.chosen && world.owBoss) room.chosen = null;   // no doors out of a gate fight
@@ -553,7 +561,7 @@ function tick(dt) {
   // between rooms, and nowhere else — not on menus, not while paused, and it
   // cuts the instant you die so the death sting lands on silence. Evaluated
   // every tick rather than at each state change, so no transition can forget it.
-  setMusicActive(state === 'playing' || state === 'boon');
+  setMusicActive(state === 'playing' || state === 'boon' || !!(musicRoom && musicRoom.theme));
 
   endFrameInput();
 }
@@ -838,7 +846,81 @@ function dualSenseRow() {
   return `<div class="row"><button class="btn ghost" data-act="dsconnect">Link DualSense (lightbar + triggers)</button></div>${err}`;
 }
 
+// --- the place's music ---------------------------------------------------------------
+
+let zoneHeld = { id: null, t: 0, theme: null };
+function placeTheme(dt) {
+  if (world.dungeon) return themeForRegion('dungeon');
+  if (!world.overworld || world.owBoss) return null;   // chambers and lair arenas keep the regular track
+  const id = world.zoneId || 'heartland';
+  if (id !== zoneHeld.id) { zoneHeld.id = id; zoneHeld.t = 0; }
+  zoneHeld.t += dt;
+  if (!zoneHeld.theme || zoneHeld.t > 2) zoneHeld.theme = themeForRegion(id);
+  return zoneHeld.theme;
+}
+
+// --- the Music Room: every piece, to listen to on its own -------------------------------
+
+let musicRoom = null;          // { theme, boss, fight } while the room is open
+const BOSS_PIECES = [
+  { id: 'desh', theme: DESH_THEME, name: 'Mor Chowk', raga: 'Raag Desh', who: 'Solenne the Hundred-Eyed', mood: 'A warm, bright folk tune in the moonlit Peacock Court.' },
+  { id: 'western', theme: WESTERN_THEME, name: 'High Noon', raga: 'a spaghetti western', who: 'Deadeye Vesper', mood: 'Whistle, twang and a trotting beat in the Dust Gulch.' },
+];
+
+function regionNames(th) {
+  return th.regions.map((r) => (r === 'dungeon' ? 'the dungeons' : (REGIONS.find((g) => g.id === r) || {}).name || r)).join(', ');
+}
+
+function playInRoom(theme, boss) {
+  ensureAudio();
+  unlockAudio();
+  musicRoom.theme = theme;
+  musicRoom.boss = boss;
+  if (boss) { setAmbientTheme(null); setBossTheme(theme, null); setMusicIntensity(2); }
+  else { setBossTheme(null); setAmbientTheme(theme); setMusicIntensity(musicRoom.fight ? 1 : 0); }
+}
+
+function showMusicRoom() {
+  if (!musicRoom) musicRoom = { theme: null, boss: false, fight: false };
+  const playing = (t) => musicRoom.theme === t;
+  const card = (t, i, boss) => `
+      <div class="card musiccard${playing(t.theme || t) ? ' on' : ''}" data-act="${boss ? 'mr-boss' : 'mr-play'}" data-idx="${i}">
+        <div class="name">${playing(t.theme || t) ? '♪ ' : ''}${t.name}</div>
+        <div class="desc"><b>${t.raga}</b>${boss ? ` · ${t.who}` : ` · ${t.hour}`}</div>
+        <div class="desc">${t.mood}</div>
+        ${boss ? '' : `<div class="desc" style="opacity:.7">Plays in ${regionNames(t)}.</div>`}
+      </div>`;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">listen</div>
+      <h2>Music Room</h2>
+      <p class="sub">Every land of the Wilds has its own piece, each in a raga chosen for its mood.
+      Out exploring the tune comes and goes and leaves room; when a fight starts a drum and a quicker
+      pace join the same piece. Try both.</p>
+      ${audio.music ? '' : '<p class="sub" style="color:#ffb070">Music is switched off. <button class="btn ghost" data-act="mr-musicon">Turn music on</button></p>'}
+      <div class="row">
+        <button class="btn${musicRoom.fight ? ' ghost' : ''}" data-act="mr-calm">Exploring</button>
+        <button class="btn${musicRoom.fight ? '' : ' ghost'}" data-act="mr-fight">In a fight</button>
+        <button class="btn ghost" data-act="mr-stop">Stop</button>
+      </div>
+      <h3 style="margin:14px 0 6px">The Wilds</h3>
+      <div class="cards">${REGION_THEMES.map((t, i) => card(t, i, false)).join('')}</div>
+      <h3 style="margin:14px 0 6px">Guardians</h3>
+      <div class="cards">${BOSS_PIECES.map((t, i) => card(t, i, true)).join('')}</div>
+      ${musicVolumeRow()}
+      <div class="row"><button class="btn ghost" data-act="mr-back">Back</button></div>
+    </div>`);
+}
+
+function leaveMusicRoom() {
+  musicRoom = null;
+  setAmbientTheme(null);
+  setBossTheme(null);
+  setMusicIntensity(1);
+}
+
 function showTitle() {
+  if (musicRoom) leaveMusicRoom();
   state = 'title';
   showOverlay(`
     <div class="panel">
@@ -857,6 +939,7 @@ function showTitle() {
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeon (demo)</button>
+        <button class="btn ghost" data-act="music-room">Music Room</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -2442,6 +2525,17 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 't-start': phoneFullscreen(); startTraining(); break;
     case 'wilds': showWildsIntro(); break;
     case 'dungeon-demo': phoneFullscreen(); startDungeonDemo(); break;
+    case 'music-room': showMusicRoom(); break;
+    case 'mr-play': playInRoom(REGION_THEMES[idx], false); showMusicRoom(); break;
+    case 'mr-boss': playInRoom(BOSS_PIECES[idx].theme, true); showMusicRoom(); break;
+    case 'mr-calm': case 'mr-fight':
+      musicRoom.fight = act === 'mr-fight';
+      if (musicRoom.theme && !musicRoom.boss) setMusicIntensity(musicRoom.fight ? 1 : 0);
+      showMusicRoom();
+      break;
+    case 'mr-stop': musicRoom.theme = null; setAmbientTheme(null); setBossTheme(null); showMusicRoom(); break;
+    case 'mr-musicon': ensureAudio(); setMusicEnabled(true); save.musicOn = true; writeSave(); showMusicRoom(); break;
+    case 'mr-back': showTitle(); break;
     case 'd-enter': {
       const d = pendingDungeon;
       pendingDungeon = null;

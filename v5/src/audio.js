@@ -449,19 +449,58 @@ function scheduleStep(n, t) {
 // the boss itself, so the music can follow the fight.
 
 let bossTheme = null;
+// A place's own piece (music-regions.js): the Wilds' regions and the
+// dungeons. It plays instead of the regular track whenever no boss theme
+// does, and hears the fight through `kit.intensity`. Changing place fades
+// the old piece out and the new one in, through `themeFade`.
+let ambientTheme = null;
+let pendingAmbient;          // undefined: nothing waiting
+let swapAt = 0;              // context time the faded-out piece gives way
+let themeFade = null;
+const FADE = 1.4;
+function fadeBus() {
+  if (!ctx || !musicBus) return musicBus;
+  if (!themeFade) { themeFade = ctx.createGain(); themeFade.gain.value = 1; themeFade.connect(musicBus); }
+  return themeFade;
+}
 const themeKit = {
   get ctx() { return ctx; },
-  get bus() { return musicBus; },
+  get bus() { return fadeBus(); },
+  get intensity() { return intensity; },
   muted: () => audio.muted,
   tone, noise, midi,
   boss: null,
 };
+
+/**
+ * The piece for where you are (null: the regular track). Called every frame;
+ * a change fades the old piece out over FADE seconds, then the new one
+ * starts on its own downbeat.
+ */
+export function setAmbientTheme(theme) {
+  if (theme === (pendingAmbient === undefined ? ambientTheme : pendingAmbient)) return;
+  if (!ctx || !schedTimer || !ambientTheme) {
+    ambientTheme = theme; pendingAmbient = undefined; stepIndex = 0;
+    if (themeFade) { themeFade.gain.cancelScheduledValues(ctx.currentTime); themeFade.gain.setValueAtTime(1, ctx.currentTime); }
+    return;
+  }
+  pendingAmbient = theme;
+  swapAt = ctx.currentTime + FADE;
+  const g = fadeBus().gain;
+  g.cancelScheduledValues(ctx.currentTime);
+  g.setValueAtTime(g.value, ctx.currentTime);
+  g.linearRampToValueAtTime(0.0001, swapAt);
+}
+export function currentAmbientTheme() { return pendingAmbient === undefined ? ambientTheme : pendingAmbient; }
 
 /** Called every frame with the boss in the room (or nulls). */
 export function setBossTheme(theme, boss = null) {
   themeKit.boss = boss;
   if (theme === bossTheme) return;
   bossTheme = theme;
+  // A boss's theme is never caught in a place's fade: settle it at once.
+  if (theme && pendingAmbient !== undefined) { ambientTheme = pendingAmbient; pendingAmbient = undefined; }
+  if (themeFade) { themeFade.gain.cancelScheduledValues(ctx.currentTime); themeFade.gain.setValueAtTime(1, ctx.currentTime); }
   // A new piece starts on its own downbeat.
   stepIndex = 0;
   if (ctx) nextNoteTime = Math.max(nextNoteTime, ctx.currentTime + 0.05);
@@ -471,8 +510,20 @@ function scheduler() {
   if (!ctx) return;
   // After a suspend the clock has moved on; never try to "catch up" a backlog.
   if (nextNoteTime < ctx.currentTime - 0.2) nextNoteTime = ctx.currentTime + 0.05;
+  if (pendingAmbient !== undefined && ctx.currentTime >= swapAt) {
+    ambientTheme = pendingAmbient;
+    pendingAmbient = undefined;
+    stepIndex = 0;
+    nextNoteTime = Math.max(nextNoteTime, ctx.currentTime + 0.05);
+    const g = fadeBus().gain;
+    g.cancelScheduledValues(ctx.currentTime);
+    g.setValueAtTime(0.0001, ctx.currentTime);
+    g.linearRampToValueAtTime(1, ctx.currentTime + 0.6);
+  }
   while (nextNoteTime < ctx.currentTime + LOOKAHEAD) {
-    const theme = intensity === 2 ? bossTheme : null;
+    // A boss's own theme first; then the place's piece; then the regular track.
+    // While a place's piece fades out, it plays on (quieter each note).
+    const theme = (intensity === 2 && bossTheme) || ambientTheme;
     if (!audio.muted && !(performance.now() < audio.bossTrackUntil)) {
       if (theme) theme.step(stepIndex, nextNoteTime, themeKit);
       else scheduleStep(stepIndex, nextNoteTime);

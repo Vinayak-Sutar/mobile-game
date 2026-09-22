@@ -4385,6 +4385,74 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.53 Music for the Wilds: six region pieces in ragas, and a Music Room (2026-09-22)
+
+The owner: build music for the open world's regions, as Solenne's theme was
+built on Raag Desh; five or six pieces on ragas of different feel. Research
+how game music differs from other music, and add a place to listen to them.
+
+**What the research says about game music** (Game Developer on adaptive
+music with Elias, The Game Audio Co. on vertical layering vs horizontal
+resequencing, Sound Arcade on looping):
+- **It loops for as long as the player stays**, so it must not tire the ear.
+  The groove should stimulate without shouting, and there should be no
+  dramatic fill that marks where the loop ends. The exploration music of Breath
+  of the Wild, C418's Minecraft and Journey is sparse: a phrase, then space.
+- **It sits under the game.** Footsteps, hits and spells must stay readable,
+  so it is soft and mid-range. On a phone speaker the low end is gone anyway.
+- **It adapts.** Vertical layering adds or removes stems as the situation
+  changes: calm exploring, then tension in a fight, without restarting the
+  piece. Horizontal resequencing reorders sections. Changing which layers
+  play is also how a loop avoids fatigue.
+- **It carries a place.** Each area has its own voice, and the move between
+  areas is a crossfade, not a cut.
+
+**How that was built** (`music-regions.js`, a small theme engine):
+- **The score:** each piece has four phrases of one cycle each, played in a
+  long *form* with rests. In a rest cycle only the accompaniment plays.
+  - Each pass through the form swaps the lead instrument (re-orchestration).
+  - A form lasts 58–108 s, so a piece is heard the same way again only after
+    2–3.5 min.
+- **The fight layer:** in a fight (`kit.intensity` ≥ 1) the same piece
+  gains a percussion layer, a quicker beat, and a melody that no longer
+  rests. When the fight ends it sheds them again.
+- **Crossing regions:** `setAmbientTheme` in `audio.js` fades the old piece
+  out over 1.4 s, starts the new one on its downbeat and fades it in. The
+  region must also hold for 2 s first (`placeTheme` in `game.js`), so walking
+  along a border never flickers between pieces.
+- **Priority:** a boss's own theme still comes first. Chambers and lair arenas
+  keep the regular track. A mini-boss fight in the open plays the region's
+  piece with its fight layer.
+- **Voices:** they follow Solenne's lessons (§16.14): warm and clear, no
+  ghostly glides, no buzz, no sharp attacks, the lead up where a flute is
+  bright.
+  - New instruments: a soft bowed voice (sarangi), a breathy flute
+    (shakuhachi), a reedy flute (algoza), a temple bell, a far-off deep drum,
+    a wooden tick (khartal), and a koto string (Karplus-Strong, in
+    `music-samples.js`).
+
+**The six pieces** (ragas chosen for their rasa and hour; grammar kept;
+tunes composed for the game):
+
+| Piece | Raga | Lands | Feel and how it is played |
+|---|---|---|---|
+| **Hearthfields** | Bhupali (S R G P D) | Heartland, Mirror Lake | Open and at peace, home. Bansuri over a felt santoor walking Sa Ga Pa Sa'; on the next pass the santoor takes the tune. |
+| **Sand and Salt** | Maand (the Rajasthani desert raga) | Dust Gulch, Sunken Sands, Saltwind Isle | Wandering, sunlit, lonely. Algoza (one pipe holds Sa) over a soft 6/8 dholak, a camel's gait. In a fight, khartal clappers join. |
+| **Under the Canopy** | Malkauns (S g M d n) | Webwood, Mire, Coil Gorge, and the dungeons | Hushed and grave. A low flute (then a bowed voice) over a rippling low santoor. In a fight, a heartbeat drum. |
+| **Ash at Dawn** | Bhairav (S r G M P d N, andolan on re and dha) | Broken Peaks, Great Bridge | Solemn, a dawn prayer. A bowed voice whose held re and dha sway, a shruti box, a bell each cycle. In a fight, a pakhawaj far off. |
+| **Moonlit Courts** | Yaman (tivra Ma) | Moon Citadel, Gilded Deep, Echo Cliffs, Hollow Moors | Serene, noble, longing. A santoor with a soft tremolo on long notes, then the flute. |
+| **Blossom Road** | Durga (S R M P D, the same notes as Japan's yo scale) | Cloud Summit | Bright and gentle. A breathy shakuhachi-like flute, and a koto in threes against the beat of four. In a fight, a taiko. |
+
+- **The Music Room** (title screen): every piece with its raga, hour, mood
+  and lands.
+  - An *Exploring / In a fight* switch, to hear both layers of a piece.
+  - Solenne's and Vesper's boss themes as well.
+  - The volume row, and a "Turn music on" button if music is off.
+- **Verified in Node:** every phrase fills its cycle exactly and uses only
+  its raga's notes; each piece runs calm and in a fight; every region has a
+  piece. Not listened to in the browser: the owner judges the sound on the
+  phone.
+
 ### 16.52 Spells: take one and it is yours; equipping is separate (2026-09-22)
 
 The owner: when a cleared area offers a spell, choosing it should unlock it,
