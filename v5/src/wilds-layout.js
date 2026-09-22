@@ -387,9 +387,15 @@ export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
 export const PLACES = RAW_PLACES.map(at);
 export const LAIRS = RAW_LAIRS.map(at);
-// Dungeons: ways down into places to clear. The demo, the Sunken Catacomb,
-// opens a little east of where you first wake (dungeon.js).
-export const DUNGEONS = [{ id: 'catacomb', name: 'The Sunken Catacomb', x: 18700 + OFFSET.x, y: 12900 + OFFSET.y }];
+// Dungeons: ways down into places to clear, one in each of five lands.
+// `id` is the dungeon (dungeon-levels.js); the stair is its way down.
+export const DUNGEONS = [
+  { id: 'catacomb', name: 'The Sunken Catacomb', x: 18700 + OFFSET.x, y: 12900 + OFFSET.y },
+  { id: 'cistern', name: 'The Drowned Cistern', x: 7650 + OFFSET.x, y: 16850 + OFFSET.y },
+  { id: 'forge', name: 'The Ember Forge', x: 17300 + OFFSET.x, y: 7300 + OFFSET.y },
+  { id: 'shrine', name: 'The Foxfire Shrine', x: 32800 + OFFSET.x, y: 4200 + OFFSET.y },
+  { id: 'crypt', name: 'The Frozen Crypt', x: 8400 + OFFSET.x, y: 3500 + OFFSET.y },
+];
 export const SEALS = RAW_SEALS.map(at);
 export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
 export const AMBUSHES = RAW_AMBUSHES.map(at);

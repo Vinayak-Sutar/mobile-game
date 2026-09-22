@@ -17,11 +17,12 @@ import {
 } from './wilds-progress.js';
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
 import { LAMPS, REGIONS } from './wilds-layout.js';
-import { REGION_THEMES, themeForRegion, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
+import { REGION_THEMES, themeForRegion, themeById, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
 import { DESH_THEME } from './music-desh.js';
 import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
+import { DUNGEON_LIST, dungeonInfo } from './dungeon-levels.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -867,7 +868,7 @@ function dualSenseRow() {
 
 let zoneHeld = { id: null, t: 0, theme: null };
 function placeTheme(dt) {
-  if (world.dungeon) return themeForRegion('dungeon');
+  if (world.dungeon) { const D = dungeonState(); return (D && themeById(D.music)) || themeForRegion('dungeon'); }
   if (!world.overworld || world.owBoss) return null;   // chambers and lair arenas keep the regular track
   const id = world.zoneId || 'heartland';
   if (id !== zoneHeld.id) { zoneHeld.id = id; zoneHeld.t = 0; }
@@ -1109,7 +1110,7 @@ function showTitle() {
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
-        <button class="btn ghost" data-act="dungeon-demo">Dungeon (demo)</button>
+        <button class="btn ghost" data-act="dungeon-demo">Dungeons</button>
         <button class="btn ghost" data-act="music-room">Music Room</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
@@ -1968,12 +1969,13 @@ let pendingDungeon = null;
 function showDungeonGate(d) {
   state = 'paused';
   pendingDungeon = d;
+  const info = dungeonInfo(d.id);
+  const done = (save.dungeonsCleared || {})[d.id];
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">steps down into the dark</div>
-      <h2>${d.name}</h2>
-      <p class="sub">A way underground. Traps, holes that drop you to the floor below, the dead keeping
-      their halls - and something at the bottom. Find the key; open the great door.</p>
+      <div class="eyebrow">steps down into the dark${done ? ' · cleared before' : ''}</div>
+      <h2>${info.name}</h2>
+      <p class="sub">${info.blurb} Find the key, open the great door - ${info.boss} waits beyond it.</p>
       <div class="row">
         <button class="btn" data-act="d-enter">Go down</button>
         <button class="btn ghost" data-act="w-away">Not yet</button>
@@ -1987,11 +1989,37 @@ function enterDungeonFromWilds(d) {
   world.dungeon = true;
   world.enemies = [];
   clearFx(); clearBullets();
-  enterDungeon({ x: d.x, y: d.y });
+  enterDungeon({ x: d.x, y: d.y }, d.id);
 }
 
-/** The dungeon demo, straight from the title screen. */
-function startDungeonDemo() {
+let demoDungeon = 'catacomb';
+
+/** Every dungeon, to go straight into from the title screen. */
+function showDungeonList() {
+  const cards = DUNGEON_LIST.map((id, i) => {
+    const info = dungeonInfo(id);
+    const done = (save.dungeonsCleared || {})[id];
+    return `
+      <div class="card musiccard" data-act="d-pick" data-idx="${i}">
+        <div class="name">${done ? '✓ ' : ''}${info.name}</div>
+        <div class="desc">${info.blurb}</div>
+        <div class="desc" style="opacity:.7">At the bottom: ${info.boss}</div>
+      </div>`;
+  }).join('');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the dungeons</div>
+      <h2>Go down</h2>
+      <p class="sub">Each dungeon is built round its own trick. In the Wilds they are ruined stairs marked on the map;
+      from here you go in with the Training Ground loadout.</p>
+      <div class="cards">${cards}</div>
+      <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
+    </div>`);
+}
+
+/** A dungeon, straight from the title screen. */
+function startDungeonDemo(id = demoDungeon) {
+  demoDungeon = id;
   resetWorld();
   clearFx();
   resetUi();
@@ -2005,7 +2033,7 @@ function startDungeonDemo() {
   world.gold = 0;
   world.runTime = 0;
   world.dungeon = true;
-  enterDungeon('demo');
+  enterDungeon('demo', id);
   state = 'playing';
   hideOverlay();
 }
@@ -2014,6 +2042,11 @@ function startDungeonDemo() {
 function exitDungeon(kind) {
   const D = dungeonState();
   const from = D ? D.from : 'demo';
+  const dName = D ? D.name : 'The dungeon', bossTitle = D ? D.boss.title : 'Its keeper';
+  if (kind === 'cleared' && D) {
+    save.dungeonsCleared = { ...(save.dungeonsCleared || {}), [D.id]: true };
+    writeSave();
+  }
   world.dungeon = false;
   leaveDungeon();
   clearBullets();
@@ -2023,11 +2056,12 @@ function exitDungeon(kind) {
     showOverlay(`
       <div class="panel">
         <div class="eyebrow">the dungeon demo</div>
-        <h2>${kind === 'cleared' ? 'The Catacomb is cleared' : 'Back into the daylight'}</h2>
-        <p class="sub">${kind === 'cleared' ? 'The Warden fell and the way out opened.' : 'You climbed back out before the end.'}
+        <h2>${kind === 'cleared' ? `${dName} is cleared` : 'Back into the daylight'}</h2>
+        <p class="sub">${kind === 'cleared' ? `${bossTitle} fell and the way out opened.` : 'You climbed back out before the end.'}
         Time ${Math.floor(world.runTime / 60)}:${String(Math.floor(world.runTime % 60)).padStart(2, '0')} &middot; kills ${world.kills}.</p>
         <div class="row">
           <button class="btn" data-act="d-again">Go down again</button>
+          <button class="btn ghost" data-act="dungeon-demo">Another dungeon</button>
           <button class="btn ghost" data-act="title">Title screen</button>
         </div>
       </div>`);
@@ -2043,7 +2077,7 @@ function exitDungeon(kind) {
   snapCamera();
   saveWilds();
   state = 'playing';
-  showToast(kind === 'cleared' ? 'THE CATACOMB IS CLEARED' : 'BACK IN THE WILDS', kind === 'cleared' ? 'You climb out into the light' : 'The dark will wait', 3);
+  showToast(kind === 'cleared' ? `${dName.toUpperCase()} IS CLEARED` : 'BACK IN THE WILDS', kind === 'cleared' ? 'You climb out into the light' : 'The dark will wait', 3);
 }
 
 function showDungeonPause() {
@@ -2054,7 +2088,7 @@ function showDungeonPause() {
     <div class="panel">
       <div class="eyebrow">${D ? D.name : 'a dungeon'}</div>
       <h2>${F ? F.name : 'Paused'}</h2>
-      <p class="sub">${D && D.key ? 'You carry the Bone Key.' : 'The great door wants a key.'} ${D && D.bossDead ? 'The Warden has fallen.' : ''}</p>
+      <p class="sub">${D && D.key ? `You carry ${D.keyInfo.name}.` : `The great door wants ${D ? D.keyInfo.name : 'a key'}.`} ${D && D.bossDead ? `${D.boss.title} has fallen.` : ''}</p>
       ${playerRows(showDungeonPause)}
       <div class="row">
         <button class="btn" data-act="w-resume">Resume</button>
@@ -2695,7 +2729,8 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
     case 'wilds': showWildsIntro(); break;
-    case 'dungeon-demo': phoneFullscreen(); startDungeonDemo(); break;
+    case 'dungeon-demo': showDungeonList(); break;
+    case 'd-pick': phoneFullscreen(); startDungeonDemo(DUNGEON_LIST[idx]); break;
     case 'music-room': showMusicRoom(); break;
     case 'wardrobe': showWardrobe(charBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;

@@ -4385,6 +4385,120 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.56 Dungeons: four new ones, each built round its own trick (2026-09-22)
+
+The owner: the dungeon is fun; it needs a little rework. Build different
+dungeons, be creative, and make each one fun and unique.
+
+**The design rule:** every dungeon keeps the demo's skeleton (§16.51):
+- a key on a side loop, a locked great door, a lamp near it, a shortcut
+  back, a boss;
+- ONE mechanic of its own, run the Zelda way: **teach** it safely, **test**
+  it with danger, then **twist** it.
+
+`dungeon-levels.js` holds the dungeons; `dungeon.js` runs any of them.
+
+| Dungeon (land) | Its trick | Teach, test, twist | Boss |
+|---|---|---|---|
+| **The Sunken Catacomb** (Heartland) | holes to the floor below, traps with a tell | as before | the Catacomb Warden (captain) |
+| **The Drowned Cistern** (Mirror Lake) | **the water level**: valve wheels raise or lower it everywhere at once | the entry channel is deep, so drain it to walk it. Drained, the floats in the float hall sink (a drop to the vaults); flooded, they rise into a raft bridge. The key's island in the vaults is reached only by rafts: flood from below, cross, climb out beside the door. **Flooding a channel with foes in it drowns them** (half their health; the kappa don't mind). | Mother of the Cistern (hag) |
+| **The Ember Forge** (Broken Peaks) | **lava, moving platforms, belts, crushers** | a belt drags you back under a row of crushers slamming in a wave. The lava hall: ride one platform to an island, another across, a belt the last stretch, a crossbowman on the far ledge. Upstairs, a three-lane crusher gallery before the key; the arena is set with lava pools. | the Forgemaster (oni) |
+| **The Foxfire Shrine** (Cloud Summit) | **red and blue pegs**: strike a switch orb (with a swing, a shot or a spell) and every red peg sinks as every blue one rises | the entry's red pegs; each room's exit is the colour you just raised. The lantern gallery upstairs has three rows of pegs with an orb in each pocket, and ninjas in the pockets. **Paper screens** tear open when struck: two hide chests, and one hides a passage to a hole that drops you beside the great door. | the Nine-Tailed Keeper (kyubi) |
+| **The Frozen Crypt** (Hollow Moors) | **ice**: step on and you slide until a wall or a rock stops you (a dash breaks the slide); **icicles** creak and fall where you pass | a small ice hall, three rocks, five slides to the door. The icicle hall has a strip of ice that runs you off a ledge into the tombs below. The tombs are a cave of ice where rocks are the only brakes: four slides to the key's island, and wolves that don't slip. | the White Wolf (alpha) |
+
+**New in the engine:**
+- **State shared by every floor:** the water (high or low) and the peg
+  colour (red or blue). `solidTile` and `holeTile` read them, and each change
+  rebuilds the walls.
+- **Flooding:** a channel filling under you lifts you onto its bank; foes
+  in it take half their health and are lifted too.
+- **Pegs:** one rising under you or a foe shoves you off it.
+- **Switch orbs and paper screens** react only to *your* swings and shots
+  (the same hit tests the bosses use, friendly hitboxes only).
+- **Moving platforms:** they ride back and forth on a path with a pause at
+  each end, and carry whoever stands on them.
+- **Lava** burns you back to your last firm tile for 14% of your health.
+  Enemies keep off lava, holes and deep water.
+- **Belts:** 150 units/s, carrying enemies too.
+- **Crushers:** each on its own beat, staggered by position. The shadow
+  grows for 0.6 s, then a slam for 20 damage with a shake and a thud.
+- **Ice:** sliding snaps you to the lane and runs at 400 units/s.
+  - Pushing into a wall you already stand against starts nothing.
+  - The slide stops on the first tile that isn't ice.
+- **Icicles:** they warn for 0.65 s when you come near, fall on their own
+  tile, and grow back after 6 s.
+- **Per-dungeon settings:** each dungeon has its own boss (type, title,
+  scale), key (name and colour, shown on the door, the chest and the HUD)
+  and reward.
+  - The toasts, the pause text and the end screen name them.
+  - Clears are saved (`save.dungeonsCleared`).
+
+**The rework of the demo** (for all five):
+- **A dungeon map** top right: each floor as far as you've seen it, with
+  stairs, the key, the door (red, then green once you hold the key), lamps,
+  chests, valves and orbs, and you.
+- **An objective line** under the map: *Find the Bone Key* → *Open the great
+  door* → *Defeat the Catacomb Warden* → *Step into the light*. It also shows
+  the water level or the peg colour.
+- **Bug fix:** the great door no longer reopens mid-fight if you're still in
+  the doorway (touching it with the key used to open it again).
+- **Looks:** each dungeon has its own (`THEMES`).
+  - The Cistern is green-grey stone with moss; the Forge is iron and soot
+    with ember cracks and braziers.
+  - The Shrine has wooden boards, red lacquered pillars, paper walls, paper
+    lanterns and blossom petals; the Crypt has frosted stone, icicles on the
+    wall faces, rocks in the ice and a cold light.
+  - New tiles are drawn: water that rises and falls, rafts that bob, valve
+    wheels that spin, pegs up and sunk, switch orbs, shoji screens (torn and
+    whole), lava, belts with running chevrons, crushers on pistons, ice with
+    glints, and icicles.
+- **Music:** the Catacomb and the Cistern play *Under the Canopy*
+  (Malkauns), the Forge *Ash at Dawn* (Bhairav), the Shrine *Blossom Road*
+  (Durga), the Crypt *Moonlit Courts* (Yaman).
+
+**Where they are:**
+- **In the Wilds:** a ruined stair in each land (placed clear of water, roads
+  and sites by a placement check):
+  - the Cistern near Lakeshore;
+  - the Forge by Ashen Foot;
+  - the Shrine on the summit's slopes;
+  - the Crypt near Moorgate;
+  - the Catacomb beside the Heartland Hearth, as before.
+- **On the maps:** a blue arch over steps on both the minimap and the full
+  map, always shown, and ticked once cleared.
+- **From the title screen:** the old "Dungeon (demo)" button is now
+  **Dungeons**, a list of all five with their tricks and bosses. The end
+  screen offers "Another dungeon". `dungeon-preview.html?id=forge` shows any
+  of them.
+
+**Verified in Node:**
+- **The solver** (`solve.mjs` in the session scratchpad) walks every dungeon
+  by its rules: water, pegs, ice slides, platforms, lava, falls through
+  holes, stairs, levers, the key and the door.
+  - All five: the key and the boss can be reached from the start.
+  - No dead ends: from every reachable state the boss can still be reached.
+  - The shortest routes are 51–150 tile moves.
+  - With the valves, orbs and platforms taken out, the Cistern, Forge and
+    Shrine become impossible, so each trick is really needed.
+  - It caught one weak spot, now fixed: a fall into the Crypt's tombs used to
+    slide you straight to the key's island. Three rocks now make it a
+    four-slide puzzle.
+- **A mechanics harness** on the live engine, all passing:
+  - valves drain and flood; a flood hurts and lifts a foe;
+  - drained floats drop you to the vaults;
+  - an orb flips on your swing, not on an enemy's; a rising peg shoves you
+    off it; a screen tears open;
+  - belt speed, a crusher's slam, lava's burn-back, and a platform ride over
+    the lava;
+  - ice slides stop at the rock and at the wall; an icicle falls; the strip
+    runs you off into the tombs;
+  - every boss and foe spawns;
+  - in every dungeon: key → door → the door shuts on the boss → portal →
+    exit.
+- **Drawing:** every floor of every dungeon in all four water/peg states on a
+  mock canvas, with no errors (690k draw calls).
+- **Not played in the browser:** the owner tests on the phone.
+
 ### 16.55 The Wardrobe: the Wanderer's outfit, piece by piece (2026-09-22)
 
 The owner asked whether the character's look could change: hat, armour,

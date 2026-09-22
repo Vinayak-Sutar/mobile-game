@@ -3,7 +3,7 @@
 <style>body{margin:0;background:#111}canvas{display:block}</style></head>
 <body><canvas id="c"></canvas>
 <script type="module">
-// A look at the dungeon demo without playing it: ?floor=1&x=4&y=18 (tiles) &z=zoom.
+// A look at a dungeon without playing it: ?id=forge&floor=1&x=4&y=18 (tiles) &z=zoom.
 import { world, view, camera, resetWorld } from './src/state.js';
 import { enterDungeon, updateDungeon, dungeonState, T } from './src/dungeon.js';
 import { drawDungeonBelow, drawDungeonAbove } from './src/dungeon-draw.js';
@@ -20,7 +20,7 @@ resetWorld();
 look.skin = 'wanderer';
 const p = createPlayer(WEAPONS[0], {}); p.invincible = true; world.player = p;
 world.dungeon = true;
-const D = enterDungeon('demo');
+const D = enterDungeon('demo', q.get('id') || 'catacomb');
 const fl = Number(q.get('floor') ?? 1);
 if (fl !== D.cur) { D.floors[D.cur].enemies = world.enemies; D.cur = fl; world.enemies = D.floors[fl].enemies; }
 const tx = Number(q.get('x') || 4), ty = Number(q.get('y') || 18);

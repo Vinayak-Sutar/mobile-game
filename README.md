@@ -182,15 +182,18 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   layer, and crossing a border fades one piece into the next. The **Music
   Room** on the title screen plays them all and lets you pick the instrument
   that plays each tune.
-- **Dungeons (demo):** go down the ruined stair near the Wilds' start (or
-  "Dungeon (demo)" on the title screen) into the Sunken Catacomb:
-  - three floors joined by stairs;
-  - a narrow walkway over a chasm, where a fall drops you into the Ossuary
-    below;
-  - wave spikes, dart plates, fire vents, crumbling tiles and pendulum
-    blades;
-  - levers, a drawn bridge, a shortcut gate, the Bone Key and a great door;
-  - the Catacomb Warden at the bottom.
+- **Dungeons:** five, each built round its own trick, entered by ruined
+  stairs in the Wilds (marked on the map) or from **Dungeons** on the title
+  screen:
+  - the Sunken Catacomb: holes to the floor below, and traps;
+  - the Drowned Cistern: raise and lower the water, and drown foes in the
+    channels;
+  - the Ember Forge: lava platforms, belts and crushers;
+  - the Foxfire Shrine: red and blue pegs flipped by switch orbs, and paper
+    screens;
+  - the Frozen Crypt: ice-sliding puzzles and falling icicles.
+
+  Each has a key, a great door, a boss and a floor map.
 - **Mini-bosses:** eight named foes hold places across the Wilds, each with
   a bar of its own, a second phase and a rich reliquary:
   - Kyubi, the Nine-Tailed, and Sasaki, the Wandering Blade, on Cloud Summit;

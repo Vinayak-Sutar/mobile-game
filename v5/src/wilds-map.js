@@ -14,7 +14,8 @@
 import { world, view } from './state.js';
 import { TAU, clamp, roundRect } from './util.js';
 import { input } from './input.js';
-import { REGIONS } from './wilds-layout.js';
+import { REGIONS, DUNGEONS } from './wilds-layout.js';
+import { save } from './save.js';
 import { wildsState, WILDS, FOG, chartOverview, chartProgress } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 
@@ -24,6 +25,18 @@ function lampIcon(ctx, x, y, lit, r) {
   if (lit) { ctx.fillStyle = '#ffb35e'; ctx.fill(); ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 1; ctx.stroke(); }
   else { ctx.strokeStyle = 'rgba(255,200,150,0.6)'; ctx.lineWidth = 1.5; ctx.stroke(); }
 }
+
+/** A dungeon on a map: a blue arch over steps going down; ticked once cleared. Always shown. */
+function dungeonIcon(ctx, x, y, cleared, r) {
+  ctx.fillStyle = cleared ? '#6a7a8a' : '#6ab0ff';
+  ctx.strokeStyle = '#0a1020'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(x - r, y + r * 0.8); ctx.lineTo(x - r, y - r * 0.2); ctx.arc(x, y - r * 0.2, r, Math.PI, 0); ctx.lineTo(x + r, y + r * 0.8); ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#0a1020';
+  for (let k = 0; k < 3; k++) ctx.fillRect(x - r * 0.6 + k * r * 0.15, y - r * 0.3 + k * r * 0.35, r * 1.2 - k * r * 0.3, r * 0.22);
+  if (cleared) { ctx.strokeStyle = '#9fe0a0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - r * 0.6, y); ctx.lineTo(x - r * 0.1, y + r * 0.5); ctx.lineTo(x + r * 0.8, y - r * 0.6); ctx.stroke(); }
+}
+const dungeonDone = (d) => !!(save.dungeonsCleared || {})[d.id];
 
 /** A place on a map: a little keep, red while its champion stands, green once it has fallen. */
 function placeIcon(ctx, x, y, won, r) {
@@ -107,6 +120,7 @@ export function drawOverworldMap(ctx) {
   for (const q of W.sites) if (q.seen && q.kind === 'site') siteIcon(ctx, x + (q.x - wx) * s, y + (q.y - wy) * s, q.cleared, 2.5);
   for (const P of W.places) if (P.seen) markIcon(ctx, x + (P.x - wx) * s, y + (P.y - wy) * s, W, P, 4);
   for (const l of W.lamps) if (l.seen || l.lit) lampIcon(ctx, x + (l.x - wx) * s, y + (l.y - wy) * s, l.lit, 3);
+  for (const d of DUNGEONS) dungeonIcon(ctx, x + (d.x - wx) * s, y + (d.y - wy) * s, dungeonDone(d), 4);
   if (journey.smoulder) smoulderIcon(ctx, x + (journey.smoulder.x - wx) * s, y + (journey.smoulder.y - wy) * s, 3.5);
   ctx.restore();
   ctx.fillStyle = '#ffffff';
@@ -203,6 +217,10 @@ export function mountWildsMap(canvas, opts = {}) {
       if (!l.seen && !l.lit && !W.fogOff) continue;
       lampIcon(ctx, toX(l.x), toY(l.y), l.lit, st.zoom > 1.5 ? 6 : 4);
       if (st.zoom > 1.5 && l.lit) { ctx.fillStyle = 'rgba(255,217,160,0.9)'; ctx.fillText(l.name, toX(l.x), toY(l.y) - 10); }
+    }
+    for (const d of DUNGEONS) {
+      dungeonIcon(ctx, toX(d.x), toY(d.y), dungeonDone(d), st.zoom > 1.5 ? 8 : 5.5);
+      if (st.zoom > 1.5) { ctx.fillStyle = 'rgba(170,210,255,0.95)'; ctx.fillText(d.name, toX(d.x), toY(d.y) + 20); }
     }
     if (journey.smoulder) smoulderIcon(ctx, toX(journey.smoulder.x), toY(journey.smoulder.y), 6);
 
