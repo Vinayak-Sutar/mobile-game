@@ -17,7 +17,7 @@ import {
 } from './wilds-progress.js';
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
 import { LAMPS, REGIONS } from './wilds-layout.js';
-import { REGION_THEMES, themeForRegion } from './music-regions.js';
+import { REGION_THEMES, themeForRegion, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
 import { DESH_THEME } from './music-desh.js';
 import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
@@ -888,21 +888,23 @@ function showMusicRoom() {
         <div class="name">${playing(t.theme || t) ? '♪ ' : ''}${t.name}</div>
         <div class="desc"><b>${t.raga}</b>${boss ? ` · ${t.who}` : ` · ${t.hour}`}</div>
         <div class="desc">${t.mood}</div>
-        ${boss ? '' : `<div class="desc" style="opacity:.7">Plays in ${regionNames(t)}.</div>`}
+        ${boss ? '' : `<div class="desc" style="opacity:.7">Plays in ${regionNames(t)}. The tune on ${LEAD_OPTIONS.find((o) => o.id === leadFor(t, 0)).label.toLowerCase()}.</div>`}
       </div>`;
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">listen</div>
       <h2>Music Room</h2>
-      <p class="sub">Every land of the Wilds has its own piece, each in a raga chosen for its mood.
+      <p class="sub">Every land of the Wilds has its own piece, each in a raga chosen for its mood,
+      played on piano, electric piano, music box, kalimba, marimba and harp.
       Out exploring the tune comes and goes and leaves room; when a fight starts a drum and a quicker
-      pace join the same piece. Try both.</p>
+      pace join the same piece. Try both - and try another instrument on the tune.</p>
       ${audio.music ? '' : '<p class="sub" style="color:#ffb070">Music is switched off. <button class="btn ghost" data-act="mr-musicon">Turn music on</button></p>'}
       <div class="row">
         <button class="btn${musicRoom.fight ? ' ghost' : ''}" data-act="mr-calm">Exploring</button>
         <button class="btn${musicRoom.fight ? '' : ' ghost'}" data-act="mr-fight">In a fight</button>
         <button class="btn ghost" data-act="mr-stop">Stop</button>
       </div>
+      ${leadRow()}
       <h3 style="margin:14px 0 6px">The Wilds</h3>
       <div class="cards">${REGION_THEMES.map((t, i) => card(t, i, false)).join('')}</div>
       <h3 style="margin:14px 0 6px">Guardians</h3>
@@ -910,6 +912,21 @@ function showMusicRoom() {
       ${musicVolumeRow()}
       <div class="row"><button class="btn ghost" data-act="mr-back">Back</button></div>
     </div>`);
+}
+
+/** For the region piece playing: which instrument plays the tune (kept, and used in the Wilds). */
+function leadRow() {
+  const th = musicRoom && !musicRoom.boss && musicRoom.theme;
+  if (!th) return '';
+  const pick = (save.musicLead || {})[th.id];
+  const dflt = th.leads.map((l) => LEAD_OPTIONS.find((o) => o.id === l).label).join(', then ');
+  const b = (v, label, on) => `<button class="btn${on ? '' : ' ghost'}" data-act="mr-lead" data-v="${v}">${label}</button>`;
+  return `
+      <p class="sub" style="margin:10px 0 4px">The tune of <b>${th.name}</b> on:</p>
+      <div class="row">
+        ${b('', `As composed (${dflt})`, !pick)}
+        ${LEAD_OPTIONS.map((o) => b(o.id, o.label, pick === o.id)).join('')}
+      </div>`;
 }
 
 function leaveMusicRoom() {
@@ -2536,6 +2553,17 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'mr-stop': musicRoom.theme = null; setAmbientTheme(null); setBossTheme(null); showMusicRoom(); break;
     case 'mr-musicon': ensureAudio(); setMusicEnabled(true); save.musicOn = true; writeSave(); showMusicRoom(); break;
     case 'mr-back': showTitle(); break;
+    case 'mr-lead': {
+      const th = musicRoom && musicRoom.theme;
+      if (!th || musicRoom.boss) break;
+      save.musicLead = { ...(save.musicLead || {}) };
+      if (el.dataset.v) save.musicLead[th.id] = el.dataset.v;
+      else delete save.musicLead[th.id];
+      writeSave();
+      setLeadChoice(save.musicLead);
+      showMusicRoom();
+      break;
+    }
     case 'd-enter': {
       const d = pendingDungeon;
       pendingDungeon = null;
@@ -2869,6 +2897,7 @@ function ensureAudio() {
   if (save.muted) toggleMute();
   setMusicVolume(typeof save.musicVolume === 'number' ? save.musicVolume : 0.7);
   setMusicEnabled(save.musicOn !== false);
+  setLeadChoice(save.musicLead);
 }
 
 // Any first interaction unlocks WebAudio (mobile requires a gesture).

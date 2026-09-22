@@ -23,12 +23,19 @@
 // The ragas were chosen for what each is said to carry (its rasa and its
 // hour), and their grammar is kept: the notes each allows, going up and
 // coming down, the notes it rests on and its signature phrases. The tunes
-// themselves were composed for the game. Solenne's theme (music-desh.js)
-// taught the rules the owner asked for: warm and clear, no ghostly glides,
-// no buzz, no sharp attacks, the tune up where the flute is bright.
+// themselves were composed for the game.
+//
+// Instruments, round 2 (owner: "I didn't like the instruments - try piano
+// notes or some other instrument"): the flute, the bowed voice, the felt
+// santoor and the koto are gone. Every piece is now played on modelled
+// struck and plucked instruments (music-instruments.js): a piano, an electric
+// piano, a music box, a kalimba, a marimba and a harp. The raga stays in the
+// melody, and the harmony under it uses only the raga's own notes, so its
+// colour survives the piano. The lead instrument of any piece can be changed
+// in the Music Room, and the choice is kept in the game too.
 
-import { voice, midi } from './music-kit.js';
-import { softPluck, santoor, koto, roomIn, prewarm, warmSoft, warmKoto, warmSantoor } from './music-samples.js';
+import { prewarm } from './music-samples.js';
+import { INSTRUMENTS, inst, roll, pad, hallIn, warmInst } from './music-instruments.js';
 
 // Swar -> semitones above Sa. Lower case = komal (flat), M# = tivra Ma.
 // A trailing '.' is the octave below, a trailing "'" the octave above.
@@ -40,87 +47,50 @@ export function swar(sw) {
   if (!(base in SEMI)) throw new Error(`unknown swar ${sw}`);
   return SEMI[base] + oct;
 }
-const baseOf = (sw) => sw.replace(/[.']/g, '');
 
-// --- instruments -------------------------------------------------------------------
-
-/** Bansuri, as in Mor Chowk: warm, a clear start, a short late vibrato, no glides. */
-function flute(k, m, dur, t, vol = 1, o = {}) {
-  const out = roomIn(k);
-  if (!out) return;
-  const d = Math.max(0.12, dur * 0.9);
-  voice(k, { m, at: t, dur: d, vol: 0.028 * vol, type: 'triangle', attack: 0.045, release: 0.14, vib: o.vib ?? 0.004, vibRate: o.vibRate ?? 5.5, vibDelay: o.vibDelay ?? 0.28, filter: [o.bright ?? 2500], q: 0.5, out });
-  voice(k, { m, at: t, dur: d, vol: 0.011 * vol, type: 'sine', attack: 0.045, release: 0.14, out });
-  if (o.reed) voice(k, { m, at: t, dur: d, vol: o.reed * vol, type: 'square', attack: 0.05, release: 0.12, filter: [1500], q: 0.4, out });
-  if (o.breath) k.noise({ dur: 0.07, vol: o.breath * vol, freq: midi(m) * 2, type: 'bandpass', q: 2.5, at: t, out });
-}
-
-/** A bowed voice like a sarangi, soft: slow bow, a warm filter. `andolan` sways the note slowly. */
-function bowed(k, m, dur, t, vol = 1, andolan = false) {
-  const out = roomIn(k);
-  if (!out) return;
-  const d = Math.max(0.2, dur * 0.95);
-  const vib = andolan ? { vib: 0.009, vibRate: 1.7, vibDelay: 0.2 } : { vib: 0.005, vibRate: 5, vibDelay: 0.35 };
-  voice(k, { m, at: t, dur: d, vol: 0.012 * vol, type: 'sawtooth', attack: 0.16, release: 0.25, filter: [1250], q: 0.6, out, ...vib });
-  voice(k, { m, at: t, dur: d, vol: 0.02 * vol, type: 'triangle', attack: 0.14, release: 0.25, out, ...vib });
-}
+// --- percussion, for the fight layer only -------------------------------------------------
 
 /** A soft low pulse: a hand drum heard across the courtyard. */
-function pulse(k, t, strong, pitch = 1) {
-  const out = roomIn(k);
+function pulse(k, t, strong) {
+  const out = hallIn(k);
   if (!out) return;
-  k.tone({ freq: 110 * pitch, freq2: 80 * pitch, type: 'sine', dur: 0.22, vol: strong ? 0.075 : 0.045, attack: 0.008, at: t, out });
-  k.tone({ freq: 220 * pitch, freq2: 160 * pitch, type: 'triangle', dur: 0.12, vol: strong ? 0.024 : 0.014, attack: 0.008, at: t, out });
+  k.tone({ freq: 110, freq2: 80, type: 'sine', dur: 0.22, vol: strong ? 0.07 : 0.042, attack: 0.008, at: t, out });
+  k.tone({ freq: 220, freq2: 160, type: 'triangle', dur: 0.12, vol: strong ? 0.02 : 0.012, attack: 0.008, at: t, out });
 }
-
-/** A light wooden tick: the khartal of Rajasthan, the kane of a shrine. */
-function tick(k, t, vol = 0.02, freq = 2200) {
-  const out = roomIn(k);
-  if (!out) return;
-  k.noise({ dur: 0.035, vol, freq, type: 'bandpass', q: 3, at: t, out });
+/** A light wooden tick: the khartal, a shrine's clapper. */
+function tick(k, t, vol = 0.014, freq = 2400) {
+  const out = hallIn(k);
+  if (out) k.noise({ dur: 0.03, vol, freq, type: 'bandpass', q: 3, at: t, out });
 }
-
-/** A temple bell, struck softly: a few inharmonic partials, a long fade. */
-function bell(k, m, t, vol = 0.02) {
-  const out = roomIn(k);
-  if (!out) return;
-  const f = midi(m);
-  [[1, 1, 3.2], [2.0, 0.5, 2.2], [2.76, 0.32, 1.6], [5.4, 0.12, 0.8]].forEach(([r, v, d]) => {
-    k.tone({ freq: f * r, type: 'sine', dur: d, vol: vol * v, attack: 0.004, at: t, out });
-  });
-}
-
-/** A deep drum, felt more than heard: a taiko or a pakhawaj, far off. */
-function drum(k, t, vol = 0.07) {
-  const out = roomIn(k);
+/** A deep drum, felt more than heard: a taiko, a pakhawaj far off. */
+function drum(k, t, vol = 0.065) {
+  const out = hallIn(k);
   if (!out) return;
   k.tone({ freq: 96, freq2: 58, type: 'sine', dur: 0.4, vol, attack: 0.01, at: t, out });
   k.tone({ freq: 192, freq2: 120, type: 'triangle', dur: 0.14, vol: vol * 0.3, attack: 0.006, at: t, out });
 }
 
-/** A soft reed chord that breathes: a shruti box on Sa and Pa. */
-function reedDrone(k, m, t, dur, vol = 0.012) {
-  const out = roomIn(k);
-  if (!out) return;
-  for (const [dm, v] of [[0, 1], [7, 0.7], [12, 0.5]]) {
-    voice(k, { m: m + dm, at: t, dur, vol: vol * v, type: 'triangle', attack: dur * 0.3, release: dur * 0.35, filter: [900], q: 0.5, out });
-  }
+// --- the lead: which instrument plays the tune ------------------------------------------
+
+let leadChoice = {};
+/** { themeId: instrumentName }, from the Music Room (kept in the save). */
+export function setLeadChoice(map) { leadChoice = { ...(map || {}) }; }
+export function leadFor(theme, pass = 0) {
+  const pick = leadChoice[theme.id];
+  return pick && INSTRUMENTS[pick] ? pick : theme.leads[pass % theme.leads.length];
 }
+export const LEAD_OPTIONS = Object.entries(INSTRUMENTS).map(([id, v]) => ({ id, label: v.label }));
 
 // --- the theme engine ------------------------------------------------------------------
 
 /**
- * A theme from its score. The spec:
- *   sa            midi note of the lead's Sa
- *   beat, fightBeat   seconds a beat, exploring and in a fight
- *   cycle         beats in a cycle (a phrase fills one cycle)
- *   notes         the swar the raga allows (checked by the tests)
- *   phrases       [[swar, beats], ...] per phrase, each exactly `cycle` beats
- *   form          phrase indices in order; null = the lead rests that cycle
- *   lead(c, m, dur, ev)       play one melody note (c: the step context)
- *   bed(c)        every step: the accompaniment
- *   fight(c)      every step, in a fight only: the extra layer
- *   warm          notes to render ahead
+ * A theme from its score:
+ *   sa, beat, fightBeat, cycle   the lead's Sa (midi); seconds a beat calm / in a fight; beats a cycle
+ *   notes, phrases, form         the raga's swar; four phrases of one cycle; their order (null = rest)
+ *   leads                        lead instruments, one per pass through the form
+ *   leadVol, leadDouble          the tune's loudness; a piano lead doubled this many semitones down
+ *   bars, barInst, barBeats      the left hand: per bar, the swar of its broken chord, one per half-beat
+ *   bed(c), fight(c)             anything else, every step (always / in a fight only)
  */
 function makeTheme(spec) {
   const melody = spec.phrases.map((ph) => {
@@ -132,15 +102,21 @@ function makeTheme(spec) {
     }
     return out;
   });
-  const warm = spec.warm || [];
+  const note = (sw) => spec.sa + swar(sw);
+  // Render ahead every note the leads and the left hand will need.
+  const warm = [];
+  const seen = new Set();
+  const want = (name, m) => { const key = name + m; if (!seen.has(key)) { seen.add(key); warm.push(warmInst(name, m)); } };
+  for (const name of spec.leads) for (const ph of melody) for (const ev of ph) want(name, ev.m + INSTRUMENTS[name].oct);
+  for (const bar of spec.bars || []) for (const sw of bar) if (sw) want(spec.barInst, note(sw));
+  for (const [name, sws] of spec.warmMore || []) for (const sw of sws) want(name, note(sw));
   return {
     ...spec,
     kind: 'region',
-    note: (sw) => spec.sa + swar(sw),
-    // One step is half a beat.
+    note,
     tempo(k) {
       const beat = k.intensity >= 1 ? spec.fightBeat : spec.beat;
-      return 60 / (beat / 2) / 4;
+      return 60 / (beat / 2) / 4;     // one step is half a beat
     },
     step(n, t, k) {
       prewarm(k, warm);
@@ -149,30 +125,52 @@ function makeTheme(spec) {
       const cycle = Math.floor(n / steps);
       const fight = k.intensity >= 1;
       const c = {
-        k, t, s, cycle, fight,
+        k, t, s, n, cycle, fight,
         step: 60 / this.tempo(k) / 4,
-        beat: s % 2 === 0 ? s / 2 : -1,          // which beat starts on this step (-1: none)
         pass: Math.floor(cycle / spec.form.length),
-        note: (sw) => spec.sa + swar(sw),
+        note,
       };
-      spec.bed(c);
+      // The left hand: a broken chord, its bass note held through the bar.
+      if (spec.bars) {
+        const per = spec.barBeats * 2;
+        const bar = spec.bars[Math.floor(n / per) % spec.bars.length];
+        const i = n % per;
+        const sw = bar[i];
+        if (sw) {
+          inst(k, spec.barInst, note(sw), t, i === 0
+            ? { vol: spec.barVol * 1.25, dur: per * c.step, pedal: true }
+            : { vol: spec.barVol * (i % 2 ? 0.8 : 1), dur: c.step * 3 });
+        }
+      }
+      if (spec.bed) spec.bed(c);
       if (fight && spec.fight) spec.fight(c);
-      // The lead: in the form's order, resting where it rests - but not in a fight.
       let f = spec.form[cycle % spec.form.length];
-      if (f === null && fight) f = cycle % melody.length;
+      if (f === null && fight) f = cycle % melody.length;    // no resting in a fight
       if (f === null) return;
-      for (const ev of melody[f]) if (ev.at === s) this.lead(c, ev.m, ev.steps * c.step, ev);
+      for (const ev of melody[f]) if (ev.at === s) this.lead(c, ev);
+    },
+    lead(c, ev) {
+      const name = leadFor(this, c.pass);
+      const I = INSTRUMENTS[name];
+      const dur = ev.steps * c.step;
+      const vol = spec.leadVol ?? 0.07;
+      inst(c.k, name, ev.m + I.oct, c.t, { vol, dur: dur * 1.02 });
+      if (spec.leadDouble && name === 'piano') inst(c.k, name, ev.m + spec.leadDouble, c.t, { vol: vol * 0.5, dur });
+      // A bar or a tine cannot hold a long note: a marimba rolls it, the others strike it again softly.
+      if (!I.damp && ev.steps >= 4) {
+        const every = name === 'marimba' ? 1 : 2;
+        for (let x = every; x < ev.steps - 0.5; x += every) {
+          inst(c.k, name, ev.m + I.oct, c.t + x * c.step, { vol: vol * (name === 'marimba' ? 0.45 : 0.35) });
+        }
+      }
     },
   };
 }
 
-const warmList = (sa, notes, off, fn) => notes.map((sw) => fn(sa + swar(sw) + off));
-
 // --- 1. Raag Bhupali: the Ashen Heartland, Mirror Lake -----------------------------------
-// Five notes, Sa Re Ga Pa Dha: the pentatonic of the plains, open and
-// unclouded - an evening raga of peace and devotion (shanta, bhakti). Ga is
-// the resting note, Dha its partner; it never touches Ma or Ni. The pakad:
-// Ga Re Sa Dha., Sa Re Ga, Pa Ga, Dha Pa Ga Re Sa. Home: the land you wake in.
+// Five notes, Sa Re Ga Pa Dha: open and unclouded, an evening raga of peace
+// (shanta). Ga the resting note, Dha its partner, never Ma or Ni. Home.
+// A piano, the left hand flowing in broken chords of the raga's own notes.
 const BHUPALI = makeTheme({
   id: 'bhupali', name: 'Hearthfields', raga: 'Raag Bhupali', sa: 72, beat: 0.5, fightBeat: 0.42, cycle: 16,
   mood: 'Open, warm and at peace - the plains where you wake, the first lamp, home.',
@@ -185,33 +183,26 @@ const BHUPALI = makeTheme({
     [['G', 2], ['P', 1], ['D', 1], ["S'", 3], ["R'", 1], ["S'", 1], ['D', 1], ['P', 1], ['G', 1], ['R', 1], ['G', 1], ['S', 2]],
   ],
   form: [0, 1, 0, 2, null, 3, 1, 2, null, null],
-  // First pass the flute sings; the next, the felt santoor takes the tune.
-  lead(c, m, dur) {
-    if (c.pass % 2 === 0) flute(c.k, m, dur, c.t);
-    else { softPluck(c.k, m, c.t, 0.04); if (dur > c.step * 3) softPluck(c.k, m, c.t + dur * 0.5, 0.022); }
-  },
-  bed(c) {
-    // The walk: Sa Ga Pa Sa', one pluck a beat, low.
-    if (c.beat >= 0) {
-      const walk = ['S.', 'G.', 'P.', 'S'];
-      softPluck(c.k, c.note(walk[c.beat % 4]), c.t, c.beat % 4 === 0 ? 0.032 : 0.024);
-    }
-    if (c.s === 0) pulse(c.k, c.t, false);
-  },
+  leads: ['piano', 'musicbox'], leadVol: 0.075,
+  barInst: 'piano', barBeats: 4, barVol: 0.03,
+  bars: [
+    ['S..', 'P..', 'S.', 'G.', 'P.', 'G.', 'S.', 'P..'],
+    ['D...', 'G..', 'D..', 'S.', 'G.', 'S.', 'D..', 'G..'],
+    ['R..', 'P..', 'R.', 'G.', 'D.', 'G.', 'R.', 'P..'],
+    ['P...', 'R..', 'P..', 'D..', 'R.', 'D..', 'P..', 'R..'],
+  ],
+  bed(c) { if (c.s === 0 && c.cycle % 2 === 0) pad(c.k, [c.note('S.'), c.note('P.')], c.t, c.step * 64, 0.0035); },
   fight(c) {
     if (c.s % 8 === 0) pulse(c.k, c.t, true);
     else if (c.s % 8 === 4) pulse(c.k, c.t, false);
-    if (c.s % 4 === 2) tick(c.k, c.t, 0.012, 2600);
+    if (c.s % 4 === 2) tick(c.k, c.t, 0.01, 2600);
   },
-  warm: [...warmList(72, ['S.', 'G.', 'P.', 'S', 'R', 'G', 'P', 'D', "S'", 'D.'], 0, warmSoft)],
 });
 
 // --- 2. Raag Maand: the Dust Gulch, the Sunken Sands, Saltwind Isle ---------------------
-// The desert raga of Rajasthan, sung by the Manganiyars and Langas at night by
-// the fire - a folk raga that wanders and zig-zags (Sa Ga Ma Pa, Ma Ga Re Sa)
-// and lingers on Ma and Pa. Played on the algoza, the twin flutes of the
-// desert (one pipe holds Sa while the other sings), over the lilting 6/8 of a
-// dholak - the gait of a camel.
+// The desert raga of Rajasthan, a folk raga sung by the fire that wanders
+// and zig-zags (Sa Ga Ma Pa, Ma Ga Re Sa) and lingers on Ma and Pa. A
+// kalimba sings over a marimba in the lilting 6/8 of a camel's gait.
 const MAAND = makeTheme({
   id: 'maand', name: 'Sand and Salt', raga: 'Raag Maand', sa: 69, beat: 0.3, fightBeat: 0.26, cycle: 12,
   mood: 'A long road under a big sky - wandering, sunlit, a little lonely.',
@@ -224,36 +215,31 @@ const MAAND = makeTheme({
     [['G', 1], ['M', 1], ['P', 1], ["S'", 2], ['N', 1], ['D', 1], ['P', 1], ['M', 1], ['G', 1], ['S', 2]],
   ],
   form: [0, 1, 0, 2, null, 3, 1, 2, null, null, 0, 3, 1, 2, null, null],
-  lead(c, m, dur) {
-    // Algoza: a reedy flute; on the second pass the plucked string answers under it.
-    flute(c.k, m, dur, c.t, 0.95, { reed: 0.004, vib: 0.003, vibRate: 6, vibDelay: 0.2, bright: 2300 });
-    if (c.pass % 2 === 1) softPluck(c.k, m - 12, c.t, 0.03);
-  },
+  leads: ['kalimba', 'piano'], leadVol: 0.075,
+  // The marimba: one note a beat (a beat here is an eighth), bars of six.
+  barInst: 'marimba', barBeats: 6, barVol: 0.034,
+  bars: [
+    ['S.', null, 'P.', null, 'S', null, 'P.', null, 'G', null, 'P.', null],
+    ['M.', null, 'S', null, 'M', null, 'S', null, 'P', null, 'S', null],
+    ['S.', null, 'P.', null, 'S', null, 'P.', null, 'G', null, 'P.', null],
+    ['P.', null, 'S', null, 'D', null, 'S', null, 'G', null, 'S', null],
+  ],
+  warmMore: [['piano', ['S..', 'M..']]],
   bed(c) {
-    // The second pipe: Sa, held, breathing once a cycle.
-    if (c.s === 0) voice(c.k, { m: c.note('S') - 12, at: c.t, dur: c.step * 23, vol: 0.011, type: 'triangle', attack: 0.6, release: 0.9, filter: [1100], q: 0.5, out: roomIn(c.k) });
-    // Dholak in 6/8, soft: DHA . dhin | na . tin - the camel's gait.
-    if (c.beat >= 0) {
-      const b = c.beat % 6;
-      if (b === 0) pulse(c.k, c.t, true, 1.1);
-      else if (b === 3) pulse(c.k, c.t, false, 1.1);
-      else if (b === 2 || b === 5) tick(c.k, c.t, 0.008, 1700);
-      if (b === 0 || b === 3) softPluck(c.k, c.note(b === 0 ? 'S.' : 'P.'), c.t, 0.024);
-    }
+    // The bass: a low piano note at each bar, the gait's downbeat.
+    if (c.n % 12 === 0) inst(c.k, 'piano', c.note((c.n / 12) % 2 ? 'M..' : 'S..'), c.t, { vol: 0.03, dur: c.step * 12, pedal: true });
   },
   fight(c) {
-    // The khartal joins: wooden clappers on every half-beat, leaning on the one.
-    tick(c.k, c.t, c.s % 6 === 0 ? 0.022 : 0.011, 2400);
-    if (c.beat >= 0 && c.beat % 6 === 4) pulse(c.k, c.t, false, 1.1);
+    if (c.s % 12 === 0) drum(c.k, c.t, 0.06);
+    else if (c.s % 12 === 6) pulse(c.k, c.t, false);
+    tick(c.k, c.t, c.s % 6 === 0 ? 0.018 : 0.009, 2400);      // the khartal
   },
-  warm: warmList(69, ['S.', 'P.', 'S', 'G', 'M', 'P', 'D'], -12, warmSoft),
 });
 
 // --- 3. Raag Malkauns: the Webwood, the Blackwater Mire, the Coil Gorge (and dungeons) ---
-// One of the oldest ragas, sung after midnight: five notes, Sa ga Ma dha ni,
-// with no Re and no Pa - deep, grave, spellbinding. Ma is its centre. The
-// pakad: Ma ga Ma dha ni dha Ma ga Sa. Deep woods and dark water; here kept
-// warm, a low flute over a rippling felt santoor, never a ghostly glide.
+// One of the oldest ragas, sung after midnight: Sa ga Ma dha ni, no Re and
+// no Pa - deep, grave, spellbinding; Ma its centre. An electric piano, soft
+// and round, over its own low broken chords and a string pad.
 const MALKAUNS = makeTheme({
   id: 'malkauns', name: 'Under the Canopy', raga: 'Raag Malkauns', sa: 67, beat: 0.56, fightBeat: 0.46, cycle: 16,
   mood: 'Deep woods and dark water - hushed, grave and a little enchanted.',
@@ -266,30 +252,27 @@ const MALKAUNS = makeTheme({
     [['d', 1], ['M', 1], ['g', 1], ['M', 1], ['g', 1], ['S', 2], ['n.', 1], ['d.', 1], ['n.', 1], ['S', 2], ['g', 1], ['M', 1], ['S', 2]],
   ],
   form: [0, null, 1, 2, null, 3, 0, null, null, 2, 1, null],
-  lead(c, m, dur) {
-    if (c.pass % 2 === 0) flute(c.k, m, dur, c.t, 1, { vib: 0.0035, vibDelay: 0.35, bright: 2100 });
-    else bowed(c.k, m, dur, c.t, 0.9);
-  },
-  bed(c) {
-    // The ripple: Sa ga Ma dha ni dha Ma ga in eighths, low and soft, like water under leaves.
-    if (c.beat >= 0) {
-      const rip = ['S.', 'g.', 'M.', 'd.', 'n.', 'd.', 'M.', 'g.'];
-      softPluck(c.k, c.note(rip[c.beat % 8]), c.t, c.beat % 8 === 0 ? 0.03 : 0.019);
-    }
-  },
+  leads: ['epiano', 'piano'], leadVol: 0.07,
+  barInst: 'epiano', barBeats: 4, barVol: 0.03,
+  bars: [
+    ['S..', 'M..', 'n..', 'g.', 'M.', 'g.', 'n..', 'M..'],
+    ['d...', 'g..', 'n..', 'M.', 'g.', 'M.', 'n..', 'g..'],
+    ['M..', 'S.', 'g.', 'd.', 'g.', 'S.', 'M..', 'S.'],
+    ['n...', 'M..', 'g.', 'n.', 'g.', 'M..', 'S.', 'M..'],
+  ],
+  bed(c) { if (c.s === 0 && c.cycle % 2 === 0) pad(c.k, [c.note('S.'), c.note('M.')], c.t, c.step * 64, 0.004); },
   fight(c) {
-    // A heartbeat: two low strokes, then quiet.
     if (c.s % 8 === 0) drum(c.k, c.t, 0.06);
     else if (c.s % 8 === 1) drum(c.k, c.t, 0.035);
   },
-  warm: warmList(67, ['S.', 'g.', 'M.', 'd.', 'n.', 'S'], 0, warmSoft),
 });
 
 // --- 4. Raag Bhairav: the Broken Peaks, the Great Bridge ---------------------------------
-// The raga of dawn and of Shiva: Sa re Ga Ma Pa dha Ni, re and dha sung
-// with a slow sway (andolan). Solemn and grave, a prayer at first light -
-// the ash-grey peaks and the bridge the Wardens hold. A bowed voice, a soft
-// shruti box, a temple bell at every cycle.
+// The raga of dawn and of Shiva: Sa re Ga Ma Pa dha Ni, solemn and grave.
+// Its notes give the piano deep chords: Sa-Pa-Ga, and the dark re-Ma-dha a
+// half step above. The tune in octaves, a chord rolled each bar like a hymn,
+// a string pad, and a music box struck at each cycle like a far bell.
+const BHAIRAV_CHORDS = [['S..', 'P..', 'G.', 'S'], ['r..', 'M..', 'd.', 'r'], ['d...', 'M..', 'S.', 'M.'], ['P...', 'N..', 'M.', 'P.']];
 const BHAIRAV = makeTheme({
   id: 'bhairav', name: 'Ash at Dawn', raga: 'Raag Bhairav', sa: 70, beat: 0.64, fightBeat: 0.5, cycle: 16,
   mood: 'Grave and solemn, a prayer at first light over ash and stone.',
@@ -302,32 +285,27 @@ const BHAIRAV = makeTheme({
     [['d.', 1], ['N.', 1], ['S', 1], ['G', 1], ['M', 2], ['P', 1], ['d', 1], ['N', 1], ["S'", 3], ['d', 2], ['P', 2]],
   ],
   form: [0, 1, null, 2, 3, null, 0, 2, null, null],
-  lead(c, m, dur, ev) {
-    // re and dha sway (andolan) when they are held.
-    const sway = (baseOf(ev.sw) === 'r' || baseOf(ev.sw) === 'd') && ev.steps >= 4;
-    if (c.pass % 2 === 0) bowed(c.k, m, dur, c.t, 1, sway);
-    else flute(c.k, m, dur, c.t, 0.9, { vib: sway ? 0.009 : 0.004, vibRate: sway ? 1.7 : 5.5, vibDelay: 0.2 });
-  },
+  leads: ['piano', 'harp'], leadVol: 0.07, leadDouble: -12,
+  warmMore: [['piano', BHAIRAV_CHORDS.flat()], ['musicbox', ["S'"]]],
   bed(c) {
-    if (c.s === 0) bell(c.k, c.note('S'), c.t, 0.018);
-    if (c.s % 16 === 0) reedDrone(c.k, c.note('S.'), c.t, c.step * 16, 0.011);
-    if (c.beat >= 0 && c.beat % 4 === 2) softPluck(c.k, c.note('P.'), c.t, 0.02);
+    const ch = BHAIRAV_CHORDS[Math.floor(c.n / 8) % 4].map(c.note);
+    if (c.s % 8 === 0) roll(c.k, 'piano', ch, c.t, { vol: 0.03, dur: c.step * 8, pedal: true, spread: 0.06 });
+    if (c.s % 8 === 4) inst(c.k, 'piano', ch[2], c.t, { vol: 0.018, dur: c.step * 4 });
+    if (c.s === 0) {
+      pad(c.k, [c.note('S.'), c.note('P.')], c.t, c.step * 32, 0.004);
+      inst(c.k, 'musicbox', c.note("S'"), c.t, { vol: 0.03 });
+    }
   },
   fight(c) {
-    // The pakhawaj, far off: a deep stroke on one and three, a lighter one on the "and" of four.
-    if (c.s % 8 === 0) drum(c.k, c.t, c.s % 16 === 0 ? 0.075 : 0.055);
-    if (c.s % 16 === 14) drum(c.k, c.t, 0.035);
-    if (c.s % 16 === 8) bell(c.k, c.note("S'"), c.t, 0.008);
+    if (c.s % 8 === 0) drum(c.k, c.t, c.s % 16 === 0 ? 0.07 : 0.05);
+    if (c.s % 16 === 14) drum(c.k, c.t, 0.032);
   },
-  warm: warmList(70, ['P.'], 0, warmSoft),
 });
 
 // --- 5. Raag Yaman: the Moon Citadel, the Gilded Deep, the Echo Cliffs, the Hollow Moors ---
-// The first raga every student learns and the king of the evening: all
-// seven notes, Ma raised (tivra), often entering from Ni below - Ni. Re Ga,
-// Ma# Dha Ni Sa'. Serene, noble, a little longing: marble under the moon,
-// palace gardens, a chapel in the snow. The santoor carries the tune, its
-// long notes a soft tremolo of strokes.
+// The king of the evening ragas: all seven notes with Ma raised (tivra),
+// often entering from Ni below. Serene, noble, a little longing. A music box
+// over a piano's broken chords - the raised Ma gives them their moonlit lift.
 const YAMAN = makeTheme({
   id: 'yaman', name: 'Moonlit Courts', raga: 'Raag Yaman', sa: 72, beat: 0.52, fightBeat: 0.44, cycle: 16,
   mood: 'Serene and noble with a touch of longing - marble, moonlight and snow.',
@@ -340,32 +318,28 @@ const YAMAN = makeTheme({
     [['M#', 1], ['D', 1], ['N', 1], ["R'", 1], ["S'", 2], ['N', 1], ['D', 1], ['P', 1], ['M#', 1], ['G', 1], ['R', 1], ['N.', 1], ['R', 1], ['S', 2]],
   ],
   form: [0, 1, 2, null, 3, 1, null, 0, 2, null, null],
-  lead(c, m, dur) {
-    if (c.pass % 2 === 1) { flute(c.k, m, dur, c.t, 0.95); return; }
-    // Santoor: one stroke, and a soft tremolo through a long note.
-    santoor(c.k, m, c.t, 0.03);
-    for (let x = c.step; x < dur - c.step * 0.5; x += c.step) santoor(c.k, m, c.t + x, 0.014);
-  },
-  bed(c) {
-    if (c.beat >= 0 && c.beat % 2 === 0) {
-      const arp = ['S.', 'P.', 'S', 'P.', 'N..', 'P.', 'S', 'G.'];
-      softPluck(c.k, c.note(arp[(c.beat / 2) % 8]), c.t, 0.022);
-    }
-  },
+  leads: ['musicbox', 'piano'], leadVol: 0.075,
+  barInst: 'piano', barBeats: 4, barVol: 0.028,
+  bars: [
+    ['S..', 'P..', 'S.', 'G.', 'N.', 'G.', 'S.', 'P..'],
+    ['D...', 'G..', 'S.', 'G.', 'D.', 'G.', 'S.', 'G..'],
+    ['R..', 'D..', 'M#.', 'S', 'M#.', 'D..', 'R.', 'D..'],
+    ['N...', 'M#..', 'R.', 'D.', 'R.', 'M#..', 'N..', 'R.'],
+  ],
+  bed(c) { if (c.s === 0 && c.cycle % 2 === 1) pad(c.k, [c.note('S.'), c.note('G.')], c.t, c.step * 64, 0.003); },
   fight(c) {
     if (c.s % 8 === 0) pulse(c.k, c.t, true);
     else if (c.s % 8 === 4) pulse(c.k, c.t, false);
-    if (c.s % 16 === 12) santoor(c.k, c.note('P.'), c.t, 0.014);
   },
-  warm: [...warmList(72, ['S', 'R', 'G', 'M#', 'P', 'D', 'N', "S'", 'N.', 'D.'], 0, warmSantoor), ...warmList(72, ['S.', 'P.', 'S', 'N..', 'G.'], 0, warmSoft)],
 });
 
 // --- 6. Raag Durga: Cloud Summit --------------------------------------------------------
-// Five notes, Sa Re Ma Pa Dha - the same five as Japan's yo scale, which is
-// why it sits so naturally on the blossom mountain: a bright, gentle raga of
-// the late evening, sung to the goddess (shringar: love and beauty). The
-// breathy flute of a shakuhachi and a plucked koto whose pattern of three
-// runs across the beat of four, like petals on the wind.
+// Sa Re Ma Pa Dha - the same five notes as Japan's yo scale, so it sits
+// naturally on the blossom mountain: bright and gentle, late evening. A
+// piano sings over a harp whose figure of three runs across the beat of
+// four, like petals on the wind.
+const DURGA_FIGURE = ['S.', 'P.', 'R', 'M.', 'D.', 'S'];
+const DURGA_BASS = ['S..', 'S..', 'M..', 'R..'];
 const DURGA = makeTheme({
   id: 'durga', name: 'Blossom Road', raga: 'Raag Durga', sa: 74, beat: 0.5, fightBeat: 0.42, cycle: 16,
   mood: 'Bright and gentle, petals on the wind - the red gates of the summit.',
@@ -378,23 +352,18 @@ const DURGA = makeTheme({
     [['R', 1], ['M', 1], ['R', 1], ['P', 1], ['M', 2], ['D', 1], ['P', 1], ["S'", 4], ['D', 1], ['M', 1], ['R', 2]],
   ],
   form: [0, 1, null, 2, 3, null, 1, 0, null, null],
-  lead(c, m, dur) {
-    if (c.pass % 2 === 0) flute(c.k, m - 12, dur, c.t, 1.05, { breath: 0.012, vib: 0.005, vibRate: 4.5, vibDelay: 0.4, bright: 2200 });
-    else koto(c.k, m, c.t, 0.04);
-  },
+  leads: ['piano', 'kalimba'], leadVol: 0.07,
+  warmMore: [['harp', [...DURGA_FIGURE, ...DURGA_BASS]]],
   bed(c) {
-    // Koto in threes against the four: Sa Pa Re, Ma Pa Dha... on every half-beat third.
-    if (c.s % 3 === 0) {
-      const pat = ['S.', 'P.', 'R', 'M.', 'D.', 'S'];
-      koto(c.k, c.note(pat[(c.s / 3) % 6]), c.t, 0.02);
-    }
+    // The harp in threes, and a low harp note at each bar.
+    if (c.n % 3 === 0) inst(c.k, 'harp', c.note(DURGA_FIGURE[(c.n / 3) % 6]), c.t, { vol: 0.026 });
+    if (c.s % 8 === 0) inst(c.k, 'harp', c.note(DURGA_BASS[Math.floor(c.n / 8) % 4]), c.t, { vol: 0.034 });
   },
   fight(c) {
     // Taiko, far away: DON . . DON . DON . .
-    if (c.s % 16 === 0 || c.s % 16 === 6 || c.s % 16 === 10) drum(c.k, c.t, c.s % 16 === 0 ? 0.08 : 0.05);
-    if (c.s % 4 === 2) tick(c.k, c.t, 0.01, 3000);
+    if (c.s % 16 === 0 || c.s % 16 === 6 || c.s % 16 === 10) drum(c.k, c.t, c.s % 16 === 0 ? 0.075 : 0.048);
+    if (c.s % 4 === 2) tick(c.k, c.t, 0.009, 3000);
   },
-  warm: [...warmList(74, ['S.', 'P.', 'R', 'M.', 'D.', 'S', 'M', 'P', 'D', "S'"], 0, warmKoto)],
 });
 
 export const REGION_THEMES = [BHUPALI, MAAND, MALKAUNS, BHAIRAV, YAMAN, DURGA];

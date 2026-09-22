@@ -4385,6 +4385,63 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.54 Region music, round 2: piano and friends (2026-09-22)
+
+The owner did not like the instruments of build 26: the flute, the bowed
+voice, the felt santoor and the koto. They asked for "piano notes or any other
+type of instrument virtualization". Blown and bowed instruments are hard to
+fake with oscillators. Struck and plucked ones model well: once struck they
+are only a few decaying partials, so getting those partials right is most of
+the realism.
+
+**`music-instruments.js`**: the instruments are modelled and rendered once
+per note into AudioBuffers (24 kHz, mono, cached, rendered ahead by the
+scheduler's warm-up queue).
+- **Piano:** modal synthesis.
+  - Up to 24 partials, each slightly sharp as on a stiff string:
+    f_n = n·f·sqrt(1+B·n²), with B rising up the keyboard.
+  - The hammer strikes 1/8 of the way along, which sets how loud each partial
+    is. Upper partials die faster.
+  - Two strings a hair apart in tune: one short (the prompt sound), one long
+    (the aftersound). Their beating and the two-stage fade give the bloom.
+  - A filtered noise knock for the hammer, and a damper that stops a released
+    note (unless the pedal is down).
+- **Electric piano:** FM synthesis as in the DX7 Rhodes. The index decays
+  from 1.8 to 0.3, and a quick 7× tine partial gives the bark.
+- **Music box and kalimba:** clamped-bar partials at 1, 6.27 and 17.55 times
+  the fundamental (5.95 for the kalimba), the high ones short.
+- **Marimba:** partials near 4× and 9.2× the fundamental, with a soft mallet.
+- **Harp:** harmonic partials, plucked in the middle third.
+- **A soft string pad:** detuned saws through a 950 Hz low-pass, swelling in
+  and out.
+- **A new hall:** a stereo reverb (2.4 s, 18 ms pre-delay, darkening). Its
+  low-pass is at 7.5 kHz instead of the old room's 2.6 kHz, which had
+  muffled everything. Notes are panned a little by pitch, like a keyboard,
+  and humanised by ±4 ms.
+- **Rendering cost** (Node, notes 38–98): piano 3 ms on average and 25 ms at
+  the lowest note; electric piano 6 ms; the others about 1 ms.
+
+**The pieces, re-scored** (same ragas, phrases and forms; `music-regions.js`):
+- **The left hand:** broken chords, one note per half-beat, the bass held
+  through the bar. They use only the raga's own notes (checked by a test),
+  so the raga's colour survives the harmony.
+- **Long notes:** a piano holds them. A bar or a tine can't: a marimba rolls
+  a long note, and the others strike it again softly.
+
+| Piece | Tune (then, next pass) | Under it |
+|---|---|---|
+| Hearthfields (Bhupali) | piano, then music box | piano broken chords (Sa, Dha, Re, Pa roots) and a soft pad |
+| Sand and Salt (Maand) | kalimba, then piano | marimba in 6/8 and a low piano bass; drum and khartal in a fight |
+| Under the Canopy (Malkauns) | electric piano, then piano | electric piano broken chords and a pad; heartbeat drum in a fight |
+| Ash at Dawn (Bhairav) | piano in octaves, then harp | chords rolled like a hymn (Sa-Ga-Pa, then the dark re-Ma-dha), a pad, a music-box bell |
+| Moonlit Courts (Yaman) | music box, then piano | piano broken chords with the tivra Ma's lift, and a pad |
+| Blossom Road (Durga) | piano, then kalimba | a harp figure of three across the beat of four, with a harp bass |
+
+- **The Music Room:** a row of buttons picks the instrument that plays the
+  tune of the piece playing (as composed, or any of the six). The choice is
+  saved (`save.musicLead`) and used in the Wilds too.
+- **Percussion:** unchanged, and only in a fight.
+
 ### 16.53 Music for the Wilds: six region pieces in ragas, and a Music Room (2026-09-22)
 
 The owner: build music for the open world's regions, as Solenne's theme was

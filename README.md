@@ -173,9 +173,11 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Banshees whose keening fills a cone;
   - Skeleton Spearmen.
 - **Music of the Wilds:** each land has its own piece in a raga (Bhupali,
-  Maand, Malkauns, Bhairav, Yaman, Durga). A fight adds a drum layer, and
-  crossing a border fades one piece into the next. The **Music Room** on the
-  title screen plays them all.
+  Maand, Malkauns, Bhairav, Yaman, Durga), played on modelled piano,
+  electric piano, music box, kalimba, marimba and harp. A fight adds a drum
+  layer, and crossing a border fades one piece into the next. The **Music
+  Room** on the title screen plays them all and lets you pick the instrument
+  that plays each tune.
 - **Dungeons (demo):** go down the ruined stair near the Wilds' start (or
   "Dungeon (demo)" on the title screen) into the Sunken Catacomb:
   - three floors joined by stairs;
