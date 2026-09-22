@@ -774,9 +774,22 @@ function fpsRow() {
     </div>`;
 }
 
+/** The wardrobe, from any settings screen: it comes back to the one it was opened from. */
+function wardrobeRow() {
+  const o = normaliseOutfit(save.outfit);
+  const same = (pr) => { const q = normaliseOutfit({ ...DEFAULT_OUTFIT, ...pr.o }); return Object.keys(q).every((k) => q[k] === o[k]); };
+  const named = OUTFIT_PRESETS.find(same);
+  return `
+    <div class="volrow">
+      <span class="vollabel">Wardrobe</span>
+      <button class="tgl" data-act="wardrobe">Change outfit</button>
+      <span class="volval" style="width:auto">${named ? named.name : 'Your own'}</span>
+    </div>`;
+}
+
 /** The player settings shown on the title and in every pause screen. */
 function playerRows(back) {
-  return characterRow(back) + speedRow() + fpsRow();
+  return characterRow(back) + wardrobeRow() + speedRow() + fpsRow();
 }
 
 function musicVolumeRow() {
@@ -997,7 +1010,9 @@ function wardRefresh() {
   if (tn) tn.textContent = ward.turn ? 'Hold still' : 'Turn';
 }
 
-function showWardrobe() {
+let wardBack = null;
+function showWardrobe(back = null) {
+  if (back) wardBack = back;
   if (!ward) ward = { tab: 'sets', oct: 2, turn: true, walk: false, p: null, raf: 0, t0: 0 };
   setOutfit(save.outfit);
   showOverlay(`
@@ -1028,7 +1043,8 @@ function showWardrobe() {
       </div>
     </div>`);
   wardRefresh();
-  if (!ward.p) ward.p = createPlayer(WEAPONS[0], {});
+  // Dressed with the weapon in hand, so an accent that follows it shows true.
+  if (!ward.p) ward.p = createPlayer((world.player && world.player.weapon) || WEAPONS[0], {});
   cancelAnimationFrame(ward.raf);
   ward.t0 = performance.now();
   ward.raf = requestAnimationFrame(wardFrame);
@@ -1094,7 +1110,6 @@ function showTitle() {
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeon (demo)</button>
-        <button class="btn ghost" data-act="wardrobe">Wardrobe</button>
         <button class="btn ghost" data-act="music-room">Music Room</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
@@ -2682,7 +2697,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'wilds': showWildsIntro(); break;
     case 'dungeon-demo': phoneFullscreen(); startDungeonDemo(); break;
     case 'music-room': showMusicRoom(); break;
-    case 'wardrobe': showWardrobe(); break;
+    case 'wardrobe': showWardrobe(charBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
     case 'w-piece': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
     case 'w-dye': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
@@ -2692,7 +2707,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'w-rot': ward.turn = false; ward.oct = (ward.oct + Number(el.dataset.v) + 8) % 8; wardRefresh(); break;
     case 'w-turn': ward.turn = !ward.turn; ward.t0 = performance.now() - ward.oct * 1400; wardRefresh(); break;
     case 'w-walk': ward.walk = !ward.walk; wardRefresh(); break;
-    case 'w-done': showTitle(); break;
+    case 'w-done': { const back = wardBack || showTitle; closeWardrobe(); wardBack = null; back(); break; }
     case 'mr-play': playInRoom(REGION_THEMES[idx], false); showMusicRoom(); break;
     case 'mr-boss': playInRoom(BOSS_PIECES[idx].theme, true); showMusicRoom(); break;
     case 'mr-calm': case 'mr-fight':

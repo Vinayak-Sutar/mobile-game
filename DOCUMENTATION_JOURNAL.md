@@ -4462,7 +4462,7 @@ Ashen Warden.
   from behind. Hair, the scarf and the back piece are drawn behind the body
   or over it, depending on the facing.
 
-**The Wardrobe** (title screen):
+**The Wardrobe** (a row in every settings screen - the title, and the pause screens of the chambers, the Wilds, the dungeons, the Training Ground and the tutorial - named with the current outfit; Done returns to the screen it was opened from; owner, build 29):
 - A live Wanderer that turns through the eight views (or ◀ ▶ by hand) and
   can walk in place.
 - Tabs for the outfits, every slot and the dyes, with swatches.
