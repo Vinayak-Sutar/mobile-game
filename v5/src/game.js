@@ -1813,8 +1813,42 @@ function showWildsMap() {
         <button class="btn ghost small" data-act="map-fog" id="mapfogbtn">${save.mapNoFog ? 'Fog: off' : 'Fog: on'}</button>
         <button class="btn" data-act="map-close">Close</button>
       </div>
+      <div class="maprow" id="maptravel"></div>
     </div>`);
-  wildsMap = mountWildsMap(document.getElementById('wmap'), wildsGhost ? { onPick: ghostTo } : {});
+  wildsMap = mountWildsMap(document.getElementById('wmap'), {
+    onPick: mapPick,
+    hint: wildsGhost ? 'Ghost mode: tap anywhere to go there' : 'Tap a kindled lamp to travel there',
+  });
+}
+
+/**
+ * A tap on the map. In ghost mode, straight there. Otherwise, a kindled lamp
+ * near the tap offers travel to it - but not with enemies awake near you.
+ */
+function mapPick(x, y, pxPerUnit) {
+  if (wildsGhost) { ghostTo(x, y); return; }
+  const box = document.getElementById('maptravel');
+  if (!box) return;
+  const reach = Math.max(150, 28 / pxPerUnit);
+  let best = null, bd = reach;
+  for (const l of litLamps()) {
+    const d = Math.hypot(l.x - x, l.y - y);
+    if (d < bd) { bd = d; best = l; }
+  }
+  if (!best) { box.innerHTML = ''; return; }
+  box.innerHTML = inCombat()
+    ? `<span class="sub" style="margin:0">${best.name}: enemies are near you, so you cannot travel now.</span>`
+    : `<span style="align-self:center">Travel to <b style="color:#ffb35e">${best.name}</b>?</span>
+       <button class="btn small" data-act="map-travel" data-id="${best.id}">Travel</button>`;
+}
+
+/** Is a fight on? Anything awake within reach of you, or a guardian's arena. */
+function inCombat() {
+  const p = world.player;
+  if (!p) return false;
+  if (world.owBoss) return true;
+  return world.enemies.some((e) => !e.dead && !e.spawning && e.type !== 'foxclone'
+    && !(e.asleep && e.asleep(e)) && Math.hypot(e.x - p.x, e.y - p.y) < 900);
 }
 
 /** Ghost mode: straight to a spot picked on the map. */
@@ -2345,6 +2379,13 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'map-out': if (wildsMap) wildsMap.zoomOut(); break;
     case 'map-you': if (wildsMap) wildsMap.centre(); break;
     case 'map-close': closeWildsMap(); break;
+    case 'map-travel': {
+      const id = el.dataset.id;
+      if (inCombat()) break;
+      closeWildsMap();
+      travelTo(id);
+      break;
+    }
     case 'map-fog':
       toggleMapFog();
       el.textContent = save.mapNoFog ? 'Fog: off' : 'Fog: on';

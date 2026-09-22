@@ -4385,6 +4385,23 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.50 Travel to any kindled lamp from the map (2026-09-22)
+
+The owner asked to travel from the map to any lamp already visited, when
+not in combat.
+- On the full map, a tap near a kindled lamp (within 28 px on screen, and
+  never less than 150 units) shows a row: "Travel to <lamp>?" with a Travel
+  button.
+- Travelling is the lamp menu's `travelTo`: you arrive and rest (restored,
+  the land's enemies back, saved).
+- **Not in combat** (`inCombat`): nothing awake within 900 (sleeping posts and
+  illusions don't count), and not inside a guardian's arena. If a fight is
+  on, the row says so, and the Travel button checks again before it moves
+  you.
+- In ghost mode, a tap still goes straight to the spot.
+- The map's hint line says which of the two a tap does (`opts.hint`), and
+  `onPick` now also receives the map's scale.
+
 ### 16.49 The Zealot fights, and can be caught (2026-09-22)
 
 The owner found the Zealot only ran away, most of all alone (as in the

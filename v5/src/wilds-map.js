@@ -230,9 +230,9 @@ export function mountWildsMap(canvas, opts = {}) {
       ctx.fillText(k < 1 ? `Fog off \u00b7 charting the whole map ${Math.round(k * 100)}%` : 'Fog off \u00b7 the whole map', 14, line);
       line += 18;
     }
-    if (opts.onPick) {
+    if (opts.hint) {
       ctx.fillStyle = '#9fe8ff';
-      ctx.fillText('Ghost mode: tap anywhere to go there', 14, line);
+      ctx.fillText(opts.hint, 14, line);
     }
   }
 
@@ -261,7 +261,7 @@ export function mountWildsMap(canvas, opts = {}) {
       const s = scale();
       const x = st.cx + (ev.clientX - r.left - cw / 2) / s, y = st.cy + (ev.clientY - r.top - ch / 2) / s;
       drag = null;
-      opts.onPick(clamp(x, 40, WILDS.W - 40), clamp(y, 40, WILDS.H - 40));
+      opts.onPick(clamp(x, 40, WILDS.W - 40), clamp(y, 40, WILDS.H - 40), s);
       return;
     }
     drag = null;
