@@ -4385,6 +4385,108 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.51 Dungeons: the demo, the Sunken Catacomb (2026-09-22)
+
+The owner: "this will determine the future of our game". Build a demo
+dungeon, reached from the open world (a ruin, a way underground), to
+traverse and clear. It should have some platforming (paths where a careless
+step is a fall), traps, and something like 3D: stairs to an upper level, or
+something creative. If it is fun, dungeons across the map become the game.
+
+**Research** (what players love, how games build it):
+- **Elden Ring's catacombs**: a descent full of traps and ambushes set in blind
+  spots, a lever that opens the way to the boss, a checkpoint before the
+  door, a boss at the end. The best ones subvert expectations with a
+  gimmick.
+- **Zelda, as Game Maker's Toolkit's Boss Keys maps it**: a critical path with
+  locks, side loops that hold the keys, and shortcuts opened by coming round
+  a loop the other way.
+- **Traps that are fair**: something visibly "off" first (slots in a wall,
+  cracks, a plate), then a timed, learnable danger.
+- **Verticality in 2D**: A Link to the Past stacks separate floors, joined by
+  stairs; a hole drops you to the floor below at the same spot.
+
+**What was built**:
+- **`dungeon.js`**: a stack of floors, each a grid of 64-unit tiles painted by
+  small helpers (rect, path). The tile legend is in the file's header.
+  - **Holes** are walked into. After 0.08 s off solid ground you fall (0.5 s,
+    shrinking into the dark), then land on whatever lies below at that spot
+    (a floor, or a hole to keep falling through), taking 5% of your health.
+    With nothing below, you take 15% and return to your last firm tile.
+    Dashing carries you over a hole.
+  - **Stairs** (S/D) take you to the next floor at the same spot and step you
+    off onto the floor beside them, with a fade and a 0.6 s cooldown.
+  - **Enemies** keep off holes (`room.enemyObstacles`; ai.js prefers it), so
+    archers stay on their islands.
+  - **Each floor keeps its own enemies**, asleep until you come within 380
+    or they are hurt.
+- **Traps, each with a tell** (they hurt enemies too):
+  - floor spikes that run in a wave down the rows: down 1.3 s, tips peeking
+    for 0.42 s, up 0.68 s;
+  - pressure plates that make the slits on that row glow for 0.35 s before
+    three darts fly;
+  - fire vents: quiet, then smoke and a glow, then a column of fire;
+  - cracked tiles that shake for 0.5 s, fall away for 5 s (you drop through),
+    then come back;
+  - pendulum blades that swing across a corridor, their shadow sweeping the
+    floor.
+- **Levers**:
+  - one opens every iron gate on its floor (the shortcut);
+  - one runs a drawn bridge out plank by plank;
+  - the Bone Key chest, and the great door that wants it;
+  - lamps: rest to restore health and lives and set your waking point (the
+    dead rise again);
+  - chests of Cinders (gold in the demo);
+  - the way out (U), and, after the boss, a portal.
+- **The Sunken Catacomb**:
+  - **F1, the Catacomb Gate**: an entry hall with a lamp; a corridor of wave
+    spikes; a great chasm crossed by a winding walkway with cracked tiles, a
+    one-tile gap to dash, and skeleton archers on islands; a dart corridor;
+    spearmen at the stair up. The iron gate in the entry hall opens only
+    from the other side.
+  - **B1, the Ossuary**, lies under the chasm: every fall from the walkway
+    lands there, among bonelings, draugr and a necromancer, with a chest.
+    Its stair leads up behind the iron gate, where a lever opens it: the
+    failure is a loop and a shortcut.
+  - **F2, the Upper Halls**: three pendulum blades up a corridor; a hub with
+    a crossbowman and a draugr; a lever ledge and a bridge that runs out over
+    a chasm (its holes fall to the walkway, or on through to the Ossuary) to
+    the key's island and two bonelings; a lamp; a corridor of checkered fire
+    vents; the great door.
+  - **The arena**: the Catacomb Warden (the Bone Captain at 1.5×). The door
+    shuts when he wakes and opens when he falls; then 400 Cinders and the
+    way out.
+- **`dungeon-draw.js`**:
+  - walls as blocks with brick faces;
+  - holes that show the floor below, smaller, dim and blue-murked, behind a
+    stone ledge, with drifting mist;
+  - stairs, spikes, plates, vents, cracked tiles, levers, a portcullis, the
+    great door, chests, lamps, and torches on the walls;
+  - pendulum blades and vent fire over everyone;
+  - darkness (0.72) with light cut out for you (340), the torches, the lamps,
+    the fire, the portal and the boss;
+  - the fade between floors, and the key on the HUD.
+- **Reaching it**:
+  - a ruined stair in the Wilds, 700 east of where you wake (beside the
+    Heartland Hearth), with low walls and a blue sigil. Stepping in asks
+    "Go down"; coming out puts you back at the stair;
+  - "Dungeon (demo)" on the title screen, with the training loadout; its
+    exit or clear shows an end screen.
+  - **Dying with no life left** wakes you at the dungeon's last lamp, lives
+    back, the dead risen. Levers stay pulled and the key stays yours.
+- **`v5/dungeon-preview.html`**: a still of any spot, for checking the art
+  (`?floor=2&x=27&y=10&z=0.8`).
+- **Verified in Node**: the whole route runs as designed:
+  - a fall from the chasm to the Ossuary;
+  - its stair up behind the gate, and the lever opens the gate;
+  - up to F2, and the bridge runs out;
+  - the key, the door, the boss waking and sealing the door, his fall
+    opening the way, and the portal.
+
+  Also: the spikes, plates and a cracked-tile drop, waking at the lamp, the
+  Wilds stair prompt, and no road blocked. The art was checked on the
+  preview page.
+
 ### 16.50 Travel to any kindled lamp from the map (2026-09-22)
 
 The owner asked to travel from the map to any lamp already visited, when

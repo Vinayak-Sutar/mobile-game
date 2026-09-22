@@ -35,7 +35,8 @@ export function collideWorld(e) {
   if (e.y < b.t + e.r) { e.y = b.t + e.r; bumped = true; }
   if (e.y > b.b - e.r) { e.y = b.b - e.r; bumped = true; }
   if (world.room) {
-    for (const o of world.room.obstacles) {
+    // In a dungeon the dead keep off the holes (the player may walk - and fall - in them).
+    for (const o of world.room.enemyObstacles || world.room.obstacles) {
       if (o.ledge && e.y < o.y + o.h / 2) continue;      // The Wilds: they drop down too
       if (resolveCircleRect(e, o)) bumped = true;
     }

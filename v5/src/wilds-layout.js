@@ -387,6 +387,9 @@ export const RIMS = RAW_RIMS.map(at);
 export const LAMPS = RAW_LAMPS.map(at);
 export const PLACES = RAW_PLACES.map(at);
 export const LAIRS = RAW_LAIRS.map(at);
+// Dungeons: ways down into places to clear. The demo, the Sunken Catacomb,
+// opens a little east of where you first wake (dungeon.js).
+export const DUNGEONS = [{ id: 'catacomb', name: 'The Sunken Catacomb', x: 18700 + OFFSET.x, y: 12900 + OFFSET.y }];
 export const SEALS = RAW_SEALS.map(at);
 export const OUTPOSTS = RAW_OUTPOSTS.map((o) => ({ ...at(o), perch: at(o.perch) }));
 export const AMBUSHES = RAW_AMBUSHES.map(at);

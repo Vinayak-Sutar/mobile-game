@@ -18,6 +18,8 @@ import {
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
 import { LAMPS } from './wilds-layout.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
+import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
+import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
 import {
@@ -319,6 +321,15 @@ function revivePlayer() {
 }
 
 function onDeath() {
+  if (world.dungeon) {
+    // Fallen in a dungeon with no life to spare: back at its last lamp, the dead risen with you.
+    dungeonWake();
+    clearBullets();
+    snapCamera();
+    showToast('YOU WAKE AT THE LAMP', 'The dead have risen again. Levers stay pulled; the key stays yours.', 3.2);
+    state = 'playing';
+    return;
+  }
   if (world.owBoss) { leaveGateFight(false); return; }
   if (world.overworld) { wakeAtLamp(world.player.x, world.player.y); return; }
   if (world.training || world.tutorial) {
@@ -448,6 +459,12 @@ function tick(dt) {
       updateHazards(dt);
       updatePickups(dt);
       if (world.training) updateTraining(dt);
+      if (world.dungeon) {
+        const act = updateDungeon(dt);
+        if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.8);
+        if (act && act.cleared) sfx.bossDown();
+        if (act && act.exit) exitDungeon(act.exit);
+      }
       if (world.overworld) {
         const act = updateOverworld(dt);
         if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.6);
@@ -473,6 +490,7 @@ function tick(dt) {
         wildsSaveT -= dt;
         if (wildsSaveT <= 0) { wildsSaveT = 30; saveWilds(); }
         if (act && act.lair) showLairGate(act.lair);
+        if (act && act.dungeon) showDungeonGate(act.dungeon);
       }
       if (world.owBoss && world.room && world.room.cleared) {
         owBossT += dt;
@@ -545,7 +563,7 @@ function render() {
   // The player's look (wanderer.js): as chosen, or by default the Wanderer
   // in The Wilds' 3/4 world and the Hooded One in the chambers.
   const ch = save.character;
-  look.skin = ch === 'hooded' || ch === 'wanderer' ? ch : world.overworld || world.owBoss ? 'wanderer' : 'hooded';
+  look.skin = ch === 'hooded' || ch === 'wanderer' ? ch : world.overworld || world.owBoss || world.dungeon ? 'wanderer' : 'hooded';
   tuning.speed = save.moveSpeed ?? SPEED_DEFAULT;
   ctx.setTransform(s, 0, 0, s, 0, 0);
 
@@ -558,11 +576,15 @@ function render() {
   ctx.translate(fx.shakeX, fx.shakeY);
 
   const wilds = inRun && world.overworld;
-  if (wilds) ctx.translate(-Math.round(camera.x), -Math.round(camera.y));
+  const dungeon = inRun && world.dungeon;
+  if (wilds || dungeon) ctx.translate(-Math.round(camera.x), -Math.round(camera.y));
 
   if (inRun && world.room) {
     if (wilds) {
       drawOverworldBelow(ctx, world.runTime);
+      drawFxBelow(ctx);
+    } else if (dungeon) {
+      drawDungeonBelow(ctx, world.runTime);
       drawFxBelow(ctx);
     } else {
       drawFloor(ctx, world.runTime);
@@ -578,14 +600,24 @@ function render() {
     drawCorpses(ctx);
     drawPickups(ctx);
     drawEnemies(ctx);
-    if (world.player) drawPlayer(world.player, ctx);
+    if (world.player && world.player.fallK) {
+      // Falling down a hole: smaller and darker as the dark takes you.
+      const p = world.player, k = world.player.fallK;
+      ctx.save();
+      ctx.translate(p.x, p.y + k * 26); ctx.scale(1 - 0.7 * k, 1 - 0.7 * k); ctx.translate(-p.x, -p.y);
+      ctx.globalAlpha = 1 - 0.85 * k;
+      drawPlayer(p, ctx);
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    } else if (world.player) drawPlayer(world.player, ctx);
     if (world.player) drawPlayerSpells(ctx, world.player, world.runTime);
     drawProjectiles(ctx);
     drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
     if (wilds) drawOverworldAbove(ctx, world.runTime);
     drawFxAbove(ctx);
-    if (!wilds) drawRoomIntro(ctx, world.room, world.runTime);
+    if (dungeon) drawDungeonAbove(ctx, world.runTime);
+    if (!wilds && !dungeon) drawRoomIntro(ctx, world.room, world.runTime);
   } else {
     drawMenuBackdrop();
   }
@@ -824,6 +856,7 @@ function showTitle() {
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
+        <button class="btn ghost" data-act="dungeon-demo">Dungeon (demo)</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
@@ -1143,6 +1176,7 @@ const KILLER_NAMES = {
   turtle: 'Gravemaw the Shellback', croc: 'Mawgrim, the Mire King',
   gorilla: 'Kharn, the Ashen Silverback', peacock: 'Solenne, the Hundred-Eyed',
   ...KIN_NAMES,
+  spikes: 'the spikes', darts: 'a dart trap', fire: 'a fire vent', blade: 'a swinging blade', pit: 'the dark below', fall: 'a fall',
   ...YOKAI_NAMES,
   ...MINI_NAMES,
 };
@@ -1669,6 +1703,108 @@ function showLairGate(L) {
     </div>`);
 }
 
+// --- dungeons ---------------------------------------------------------------------------------
+let pendingDungeon = null;
+
+/** At the head of a dungeon's stair in the Wilds: go down? */
+function showDungeonGate(d) {
+  state = 'paused';
+  pendingDungeon = d;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">steps down into the dark</div>
+      <h2>${d.name}</h2>
+      <p class="sub">A way underground. Traps, holes that drop you to the floor below, the dead keeping
+      their halls - and something at the bottom. Find the key; open the great door.</p>
+      <div class="row">
+        <button class="btn" data-act="d-enter">Go down</button>
+        <button class="btn ghost" data-act="w-away">Not yet</button>
+      </div>
+    </div>`);
+}
+
+function enterDungeonFromWilds(d) {
+  saveWilds();
+  world.overworld = false;
+  world.dungeon = true;
+  world.enemies = [];
+  clearFx(); clearBullets();
+  enterDungeon({ x: d.x, y: d.y });
+}
+
+/** The dungeon demo, straight from the title screen. */
+function startDungeonDemo() {
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+  world.biome = getBiome(save.biome);
+  world.player = createPlayer(WEAPONS[training.weapon], {});
+  trainingLoadout();
+  const p = world.player;
+  p.invincible = false; p.hp = p.stats.maxHp;
+  world.depth = 3;
+  world.gold = 0;
+  world.runTime = 0;
+  world.dungeon = true;
+  enterDungeon('demo');
+  state = 'playing';
+  hideOverlay();
+}
+
+/** Out of the dungeon: back up the stair into the Wilds, or (the demo) to its end screen. */
+function exitDungeon(kind) {
+  const D = dungeonState();
+  const from = D ? D.from : 'demo';
+  world.dungeon = false;
+  leaveDungeon();
+  clearBullets();
+  if (from === 'demo') {
+    state = 'paused';
+    world.enemies = [];
+    showOverlay(`
+      <div class="panel">
+        <div class="eyebrow">the dungeon demo</div>
+        <h2>${kind === 'cleared' ? 'The Catacomb is cleared' : 'Back into the daylight'}</h2>
+        <p class="sub">${kind === 'cleared' ? 'The Warden fell and the way out opened.' : 'You climbed back out before the end.'}
+        Time ${Math.floor(world.runTime / 60)}:${String(Math.floor(world.runTime % 60)).padStart(2, '0')} &middot; kills ${world.kills}.</p>
+        <div class="row">
+          <button class="btn" data-act="d-again">Go down again</button>
+          <button class="btn ghost" data-act="title">Title screen</button>
+        </div>
+      </div>`);
+    return;
+  }
+  world.overworld = true;
+  world.enemies = [];
+  world.room = enterOverworld(false);
+  const p = world.player;
+  p.x = from.x; p.y = from.y + 90; p.vx = p.vy = 0; p.fallK = 0;
+  arriveAt(p.x, p.y);
+  resetWildsSites();
+  snapCamera();
+  saveWilds();
+  state = 'playing';
+  showToast(kind === 'cleared' ? 'THE CATACOMB IS CLEARED' : 'BACK IN THE WILDS', kind === 'cleared' ? 'You climb out into the light' : 'The dark will wait', 3);
+}
+
+function showDungeonPause() {
+  state = 'paused';
+  const D = dungeonState();
+  const F = D ? D.floors[D.cur] : null;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">${D ? D.name : 'a dungeon'}</div>
+      <h2>${F ? F.name : 'Paused'}</h2>
+      <p class="sub">${D && D.key ? 'You carry the Bone Key.' : 'The great door wants a key.'} ${D && D.bossDead ? 'The Warden has fallen.' : ''}</p>
+      ${playerRows(showDungeonPause)}
+      <div class="row">
+        <button class="btn" data-act="w-resume">Resume</button>
+        <button class="btn ghost" data-act="d-leave">Leave the dungeon</button>
+      </div>
+    </div>`);
+}
+
 /** Step back out of a gate (or away from the statue) and carry on. */
 function wildsStepAway() {
   const p = world.player;
@@ -2117,6 +2253,7 @@ function showTraining() {
 }
 
 function showPause() {
+  if (world.dungeon) { showDungeonPause(); return; }
   // In the Training Ground the pause screen is the loadout panel.
   if (world.training) { showTraining(); return; }
   if (world.tutorial) { showTutorialPause(); return; }
@@ -2300,6 +2437,17 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
     case 'wilds': showWildsIntro(); break;
+    case 'dungeon-demo': phoneFullscreen(); startDungeonDemo(); break;
+    case 'd-enter': {
+      const d = pendingDungeon;
+      pendingDungeon = null;
+      hideOverlay(); resetInput();
+      if (d) enterDungeonFromWilds(d);
+      state = 'playing';
+      break;
+    }
+    case 'd-leave': exitDungeon('left'); break;
+    case 'd-again': startDungeonDemo(); break;
     case 'spd-down':
     case 'spd-up':
     case 'spd-def': {

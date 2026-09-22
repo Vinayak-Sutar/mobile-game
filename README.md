@@ -172,6 +172,15 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Tengu that dive from the sky onto their shadow;
   - Banshees whose keening fills a cone;
   - Skeleton Spearmen.
+- **Dungeons (demo):** go down the ruined stair near the Wilds' start (or
+  "Dungeon (demo)" on the title screen) into the Sunken Catacomb:
+  - three floors joined by stairs;
+  - a narrow walkway over a chasm, where a fall drops you into the Ossuary
+    below;
+  - wave spikes, dart plates, fire vents, crumbling tiles and pendulum
+    blades;
+  - levers, a drawn bridge, a shortcut gate, the Bone Key and a great door;
+  - the Catacomb Warden at the bottom.
 - **Mini-bosses:** eight named foes hold places across the Wilds, each with
   a bar of its own, a second phase and a rich reliquary:
   - Kyubi, the Nine-Tailed, and Sasaki, the Wandering Blade, on Cloud Summit;

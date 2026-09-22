@@ -14,6 +14,7 @@ export const world = {
   tutorial: false,  // the tutorial chamber (tutorial.js)
   overworld: false, // The Wilds, the open world (wilds-world.js)
   owBoss: null,     // a guardian fought from one of The Wilds' gates
+  dungeon: false,   // inside a dungeon (dungeon.js)
   room: null,
   depth: 1,
   loop: 0,          // how many times the run has looped past the boss
@@ -58,6 +59,7 @@ export function arenaBounds() {
 }
 
 export function resetWorld() {
+  world.dungeon = false;
   world.enemies.length = 0;
   world.projectiles.length = 0;
   world.spellZones.length = 0;

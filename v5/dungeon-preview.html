@@ -1,0 +1,42 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Dungeon preview</title>
+<style>body{margin:0;background:#111}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// A look at the dungeon demo without playing it: ?floor=1&x=4&y=18 (tiles) &z=zoom.
+import { world, view, camera, resetWorld } from './src/state.js';
+import { enterDungeon, updateDungeon, dungeonState, T } from './src/dungeon.js';
+import { drawDungeonBelow, drawDungeonAbove } from './src/dungeon-draw.js';
+import { drawEnemies } from './src/enemies.js';
+import { createPlayer, drawPlayer } from './src/player.js';
+import { WEAPONS } from './src/weapons.js';
+import { look } from './src/wanderer.js';
+const q = new URLSearchParams(location.search);
+const c = document.getElementById('c');
+const Z = Number(q.get('z') || 1);
+c.width = innerWidth; c.height = innerHeight;
+view.w = Math.round(c.width / Z); view.h = Math.round(c.height / Z); view.scale = Z; view.dpr = 1;
+resetWorld();
+look.skin = 'wanderer';
+const p = createPlayer(WEAPONS[0], {}); p.invincible = true; world.player = p;
+world.dungeon = true;
+const D = enterDungeon('demo');
+const fl = Number(q.get('floor') ?? 1);
+if (fl !== D.cur) { D.floors[D.cur].enemies = world.enemies; D.cur = fl; world.enemies = D.floors[fl].enemies; }
+const tx = Number(q.get('x') || 4), ty = Number(q.get('y') || 18);
+const ctx = c.getContext('2d');
+function frame(now) {
+  world.runTime = now / 1000;
+  p.x = tx * T + 32; p.y = ty * T + 32; p.hp = p.stats.maxHp;
+  D.t = now / 1000;
+  camera.x = p.x - view.w / 2; camera.y = p.y - view.h / 2;
+  ctx.setTransform(Z, 0, 0, Z, -camera.x * Z, -camera.y * Z);
+  drawDungeonBelow(ctx, world.runTime);
+  drawEnemies(ctx);
+  drawPlayer(p, ctx);
+  drawDungeonAbove(ctx, world.runTime);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+void updateDungeon; void dungeonState;
+</script></body></html>

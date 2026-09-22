@@ -25,7 +25,7 @@ import { burst } from './fx.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise, mulberry } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
 import {
-  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS,
+  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS, DUNGEONS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
 import { takeSmoulder } from './wilds-progress.js';
@@ -462,6 +462,12 @@ function build() {
     extra: places.flatMap((P) => P.gates || []),
   });
   for (const o of shrine.obs) statics.push(o);
+  // The dungeons' way down: low walls round the head of a stair, open to the south.
+  for (const d of DUNGEONS) {
+    statics.push({ x: d.x - 64, y: d.y - 56, w: 128, h: 18, kind: 'dstair' });
+    statics.push({ x: d.x - 64, y: d.y - 56, w: 18, h: 80, kind: 'dstair' });
+    statics.push({ x: d.x + 46, y: d.y - 56, w: 18, h: 80, kind: 'dstair' });
+  }
   for (const o of statics) hash.add(o);
 
   const classify = makeClassify(raised, floorLookup(places));
@@ -531,6 +537,7 @@ const NO_TREES = new Set([TT.WATER, TT.SHALLOW, TT.CHASM, TT.ICE, TT.PAVE, TT.MA
 
 function inClearing(x, y) {
   if (Math.hypot(x - START.x, y - START.y) < 700) return true;
+  if (DUNGEONS.some((d) => Math.hypot(x - d.x, y - d.y) < 220)) return true;
   if (W && W.places.some((P) => Math.hypot(x - P.x, y - P.y) < P.r + 80)) return true;
   if (W && W.sites.some((s) => s.kind === 'site' && Math.hypot(x - s.x, y - s.y) < s.r + 70)) return true;
   return CLEARINGS.some((c) => Math.hypot(x - c.x, y - c.y) < c.r);
@@ -1110,6 +1117,10 @@ export function updateOverworld(dt) {
   } else if (!L || !inGate(L, p.x, p.y)) {
     W.atGate = null;
   }
+  // At the head of a dungeon's stair: asked whether to go down.
+  const dn = DUNGEONS.find((d) => Math.abs(p.x - d.x) < 34 && p.y > d.y - 40 && p.y < d.y + 14);
+  if (dn && !p.ghost && !p.dead) { if (W.atDungeon !== dn.id) { W.atDungeon = dn.id; action = { dungeon: dn }; } }
+  else W.atDungeon = null;
   // Against a seal: whose it is.
   let seal = null;
   for (const o of W.room.obstacles) {

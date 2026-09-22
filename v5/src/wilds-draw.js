@@ -15,6 +15,7 @@ import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
 import { drawLairFront } from './wilds-lairs.js';
+import { DUNGEONS } from './wilds-layout.js';
 import { drawToriiPillar, drawToriiBeams, drawToro, drawSakura, drawPetalBed, drawPetal, drawChochinPost } from './wilds-sakura.js';
 import { relicAt } from './wilds-sites.js';
 
@@ -82,6 +83,7 @@ export function drawOverworldBelow(ctx, time) {
     if (P.kind === 'lair' && inView(P.gx, P.gy - 150, 420) && !(me && me.y < P.gy - 150)) drawLairFront(ctx, P, time);
   }
   for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
+  for (const d of DUNGEONS) if (inView(d.x, d.y, 160)) drawDungeonStair(ctx, d, time);
 
   // The Ashlamps, and your smoulder.
   for (const l of W.lamps) if (inView(l.x, l.y, 120)) drawLamp(ctx, l, time);
@@ -97,6 +99,31 @@ export function drawOverworldBelow(ctx, time) {
       ctx.fillRect(t.x - 7, t.y - 10, 14, 18);
     }
   }
+}
+
+/** A dungeon's way down: steps into the dark between low ruined walls, a blue sigil over them. */
+function drawDungeonStair(ctx, d, time) {
+  const x = d.x, y = d.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x + 6, y + 30, 80, 20, 0, 0, TAU); ctx.fill();
+  for (let k = 0; k < 6; k++) {
+    const v = 90 - k * 13;
+    ctx.fillStyle = `rgb(${v},${v - 6},${v + 6})`;
+    ctx.fillRect(x - 46, y + 20 - k * 11, 92, 11);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x - 46, y + 29 - k * 11, 92, 2);
+  }
+  ctx.fillStyle = '#0a080c'; ctx.fillRect(x - 46, y - 46, 92, 12);
+  for (const [wx, wy, ww, wh] of [[x - 64, y - 56, 128, 18], [x - 64, y - 56, 18, 80], [x + 46, y - 56, 18, 80]]) {
+    ctx.fillStyle = '#5e5854'; ctx.fillRect(wx, wy - 18, ww, wh + 18);
+    ctx.fillStyle = '#7e7874'; ctx.fillRect(wx, wy - 18, ww, 5);
+  }
+  const k = 0.6 + Math.sin(time * 2) * 0.25;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y - 80, 2, x, y - 80, 60);
+  g.addColorStop(0, `rgba(140,190,255,${(0.35 * k).toFixed(2)})`); g.addColorStop(1, 'rgba(100,140,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 80, 60, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = `rgba(170,210,255,${(0.6 + 0.3 * k).toFixed(2)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y - 80, 14, 0, TAU); ctx.moveTo(x, y - 94); ctx.lineTo(x, y - 66); ctx.moveTo(x - 10, y - 74); ctx.lineTo(x + 10, y - 86); ctx.stroke();
 }
 
 function drawObstacle(ctx, o, time) {
