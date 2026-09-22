@@ -297,10 +297,16 @@ export function cooldownFrac(p, id) {
  * Three spells for a Spell door: ones you know that can still level up, and
  * ones you don't, mixed. Never an offer of nothing.
  */
+/** Every spell you have unlocked (your spell book), equipped or not. */
+export function knownSpells(p) {
+  return Object.keys(p.spellLv || {}).filter((id) => (p.spellLv[id] || 0) > 0 && SPELLS.some((s) => s.id === id));
+}
+
 export function offerSpells(p, count = 3) {
   const pool = SPELLS.filter((s) => spellLevel(p, s.id) < SPELL_MAX_LEVEL);
-  const known = pool.filter((s) => p.spells.includes(s.id));
-  const fresh = pool.filter((s) => !p.spells.includes(s.id));
+  const book = knownSpells(p);
+  const known = pool.filter((s) => book.includes(s.id));
+  const fresh = pool.filter((s) => !book.includes(s.id));
   const shuffled = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
   const out = [];
   // At least one new spell while there is room or choice; an upgrade when you have spells.
@@ -312,22 +318,30 @@ export function offerSpells(p, count = 3) {
 }
 
 /**
- * Take a spell from a Spell door. Known → level up. New with a free slot →
- * equip. New with four equipped → returns 'full' (the caller asks which slot).
+ * Take a spell (a tome, a reliquary, a cleared area). Taking it always makes
+ * it yours - it goes into your spell book for good - and equipping it is a
+ * separate matter:
+ *   a spell you already have (equipped or in the book) levels up: 'levelled';
+ *   a new one with a free slot is equipped at once: 'learned';
+ *   a new one with every slot full waits in the book: 'stored' (the caller
+ *   offers to swap it in now; otherwise it is equipped later, at a lamp).
+ * With replaceSlot, the spell (already learned) is equipped in that slot.
  */
 export function learnSpell(p, id, replaceSlot = -1) {
   if (!p.spellLv) p.spellLv = {};
-  if (p.spells.includes(id)) {
+  if (replaceSlot >= 0) {
+    p.spellLv[id] = Math.max(1, spellLevel(p, id));
+    if (!p.spells.includes(id)) p.spells[replaceSlot] = id;
+    return 'learned';
+  }
+  if (spellLevel(p, id) > 0) {
     p.spellLv[id] = Math.min(SPELL_MAX_LEVEL, spellLevel(p, id) + 1);
     return 'levelled';
   }
+  p.spellLv[id] = 1;
   // The Wilds open slots with Attunement; everywhere else all four are open.
-  const free = p.spells.length < (p.spellSlots ?? SPELL_SLOTS);
-  if (!free && replaceSlot < 0) return 'full';
-  p.spellLv[id] = Math.max(1, spellLevel(p, id));    // a spell you dropped keeps its level
-  if (free) p.spells.push(id);
-  else p.spells[replaceSlot] = id;
-  return 'learned';
+  if (p.spells.length < (p.spellSlots ?? SPELL_SLOTS)) { p.spells.push(id); return 'learned'; }
+  return 'stored';
 }
 
 // --- casting --------------------------------------------------------------------

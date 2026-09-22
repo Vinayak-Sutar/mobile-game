@@ -4385,6 +4385,31 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.52 Spells: take one and it is yours; equipping is separate (2026-09-22)
+
+The owner: when a cleared area offers a spell, choosing it should unlock it,
+and slotting it is a separate step. Before, with every slot full, a pick
+went to a "Replace which spell?" screen, and backing out left it unclear
+whether the spell was yours at all.
+- **`learnSpell`** now always makes a new spell yours: `spellLv[id] = 1`, in
+  your spell book (`knownSpells`).
+  - With a free slot, it is equipped: 'learned'.
+  - With every slot full, it stays in the book: 'stored'.
+  - A spell you already have, equipped or in the book, levels up:
+    'levelled'.
+  - With `replaceSlot`, an already-learned spell is equipped in that slot;
+    the one it replaces goes back into the book at its own level.
+- **The pick screen** counts your real slots (the Wilds' `spellSlots`, not
+  always 4) and says a taken spell is yours for good. Cards show the level
+  change and "in your book" for spells you own but are not carrying.
+- **A stored pick** shows "<Spell> learned": swap it in for one you carry,
+  or "Keep it in the book" (equip it at any Ashlamp through Attune). There
+  is no Back that loses it.
+- A toast confirms every outcome: learned and equipped, levelled, equipped,
+  or kept in the book.
+- **Offers** count your whole book as known, so spells in the book can come
+  up again as level-ups. Attune lists the whole book.
+
 ### 16.51 Dungeons: the demo, the Sunken Catacomb (2026-09-22)
 
 The owner: "this will determine the future of our game". Build a demo

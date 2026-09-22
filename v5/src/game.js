@@ -57,7 +57,7 @@ import {
   drawHud, drawControls, updateUi, resetUi, showToast, showOverlay, hideOverlay, overlayVisible,
 } from './ui.js';
 import {
-  SPELLS, SPELL_SLOTS, SPELL_MAX_LEVEL, ELEMENT_INFO, spellById, spellColor, spellLevel,
+  SPELLS, SPELL_SLOTS, SPELL_MAX_LEVEL, ELEMENT_INFO, spellById, spellColor, spellLevel, knownSpells,
   offerSpells, learnSpell, tryCast,
   updateSpellZones, drawSpellZones, drawPlayerSpells,
 } from './spells.js';
@@ -1015,8 +1015,9 @@ function showSpellSelect(again = false, opts = null) {
     const c = spellColor(sp);
     const el = ELEMENT_INFO[sp.element];
     const lv = spellLevel(p, sp.id);
-    const known = p.spells.includes(sp.id);
-    const head = known ? `level ${lv + 1}` : lv ? `returns at level ${lv}` : 'new';
+    const known = lv > 0;
+    const worn = p.spells.includes(sp.id);
+    const head = known ? `level ${lv} \u2192 ${lv + 1}${worn ? '' : ' \u00b7 in your book'}` : 'new';
     const tag = `${el.name}${el.effect ? ` · ${el.effect}` : ''} · ${sp.cd}s cooldown`;
     return `
       <div class="card spellcard" data-act="spell-pick" data-idx="${i}" style="border-color:${c}88">
@@ -1030,37 +1031,40 @@ function showSpellSelect(again = false, opts = null) {
     <div class="panel">
       <div class="eyebrow">${spellEyebrow}</div>
       <h2>Choose a spell</h2>
-      <p class="sub">${p.spells.length} of ${SPELL_SLOTS} spell slots filled. Taking a spell you know levels it up (up to 3).
-      With every slot full, a new spell replaces one of yours and keeps its level.</p>
+      <p class="sub">A spell you take is yours for good: it goes into your spell book. One you already have levels up (to 3).
+      ${p.spells.length} of ${p.spellSlots ?? SPELL_SLOTS} spell slots filled${p.spells.length >= (p.spellSlots ?? SPELL_SLOTS) ? ': a new spell can be swapped in now, or kept in the book for later' : ''}.</p>
       <div class="cards">${cards}</div>
       <div class="row"><button class="btn ghost" data-act="spell-skip">Leave the tome</button></div>
     </div>`);
 }
 
-/** Four spells already equipped: which one makes room for the new one? */
+/**
+ * A new spell, learned, with every slot full: it is already yours (in your
+ * spell book). Swap it in now for one you carry, or keep it for later.
+ */
 function showSpellReplace(id) {
   const p = world.player;
   const sp = spellById(id);
   pendingSpellId = id;
+  const journey = world.overworld || world.dungeon;
   const cards = p.spells.map((sid, i) => {
     const s = spellById(sid);
     const c = spellColor(s);
-    const lv = Math.max(spellLevel(p, sid), spellLevel(p, id));
     return `
       <div class="card spellcard" data-act="spell-replace" data-idx="${i}" style="border-color:${c}88">
         <div class="glyph" style="color:${c}">${s.glyph}</div>
         <div class="name">${s.name} <span style="opacity:.6">level ${spellLevel(p, sid)}</span></div>
-        <div class="desc">Replace with ${sp.name}, which takes its slot at <b>level ${lv}</b>.</div>
+        <div class="desc">Put ${s.name} back in the book and carry ${sp.name} instead. ${s.name} stays yours, at its level.</div>
       </div>`;
   }).join('');
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">your hands are full</div>
-      <h2>Replace which spell?</h2>
-      <p class="sub">${sp.name} takes the slot and the level of the spell it replaces. A spell you drop keeps its
-      own level if you find it again.</p>
+      <div class="eyebrow">a new spell is yours</div>
+      <h2 style="color:${spellColor(sp)}">${sp.glyph} ${sp.name} learned</h2>
+      <p class="sub">It is in your spell book now, for good. Your slots are full: swap it in for one you carry,
+      or keep it in the book${journey ? ' and equip it at any Ashlamp (Attune)' : ' for now'}.</p>
       <div class="cards">${cards}</div>
-      <div class="row"><button class="btn ghost" data-act="spell-back">Back to the spells</button></div>
+      <div class="row"><button class="btn" data-act="spell-keep">Keep it in the book</button></div>
     </div>`);
 }
 
@@ -1588,7 +1592,7 @@ function showTravel() {
 function showAttune(msg = '') {
   const lamp = curLamp;
   const p = world.player;
-  const known = Object.keys(p.spellLv || {}).filter((id) => spellById(id));
+  const known = knownSpells(p);
   const list = known.length
     ? known.map((id) => {
       const sp = spellById(id);
@@ -2639,18 +2643,27 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'spell-pick': {
       const sp = pendingSpells[idx];
       if (!sp) break;
-      if (learnSpell(world.player, sp.id) === 'full') { showSpellReplace(sp.id); break; }
+      const got = learnSpell(world.player, sp.id);
       sfx.boon();
+      if (got === 'stored') { showSpellReplace(sp.id); break; }
+      showToast(got === 'levelled' ? `${sp.name.toUpperCase()} \u00b7 LEVEL ${spellLevel(world.player, sp.id)}` : `${sp.name.toUpperCase()} LEARNED`,
+        got === 'levelled' ? (world.player.spells.includes(sp.id) ? 'Stronger now' : 'Stronger, in your spell book') : 'Equipped in a free slot', 2.6);
       finishSpell();
       break;
     }
     case 'spell-replace': {
-      // The newcomer inherits the slot's level (or keeps its own, if higher).
+      // Swap it in: the spell it replaces goes back into the book, at its own level.
       const p = world.player;
-      const oldLv = spellLevel(p, p.spells[idx]);
       learnSpell(p, pendingSpellId, idx);
-      p.spellLv[pendingSpellId] = Math.max(spellLevel(p, pendingSpellId), oldLv);
+      const sp = spellById(pendingSpellId);
+      showToast(`${sp.name.toUpperCase()} EQUIPPED`, 'The spell it replaced is still in your book', 2.6);
       sfx.boon();
+      finishSpell();
+      break;
+    }
+    case 'spell-keep': {
+      const sp = spellById(pendingSpellId);
+      showToast(`${sp.name.toUpperCase()} LEARNED`, world.overworld || world.dungeon ? 'In your spell book: equip it at any Ashlamp' : 'In your spell book', 2.8);
       finishSpell();
       break;
     }
@@ -2800,7 +2813,7 @@ window.ashfall = {
   world, view, arena, input, fx,
   // Version 4 spells: learn/level one, open a Spell door screen, cast by id.
   SPELLS,
-  learn: (id, times = 1) => { for (let k = 0; k < times; k++) learnSpell(world.player, id, 0); return world.player.spells; },
+  learn: (id, times = 1) => { for (let k = 0; k < times; k++) learnSpell(world.player, id); return world.player.spells; },
   spellDoor: () => showSpellSelect(),
   cast: (id) => tryCast(world.player, id),
   WEAPONS,
