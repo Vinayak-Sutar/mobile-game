@@ -172,6 +172,10 @@ in: guardians, lamps, fights and progression arrive in the next steps.
   - Tengu that dive from the sky onto their shadow;
   - Banshees whose keening fills a cone;
   - Skeleton Spearmen.
+- **Wardrobe:** dress the Wanderer. There are 92 pieces across head, face,
+  hair, neck, body, shoulders, hands, legs, feet, back and belt; 63 dyes; and
+  18 ready-made outfits (Ronin, Samurai, Knight, Northman and more), with a
+  live preview that turns and walks.
 - **Music of the Wilds:** each land has its own piece in a raga (Bhupali,
   Maand, Malkauns, Bhairav, Yaman, Durga), played on modelled piano,
   electric piano, music box, kalimba, marimba and harp. A fight adds a drum

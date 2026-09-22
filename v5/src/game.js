@@ -73,6 +73,10 @@ import {
 } from './gamepad.js';
 import { dualsense, dualSenseSupported, connectDualSense, probe as probeDualSense } from './dualsense.js';
 import { look } from './wanderer.js';
+import {
+  SLOTS as OUTFIT_SLOTS, DYE_SLOTS as OUTFIT_DYES, PRESETS as OUTFIT_PRESETS, DEFAULT_OUTFIT,
+  normaliseOutfit, setOutfit, randomOutfit,
+} from './outfits.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets } from './bake.js';
 import { PLAYER_SKELETON, PLAYER_CLIPS } from './rigs.js';
@@ -936,8 +940,142 @@ function leaveMusicRoom() {
   setMusicIntensity(1);
 }
 
+// --- the Wardrobe: the Wanderer's outfit, piece by piece ---------------------------------
+//
+// Every slot of the outfit (outfits.js) with all its pieces, the dyes, and
+// whole outfits a tap away, beside a live Wanderer who turns and walks so
+// every piece can be seen from every side. The outfit is saved and worn
+// wherever the Wanderer is drawn (the Wilds and the dungeons, or everywhere
+// if the Wanderer is chosen as the character).
+
+let ward = null;        // { tab, oct, turn, walk, p, raf } while the wardrobe is open
+
+function wardOutfit() { return normaliseOutfit(save.outfit); }
+
+function wardSet(patch) {
+  save.outfit = { ...wardOutfit(), ...patch };
+  setOutfit(save.outfit);
+  writeSave();
+  wardRefresh();
+}
+
+function wardTabs() {
+  const tabs = [{ id: 'sets', name: 'Outfits' }, ...OUTFIT_SLOTS.map((s) => ({ id: s.id, name: s.name })), { id: 'dyes', name: 'Dyes' }];
+  return tabs.map((t) => `<button class="wtab${ward.tab === t.id ? ' on' : ''}" data-act="w-tab" data-v="${t.id}">${t.name}</button>`).join('');
+}
+
+function wardOptions() {
+  const o = wardOutfit();
+  if (ward.tab === 'sets') {
+    return `<p class="wnote">Whole outfits. Pick one, then change any piece or dye.</p><div class="wchips">${
+      OUTFIT_PRESETS.map((pr, i) => `<button class="wchip" data-act="w-preset" data-idx="${i}">${pr.name}</button>`).join('')}</div>`;
+  }
+  if (ward.tab === 'dyes') {
+    return OUTFIT_DYES.map((d) => `
+      <div class="wdyerow"><span class="wdyename">${d.name}</span>${
+        Object.entries(d.list).map(([id, v]) => {
+          const c = v.c[0] || '#888';
+          const inner = v.c[0] ? '' : '⚔';
+          return `<button class="wswatch${o[d.id] === id ? ' on' : ''}" data-act="w-dye" data-slot="${d.id}" data-v="${id}" title="${v.name}" style="background:${c}">${inner}</button>`;
+        }).join('')}</div>`).join('') + '<p class="wnote">⚔ = the accent follows your weapon\'s colour.</p>';
+  }
+  const slot = OUTFIT_SLOTS.find((s) => s.id === ward.tab);
+  const cur = slot.list[o[slot.id]];
+  return `<div class="wchips">${
+    Object.entries(slot.list).map(([id, v]) => `<button class="wchip${o[slot.id] === id ? ' on' : ''}" data-act="w-piece" data-slot="${slot.id}" data-v="${id}">${v.name}</button>`).join('')
+  }</div><p class="wnote"><b>${cur.name}</b>${cur.desc ? ' - ' + cur.desc : ''}</p>`;
+}
+
+function wardRefresh() {
+  const t = document.getElementById('wardtabs');
+  const op = document.getElementById('wardopts');
+  if (t) t.innerHTML = wardTabs();
+  if (op) op.innerHTML = wardOptions();
+  const w = document.getElementById('wardwalk');
+  if (w) w.textContent = ward.walk ? 'Stand' : 'Walk';
+  const tn = document.getElementById('wardturn');
+  if (tn) tn.textContent = ward.turn ? 'Hold still' : 'Turn';
+}
+
+function showWardrobe() {
+  if (!ward) ward = { tab: 'sets', oct: 2, turn: true, walk: false, p: null, raf: 0, t0: 0 };
+  setOutfit(save.outfit);
+  showOverlay(`
+    <div class="panel wardrobe">
+      <div class="eyebrow">the wanderer</div>
+      <h2>Wardrobe</h2>
+      <div class="wardwrap">
+        <div class="wardleft">
+          <canvas id="wardcv"></canvas>
+          <div class="row">
+            <button class="btn ghost" data-act="w-rot" data-v="-1" aria-label="Turn left">◀</button>
+            <button class="btn ghost" id="wardturn" data-act="w-turn">Hold still</button>
+            <button class="btn ghost" id="wardwalk" data-act="w-walk">Walk</button>
+            <button class="btn ghost" data-act="w-rot" data-v="1" aria-label="Turn right">▶</button>
+          </div>
+        </div>
+        <div class="wardright">
+          <div class="wardtabs" id="wardtabs"></div>
+          <div class="wardopts" id="wardopts"></div>
+        </div>
+      </div>
+      <p class="sub" style="font-size:12px">Worn by the Wanderer in the Wilds and the dungeons - and everywhere if you choose the Wanderer as your character.
+      Every piece is open for now, to try on.</p>
+      <div class="row">
+        <button class="btn ghost" data-act="w-random">Surprise me</button>
+        <button class="btn ghost" data-act="w-reset">The Wanderer's own</button>
+        <button class="btn" data-act="w-done">Done</button>
+      </div>
+    </div>`);
+  wardRefresh();
+  if (!ward.p) ward.p = createPlayer(WEAPONS[0], {});
+  cancelAnimationFrame(ward.raf);
+  ward.t0 = performance.now();
+  ward.raf = requestAnimationFrame(wardFrame);
+}
+
+/** The live Wanderer in the wardrobe: turning through the eight views, walking in place. */
+function wardFrame(now) {
+  if (!ward) return;
+  const cv = document.getElementById('wardcv');
+  if (!cv) { ward.raf = 0; return; }
+  ward.raf = requestAnimationFrame(wardFrame);
+  const dt = Math.min(0.05, (now - (ward.last || now)) / 1000);
+  ward.last = now;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth || 220, H = cv.clientHeight || 240;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const c = cv.getContext('2d');
+  const p = ward.p;
+  if (ward.turn) ward.oct = Math.floor((now - ward.t0) / 1400) % 8;
+  const a = ward.oct * Math.PI / 4;
+  p.wFace = a;
+  p.aimAngle = a;
+  p.moveAngle = a;
+  p.moveMag = ward.walk ? 1 : 0;
+  if (ward.walk) { p.x += Math.cos(a) * 150 * dt; p.y += Math.sin(a) * 150 * dt; }
+  p.hurtFlash = 0; p.invuln = 0;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#2a3a2c'); g.addColorStop(1, '#4a6a3e');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  c.fillStyle = 'rgba(0,0,0,0.18)';
+  c.beginPath(); c.ellipse(W / 2, H * 0.74, W * 0.32, H * 0.07, 0, 0, Math.PI * 2); c.fill();
+  const Z = Math.min(W, H) / 70;
+  c.setTransform(dpr * Z, 0, 0, dpr * Z, dpr * (W / 2 - p.x * Z), dpr * (H * 0.66 - p.y * Z));
+  const was = look.skin;
+  look.skin = 'wanderer';
+  try { drawPlayer(p, c); } finally { look.skin = was; }
+}
+
+function closeWardrobe() {
+  if (ward) cancelAnimationFrame(ward.raf);
+  ward = null;
+}
+
 function showTitle() {
   if (musicRoom) leaveMusicRoom();
+  if (ward) closeWardrobe();
   state = 'title';
   showOverlay(`
     <div class="panel">
@@ -956,6 +1094,7 @@ function showTitle() {
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeon (demo)</button>
+        <button class="btn ghost" data-act="wardrobe">Wardrobe</button>
         <button class="btn ghost" data-act="music-room">Music Room</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
@@ -2543,6 +2682,17 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'wilds': showWildsIntro(); break;
     case 'dungeon-demo': phoneFullscreen(); startDungeonDemo(); break;
     case 'music-room': showMusicRoom(); break;
+    case 'wardrobe': showWardrobe(); break;
+    case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
+    case 'w-piece': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
+    case 'w-dye': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
+    case 'w-preset': save.outfit = null; wardSet({ ...DEFAULT_OUTFIT, ...OUTFIT_PRESETS[idx].o }); break;
+    case 'w-random': save.outfit = null; wardSet(randomOutfit()); break;
+    case 'w-reset': save.outfit = null; wardSet({ ...DEFAULT_OUTFIT }); break;
+    case 'w-rot': ward.turn = false; ward.oct = (ward.oct + Number(el.dataset.v) + 8) % 8; wardRefresh(); break;
+    case 'w-turn': ward.turn = !ward.turn; ward.t0 = performance.now() - ward.oct * 1400; wardRefresh(); break;
+    case 'w-walk': ward.walk = !ward.walk; wardRefresh(); break;
+    case 'w-done': showTitle(); break;
     case 'mr-play': playInRoom(REGION_THEMES[idx], false); showMusicRoom(); break;
     case 'mr-boss': playInRoom(BOSS_PIECES[idx].theme, true); showMusicRoom(); break;
     case 'mr-calm': case 'mr-fight':
@@ -2912,6 +3062,7 @@ window.addEventListener('keydown', ensureAudio, { once: true });
 // --- boot ------------------------------------------------------------------
 
 loadSave();
+setOutfit(save.outfit);
 resize();
 initInput(canvas);
 initFullscreen({ onChange: () => { if (overlayVisible() && state === 'title') showTitle(); } });

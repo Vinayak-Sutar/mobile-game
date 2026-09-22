@@ -15,7 +15,8 @@ const DEFAULTS = {
   muted: false,
   musicOn: true,
   musicVolume: 0.7,
-  musicLead: {},         // region piece id -> lead instrument (the Music Room)
+  musicLead: {},
+  outfit: null,          // the Wanderer's outfit (outfits.js; the wardrobe)         // region piece id -> lead instrument (the Music Room)
   biome: 'ember',
   moveSpeed: 0.85,       // walking speed multiplier (settings); 1 was the old default
   character: 'auto',     // the player's look: auto (the Wanderer in The Wilds) | hooded | wanderer

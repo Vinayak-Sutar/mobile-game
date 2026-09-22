@@ -24,6 +24,7 @@
 import { TAU, clamp, lerp, angleDiff } from './util.js';
 import { boneAt } from './anim.js';
 import { PLAYER_SKELETON } from './rigs.js';
+import { OUT, resolveOutfit } from './outfits.js';
 
 /** Which look is drawn: 'hooded' | 'wanderer' (set by game.js). */
 export const look = { skin: 'hooded' };
@@ -31,16 +32,9 @@ export const look = { skin: 'hooded' };
 // How far above the ground the hands are: the weapons are drawn this high.
 export const WANDERER_LIFT = 14;
 
-const OUT = '#1b130f';
-const C = {
-  boot: '#2e2119', trouser: '#3b3444', trouserShade: '#2c2733',
-  coat: '#a24e2d', coatShade: '#7a3620', coatLight: '#c8683e',
-  belt: '#3a2a1c', buckle: '#e0b050',
-  skin: '#e2b489', skinShade: '#b98a62', hair: '#3a2616',
-  straw: '#dcbd6e', strawShade: '#9c7a3a', strawLight: '#f0d88e',
-  roll: '#c9b48a', rollShade: '#9a8660', strap: '#5a3a24',
-  glove: '#4a3526',
-};
+// The Wanderer's clothes are an outfit (outfits.js): the default one is the
+// traveller above; the wardrobe on the title screen changes any part of it.
+const M_FUR = '#b89a78';
 
 /** A copy of the rig's pose lifted to chest height, for the weapon. */
 export function liftWorld(world) {
@@ -319,7 +313,12 @@ export function drawWanderer(p, ctx, world, bob) {
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   const alpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   const col = (c) => (flashing ? '#ffffff' : c);
-  const accent = col(p.weapon.color);
+  // What the Wanderer is wearing (outfits.js): each part below is drawn by
+  // the piece in its slot, in the outfit's dyes.
+  const O = resolveOutfit();
+  const P = O.P;
+  const accent = col(P.accent || p.weapon.color);
+  const hairCol = O.hair.bald ? P.skin[0] : P.hair;
 
   const s = p.wS || 1;                                  // facing right or left
   const V = viewOf(p);
@@ -354,6 +353,42 @@ export function drawWanderer(p, ctx, world, bob) {
     ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
   };
 
+  const diagonal = !profile && !square;
+  const t = performance.now() * 0.001;
+  const wave = Math.sin(t * (moving ? 7 : 3) + p.x * 0.01) * (moving ? 1.6 : 0.8);
+  // Where the front opens: down the middle facing the camera, turned toward
+  // the way the figure faces on a diagonal, near the front edge in profile.
+  const openX = square ? 0 : profile ? 1 : 2.6;
+  const cloakA = p.anim.pose.cloakA || {};
+  const hx = (profile ? 0.5 : diagonal ? 1.2 : 0), hy = -36;
+  // Everything a piece of the outfit needs to draw itself.
+  const h = {
+    ctx, V, s, back, profile, square, diagonal, flashing, col, fill: fillOut, accent, P, t, wave, moving, openX,
+    hx, hy, faceX: square ? hx : profile ? hx + 2.8 : hx + 1.4,
+    scarfLen: (12 * (cloakA.sx ?? 1) + (moving ? 4 : 0)) * lerp(0.55, 1, V.side),
+  };
+  const capeLen = O.back.cape || 0;
+  const drawCape = (over) => {
+    // Seen from the front a cape shows as a panel behind the body; turned
+    // sideways it streams out behind, the more so walking.
+    const sd = V.side, L = capeLen;
+    const trail = (moving ? 5 : 2) * sd + wave * sd * 0.8;
+    const bottom = -30 + L - sd * (moving ? L * 0.18 : L * 0.06);
+    ctx.beginPath();
+    ctx.moveTo(lerp(-7.4, -3.4, sd), -30.5);
+    ctx.lineTo(lerp(7.4, 2.4, sd), -30.5);
+    ctx.quadraticCurveTo(lerp(9.6, 1, sd), -30 + L * 0.5, lerp(10.4, 0, sd) + wave * 0.3 * (1 - sd), bottom);
+    ctx.lineTo(lerp(-10.4, -6 - L * 0.35, sd) - trail, bottom + sd * 1.5);
+    ctx.quadraticCurveTo(lerp(-9.6, -5 - trail, sd), -30 + L * 0.45, lerp(-7.4, -3.4, sd), -30.5);
+    ctx.closePath();
+    fillOut(col(over ? P.cloth[0] : P.cloth[1]), 1.5);
+    if (over && !flashing) {
+      ctx.strokeStyle = P.cloth[1]; ctx.lineWidth = 1;
+      for (const x of [-4, 0.5, 5]) { ctx.beginPath(); ctx.moveTo(x * 0.6, -27); ctx.lineTo(x + wave * 0.3, bottom - 1); ctx.stroke(); }
+    }
+  };
+  if (capeLen && !back) drawCape(false);
+
   // --- legs: hips ride with the body, feet stay on the ground -----------------
   // Seen in profile the legs nearly overlap; turned toward or away from the
   // camera - diagonals included - they stand apart.
@@ -361,170 +396,232 @@ export function drawWanderer(p, ctx, world, bob) {
   const spread = 1.8 + 1.5 * Math.abs(V.depth);
   // Boots point the way the figure faces: along the ground in profile, down
   // or up the screen on a diagonal, toe-on (round) straight at the camera.
-  const diagonal = !profile && !square;
   const toe = diagonal ? 0.5 * Math.sign(V.depth) : 0;
-  const leg = (f, hipX, width, color) => {
-    const hx = hipX + jolt + shift;
+  const Lg = O.legs, Ft = O.feet;
+  const leg = (f, hipX, near) => {
+    const hx0 = hipX + jolt + shift;
     // The stride runs across the screen in profile and up and down it
     // (foreshortened) facing the camera or away: a step toward the camera
     // lands lower on the screen.
     const fx = hipX + shift + f.x * V.side;
     const fy = ANKLE_Y - f.lift + f.x * V.depth * 0.5;
-    const L = ik(hx, hipY, fx, fy);
+    const L = ik(hx0, hipY, fx, fy);
     // A knee bends toward the way the figure faces. Facing the camera that is
     // straight out of the screen, so it shows as the leg shortening rather
     // than bowing sideways.
-    const mx = (hx + L.fx) / 2, my = (hipY + L.fy) / 2;
+    const mx = (hx0 + L.fx) / 2, my = (hipY + L.fy) / 2;
     const kx = lerp(mx, L.kx, V.side), ky = lerp(my, L.ky, V.side);
-    ctx.strokeStyle = OUT; ctx.lineWidth = width + 3;
-    ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = width;
-    ctx.beginPath(); ctx.moveTo(hx, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
-    // The boot: long with the toe forward in profile, short and round seen
+    const w = (Lg.width || 4.4) - (near ? 0 : 0.2);
+    const ci = near ? 0 : 1;
+    const thigh = col(Lg.c(P)[ci]);
+    const shin = Lg.shin ? col(Lg.shin(P)[ci]) : thigh;
+    if (Lg.flare) {
+      // Wide trousers: one panel from the hip, flaring to the ankle.
+      const dx = L.fx - hx0, dy = L.fy - hipY, d = Math.hypot(dx, dy) || 1;
+      const nx = -dy / d, ny = dx / d;
+      const a = w / 2, b = w / 2 + Lg.flare;
+      ctx.beginPath();
+      ctx.moveTo(hx0 + nx * a, hipY + ny * a); ctx.lineTo(L.fx + nx * b, L.fy - 0.6 + ny * b);
+      ctx.lineTo(L.fx - nx * b, L.fy - 0.6 - ny * b); ctx.lineTo(hx0 - nx * a, hipY - ny * a);
+      ctx.closePath();
+      fillOut(thigh, 1.4);
+      if (!flashing) { ctx.strokeStyle = Lg.c(P)[1]; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(hx0, hipY + 1); ctx.lineTo(L.fx, L.fy - 1); ctx.stroke(); }
+    } else {
+      ctx.strokeStyle = OUT; ctx.lineWidth = w + 3;
+      ctx.beginPath(); ctx.moveTo(hx0, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+      ctx.lineWidth = w;
+      ctx.strokeStyle = thigh; ctx.beginPath(); ctx.moveTo(hx0, hipY); ctx.lineTo(kx, ky); ctx.stroke();
+      ctx.strokeStyle = shin; ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+      if (!flashing) {
+        if (Lg.mail) {
+          ctx.setLineDash([0.8, 1.2]); ctx.strokeStyle = Lg.c(P)[1]; ctx.lineWidth = w * 0.5;
+          ctx.beginPath(); ctx.moveTo(hx0, hipY); ctx.lineTo(kx, ky); ctx.lineTo(L.fx, L.fy); ctx.stroke();
+          ctx.setLineDash([]);
+        }
+        if (Lg.stripes) {
+          ctx.strokeStyle = Lg.stripes; ctx.lineWidth = 0.8;
+          const dx = L.fx - kx, dy = L.fy - ky, d = Math.hypot(dx, dy) || 1;
+          const nx = -dy / d * w * 0.5, ny = dx / d * w * 0.5;
+          ctx.beginPath();
+          for (let u = 0.15; u < 0.9; u += 0.18) { const x = kx + dx * u, y = ky + dy * u; ctx.moveTo(x - nx, y - ny - 0.6); ctx.lineTo(x + nx, y + ny + 0.6); }
+          ctx.stroke();
+        }
+        if (Lg.knee) { ctx.fillStyle = Lg.knee(P); ctx.beginPath(); ctx.arc(kx, ky, 1.6, 0, TAU); ctx.fill(); }
+      }
+      if (Lg.cop) { ctx.beginPath(); ctx.arc(kx, ky, 2.1, 0, TAU); fillOut(col(Lg.cop(P)), 1); }
+    }
+    // Tall footwear covers the lower shin.
+    if (Ft.shin) {
+      const x0 = lerp(kx, L.fx, 1 - Ft.shin), y0 = lerp(ky, L.fy, 1 - Ft.shin);
+      limb(x0, y0, L.fx, L.fy, w + 0.6, col(Ft.shinC(P)));
+    }
+    // The foot: long with the toe forward in profile, short and round seen
     // toe-on or heel-on; tipped up a little in the air.
-    ctx.beginPath();
-    ctx.ellipse(L.fx + 1.4 * V.side, L.fy + 1 + 0.8 * toe, 2.5 + 1.3 * V.side, 2.1, toe + (f.lift > 0.5 ? -0.25 * V.side : 0), 0, TAU);
-    fillOut(col(C.boot), 1.4);
+    Ft.draw(h, L.fx, L.fy, toe, f.lift > 0.5 ? -0.25 * V.side : 0);
   };
-  leg(G.far, -spread, 4.2, col(C.trouserShade));       // the far leg, in shade
-  leg(G.near, spread, 4.4, col(C.trouser));            // the near leg
+  leg(G.far, -spread, false);        // the far leg, in shade
+  leg(G.near, spread, true);         // the near leg
 
   // Everything above the hips rides the body's rise and fall, the weight
   // shift, and a slight lean into the walk (only visible in profile).
   ctx.translate(jolt + shift * 0.6, G.bodyY);
   ctx.rotate(G.lean * V.side);
 
-  // --- the scarf, streaming behind (drawn over the back when facing away) --
-  const cloakA = p.anim.pose.cloakA || {};
-  const scarfLen = (12 * (cloakA.sx ?? 1) + (moving ? 4 : 0)) * lerp(0.55, 1, V.side);
-  const t = performance.now() * 0.001;
-  const wave = Math.sin(t * (moving ? 7 : 3) + p.x * 0.01) * (moving ? 1.6 : 0.8);
-  const drawScarf = () => {
-    const nx = -1 * V.side, ny = -29;
-    ctx.strokeStyle = OUT; ctx.lineWidth = 6.5;
-    ctx.beginPath(); ctx.moveTo(nx, ny); ctx.quadraticCurveTo(nx - scarfLen * 0.5, ny + 1 + wave * 0.4, nx - scarfLen, ny + 4 + wave); ctx.stroke();
-    ctx.strokeStyle = accent; ctx.lineWidth = 3.8;
-    ctx.beginPath(); ctx.moveTo(nx, ny); ctx.quadraticCurveTo(nx - scarfLen * 0.5, ny + 1 + wave * 0.4, nx - scarfLen, ny + 4 + wave); ctx.stroke();
-    ctx.lineWidth = 2.6;
-    ctx.beginPath(); ctx.moveTo(nx, ny + 1); ctx.quadraticCurveTo(nx - scarfLen * 0.4, ny + 5 - wave * 0.3, nx - scarfLen * 0.8, ny + 9 - wave * 0.5); ctx.stroke();
-  };
-  if (!back) drawScarf();
-
-  // --- the bedroll, peeking over the shoulders from the front ---------------
-  const drawRoll = (y, x) => {
-    ctx.beginPath(); ctx.ellipse(x, y, 9.5, 3.4, -0.08 * V.side, 0, TAU); fillOut(col(C.roll), 1.4);
-    ctx.fillStyle = col(C.rollShade); ctx.fillRect(x - 3, y - 3, 1.6, 6.4); ctx.fillRect(x + 4, y - 3, 1.6, 6.4);
-  };
-  if (!back) drawRoll(-31, -2 * V.side);
+  const hatHides = O.hat.hair === 'hide';
+  // Facing the camera: the scarf streaming behind, long hair and what is
+  // carried on the back peeking past the body.
+  if (!back && O.neck.behind) O.neck.behind(h);
+  if (!back && !hatHides && O.hair.behind) O.hair.behind(h);
+  if (!back && O.back.peek) O.back.peek(h);
 
   // --- the off hand, counter-swinging ---------------------------------------
   // Arms swing against the legs: the off hand forward as the far leg goes
   // back. In profile it is the far arm, behind the body; turned toward or away
   // from the camera it hangs at the figure's other side, in plain view, and
   // its swing is toward and away from the viewer - up and down the screen.
+  const B = O.body;
+  const coatC = B.c(P);
+  const sleeve = B.sleeve ? B.sleeve(P) : [coatC[0], coatC[1]];
+  const sleeveW = B.sleeveW || 4;
   const shX = lerp(-7.2, -4.5, V.side);
   const offHand = {
     x: lerp(-SIDE_HAND_X, -4.5, V.side) - G.far.x * 0.5 * V.side,
     y: -19 - G.far.x * 0.35 * V.depth * (1 - V.side),
   };
+  const drawOffArm = () => {
+    limb(shX, -27, offHand.x, offHand.y, sleeveW * 0.9, col(sleeve[1]));
+    ctx.beginPath(); ctx.arc(offHand.x, offHand.y, O.hands.r * 0.85, 0, TAU); fillOut(col(O.hands.c(P)), 1);
+  };
   const offInFront = !profile || back;
-  if (!offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
+  if (!offInFront) drawOffArm();
 
-  // --- the coat -----------------------------------------------------------------
-  const hem = G.near.x * 0.25 * V.side;
+  // --- the body: a coat, armour, a robe -----------------------------------------
+  const swing = G.near.x * 0.25 * V.side;
+  const hem = B.hem ?? -11, fl = B.flare || 0;
   ctx.beginPath();
   ctx.moveTo(-6.5, -30);
-  ctx.quadraticCurveTo(-8.5, -21, -9 + hem * 0.3, -11);
-  ctx.lineTo(9 + hem * 0.3, -11);
+  ctx.quadraticCurveTo(-8.5, -21, -9 - fl + swing * 0.3, hem);
+  ctx.lineTo(9 + fl + swing * 0.3, hem);
   ctx.quadraticCurveTo(8.5, -21, 6.5, -30);
   ctx.quadraticCurveTo(0, -33, -6.5, -30);
   ctx.closePath();
-  fillOut(col(C.coat));
-  // Where the coat opens: down the middle facing the camera, turned toward
-  // the way the figure faces on a diagonal, near the front edge in profile.
-  const openX = square ? 0 : profile ? 1 : 2.6;
-  // Lit from the upper left: a light edge on the left, shade on the right.
+  fillOut(col(coatC[0]));
   if (!flashing) {
     ctx.save(); ctx.clip();
-    ctx.fillStyle = back ? C.coatShade : C.coatLight;
-    ctx.globalAlpha = alpha * 0.55;
+    // Lit from the upper left: a light edge on the left, shade on the right.
     // (The figure is mirrored when facing left; the light is not.)
-    ctx.fillRect(s > 0 ? -10 : 5.5, -34, 4.5, 24);
-    ctx.fillStyle = C.coatShade;
+    ctx.fillStyle = back ? coatC[1] : coatC[2];
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.fillRect(s > 0 ? -10 - fl : 5.5, -34, 4.5 + (s > 0 ? 0 : fl), 34);
+    ctx.fillStyle = coatC[1];
     ctx.globalAlpha = alpha * 0.8;
-    ctx.fillRect(s > 0 ? 3.5 : -11.5, -34, 8, 24);
+    ctx.fillRect(s > 0 ? 3.5 : -11.5 - fl, -34, 8 + fl, 34);
     ctx.globalAlpha = alpha;
-    ctx.strokeStyle = C.coatShade; ctx.lineWidth = 1.2;
+    if (B.pattern) B.pattern(h);
+    ctx.strokeStyle = coatC[1]; ctx.lineWidth = 1.2;
+    const op = B.open;
     if (!back) {
-      ctx.beginPath(); ctx.moveTo(openX, -29); ctx.lineTo(openX + 0.5 + hem * 0.2, -11); ctx.stroke();
-      if (!profile) {
+      if (op === 'lapel' || op === 'laces' || op === 'buttons' || op === 'fur') {
+        ctx.beginPath(); ctx.moveTo(openX, -29); ctx.lineTo(openX + 0.5 + swing * 0.2, hem); ctx.stroke();
+      }
+      if (op === 'lapel' && !profile) {
         // The lapels: a V down from the collar, centred facing the camera and
         // swung toward the facing side on a diagonal - the clearest sign, at
         // this size, of which way the chest is turned.
         const wl = square ? 3.2 : 4.2, wr = square ? 3.2 : 1.6;
         ctx.lineWidth = 1.4;
-        ctx.beginPath();
-        ctx.moveTo(openX - wl, -30.5); ctx.lineTo(openX, -23.5); ctx.lineTo(openX + wr, -30.5);
+        ctx.beginPath(); ctx.moveTo(openX - wl, -30.5); ctx.lineTo(openX, -23.5); ctx.lineTo(openX + wr, -30.5); ctx.stroke();
+      }
+      if (op === 'laces') {
+        ctx.strokeStyle = P.leather[2]; ctx.lineWidth = 0.7; ctx.beginPath();
+        for (let y = -28.5; y < -20; y += 2) { ctx.moveTo(openX - 1.4, y); ctx.lineTo(openX + 1.4, y + 1.6); ctx.moveTo(openX + 1.4, y); ctx.lineTo(openX - 1.4, y + 1.6); }
         ctx.stroke();
       }
-    } else if (square) {
+      if (op === 'buttons') { ctx.fillStyle = P.metal[2]; for (let y = -28; y < -14; y += 2.8) { ctx.beginPath(); ctx.arc(openX + 1.4, y, 0.8, 0, TAU); ctx.fill(); } }
+      if (op === 'wrap') {
+        // A wrapped front: the collar crosses from the far shoulder to the
+        // waist, a pale under-collar showing beside it.
+        ctx.strokeStyle = '#e8e0cc'; ctx.lineWidth = 2.2;
+        ctx.beginPath(); ctx.moveTo(openX - 4.2, -30.6); ctx.lineTo(openX + 2.6, -19.5); ctx.stroke();
+        ctx.strokeStyle = P.cloth2[0]; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.moveTo(openX - 2.4, -30.8); ctx.lineTo(openX + 3.8, -20.4); ctx.stroke();
+      }
+      if (op === 'fur') { ctx.fillStyle = M_FUR; ctx.fillRect(openX - 1.4, -30, 2.8, hem + 30); }
+    } else if (square && op !== 'none') {
       // From straight behind: the seam down the back.
-      ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, -11); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, -26); ctx.lineTo(0, hem); ctx.stroke();
     }
     ctx.restore();
+    if (B.open === 'fur') {
+      ctx.fillStyle = M_FUR;
+      for (let x = -9 - fl; x <= 9 + fl; x += 2.6) { ctx.beginPath(); ctx.arc(x + swing * 0.3, hem, 1.7, 0, TAU); ctx.fill(); }
+    }
   }
-  // The belt and its buckle.
-  ctx.fillStyle = col(C.belt); ctx.fillRect(-8.2, -18.5, 16.4, 2.6);
-  if (!back) { ctx.fillStyle = col(C.buckle); ctx.fillRect(openX - 1.5, -18.8, 3, 3.2); }
+  O.belt.draw(h);
   // Facing the camera, the scarf's knot shows at the throat.
-  if (V.front && !square) { ctx.fillStyle = accent; ctx.fillRect(openX - 2.4, -31, 4.4, 2.6); }
-  else if (square && !back) { ctx.fillStyle = accent; ctx.fillRect(-2.2, -31, 4.4, 2.6); }
+  if (O.neck.knot && !back) { ctx.fillStyle = accent; ctx.fillRect((square ? 0 : openX) - 2.3, -31, 4.4, 2.6); }
 
   if (back) {
-    // From behind: the bedroll across the shoulders, strapped on.
-    drawRoll(-28, -2 * V.side);
-    ctx.strokeStyle = col(C.strap); ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(-6, -31); ctx.lineTo(5, -17); ctx.stroke();
+    // From behind: long hair, what is carried, and a cape over them all.
+    if (!hatHides && O.hair.behind) O.hair.behind(h);
+    if (O.back.back) O.back.back(h);
+    if (capeLen) drawCape(true);
+  } else if (O.back.strapsFront) O.back.strapsFront(h);
+  if (O.neck.front) O.neck.front(h);
+
+  // Shoulder pieces: the near one always, the far one unless in profile.
+  if (O.shoulders.draw) {
+    if (!profile) O.shoulders.draw(h, shX, -1);
+    O.shoulders.draw(h, lerp(7.2, 5, V.side), 1);
   }
-  if (offInFront) limb(shX, -27, offHand.x, offHand.y, 3.6, col(C.coatShade));
+  if (offInFront) drawOffArm();
 
   // --- the head -----------------------------------------------------------------
   // Turned toward the camera, how much of the head is face and how much is
   // hair says which way it looks: all face straight on, hair over the back
   // third on a diagonal, the back half in profile - with the ear where the
   // two meet.
-  const hx = (profile ? 0.5 : diagonal ? 1.2 : 0), hy = -36;
-  ctx.beginPath(); ctx.arc(hx, hy, 6.2, 0, TAU); fillOut(col(back ? C.hair : C.skin), 1.5);
+  const showFace = O.hat.face !== false;
+  const bareTop = O.hat.hair === 'show' && !O.hair.bald;
+  ctx.beginPath(); ctx.arc(hx, hy, 6.2, 0, TAU); fillOut(col(back ? hairCol : P.skin[0]), 1.5);
   if (!back && !square && !flashing) {
     const edge = profile ? hx - 1 : hx - 3.2;         // where the hair begins
     ctx.save();
     ctx.beginPath(); ctx.arc(hx, hy, 5.5, 0, TAU); ctx.clip();
-    ctx.fillStyle = C.hair;
+    ctx.fillStyle = hairCol;
     ctx.fillRect(hx - 7, hy - 7, edge - (hx - 7), 9.5);
     ctx.restore();
-    ctx.fillStyle = C.skinShade;
+    ctx.fillStyle = P.skin[1];
     ctx.beginPath(); ctx.arc(edge + 0.6, hy + 1, 1.5, 0, TAU); ctx.fill();   // the ear
   }
   if (back && !square && !flashing) {
     // Three-quarters from behind: a sliver of cheek and ear on the facing side.
-    ctx.fillStyle = C.skin;
+    ctx.fillStyle = P.skin[0];
     ctx.beginPath(); ctx.arc(hx + 4.4, hy + 1, 2, -1.2, 1.6); ctx.fill();
   }
-  if (!back && !flashing) {
+  if (bareTop && !back && !flashing) {
+    // No hat: the hair over the crown and a fringe.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(hx, hy, 5.6, 0, TAU); ctx.clip();
+    ctx.fillStyle = hairCol;
+    ctx.fillRect(hx - 7, hy - 7, 14, square ? 3.6 : 3);
+    ctx.restore();
+  }
+  if (!back && !flashing && showFace) {
     if (square) {
       // Straight at the camera: shade under the chin, two eyes either side
       // of the middle.
-      ctx.fillStyle = C.skinShade;
+      ctx.fillStyle = P.skin[1];
       ctx.beginPath(); ctx.ellipse(hx, hy + 3.6, 4.4, 2, 0, 0, Math.PI); ctx.fill();
       ctx.fillStyle = OUT;
       ctx.fillRect(hx - 3, hy - 0.6, 1.5, 2);
       ctx.fillRect(hx + 1.5, hy - 0.6, 1.5, 2);
     } else {
-      ctx.fillStyle = C.skinShade;
+      ctx.fillStyle = P.skin[1];
       if (s > 0) { ctx.beginPath(); ctx.arc(hx + 2.2, hy + 1, 4.4, -0.9, 1.9); ctx.fill(); }
       else { ctx.beginPath(); ctx.arc(hx - 2.2, hy + 1, 4.4, 1.25, 4.05); ctx.fill(); }
-      // Eyes in the hat's shade, looking the way you face. On a diagonal
-      // both show, spaced across the turned face, the far one narrower.
+      // Eyes looking the way you face. On a diagonal both show, spaced across
+      // the turned face, the far one narrower.
       ctx.fillStyle = OUT;
       if (profile) {
         ctx.fillRect(hx + 1.2, hy - 0.6, 1.5, 2);
@@ -535,18 +632,12 @@ export function drawWanderer(p, ctx, world, bob) {
       }
     }
   }
-  if (back) drawScarf();
+  if (!back && showFace) O.face.draw(h);
+  if (bareTop && O.hair.top) O.hair.top(h);
+  if (back && O.neck.behind) O.neck.behind(h);
 
-  // --- the hat: a wide straw brim and a low crown -------------------------------
-  ctx.beginPath(); ctx.ellipse(hx, hy - 3.2, 13.5, 4.6, 0, 0, TAU); fillOut(col(C.strawShade), 1.6);
-  ctx.beginPath(); ctx.ellipse(hx, hy - 4.2, 13, 3.8, 0, Math.PI, TAU); ctx.fillStyle = col(C.straw); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(hx, hy - 7.2, 6.6, 5.2, 0, Math.PI, TAU); ctx.lineTo(hx + 6.6, hy - 5.4); ctx.lineTo(hx - 6.6, hy - 5.4); ctx.closePath();
-  fillOut(col(C.straw), 1.5);
-  ctx.fillStyle = accent; ctx.fillRect(hx - 6.6, hy - 7.4, 13.2, 2);   // the band, in the weapon's colour
-  if (!flashing) {
-    ctx.fillStyle = C.strawLight;
-    ctx.beginPath(); ctx.ellipse(hx - 2.6, hy - 9.6, 2.4, 1.2, -0.3, 0, TAU); ctx.fill();
-  }
+  // --- the hat ------------------------------------------------------------------
+  O.hat.draw(h);
 
   ctx.restore();
   ctx.globalAlpha = 1;
@@ -556,7 +647,7 @@ export function drawWanderer(p, ctx, world, bob) {
  * The weapon arm, drawn from the shoulder to the hand the weapon is held in
  * (`wandererHold`). In world space, since the hand swings all round. The
  * shoulder moves out to the edge of the coat as the figure turns to face the
- * camera or away from it.
+ * camera or away from it. Its sleeve and glove come from the outfit.
  */
 export function drawWandererArm(p, ctx, hold, bob, behind) {
   if (!hold || p.dead) return;
@@ -564,18 +655,34 @@ export function drawWandererArm(p, ctx, hold, bob, behind) {
   const s = p.wS || 1;
   const V = viewOf(p);
   const G = p.wG;
+  const O = resolveOutfit();
+  const P = O.P;
+  const coatC = O.body.c(P);
+  const sleeve = O.body.sleeve ? O.body.sleeve(P) : [coatC[0], coatC[1]];
+  const sleeveW = O.body.sleeveW || 4;
   const shift = G ? G.shift * (1 - V.side) * 0.6 : 0;
   const sx0 = p.x + s * (lerp(7.2, 5, V.side) + shift);
   const sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
+  const col = (c) => (flashing ? '#fff' : c);
   ctx.globalAlpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   ctx.lineCap = 'round';
-  ctx.strokeStyle = OUT; ctx.lineWidth = 7;
+  ctx.strokeStyle = OUT; ctx.lineWidth = sleeveW + 3;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(hx, hy); ctx.stroke();
-  ctx.strokeStyle = flashing ? '#fff' : behind ? C.coatShade : C.coat; ctx.lineWidth = 4;
+  ctx.strokeStyle = col(behind ? sleeve[1] : sleeve[0]); ctx.lineWidth = sleeveW;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(hx, hy); ctx.stroke();
-  ctx.fillStyle = flashing ? '#fff' : C.glove;
-  ctx.beginPath(); ctx.arc(hx, hy, 2.8, 0, TAU); ctx.fill();
+  const Hd = O.hands;
+  // A bracer or a gauntlet's cuff along the forearm, near the hand.
+  if (Hd.bracer || Hd.cuff || Hd.band) {
+    const u = Hd.bracer ? 0.45 : 0.75;
+    const bx = lerp(sx0, hx, u), by = lerp(sy0, hy, u);
+    ctx.strokeStyle = OUT; ctx.lineWidth = sleeveW + 2.6;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(lerp(sx0, hx, 0.92), lerp(sy0, hy, 0.92)); ctx.stroke();
+    ctx.strokeStyle = col(Hd.bracer ? Hd.bracer(P) : Hd.cuff ? Hd.cuff(P) : Hd.band); ctx.lineWidth = sleeveW + 0.2;
+    ctx.stroke();
+  }
+  ctx.fillStyle = col(Hd.c(P));
+  ctx.beginPath(); ctx.arc(hx, hy, Hd.r, 0, TAU); ctx.fill();
   ctx.strokeStyle = OUT; ctx.lineWidth = 1.2; ctx.stroke();
   ctx.globalAlpha = 1;
 }

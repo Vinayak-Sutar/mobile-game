@@ -4385,6 +4385,101 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.55 The Wardrobe: the Wanderer's outfit, piece by piece (2026-09-22)
+
+The owner asked whether the character's look could change: hat, armour,
+trousers, shoes. What could be swapped, to give a sense of armour-crafting
+and changing your appearance? Design outfits to choose from, with lots of
+options across hats, armour, legs and any accessories that can realistically
+be done.
+
+**What can be swapped.** The Wanderer (`wanderer.js`) was already drawn part
+by part: legs and boots, the scarf, the bedroll, the coat, the belt, the off
+arm, the head, the hat, and the weapon arm with its glove. Each part is now a
+slot, and each piece in a slot is a small drawing in the same style.
+
+- **How pieces turn with the body:** a piece is placed from the same two
+  numbers as the rest of the figure (`V.side`, `V.depth`), so it turns at all
+  eight angles. It shows a face-guard and crest from the front, the banner
+  and shield on the back from behind, and a cape streaming out in profile.
+- **Colours are dyes, not part of the piece:** a piece paints with *cloth*,
+  *second cloth*, *metal*, *leather* or *hair*, and the outfit names the dye
+  for each. One coat can be rust or indigo; one helm iron, bronze or
+  blackened.
+- **The accent** (scarf, hat band, crest, banner, lacing) follows the
+  weapon's colour unless it is dyed.
+
+**`outfits.js`: 92 pieces in 11 slots**
+- **Head (16):** wayfarer's straw, ronin kasa, traveller's hood, ranger's
+  cap with feather, kettle helm, great helm, horned helm, kabuto with golden
+  crest, desert wrap, pointed wizard's hat, tricorn, circlet, bandana, fur
+  cap, plumed sallet, bare head.
+- **Face (8):** none, beard, eyepatch, bandit cloth, kitsune mask, oni mask,
+  menpo, beaked plague mask.
+- **Hair (5):** short, tail, long, topknot, shaved.
+- **Neck (7):** scarf, long scarf, fur mantle, cowl, prayer beads, amulet,
+  nothing.
+- **Body (15):** wayfarer's coat, leather jerkin, chain hauberk, plate
+  cuirass, lamellar dō, brigandine, tabard over mail, monk's robe, mage's
+  robe, ranger's tunic, noble doublet, fur-lined coat, kimono and haori,
+  desert robe, and ashen plate with glowing cracks.
+- **Shoulders (7):** none, leather pads, steel pauldrons, spiked pauldrons,
+  fur pelts, sode, gilded spaulders.
+- **Hands (5):** leather gloves, cloth wraps, gauntlets, bracers, bare.
+- **Legs (7):** trousers, hakama (a flared panel from hip to ankle), desert
+  trousers, leather breeches, mail chausses, plate greaves with knee cops,
+  wrapped leggings.
+- **Feet (8):** leather boots, riding boots (covering the shin), sandals,
+  geta, sabatons, fur boots, tabi and waraji, curled slippers.
+- **Back (9):** bedroll, quiver, round shield, pack (with straps across the
+  chest from the front), short cape, long cloak, sashimono banner, sheathed
+  blade, nothing.
+- **Belt (5):** belt and buckle, obi sash, rope, pouch belt, none.
+
+**Dyes (63):**
+- Cloth ×15, used for each of the two cloths;
+- Metal ×7 (iron, steel, bronze, gold, silver, blackened, verdigris);
+- Leather ×5, hair colour ×7, skin ×5;
+- Accent ×9 (weapon's colour, or a colour of its own).
+
+**18 ready-made outfits:** The Wanderer, Ronin, Samurai, Knight, Crusader,
+Ranger, Northman, Temple monk, Desert nomad, Hedge wizard, Bandit, Corsair,
+Fox pilgrim, Plague physician, Winter hunter, Exiled noble, Oni warlord,
+Ashen Warden.
+
+**How the drawing changed** (`drawWanderer`):
+- The coat's shape takes the body piece's hem and flare, so robes reach the
+  shins.
+- Its shading and pattern are clipped inside it: mail rings, lamellar rows,
+  rivets, stitching, plate lames, a tabard with its cross.
+- The front opening has several styles: lapels, laces, buttons, a
+  cross-over wrap collar, a fur strip.
+- Legs are drawn thigh and shin separately: steel shins, wrapped shins, and
+  tall boots covering the lower leg.
+- The off hand now has a glove too. The weapon arm takes the sleeve and the
+  glove from the outfit (a bracer or gauntlet cuff along the forearm).
+- Draw order: a cape goes behind the legs from the front and over the back
+  from behind. Hair, the scarf and the back piece are drawn behind the body
+  or over it, depending on the facing.
+
+**The Wardrobe** (title screen):
+- A live Wanderer that turns through the eight views (or ◀ ▶ by hand) and
+  can walk in place.
+- Tabs for the outfits, every slot and the dyes, with swatches.
+- "Surprise me" and "The Wanderer's own".
+- The outfit is saved (`save.outfit`) and worn wherever the Wanderer is
+  drawn. The Hooded One of the chambers is unchanged.
+
+**Verified in Node:** every piece, every dye, every ready-made outfit and
+200 random outfits, drawn at all eight facings, walking and still, flashing
+and not, on a mock canvas. No errors and no NaN (2.2 million draw calls).
+Not seen in the browser: the owner judges the looks on the phone.
+
+**Proposed next (not built, for the owner to choose):** earning and
+crafting. See the reply of 2026-09-22: pieces as loot and recipes, materials
+from the regions, a smith at the Ashlamps, dyes found in the world, and
+appearance kept separate from stats (transmog).
+
 ### 16.54 Region music, round 2: piano and friends (2026-09-22)
 
 The owner did not like the instruments of build 26: the flute, the bowed
