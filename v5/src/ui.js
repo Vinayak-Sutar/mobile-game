@@ -147,15 +147,21 @@ export function drawHud(ctx, time) {
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = `700 11px ${FONT}`;
   const loopTag = world.loop > 0 ? `  ·  LOOP ${world.loop + 1}` : '';
+  // The chamber count and its pips belong to a chamber run between fights with
+  // guardians: in any boss fight (a guardian's chamber, a Boss Trial, a lair in
+  // the Wilds, a dungeon's boss), in a dungeon, the Training Ground or the
+  // tutorial they mean nothing - and would sit over the boss's bar.
+  const bossFight = world.trial || world.owBoss || (world.room && world.room.type === 'boss') || !!bossInRoom() || !!miniInFight() || world.enemies.some((e) => e.dBoss && !e.dead);
+  const chambers = !world.overworld && !world.dungeon && !world.training && !world.tutorial && !bossFight;
   const label = world.overworld ? `${(world.zoneName || 'The Wilds').toUpperCase()}  ·  LEVEL ${world.wildsLevel || 1}`
-    : world.trial ? 'BOSS TRIAL' : `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}`;
-  ctx.fillText(label, cx, 26);
+    : chambers ? `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}` : '';
+  if (label) ctx.fillText(label, cx, 26);
 
   // Depth pips: bars for fights, diamonds for guardians.
   const pipW = 10, gap = 4;
   const total = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
   let ppx = cx - total / 2;
-  for (let i = 1; i <= FINAL_DEPTH && !world.trial && !world.overworld; i++) {
+  for (let i = 1; i <= FINAL_DEPTH && chambers; i++) {
     const done = i < world.depth;
     const here = i === world.depth;
     ctx.fillStyle = here ? '#ffd45e' : done ? 'rgba(255,212,94,0.45)' : 'rgba(255,255,255,0.14)';
