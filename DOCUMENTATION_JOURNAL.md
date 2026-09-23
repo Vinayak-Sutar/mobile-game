@@ -4385,6 +4385,74 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.57 The Wanderer's arms: a walk that reads head on (2026-09-23)
+
+The owner: "the hand movements when the character is coming forward, like when
+we are going down, don't feel right."
+
+**What was wrong.** Measured in Node (the hands' travel on screen over one
+stride, with the body's own movement taken out):
+
+| Facing | Before | After |
+|---|---|---|
+| in profile | 3.8 px across, 0 up/down | 5.8 across |
+| on a diagonal | 2.7 across, 0.5 up/down | 5.2 across, 3.3 up/down |
+| straight toward or away from the camera | **0 across, 2.6 up/down** | **3.5 across, 7.6–8.5 up/down** |
+
+Four faults, all worst head on:
+- the arms swung a **third** as far as the legs (0.35 of the foot's stride),
+  and face on that was flattened again by the 3/4 projection - under three
+  pixels, so the hands looked pinned to the hips;
+- each arm was **one straight line**, shoulder to hand, with no elbow;
+- the hands hung at the **same spot on the hip** whichever way the figure
+  faced, and never crossed the body;
+- the arms were always drawn on the **same side** of the body, so nothing ever
+  passed in front of it - there was no depth cue at all.
+
+**What animators do** (Animation Mentor's walk-cycle tutorial, Envato's
+front-view walk, Adobe's walk-cycle guide, SIGGRAPH's walking exercise):
+- the arm swings about as far as the leg, opposite it, along an arc;
+- **follow-through / drag:** the elbow lags the shoulder and the hand lags the
+  elbow, so a hand reaches the end of its swing after the foot does;
+- **foreshortening:** an arm swinging toward the viewer looks shorter, and its
+  hand sits lower on the screen and reads a little bigger;
+- face on, the swing also reads **across** the body: the hand tucks in toward
+  the hip coming forward and hangs out going back;
+- the arm nearer the camera passes **in front** of the body while the other
+  passes behind it.
+
+**How it is built now** (`wanderer.js`, the new arm section):
+- **Swing:** 0.95 of the foot's stride, against the legs - the off arm opposite
+  the far leg, the carrying arm opposite the near one.
+- **Drag:** each hand's swing is smoothed with a 55 ms time constant, about
+  three frames behind the legs, which gives the follow-through for free and
+  costs two numbers on the player.
+- **Two bones and an elbow:** `armIk` places the elbow exactly, bowing away
+  from the body, so the arm bends as the hand comes closer and straightens as
+  it reaches away - the foreshortening reads as a bend, not a shrinking stick.
+  The reach is capped smoothly (the swing eases off at the bottom instead of
+  the elbow locking and the hand stopping dead).
+- **Face on:** the depth of the swing is exaggerated past a true projection
+  (1.3×), because two honest pixels read as nothing at this size, and the hand
+  crosses half way in toward the hip as it comes forward.
+- **Depth order:** the hand swung toward the viewer is drawn over the body,
+  the one swung away behind it - twice a stride, each way. In profile the old
+  rule stands (the off arm behind, the weapon arm in front, swapped when the
+  figure has its back to us).
+- **Size:** a hand nearer the camera is drawn up to 22% bigger.
+- **The weapon arm** gets all of it too, through the same `handAt`: the carry
+  swings, the arm bends, the cuff or bracer follows the forearm, and the
+  weapon's angle tips a little with the swing. Nothing changes once you fight:
+  from `wCombat` 0.5 the rig's hand governs again, so every swing still lines
+  up with its hitbox.
+
+**Verified in Node:** the hand-travel table above, at all eight facings;
+the side-swap happens twice a stride facing toward or away from the camera and
+never in profile; and all 92 wardrobe pieces, 63 dyes and 18 outfits still draw
+at every facing with no errors (2.27M draw calls). Not watched in the browser:
+the owner judges it on the phone - the Wardrobe's preview (Walk, and ◀ ▶ to
+turn) is the quickest way to see it.
+
 ### 16.56 Dungeons: four new ones, each built round its own trick (2026-09-22)
 
 The owner: the dungeon is fun; it needs a little rework. Build different
