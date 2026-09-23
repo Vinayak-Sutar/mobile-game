@@ -4453,6 +4453,34 @@ at every facing with no errors (2.27M draw calls). Not watched in the browser:
 the owner judges it on the phone - the Wardrobe's preview (Walk, and ◀ ▶ to
 turn) is the quickest way to see it.
 
+**Round 2 (the owner: "very bad animation it turned out to be. The elbows are
+bent way too much, and the knight lost his charisma because of the way he
+walked").** Both faults were mine, one cause each:
+- **The elbow.** It was placed by exact two-bone IK. With each bone 6.4 long
+  (12.8 of arm) reaching a hand that hangs only 8 away, the geometry *must* bow
+  the elbow 5.0 px sideways - on a 36 px figure, a noodle. The elbow is now a
+  slight lean off the shoulder-to-hand line, by the arm's slack (0.42 of it) and
+  **never more than 2.1 px**; measured over a stride it sits at 1.2-1.7 px and
+  only reaches the cap facing the camera, where the arm is shortest. It is not
+  true IK, and at this size it should not be.
+- **The swing.** 0.95 of the stride with the depth exaggerated 1.3x on top made
+  the figure walk loosely - a soldier's walk is a small, even swing. Now 0.62 of
+  the stride (0.46 for the hand carrying the weapon), the depth opened only
+  1.15x, the cross-body tuck cut from 0.52 to 0.16, the hand's size cue from 22%
+  to 10%, and the drag shortened to 40 ms.
+
+Measured hand travel per stride (screen pixels, the body's own movement removed):
+
+| Facing | Before any of this | Round 1 (too much) | Now |
+|---|---|---|---|
+| profile | 3.8 | 5.8 | 4.2 |
+| diagonal | 2.7 / 0.5 | 5.2 / 3.3 | 3.2 / 2.2 |
+| head on | 0 / 2.6 | 3.5 / 8.5 | 0.6 / 4.9 |
+
+So the walk is back to about what it was, with the head-on flatness fixed
+rather than papered over: the arms still bend a little, still drag behind the
+legs, and the near arm still passes in front of the body twice a stride.
+
 ### 16.56 Dungeons: four new ones, each built round its own trick (2026-09-22)
 
 The owner: the dungeon is fun; it needs a little rework. Build different
