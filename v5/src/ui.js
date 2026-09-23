@@ -590,16 +590,25 @@ function drawToast(ctx) {
   if (!toast) return;
   const k = toast.life / toast.maxLife;
   const alpha = k > 0.75 ? (1 - k) / 0.25 : Math.min(1, k / 0.35);
+  // A chamber is drawn where it stands, so the middle of the arena IS the
+  // middle of the screen. The Wilds and the dungeons scroll under a camera and
+  // their arena is the whole world - centring on it put every toast tens of
+  // thousands of pixels off the side of the screen, which is why none of them
+  // were ever seen out there. A toast belongs to the HUD: in a scrolling place
+  // it is placed by the view.
   const b = arenaBounds();
+  const scrolls = world.overworld || world.dungeon;
+  const cx = scrolls ? view.w / 2 : b.l + arena.w / 2;
+  const cy = scrolls ? view.h * 0.26 : b.t + arena.h * 0.3;
   ctx.globalAlpha = clamp(alpha, 0, 1);
   ctx.textAlign = 'center';
   ctx.fillStyle = '#ffd9a0';
   ctx.font = `900 34px ${FONT}`;
-  ctx.fillText(toast.text, b.l + arena.w / 2, b.t + arena.h * 0.3);
+  ctx.fillText(toast.text, cx, cy);
   if (toast.sub) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.font = `600 15px ${FONT}`;
-    ctx.fillText(toast.sub, b.l + arena.w / 2, b.t + arena.h * 0.3 + 28);
+    ctx.fillText(toast.sub, cx, cy + 28);
   }
   ctx.globalAlpha = 1;
 }

@@ -16,7 +16,7 @@ import {
   dropSmoulder, restore,
 } from './wilds-progress.js';
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
-import { LAMPS, REGIONS } from './wilds-layout.js';
+import { LAMPS, REGIONS, WILDS, NPCS as NPC_SPOTS } from './wilds-layout.js';
 import { REGION_THEMES, themeForRegion, themeById, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
 import { DESH_THEME } from './music-desh.js';
 import { WESTERN_THEME } from './music-western.js';
@@ -24,7 +24,6 @@ import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
 import { DUNGEON_LIST, dungeonInfo } from './dungeon-levels.js';
 import { npcById, openingLine, lineOf, talkState } from './dialogue.js';
-import { NPCS as NPC_SPOTS } from './wilds-layout.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -454,6 +453,9 @@ function frame(now) {
 
 function tick(dt) {
   updateInput(world.player);
+
+  // A conversation holds the simulation but not the picture (see frameTalk).
+  if (talking && state === 'paused') frameTalk(dt);
 
   if (state === 'playing' && input.pausePressed) {
     input.pausePressed = false;
@@ -2011,19 +2013,45 @@ function showTalk(id, at = null) {
   st[id].met = true;
   if (line.does) doTalkEffect(npc, line.does);
   writeSave();
-  // The small line above stays what it was when the talk opened, rather than
-  // saying 'you speak' three times over.
-  const open = npc.lines[npc.start];
-  const ask = line.ask || (open && open.ask) || 'you speak';
   const choices = line.choices.map((c, i) => `
-        <button class="btn ghost talkchoice" data-act="talk-say" data-idx="${i}">${c.say}</button>`).join('');
+        <button class="talkchoice${c.to === 'leave' ? ' talkend' : ''}" data-act="talk-say" data-idx="${i}"
+          ><span class="talknum">${i + 1}</span><span>${c.say}</span></button>`).join('');
   showOverlay(`
-    <div class="panel talk">
-      <div class="eyebrow">${ask}</div>
-      <h2>${npc.name}<span class="talktitle">, ${npc.title}</span></h2>
+    <div class="talk">
+      <div class="talkwho"><span class="talkname">${npc.name}</span> <span class="talktitle">${npc.title}</span></div>
       <p class="talkline">${line.text}</p>
       <div class="talkchoices">${choices}</div>
     </div>`);
+  talkMode(true);
+}
+
+/**
+ * The overlay, with its dim and its blur off: while someone is speaking the
+ * Wilds stay on screen behind them.
+ */
+function talkMode(on) {
+  document.getElementById('overlay').classList.toggle('talkmode', on);
+}
+
+/**
+ * Nobody talks over the top of themselves: while a conversation is up the
+ * camera eases the two of you out to the left, clear of the panel down the
+ * right-hand side. The simulation is held (`state` is 'paused'), but the
+ * world's clock keeps running, so the lamp still swings and the water still
+ * moves behind the words.
+ */
+function frameTalk(dt) {
+  const p = world.player;
+  const who = NPC_SPOTS.find((n) => n.id === talking.id);
+  if (!p || !who) return;
+  world.runTime += dt;
+  updateUi(dt);      // so a toast raised mid-conversation fades up and away as usual
+  const mx = (p.x + who.x) / 2, my = (p.y + who.y) / 2;
+  const tx = clamp(mx - view.w * 0.32, 0, Math.max(0, WILDS.W - view.w));
+  const ty = clamp(my - view.h * 0.42, 0, Math.max(0, WILDS.H - view.h));
+  const f = 1 - Math.exp(-4 * dt);
+  camera.x += (tx - camera.x) * f;
+  camera.y += (ty - camera.y) * f;
 }
 
 /** What a choice does, when it does anything. */
@@ -2064,6 +2092,7 @@ function talkSay(idx) {
 function endTalk() {
   const who = talking && NPC_SPOTS.find((n) => n.id === talking.id);
   talking = null;
+  talkMode(false);
   const p = world.player;
   if (p && who) {
     const dx = p.x - who.x, dy = p.y - who.y, d = Math.hypot(dx, dy) || 1;
@@ -3144,6 +3173,15 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'm') { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); }
   if (state === 'map' && (k === 'escape' || k === 'tab' || k === 'p')) { closeWildsMap(); return; }
   if (k === 'g' && state === 'playing' && world.overworld) setGhost(!wildsGhost);
+  // In a conversation the number keys pick a line, as they do in the open-world
+  // RPGs this is modelled on; escape walks away.
+  if (talking && state === 'paused') {
+    if (k >= '1' && k <= '9') {
+      const b = document.querySelectorAll('#overlay .talkchoice')[Number(k) - 1];
+      if (b) { b.click(); return; }
+    }
+    if (k === 'escape' || k === 'p') { endTalk(); return; }
+  }
   if (k === 'escape' || k === 'p') {
     if (state === 'playing') showPause();
     else if (state === 'paused') { state = 'playing'; hideOverlay(); resetInput(); }

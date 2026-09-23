@@ -197,16 +197,54 @@
   .spellcard{min-height:150px}
   .spellcard .desc{font-size:11.5px}
   .musiccard{min-height:0;text-align:left}
-  /* Talking to someone: their line, then what you might say back. */
-  .talk{max-width:680px}
-  .talk h2{margin-bottom:6px}
-  .talktitle{font-weight:400;opacity:.6;font-size:.62em;letter-spacing:.04em}
-  .talkline{
-    font-size:16px;line-height:1.55;margin:10px auto 16px;max-width:600px;
-    color:#f0e6d6;border-left:2px solid rgba(255,190,120,0.5);padding:2px 0 2px 14px;text-align:left;
+  /* Talking to someone.
+
+     The world is never covered: the overlay keeps its usual handling of taps,
+     keys and the pad, but drops its dim and its blur, and what it holds sits
+     down the right-hand side with the choices along the foot - the way Avowed,
+     The Outer Worlds and Mass Effect place a conversation. The camera swings
+     the pair of you to the left in the meantime (game.js), so nothing anyone
+     is saying stands on top of who is saying it. The only darkening is a soft
+     corner wash under the text, for reading. */
+  #overlay.talkmode{
+    display:block;padding:0;overflow:visible;pointer-events:none;
+    background:none;backdrop-filter:none;-webkit-backdrop-filter:none;
   }
-  .talkchoices{display:flex;flex-direction:column;gap:8px;align-items:stretch;max-width:600px;margin:0 auto}
-  .talkchoice{text-align:left;font-size:14px;padding:11px 14px;text-transform:none;letter-spacing:.01em}
+  .talk{
+    position:fixed;right:0;bottom:0;pointer-events:auto;text-align:left;
+    width:min(46%,470px);min-width:262px;padding:52px 16px 18px 26px;
+    background:
+      linear-gradient(to top,rgba(7,5,11,.88),rgba(7,5,11,.5) 62%,rgba(7,5,11,0)),
+      linear-gradient(to left,rgba(7,5,11,.7),rgba(7,5,11,0));
+    animation:talkin .2s ease-out;
+  }
+  @keyframes talkin{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .talkwho{font-size:11px;letter-spacing:.2em;text-transform:uppercase;margin-bottom:7px}
+  .talkname{color:#ffb35e;font-weight:800}
+  .talktitle{color:var(--dim);font-weight:400;letter-spacing:.12em}
+  .talkline{
+    font-size:15px;line-height:1.5;margin:0 0 13px;color:#f2e8d8;
+    text-shadow:0 2px 7px rgba(0,0,0,.95);
+  }
+  .talkchoices{display:flex;flex-direction:column;gap:6px}
+  .talkchoice{
+    display:flex;gap:9px;align-items:baseline;width:100%;font:inherit;font-size:13.5px;
+    color:#e7dccb;text-align:left;cursor:pointer;padding:10px 13px;border-radius:9px;
+    background:rgba(14,10,20,.55);border:1px solid rgba(255,255,255,.1);
+    border-left:2px solid rgba(255,180,110,.34);
+    transition:background .14s,color .14s,transform .14s,border-color .14s;
+  }
+  .talkchoice:hover,.talkchoice.padfocus{
+    background:rgba(52,32,18,.82);border-left-color:#ffb35e;color:#fff6e6;transform:translateX(-5px);
+  }
+  .talknum{color:#ffb35e;font-weight:800;font-size:11px;min-width:10px;opacity:.8}
+  .talkend{opacity:.62}
+  .talkend:hover,.talkend.padfocus{opacity:1}
+  @media (max-width:640px){
+    .talk{width:min(58%,420px);padding:40px 12px 14px 20px}
+    .talkline{font-size:13.5px}
+    .talkchoice{font-size:12.5px;padding:9px 11px}
+  }
 
   /* The wardrobe. */
   .wardrobe{max-width:980px}

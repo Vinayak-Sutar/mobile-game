@@ -4385,6 +4385,51 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.64 The conversation moves off the screen it was covering (2026-09-23)
+
+The owner, on the first cut: "Give dialog options like Avowed - it should be in
+the bottom section. The NPC dialog and our choices should be on the right side,
+and at all times the game also should be visible."
+
+Right: it was a full-screen menu with a story in it. Avowed, The Outer Worlds,
+Mass Effect and Cyberpunk all do the same thing instead - the world stays in
+front of you, the speaker's line sits low on the screen, and the replies stack
+under it, numbered, out of the middle. That is what this now is.
+
+- **The overlay keeps its plumbing, and loses its curtain.** The talk still
+  goes through `showOverlay`, so taps, keys and the pad's menu walking all work
+  as they always did; a `talkmode` class turns off the dim, the blur and the
+  centring, and lets clicks through everywhere except the panel itself.
+- **Down the right, along the foot.** The panel is `min(46%, 470px)` wide,
+  pinned bottom-right, over nothing but a soft corner wash (two gradients that
+  fade out upward and leftward) so the words read over moving grass without a
+  box being drawn round them. Speaker's name in ember, their line, then the
+  replies, each with its number.
+- **The camera gets out of the way.** A conversation holds the simulation, so
+  `frameTalk` runs in `tick` OUTSIDE the playing branch and eases the camera
+  until the pair of you sit at 32% across - nobody stands behind their own
+  words. It also keeps `world.runTime` moving, so the lamp still swings and the
+  water still shifts while you read, and calls `updateUi`, so a toast raised
+  mid-conversation fades up and away as usual.
+- **Keys and pad.** 1-9 pick a line, escape or P walks away. The exit line is
+  dimmed (`.talkend`), the way these games mark the way out.
+- **Thumbs.** Rows are 36 px tall with 18 px of clearance under the last one,
+  and the on-screen buttons are already hidden while a menu is up.
+
+**A toast has never been seen in the Wilds.** `drawToast` centred itself on the
+ARENA - right in a chamber, which is drawn where it stands, but the Wilds' arena
+is the whole 47500x29000 world and the screen scrolls under a camera, so every
+toast was drawn tens of thousands of pixels off the side. ASHLAMP KINDLED,
+CLEARED, CHAMPION FELLED, YOUR SMOULDER: none of them ever appeared. A toast
+belongs to the HUD, so where the view scrolls (the Wilds and the dungeons) it is
+now placed by the view, at 26% down. Chambers are unchanged.
+
+**Looked at** in the preview at the pane's size and at a phone's landscape
+shape, walking the whole branch: the greeting, the stair, the map mark (its
+toast now visible, clear of the panel), the gift (Cinders 0 to 150), escape out
+of the middle of a line, and the pause menu afterwards, which is a centred panel
+again.
+
 ### 16.63 Someone to talk to: Rell, and a tree of choices (2026-09-23)
 
 The owner: "Add an NPC interaction where he will talk to us via text on screen
