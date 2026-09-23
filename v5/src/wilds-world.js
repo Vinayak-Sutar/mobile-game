@@ -25,7 +25,7 @@ import { burst } from './fx.js';
 import { createTerrain, TT, TERRAIN_RGB, fbm, vnoise, mulberry } from './terrain.js';
 import { createGrass, grassMovers } from './grass.js';
 import {
-  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS, DUNGEONS,
+  WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS, DUNGEONS, NPCS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
 import { takeSmoulder } from './wilds-progress.js';
@@ -538,6 +538,7 @@ const NO_TREES = new Set([TT.WATER, TT.SHALLOW, TT.CHASM, TT.ICE, TT.PAVE, TT.MA
 function inClearing(x, y) {
   if (Math.hypot(x - START.x, y - START.y) < 700) return true;
   if (DUNGEONS.some((d) => Math.hypot(x - d.x, y - d.y) < 220)) return true;
+  if (NPCS.some((n) => Math.hypot(x - n.x, y - n.y) < 150)) return true;   // room to stand and talk
   if (W && W.places.some((P) => Math.hypot(x - P.x, y - P.y) < P.r + 80)) return true;
   if (W && W.sites.some((s) => s.kind === 'site' && Math.hypot(x - s.x, y - s.y) < s.r + 70)) return true;
   return CLEARINGS.some((c) => Math.hypot(x - c.x, y - c.y) < c.r);
@@ -1118,6 +1119,11 @@ export function updateOverworld(dt) {
   } else if (!L || !inGate(L, p.x, p.y)) {
     W.atGate = null;
   }
+  // Close enough to talk to someone: the game opens the conversation.
+  const who = NPCS.find((n) => Math.hypot(p.x - n.x, p.y - n.y) < 78);
+  if (who && !p.ghost && !p.dead) { if (W.atNpc !== who.id) { W.atNpc = who.id; action = { npc: who }; } }
+  else if (!who) W.atNpc = null;
+
   // At the head of a dungeon's stair: asked whether to go down.
   const dn = DUNGEONS.find((d) => Math.abs(p.x - d.x) < 34 && p.y > d.y - 40 && p.y < d.y + 14);
   if (dn && !p.ghost && !p.dead) { if (W.atDungeon !== dn.id) { W.atDungeon = dn.id; action = { dungeon: dn }; } }

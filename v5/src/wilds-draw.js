@@ -15,7 +15,8 @@ import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
 import { drawLairFront } from './wilds-lairs.js';
-import { DUNGEONS } from './wilds-layout.js';
+import { DUNGEONS, NPCS } from './wilds-layout.js';
+import { npcById } from './dialogue.js';
 import { drawToriiPillar, drawToriiBeams, drawToro, drawSakura, drawPetalBed, drawPetal, drawChochinPost } from './wilds-sakura.js';
 import { relicAt } from './wilds-sites.js';
 
@@ -84,6 +85,7 @@ export function drawOverworldBelow(ctx, time) {
   }
   for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
   for (const d of DUNGEONS) if (inView(d.x, d.y, 160)) drawDungeonStair(ctx, d, time);
+  for (const n of NPCS) if (inView(n.x, n.y, 120)) drawNpc(ctx, n, time);
 
   // The Ashlamps, and your smoulder.
   for (const l of W.lamps) if (inView(l.x, l.y, 120)) drawLamp(ctx, l, time);
@@ -99,6 +101,62 @@ export function drawOverworldBelow(ctx, time) {
       ctx.fillRect(t.x - 7, t.y - 10, 14, 18);
     }
   }
+}
+
+/**
+ * Someone who will talk to you: a figure in a hooded robe, leaning on a staff,
+ * with a lamp that lights the grass round them. A soft ring on the ground says
+ * where the talking starts, and the lamp swings a little as they breathe.
+ */
+function drawNpc(ctx, n, time) {
+  const npc = npcById(n.id);
+  const c = (npc && npc.look) || {};
+  const x = n.x, y = n.y;
+  const sway = Math.sin(time * 1.3 + x * 0.01) * 1.2;
+  // Where the talk begins.
+  ctx.strokeStyle = `rgba(255,190,120,${(0.14 + 0.05 * Math.sin(time * 2)).toFixed(2)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y + 6, 74, 30, 0, 0, TAU); ctx.stroke();
+  // The lamp's own light on the ground.
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x + 16, y - 26, 4, x + 16, y - 26, 96);
+  g.addColorStop(0, 'rgba(255,170,80,0.22)'); g.addColorStop(1, 'rgba(255,150,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x + 16, y - 26, 96, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 3, y + 5, 15, 6, 0, 0, TAU); ctx.fill();
+  const out = (col, w = 1.6) => { ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = '#1b130f'; ctx.lineWidth = w; ctx.stroke(); };
+  // The staff, and the lamp hanging from it.
+  ctx.strokeStyle = '#1b130f'; ctx.lineWidth = 4.6;
+  ctx.beginPath(); ctx.moveTo(x + 13, y + 2); ctx.lineTo(x + 16, y - 44); ctx.stroke();
+  ctx.strokeStyle = c.staff || '#6a4a30'; ctx.lineWidth = 2.6; ctx.stroke();
+  // The robe.
+  ctx.beginPath();
+  ctx.moveTo(x - 9, y - 30);
+  ctx.quadraticCurveTo(x - 13, y - 12, x - 11, y + 2);
+  ctx.lineTo(x + 9 + sway * 0.3, y + 2);
+  ctx.quadraticCurveTo(x + 11, y - 14, x + 8, y - 30);
+  ctx.quadraticCurveTo(x, y - 33, x - 9, y - 30);
+  ctx.closePath();
+  out(c.robe || '#4a5a7a');
+  ctx.fillStyle = c.robeShade || '#333f58';
+  ctx.fillRect(x + 2, y - 30, 7, 32);
+  // The hood, and a face in its shade.
+  ctx.beginPath(); ctx.arc(x, y - 36, 7.4, 0, TAU); out(c.hood || '#3c4a66', 1.5);
+  ctx.fillStyle = c.skin || '#d8ab7e';
+  ctx.beginPath(); ctx.ellipse(x + 1, y - 35, 4.4, 4.8, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(x + 1, y - 38.5, 4.6, 2.6, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#1b130f';
+  ctx.fillRect(x - 0.6, y - 35.4, 1.4, 1.8); ctx.fillRect(x + 2.4, y - 35.4, 1.4, 1.8);
+  // The lamp.
+  const lx = x + 16 + sway, ly = y - 34 + Math.abs(sway) * 0.3;
+  ctx.strokeStyle = '#1b130f'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(x + 16, y - 43); ctx.lineTo(lx, ly - 6); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(lx, ly, 5, 6.4, 0, 0, TAU); out(c.lamp || '#ffb35e', 1.3);
+  ctx.fillStyle = 'rgba(255,240,190,0.9)';
+  ctx.beginPath(); ctx.ellipse(lx, ly, 2.2, 3.4, 0, 0, TAU); ctx.fill();
 }
 
 /** A dungeon's way down: steps into the dark between low ruined walls, a blue sigil over them. */

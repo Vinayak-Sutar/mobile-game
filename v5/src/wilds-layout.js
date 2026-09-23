@@ -389,6 +389,13 @@ export const PLACES = RAW_PLACES.map(at);
 export const LAIRS = RAW_LAIRS.map(at);
 // Dungeons: ways down into places to clear, one in each of five lands.
 // `id` is the dungeon (dungeon-levels.js); the stair is its way down.
+// People who will talk to you. What they say is in dialogue.js; this is only
+// where they stand. Rell keeps the lamps on the Heartland road, a short walk
+// from where you wake.
+export const NPCS = [
+  { id: 'rell', x: 18150 + OFFSET.x, y: 12880 + OFFSET.y },
+];
+
 export const DUNGEONS = [
   { id: 'catacomb', name: 'The Sunken Catacomb', x: 18700 + OFFSET.x, y: 12900 + OFFSET.y },
   { id: 'cistern', name: 'The Drowned Cistern', x: 7650 + OFFSET.x, y: 16850 + OFFSET.y },

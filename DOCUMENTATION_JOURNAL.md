@@ -4385,6 +4385,50 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.63 Someone to talk to: Rell, and a tree of choices (2026-09-23)
+
+The owner: "Add an NPC interaction where he will talk to us via text on screen
+and give us choices: dialogue options. I want to see how it will turn out."
+
+A trial of the idea, built so that the second person costs almost nothing.
+
+- **The words are data** (`v5/src/dialogue.js`). A person is a name, a title, a
+  look and a tree of lines; a line is `{ text, ask, choices }`, and a choice is
+  `{ say, to, does, once, needs }`:
+  - `to` the line it leads to (`'leave'` ends the talk);
+  - `does` a WORD the game acts on - the tree does not know what a Cinder is;
+  - `once` the choice is spent after it is taken;
+  - `needs` it only shows once that flag is set.
+  `text` may be an array, and a greeting then picks one at random.
+- **The panel is the game's own** (`showOverlay`), so a thumb, a mouse and a pad
+  all work on it already, with no new button. `.talkline` is their line behind a
+  lamp-coloured rule; the choices are ghost buttons stacked down the panel. The
+  small line above (`a lamplighter on the road`) stays put for the whole talk
+  rather than changing under the reader.
+- **Where he stands** is in `wilds-layout.js` with everything else that is
+  placed (`NPCS`), not in the tree. `wilds-world.js` keeps 150 units of ground
+  round him clear and opens the talk within 78; `wilds-draw.js` draws him in the
+  below-pass: hooded robe, a staff with a swinging lamp that lights the grass,
+  and a soft ring on the ground saying where the talking starts.
+- **What is remembered** lives in the save (`save.talks`): `met`, so he greets a
+  stranger and a returning traveller differently, and `taken`, so a gift is
+  given once. Setting out on a NEW journey clears it - nobody out there has met
+  you yet.
+- **Rell, the Lamplighter** is the one person so far: who he is, why the lamps
+  are lit (a lamp is a promise), the stair east of the Hearth - which marks the
+  Sunken Catacomb on the map - and 150 Cinders for the road, once.
+
+**Two things the trial caught.** The gift paid nothing: the choice's `once` flag
+and the effect's own "already given" flag were both called `gift`, and the flag
+was set on the way IN to the line that pays, so the payment always saw itself as
+already made. Effects now keep their own names (`gaveCinders`). And the eyebrow
+said "you speak" on every line after the first, which read like filler.
+
+**Walked in the browser** from a new journey: the greeting, the branch to the
+stair, the map mark, the gift (Cinders 0 to 150), leaving - which steps you 96
+units back so that standing there does not start it again - and walking back in,
+which gives the returning greeting with the gift gone.
+
 ### 16.62 Both arms the same length (2026-09-23)
 
 The owner, on the free hand coming toward the camera: "it is not the correct

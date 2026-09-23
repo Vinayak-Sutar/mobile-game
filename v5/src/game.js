@@ -23,6 +23,8 @@ import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
 import { DUNGEON_LIST, dungeonInfo } from './dungeon-levels.js';
+import { npcById, openingLine, lineOf, talkState } from './dialogue.js';
+import { NPCS as NPC_SPOTS } from './wilds-layout.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -518,6 +520,7 @@ function tick(dt) {
         if (wildsSaveT <= 0) { wildsSaveT = 30; saveWilds(); }
         if (act && act.lair) showLairGate(act.lair);
         if (act && act.dungeon) showDungeonGate(act.dungeon);
+        if (act && act.npc) showTalk(act.npc.id);
       }
       if (world.owBoss && world.room && world.room.cleared) {
         owBossT += dt;
@@ -1719,7 +1722,11 @@ function startWilds(cont) {
   resetInput();
   world.biome = getBiome(save.biome);
   const saved = cont ? loadJourney() : null;
-  if (!saved) { clearJourney(); resetJourney(); }
+  if (!saved) {
+    clearJourney(); resetJourney();
+    save.talks = {};            // a new journey: nobody out there has met you yet
+    writeSave();
+  }
   else {
     journey.levels = { ...journey.levels, ...saved.levels };
     journey.smoulder = saved.smoulder || null;
@@ -1978,6 +1985,93 @@ function showLairGate(L) {
         <button class="btn ghost" data-act="w-away">Not yet</button>
       </div>
     </div>`);
+}
+
+// --- talking to someone ------------------------------------------------------------------------
+//
+// A conversation is one line of theirs and a few things you might say back
+// (dialogue.js). The panel is the game's own, so a thumb, a mouse and a pad all
+// work on it already. What a choice DOES is a word the tree hands over and this
+// list acts on - nothing in the tree knows what a Cinder is.
+
+let talking = null;            // { id, at } while a conversation is open
+
+function showTalk(id, at = null) {
+  const npc = npcById(id);
+  if (!npc) return;
+  const st = talkState(save);
+  const where = at || openingLine(npc, st);
+  if (where === 'leave') { endTalk(); return; }
+  const line = lineOf(npc, where, st);
+  if (!line) { endTalk(); return; }
+  state = 'paused';              // the game's own state: the Wilds hold still
+  talking = { id, at: where };
+  // Met, and remembered.
+  st[id] = st[id] || { met: false, taken: {} };
+  st[id].met = true;
+  if (line.does) doTalkEffect(npc, line.does);
+  writeSave();
+  // The small line above stays what it was when the talk opened, rather than
+  // saying 'you speak' three times over.
+  const open = npc.lines[npc.start];
+  const ask = line.ask || (open && open.ask) || 'you speak';
+  const choices = line.choices.map((c, i) => `
+        <button class="btn ghost talkchoice" data-act="talk-say" data-idx="${i}">${c.say}</button>`).join('');
+  showOverlay(`
+    <div class="panel talk">
+      <div class="eyebrow">${ask}</div>
+      <h2>${npc.name}<span class="talktitle">, ${npc.title}</span></h2>
+      <p class="talkline">${line.text}</p>
+      <div class="talkchoices">${choices}</div>
+    </div>`);
+}
+
+/** What a choice does, when it does anything. */
+function doTalkEffect(npc, what) {
+  const st = talkState(save);
+  const me = st[npc.id] = st[npc.id] || { met: true, taken: {} };
+  if (what === 'gift') {
+    // (Its own flag: the CHOICE's `once` is also called 'gift', and it is set
+    // before the line it leads to is shown - sharing the name paid nothing.)
+    if (me.taken.gaveCinders) return;
+    me.taken.gaveCinders = true;
+    world.gold += 150;
+    showToast('RELL GIVES YOU CINDERS', '150 Cinders for the road', 3);
+    sfx.coin();
+  } else if (what === 'markDungeon') {
+    me.taken.markDungeon = true;
+    showToast('THE SUNKEN CATACOMB', 'East of the Hearth - it is on your map', 3.4);
+    sfx.ui();
+  }
+  writeSave();
+}
+
+/** A choice taken: do what it does, then say the next line (or stop). */
+function talkSay(idx) {
+  if (!talking) return;
+  const npc = npcById(talking.id);
+  const st = talkState(save);
+  const line = lineOf(npc, talking.at, st);
+  const choice = line && line.choices[idx];
+  if (!choice) { endTalk(); return; }
+  if (choice.does) doTalkEffect(npc, choice.does);
+  if (choice.once) { const me = st[npc.id]; me.taken[choice.once] = true; writeSave(); }
+  if (choice.to === 'leave') { endTalk(); return; }
+  showTalk(talking.id, choice.to);
+}
+
+/** Done talking: a step back, so that standing there does not start it again. */
+function endTalk() {
+  const who = talking && NPC_SPOTS.find((n) => n.id === talking.id);
+  talking = null;
+  const p = world.player;
+  if (p && who) {
+    const dx = p.x - who.x, dy = p.y - who.y, d = Math.hypot(dx, dy) || 1;
+    p.x = who.x + (dx / d) * 96;
+    p.y = who.y + (dy / d) * 96;
+    p.vx = p.vy = 0;
+  }
+  wildsResume();
 }
 
 // --- dungeons ---------------------------------------------------------------------------------
@@ -2749,6 +2843,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'wilds': showWildsIntro(); break;
     case 'dungeon-demo': showDungeonList(); break;
     case 'd-pick': phoneFullscreen(); startDungeonDemo(DUNGEON_LIST[idx]); break;
+    case 'talk-say': talkSay(idx); break;
     case 'music-room': showMusicRoom(); break;
     case 'wardrobe': showWardrobe(charBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
