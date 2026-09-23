@@ -11,7 +11,7 @@ import { nearestEnemy, dealDamage, enemiesInRadius } from './combat.js';
 import { burst, ring, trail, shake, slash, damageText } from './fx.js';
 import { sfx } from './audio.js';
 import { createPlayerAnimator, updatePlayerAnim, drawPlayerRig, playerHandTransform, playerWorld } from './rigs.js';
-import { look, liftWorld, drawWanderer, drawWandererArm, prepareWanderer, wandererHold, WANDERER_LIFT } from './wanderer.js';
+import { look, liftWorld, drawWanderer, drawWandererArm, prepareWanderer, wandererHold, swingPhase, WANDERER_LIFT } from './wanderer.js';
 import { updateSpells } from './spells.js';
 import { updateGrenade, GRENADE } from './grenade.js';
 
@@ -660,9 +660,10 @@ export function drawPlayer(p, ctx) {
     const lifted = liftWorld(playerWorld(p, -lift));
     prepareWanderer(p);
     const hold = wandererHold(p, lifted, -lift);
-    if (hold.behind && !p.dead) { drawWandererArm(p, ctx, hold, -lift, true); drawWeaponAt(p, ctx, hold); }
-    drawWanderer(p, ctx, lifted, -lift);
-    if (!hold.behind && !p.dead) { drawWandererArm(p, ctx, hold, -lift, false); drawWeaponAt(p, ctx, hold); }
+    trailWeapon(p, hold);
+    if (hold.behind && !p.dead) { drawSwingTrail(p, ctx); drawWandererArm(p, ctx, hold, -lift, true); drawWeaponAt(p, ctx, hold); }
+    drawWanderer(p, ctx, lifted, -lift, hold);
+    if (!hold.behind && !p.dead) { drawSwingTrail(p, ctx); drawWandererArm(p, ctx, hold, -lift, false); drawWeaponAt(p, ctx, hold); }
   } else {
     const world = drawPlayerRig(p, ctx, { bob: bob - lift });
     if (!p.dead) drawWeapon(p, ctx, world, bob - lift);
@@ -782,13 +783,61 @@ function drawWeapon(p, ctx, world, bob) {
 }
 
 /** Draws the weapon from a hand: its grip at (x, y), pointing along `angle`. */
-function drawWeaponAt(p, ctx, { x: hx, y: hy, angle }) {
+// How long each weapon is drawn, from the hand: for the swing's trail.
+const WEAPON_REACH = { blade: 40, spear: 54, maul: 46, longarm: 38, gun: 36, shield: 24, bow: 21 };
+
+/**
+ * The swing's trail. A blade moving this fast is a smear, not a shape: the last
+ * few frames of its edge are kept and drawn as a ribbon behind it, brightest at
+ * the blow. It is what makes a swing read as a swing rather than as a stick
+ * changing angle (the owner, 2026-09-23).
+ */
+function trailWeapon(p, hold) {
+  const melee = ['blade', 'spear', 'maul', 'shield'].includes(p.weapon.id);
+  const SW = swingPhase(p);
+  if (!melee || !p.attack || SW.k < 0.15 || p.dead) {
+    if (p.wTrail && p.wTrail.length) p.wTrail.length = 0;
+    return;
+  }
+  const len = (WEAPON_REACH[p.weapon.id] || 36) * (hold.scale ?? 1);
+  const c = Math.cos(hold.angle), s = Math.sin(hold.angle);
+  p.wTrail = p.wTrail || [];
+  p.wTrail.push({ x: hold.x + c * len * 0.35, y: hold.y + s * len * 0.35, tx: hold.x + c * len, ty: hold.y + s * len });
+  if (p.wTrail.length > 7) p.wTrail.shift();
+}
+
+function drawSwingTrail(p, ctx) {
+  const tr = p.wTrail;
+  if (!tr || tr.length < 3) return;
+  ctx.save();
+  for (let i = 1; i < tr.length; i++) {
+    const a = tr[i - 1], b = tr[i];
+    const k = i / tr.length;                       // the freshest part is the brightest
+    ctx.globalAlpha = 0.1 + 0.34 * k;
+    ctx.fillStyle = p.weapon.color;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(a.tx, a.ty); ctx.lineTo(b.tx, b.ty); ctx.lineTo(b.x, b.y);
+    ctx.closePath(); ctx.fill();
+  }
+  // The leading edge, white-hot at the moment of the blow.
+  const e = tr[tr.length - 1];
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.tx, e.ty); ctx.stroke();
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+function drawWeaponAt(p, ctx, { x: hx, y: hy, angle, scale = 1 }) {
   const w = p.weapon;
   const extend = p.attack ? 6 : 0;
 
   ctx.save();
   ctx.translate(hx, hy);
   ctx.rotate(angle);
+  // Pointing toward or away from the camera, a weapon shows less of its length
+  // (the 3/4 view): it is drawn shorter, not turned.
+  ctx.scale(scale, 1);
   ctx.fillStyle = w.color;
   ctx.strokeStyle = w.color;
 

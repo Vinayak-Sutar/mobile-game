@@ -157,16 +157,61 @@ const CARRY = {
   shield: { x: 7, y: -19, a: 1.2, front: 1.4 },      // on the forearm at the side
 };
 
-/** The rig's weapon hand, where every swing has always been drawn from. */
-function rigHand(p, lifted) {
+// --- swinging it ---------------------------------------------------------------
+// The swing used to be drawn flat: the rig sweeps the hand round the body in the
+// GROUND plane (that is where the hitbox is), and the Wanderer drew that sweep
+// straight onto the screen. So a blade cut a perfect circle round the figure and
+// held its full length whichever way it pointed - a stick waved about, which is
+// what the owner heard in it ("like a blind man walking with his walking stick").
+//
+// A blade swung round a body in a 3/4 view traces an ELLIPSE, not a circle, and
+// looks SHORTER the more it points toward or away from the camera. Both fall out
+// of projecting the ground plane, the same rule the arms now use: keep x, halve
+// y. So the hand's sweep is squashed, and the weapon is drawn with its length
+// scaled by how much of it faces across the screen - full when it cuts
+// sideways, short when it points at the camera.
+//
+// Two hands: a blade, a maul, a spear and a rifle are two-handed. While the
+// figure fights, the off hand goes to the weapon (a grip down the haft) instead
+// of hanging at the hip - which is also what the owner saw as "sometimes two
+// hands appear" when attacking.
+const VERT_W = 0.55;          // the 3/4 squash, for a weapon swung round the body
+// How far down the weapon's own line the second hand grips (0: one-handed).
+const GRIP = { blade: -9, maul: -13, spear: -15, longarm: 9, bow: -6, gun: 0, shield: 0 };
+
+/** The weapon's drawn angle and length, once the ground plane is projected. */
+function project(angle) {
+  const cx = Math.cos(angle), cy = Math.sin(angle) * VERT_W;
+  return { angle: Math.atan2(cy, cx), scale: Math.hypot(cx, cy) };
+}
+
+/** The rig's weapon hand, where every swing has always been drawn from - projected. */
+function rigHand(p, lifted, bob) {
   const hand = boneAt(lifted, PLAYER_SKELETON, 'armR');
   if (!hand) return null;
   const reach = (p.anim.pose.armR && p.anim.pose.armR.sx) || 1;
+  // Where the hand is on the ground, out from the figure's feet...
+  const gx = hand.x + Math.cos(hand.angle) * reach * 11 - p.x;
+  const gy = hand.y + Math.sin(hand.angle) * reach * 11 + WANDERER_LIFT - p.y;
+  const pr = project(hand.angle);
+  // ...and where that lands on the screen, at chest height.
   return {
-    x: hand.x + Math.cos(hand.angle) * reach * 11,
-    y: hand.y + Math.sin(hand.angle) * reach * 11,
-    angle: hand.angle,
+    x: p.x + gx,
+    y: p.y + 12 + bob + (p.wBodyY || 0) + SHOULDER_Y + HAND_DROP + gy * VERT_W,
+    angle: pr.angle,
+    scale: pr.scale,
   };
+}
+
+/** How far into a swing the figure is: 0 at rest, 1 at the moment of the blow. */
+export function swingPhase(p) {
+  const at = p.attack;
+  if (!at) return { k: 0, wind: 0, hit: 0 };
+  const total = Math.max(0.001, (at.step[at.phase] || 0.001) / p.stats.attackSpeed);
+  const u = clamp(1 - at.t / total, 0, 1);            // 0 -> 1 through this phase
+  if (at.phase === 'windup') return { k: u * 0.5, wind: 1 - u * 0.4, hit: 0 };
+  if (at.phase === 'active') return { k: 0.5 + u * 0.5, wind: 0, hit: 1 - u * 0.5 };
+  return { k: Math.max(0, 1 - u), wind: 0, hit: Math.max(0, 0.5 - u) };
 }
 
 /**
@@ -175,10 +220,10 @@ function rigHand(p, lifted) {
  * raised it IS the rig's hand, so every swing still lines up with its hitbox.
  */
 export function wandererHold(p, lifted, bob) {
-  const rig = rigHand(p, lifted);
+  const rig = rigHand(p, lifted, bob);
   const behind = wandererFacingAway(p);
   const k = p.wCombat || 0;
-  if (rig && k >= 0.999) return { ...rig, behind };
+  if (rig && k >= 0.999) return { ...rig, behind, near: 0, two: GRIP[p.weapon.id] || 0 };
 
   const s = p.wS || 1;
   const V = viewOf(p);
@@ -194,18 +239,21 @@ export function wandererHold(p, lifted, bob) {
   const angle = s > 0 ? a : Math.PI - a;
   // What is nearer the camera is drawn in front: one rule for every view.
   const swung = A.near < 0;
-  if (!rig || k <= 0.001) return { x, y, angle, behind: swung, near: A.near, arm: A };
+  const pr = project(angle);
+  if (!rig || k <= 0.001) return { x, y, angle: pr.angle, scale: pr.scale, behind: swung, near: A.near, arm: A, two: 0 };
 
   const e = k * k * (3 - 2 * k);
   return {
     x: lerp(x, rig.x, e),
     y: lerp(y, rig.y, e),
-    angle: angle + angleDiff(angle, rig.angle) * e,   // the short way round
+    angle: pr.angle + angleDiff(pr.angle, rig.angle) * e,   // the short way round
+    scale: lerp(pr.scale, rig.scale, e),
     // Fighting, the rig's hand governs, and with it the old rule: the weapon
     // goes behind the body when the figure has its back to us.
     behind: e < 0.5 ? swung : behind,
     near: A.near * (1 - e),
     arm: A,
+    two: (GRIP[p.weapon.id] || 0) * e,
   };
 }
 
@@ -297,6 +345,22 @@ function armElbow(sx, sy, hx, hy, bx, by) {
   const d = Math.hypot(hx - sx, hy - sy) || 0.01;
   const bend = Math.min(ARM_BEND, Math.max(0, (ARM - d) * 0.42));
   return { ex: sx + (hx - sx) * 0.52 + bx * bend, ey: sy + (hy - sy) * 0.52 + by * bend, hx, hy };
+}
+
+/**
+ * The off hand, taken to the weapon: down its own line from the main hand, but
+ * never further than the arm can reach from its shoulder. `toLocal` undoes the
+ * body's own transform (the mirror included, exactly once), because the weapon
+ * is placed in world space and the arm is drawn in the body's frame.
+ */
+function gripHand(hold, OA, toLocal) {
+  const sc = hold.scale ?? 1;
+  const g = toLocal(hold.x + Math.cos(hold.angle) * hold.two * sc, hold.y + Math.sin(hold.angle) * hold.two * sc);
+  const dx = g.x - OA.sx, dy = g.y - OA.sy, d = Math.hypot(dx, dy) || 1;
+  const max = ARM + 2.5;
+  if (d > max) { g.x = OA.sx + (dx / d) * max; g.y = OA.sy + (dy / d) * max; }
+  // On the weapon, so on the weapon's side of the body.
+  return { x: g.x, y: g.y, near: hold.behind ? -2 : 2 };
 }
 
 /** Where one hand is: the shoulder it hangs from, the hand, and how near the camera. */
@@ -417,7 +481,7 @@ function gait(p, s, dt) {
   return { near, far, bodyY, lean, shift };
 }
 
-export function drawWanderer(p, ctx, world, bob) {
+export function drawWanderer(p, ctx, world, bob, hold = null) {
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   const alpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   const col = (c) => (flashing ? '#ffffff' : c);
@@ -468,20 +532,22 @@ export function drawWanderer(p, ctx, world, bob) {
   // the way the figure faces on a diagonal, near the front edge in profile.
   const openX = square ? 0 : profile ? 1 : 2.6;
   const cloakA = p.anim.pose.cloakA || {};
+  const SW = swingPhase(p);           // how far into a swing: the cape and the body feel it
   const hx = (profile ? 0.5 : diagonal ? 1.2 : 0), hy = -36;
   // Everything a piece of the outfit needs to draw itself.
   const h = {
     ctx, V, s, back, profile, square, diagonal, flashing, col, fill: fillOut, accent, P, t, wave, moving, openX,
     hx, hy, faceX: square ? hx : profile ? hx + 2.8 : hx + 1.4,
-    scarfLen: (12 * (cloakA.sx ?? 1) + (moving ? 4 : 0)) * lerp(0.55, 1, V.side),
+    scarfLen: (12 * (cloakA.sx ?? 1) + (moving ? 4 : 0) + SW.k * 7) * lerp(0.55, 1, V.side),
+    swing: SW.k,
   };
   const capeLen = O.back.cape || 0;
   const drawCape = (over) => {
     // Seen from the front a cape shows as a panel behind the body; turned
     // sideways it streams out behind, the more so walking.
     const sd = V.side, L = capeLen;
-    const trail = (moving ? 5 : 2) * sd + wave * sd * 0.8;
-    const bottom = -30 + L - sd * (moving ? L * 0.18 : L * 0.06);
+    const trail = (moving ? 5 : 2) * sd + wave * sd * 0.8 + SW.k * 7 * sd;
+    const bottom = -30 + L - sd * (moving ? L * 0.18 : L * 0.06) - SW.k * L * 0.12;
     ctx.beginPath();
     ctx.moveTo(lerp(-7.4, -3.4, sd), -30.5);
     ctx.lineTo(lerp(7.4, 2.4, sd), -30.5);
@@ -573,7 +639,22 @@ export function drawWanderer(p, ctx, world, bob) {
   // Everything above the hips rides the body's rise and fall, the weight
   // shift, and a slight lean into the walk (only visible in profile).
   ctx.translate(jolt + shift * 0.6, G.bodyY);
-  ctx.rotate(G.lean * V.side);
+  // The swing's weight: the shoulders coil away in the wind-up and turn through
+  // the blow, and the figure leans into it. Only the upper body - the feet stay
+  // where the walk put them.
+  const turn = p.dead ? 0 : (SW.wind * 0.1 - SW.k * 0.2) * (p.wCombat || 0);
+  const rot = G.lean * V.side + turn;
+  ctx.rotate(rot);
+  const lunge = { x: SW.k * 1.6 * V.side, y: SW.k * 0.8 };
+  if (SW.k) ctx.translate(lunge.x, lunge.y);
+  // A world point in the body's own frame: the mirror undone once, then the
+  // translations and the turn, in the order the canvas was given them.
+  const toLocal = (wx, wy) => {
+    const vx = (wx - p.x) * s - (jolt + shift * 0.6);
+    const vy = wy - (p.y + 12 + bob) - G.bodyY;
+    const ca = Math.cos(-rot), sa = Math.sin(-rot);
+    return { x: vx * ca - vy * sa - lunge.x, y: vx * sa + vy * ca - lunge.y };
+  };
 
   const hatHides = O.hat.hair === 'hide';
   // Facing the camera: the scarf streaming behind, long hair and what is
@@ -591,9 +672,12 @@ export function drawWanderer(p, ctx, world, bob) {
   const coatC = B.c(P);
   const sleeve = B.sleeve ? B.sleeve(P) : [coatC[0], coatC[1]];
   const sleeveW = B.sleeveW || 4;
-  // The off hand: on the figure's left, swung against the far leg.
+  // The off hand: on the figure's left, swung against the far leg - unless the
+  // weapon is two-handed and it has gone to the haft.
   const uOff = p.dead ? 0 : (p.wArm ? p.wArm.off : 0);
   const OA = armAt(p, s, -HAND_SIDE, uOff);
+  const grip = hold && hold.two ? gripHand(hold, OA, toLocal) : null;
+  if (grip) { OA.hx = grip.x; OA.hy = grip.y; OA.near = grip.near; }
   const bk = backDir(p);
   const drawOffArm = () => {
     // Shoulder, elbow, hand: the elbow leans behind the figure, so the arm
@@ -607,7 +691,11 @@ export function drawWanderer(p, ctx, world, bob) {
     // A hand nearer the viewer is drawn a little bigger.
     ctx.beginPath(); ctx.arc(A.hx, A.hy, O.hands.r * (0.85 + 0.016 * OA.near), 0, TAU); fillOut(col(O.hands.c(P)), 1);
   };
-  const offInFront = OA.near >= 0;
+  // A hanging arm stays behind the body unless it is clearly the near one: face
+  // on, an arm drawn over the chest reads as a stick laid across it (the owner:
+  // the other hand "is not looking that good" coming toward us). A hand on the
+  // weapon is always in front.
+  const offInFront = grip ? grip.near > -1 : OA.near >= (V.side > 0.6 ? 0 : 1.6);
   if (!offInFront) drawOffArm();
 
   // --- the body: a coat, armour, a robe -----------------------------------------

@@ -4385,6 +4385,65 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.58 Swinging it like a knight (2026-09-23)
+
+The owner, on the animation: the off hand looks bad coming toward the camera;
+with a sword or a heavy weapon, facing left, "sometimes two hands appear"; and
+"the sword swinging feels like a blind man is walking with his walking stick" -
+it should feel like a knight. (Also: the Ashen set with its cape is the look
+they want to live up to.)
+
+**Why the swing was a stick.** The rig sweeps the weapon hand round the body in
+the GROUND plane, because that is where the hitbox is, and the Wanderer drew
+that sweep straight onto the screen. So the blade cut a perfect CIRCLE round the
+figure and kept its full length whichever way it pointed. In a 3/4 view a blade
+swung round a body traces an ELLIPSE and looks shorter the more it points toward
+or away from the camera. Both fall out of the projection the arms now use (keep
+x, halve y):
+- the hand's sweep is squashed, so a swing arcs round the body in perspective;
+- the weapon is drawn with its length scaled by how much of it faces across the
+  screen: 97% cutting sideways, **60%** pointed at the camera. It is drawn
+  shorter, not turned, so it still lines up with the hitbox.
+
+**A swing now smears.** The last seven frames of the blade's edge are kept and
+drawn as a ribbon behind it, brightest at the blow, with a white leading edge
+(`trailWeapon` / `drawSwingTrail` in player.js). Melee only - a gun keeps none.
+A blade moving this fast is a smear, not a shape, and this is most of what makes
+a swing read as a swing.
+
+**Two hands on a two-handed weapon.** The off hand used to hang at the hip while
+the weapon hand swung - which is what "sometimes two hands appear" was. While
+the figure fights, it now goes to the weapon, gripping down its own line
+(`GRIP`: blade -9, maul -13, spear -15, rifle +9, bow -6), never further than
+the arm can reach, and it sits on the same side of the body as the weapon.
+Measured mid-swing, the hands are 6-14 px apart (the haft) at every facing,
+including facing left where the fault showed.
+
+**The body's weight.** The shoulders coil away through the wind-up and turn
+through the blow (a tenth of a radian back, a fifth through), and the figure
+leans into it - the upper body only, so the feet stay where the walk put them.
+The cape and the scarf feel it too: both stream further and the cape lifts as
+the swing goes through, which is what the Ashen set was asking for.
+
+**The hanging hand, head on.** A hanging arm is now kept BEHIND the body unless
+it is clearly the near one (`near >= 1.6` face on, unchanged in profile): drawn
+in front, an arm reads as a stick laid across the chest, which is what the owner
+saw coming toward the camera. A hand on the weapon is always in front.
+
+**One correctness note.** The grip needed a world point in the body's own
+(mirrored) frame, which is exactly the trap of §16.57. So it is done by
+`toLocal`, an exact inverse of what the canvas was told - the mirror undone
+once, then the translations and the turn, in order - rather than by guessing
+signs. The first attempt at it did guess, and had the y component inverted when
+facing left; the harness caught it before it shipped.
+
+**Verified in Node** (`swingtest.mjs`): for blade, maul, spear and gun, at four
+facings, mid-swing - the second hand is on the haft for two-handed weapons and
+apart for one-handed ones; the off arm is never stretched past its reach; the
+weapon foreshortens to 60% toward the camera; the trail runs seven frames for
+melee and none for a gun; no NaN. The arm-side and elbow checks of §16.57 still
+pass at all eight facings, and all 92 wardrobe pieces still draw.
+
 ### 16.57 The Wanderer's arms: a walk that reads head on (2026-09-23)
 
 The owner: "the hand movements when the character is coming forward, like when
