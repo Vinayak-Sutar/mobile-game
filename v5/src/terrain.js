@@ -273,6 +273,9 @@ export function createTerrain(opts) {
 
   // --- painting one pixel -------------------------------------------------------------
   const out = [0, 0, 0];
+  // Set while painting a cliff face, a stair or a rim: those are drawn standing
+  // UP, and the hillshade is for ground lying flat, so it is kept off them.
+  let wasWall = false;
   // The slow fields (border push, patches, relief, cracks) are worked out on
   // a coarse lattice per chunk and blended between (see startJob); only the
   // grain and the speckle are per pixel. Five times cheaper, same picture.
@@ -282,9 +285,10 @@ export function createTerrain(opts) {
     // Raised ground (see paintRaised): cliff faces, stairs and rims are
     // painted whole; the land below a face lies in its shadow.
     let lift = 1;
+    wasWall = false;
     if (J.raised) {
       const rv = paintRaised(wx, wy, n, h, J);
-      if (rv === true) return out;
+      if (rv === true) { wasWall = true; return out; }
       lift = rv;
     }
     // Ragged borders: look the type up a little way off, pushed by noise.
@@ -494,7 +498,7 @@ export function createTerrain(opts) {
       // Vertical cracks.
       if (Math.abs(vnoise(wx * 0.06 + 11, 3.3) - 0.5) < 0.018) { r *= 0.62; g *= 0.62; b *= 0.62; }
       if (dy < lip + 2) { r *= 0.55; g *= 0.55; b *= 0.55; }             // under the overhang
-      const k = (1.08 - v * 0.5) * (dy > f.h - 3 ? 0.6 : 1);              // darker to the foot
+      const k = (1.16 - v * 0.72) * (dy > f.h - 3 ? 0.55 : 1);             // darker all the way to the foot
       out[0] = r * k; out[1] = g * k; out[2] = b * k;
       return true;
     }
@@ -517,12 +521,15 @@ export function createTerrain(opts) {
       lift *= 1 + (lit - 1) * Math.sin(Math.PI * Math.min(1, k * 1.2));
       if (k > 0.2 && k < 0.3 && h < 0.5) lift *= 0.9;                        // the break of the slope
     }
-    // The cliff's shadow on the ground below it, and east of a plateau.
+    // The cliff's shadow on the ground below it, and east of a plateau. It
+    // reaches as far as the wall is tall, which is what tells you how tall the
+    // wall is when you are standing at the bottom of it and cannot see the top.
     for (const f of J.faces) {
+      const reach = Math.max(36, f.h * 0.62);
       const below = wy - (f.y + f.h);
-      if (below >= 0 && below < 36 && wx > f.x - 6 && wx < f.x + f.w + 16) {
-        const k = 1 - below / 36;
-        lift *= 1 - 0.42 * k * k;
+      if (below >= 0 && below < reach && wx > f.x - 6 && wx < f.x + f.w + 16) {
+        const k = 1 - below / reach;
+        lift *= 1 - 0.55 * k * k;
       }
     }
     for (const r2 of J.rims) {
@@ -620,7 +627,7 @@ export function createTerrain(opts) {
           R[o] + (R[o + NF] - R[o]) * u, R[o + 1] + (R[o + 1 + NF] - R[o + 1]) * u,
           R[o + 2] + (R[o + 2 + NF] - R[o + 2]) * u, R[o + 3] + (R[o + 3 + NF] - R[o + 3]) * u,
           R[o + 4] + (R[o + 4 + NF] - R[o + 4]) * u, job.J);
-        if (L) {
+        if (L && !wasWall) {
           // Hillshade, cast shadow and the thinning air, over whatever the
           // ground turned out to be - grass, ash, a cliff face or a stair.
           const gx2 = x / G2, i2 = gx2 | 0, u2 = gx2 - i2, q = i2 * NL;
@@ -631,7 +638,7 @@ export function createTerrain(opts) {
           // Steep ground is bare: dust and ash lie on the flats and slide off
           // the faces, so a slope shows the rock under it. That change of
           // MATERIAL is what stops shading alone reading as weather.
-          const bare = Math.min(1, steep * 1.35) ** 2 * 0.74;
+          const bare = Math.min(1, steep * 1.35) ** 2 * 0.5;
           const a = Math.min(1, form / 260) * 0.55;       // thin air, up on the tiers
           // CONTOUR TERRACING. Shading alone stays soft at this camera - the
           // ground is only 880 units across the screen, and a smooth height
@@ -648,8 +655,8 @@ export function createTerrain(opts) {
             const gmag = Math.max(0.035, steep / 2.4);
             const f = elev / STEP - Math.floor(elev / STEP);
             const up = f * STEP / gmag, down = (1 - f) * STEP / gmag;
-            if (up < 3.4) lip = -(1 - up / 3.4) * 0.5 * gate;
-            else if (down < 2.2) lip = (1 - down / 2.2) * 0.42 * gate;
+            if (up < 3) lip = -(1 - up / 3) * 0.34 * gate;
+            else if (down < 2) lip = (1 - down / 2) * 0.28 * gate;
           }
           const sh = lit * (1 + lip);
           const r = px[0] * (1 - bare) + 58 * bare;

@@ -70,7 +70,7 @@ const RAW_REGIONS = [
   // `relief` is how many units of ridge and gully the ground has here, which
   // terrain.js lights and shadows: this is the one number that makes the
   // difference between three flat tables and a mountain.
-  { id: 'peaks', name: 'The Broken Peaks', x: 15600, y: 3600, r: 3900, tier: 2, relief: 120,
+  { id: 'peaks', name: 'The Broken Peaks', x: 15600, y: 3600, r: 3900, tier: 2, relief: 45,
     trees: 0.05, tree: 'dead', rocks: 0.28, weather: 'ash', grade: [255, 130, 90, 0.13] },
   { id: 'gorge', name: 'The Coil Gorge', x: 12000, y: 22000, r: 2400, tier: 2,
     trees: 0.12, tree: 'dark', rocks: 0.25, weather: 'mist', grade: [90, 150, 120, 0.12] },
@@ -172,10 +172,15 @@ const RAW_PLATEAUS = [
   [14700, 9800, 700, 420, 44, [[14990, 120]]],
   [21000, 14700, 560, 360, 40, [[21220, 110]]],
 
-  // The Broken Peaks: three tiers up to Kharn's caldera.
-  [12400, 1600, 7000, 4600, 64, [[13300, 160], [16270, 170], [18300, 160]]],
-  [13600, 1800, 4600, 2800, 60, [[14400, 150], [15820, 160], [17300, 150]]],
-  [14900, 2000, 1900, 1000, 56, [[15720, 160], [16350, 140]]],
+  // The Broken Peaks: three tiers up to Kharn's caldera. Its walls are the
+  // tallest in the world and that is the whole point of it - in a camera that
+  // looks straight down, a slope is invisible and only a WALL says height. At
+  // 64 units these were shorter than the player and the mountain read as a
+  // flight of steps; at 170 you walk along the foot of a cliff looking up at
+  // it, and the stair cut into it is a climb you can see the top of.
+  [12400, 1600, 7000, 4600, 170, [[13300, 160], [16270, 180], [18300, 160]]],
+  [13600, 1800, 4600, 2800, 150, [[14400, 150], [15820, 170], [17300, 150]]],
+  [14900, 2000, 1900, 1000, 130, [[15720, 170], [16350, 140]]],
 
   // Cloud Summit: four tiers, the Monkey King's perch at the very top.
   [29300, 1100, 5400, 5300, 64, [[30600, 160], [32400, 160], [34000, 160]]],

@@ -4385,6 +4385,54 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.68 What actually says "up" in a top-down game: walls (2026-09-24)
+
+The owner, on 16.67: "Whatever you try to do has potential, but right now it's
+not looking good. The height should feel like we are actually climbing a
+mountain. That thing is missing."
+
+They were right, and the reason is worth stating plainly, because it rules out a
+whole family of ideas:
+
+**A camera that looks straight down, over a world drawn in world space, has no
+parallax with height.** Shading, contours, ridged noise - everything in 16.67 -
+can only ever change the TEXTURE of the ground. None of it can say "this is
+higher than that", because nothing in the picture moves differently when you
+walk. The cues a top-down game actually has are OCCLUSION and DISPLACEMENT: a
+thing that is higher is drawn overlapping what is behind it, and a wall is drawn
+standing between the two. That is it. A mountain in this camera is not a slope;
+it is a stack of walls.
+
+**The Broken Peaks' walls were 64, 60 and 56 units - shorter than the player.**
+Three walls shorter than the player, in a plain, is a flight of steps, and that
+is exactly how it looked. They are now **170, 150 and 130**: you walk along the
+foot of a cliff that fills a third of the screen, find the stair cut into it,
+and climb. The tiers, the stairs and everything standing on them are where they
+always were - only the walls grew, so nothing in the region moved.
+
+With that:
+
+- **A wall's shadow reaches as far as the wall is tall** (`f.h * 0.62`, and
+  deeper), which is what tells you how tall it is while you are standing at the
+  bottom of it and cannot see the top.
+- **The face is graded harder** down its height, so 170 units of it does not
+  read as one flat band.
+- **The ground's light is kept off the walls.** 16.67's hillshade was being
+  applied to the cliff faces and the stairs as well, which muddied them - a
+  vertical wall is not ground lying flat, and it has its own shading already.
+  `paintRaised` now says when it has painted one.
+- **The ground says less.** The relief that 16.67 added is dialled from 120 to
+  45 and its contours softened: it is texture under the walls now, not the
+  subject.
+
+**Still missing, honestly.** This makes the mountain read as a climb of three
+great steps, which is what the camera can show. What it still cannot do is make
+the ground BETWEEN the walls feel like a slope, and that needs the projection
+itself to change - drawing the world with a scale that grows with height, so
+high ground moves faster than low ground as the camera pans. That is real
+perspective, it touches everything that is drawn, and it is the only thing left
+that would make a continuous climb felt rather than seen.
+
 ### 16.67 The Broken Peaks gets a height, and light to fall on it (2026-09-24)
 
 The owner: "Can you make the Broken Peaks feel like the height, like we are
