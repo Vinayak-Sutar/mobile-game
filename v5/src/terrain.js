@@ -155,6 +155,122 @@ export function createTerrain(opts) {
     return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   }
 
+  // --- elevation: the land has a height, and light falls on it --------------------------
+  //
+  // The Broken Peaks was three flat tables with a wall between them. That is
+  // why a mountain read as a flight of steps: over 97% of its area the ground
+  // had no slope at all, so there was nothing for light to fall on and nothing
+  // to cast a shadow. Height was a fact about collision and not about the
+  // picture.
+  //
+  // So the ground now HAS a height, h(x, y), worked out the way a terrain
+  // generator works one out:
+  //
+  //   h = the authored tiers, their edges RAMPED instead of stepped
+  //     + ridged fractal noise, as tall as the region asks for
+  //
+  // Ridged noise is the standard way to grow a mountain. Ordinary value noise
+  // makes rolling hills; folding it at its middle - 1 - |2n - 1| - turns every
+  // smooth maximum into a crease, and a crease seen from above is a ridgeline.
+  // Three octaves give the big shoulders, the spurs off them, and the rubble.
+  //
+  // From h come the three things an eye actually reads height with, all of them
+  // straight out of relief cartography:
+  //
+  //   HILLSHADE   the surface normal against a light standing in the
+  //               north-west: N.L, where N = normalise(-dh/dx, -dh/dy, 1).
+  //               This is the shading on every printed relief map there has
+  //               ever been, and it is what makes a slope look like a slope.
+  //   CAST SHADOW march toward the light and ask whether anything stands in
+  //               the way - if the land ahead is higher than the ray has
+  //               climbed by then, this point is in its shadow. Long shadows
+  //               off a ridge are the strongest height cue there is.
+  //   HEIGHT TINT thinner, colder air up top; a warm haze lying in the hollows.
+  //
+  // NONE OF THIS TOUCHES WHERE YOU CAN WALK. The tiers, the cliff faces and the
+  // stairs are still exactly the rectangles the game collides against. This is
+  // light laid over them, and it is baked into the chunk once, so it is free to
+  // draw ever after.
+
+  const smoothK = (u) => (u <= 0 ? 0 : u >= 1 ? 1 : u * u * (3 - 2 * u));
+  const ridged = (x, y) => 1 - Math.abs(fbm(x, y) * 2 - 1);
+
+  // The sun: north-west, and not high. LZ is how far it stands above the
+  // horizon; TAN is how fast its ray climbs as you walk toward it.
+  const LZ = 0.62;
+  const LH = Math.sqrt(1 - LZ * LZ);
+  const LX = -LH * 0.7071, LY = -LH * 0.7071;
+  const TAN = LZ / LH;
+
+  /**
+   * The height of the land, in the same units as everything else.
+   *
+   * Two parts, the way a mountain is actually generated. The FORM: every tier
+   * carries its own long flank (`ramp`, as wide as a third of the tier), so
+   * three nested tables become one mass that rises the whole way to the
+   * summit instead of three steps in a plain. The DETAIL: ridged noise on
+   * top, sampled on stretched coordinates so the creases run as a range
+   * rather than a field of lumps, and thickest where the form is highest -
+   * bare rubble up on the shoulder, smooth ground down on the plain.
+   */
+  /** The FORM alone: the tiers and their flanks, with no rubble on top. */
+  function formAt(wx, wy, tops) {
+    let base = 0;
+    for (let i = 0; i < tops.length; i++) {
+      const r = tops[i];
+      if (!r.rise) continue;
+      const ramp = r.ramp || 300;
+      const dx = Math.min(wx - r.x + ramp, r.x + r.w + ramp - wx);
+      if (dx <= 0) continue;
+      const dy = Math.min(wy - r.y + ramp, r.y + r.h + ramp - wy);
+      if (dy <= 0) continue;
+      base += r.rise * smoothK(dx / ramp) * smoothK(dy / ramp);
+    }
+    return base;
+  }
+
+  function elevAt(wx, wy, tops, amp) {
+    const base = formAt(wx, wy, tops);
+    if (amp <= 0) return base;
+    // The camera only ever shows about 880 units of ground, so the creases have
+    // to live where an eye can read them - a ridge 300 units across fills a
+    // third of the screen and reads as a slope; one 1200 across reads as the
+    // light being uneven. The range runs north-east to south-west, which is
+    // what the stretched sampling does.
+    const k = 0.28 + 0.72 * Math.min(1, base / 170);
+    const rx = wx * 0.0021, ry = wy * 0.0031;
+    // Squaring a ridge narrows it: broad round humps become creases with rubble
+    // fields between them, which is what rock does and cloud does not.
+    const a1 = ridged(rx, ry), a2 = ridged(rx * 2.6 + 21, ry * 2.6 + 7), a3 = ridged(rx * 6.1 + 5, ry * 6.1 + 63);
+    return base + amp * k * (a1 * a1 * 0.58 + a2 * a2 * 0.28 + a3 * a3 * 0.14);
+  }
+
+  /**
+   * [how lit, how steep, how high the FORM is] - the slow part, done on a
+   * lattice. The height that tints the air is the form's, not the total: tint
+   * the rubble and every boulder field turns into a bank of cloud.
+   */
+  function reliefLight(wx, wy, tops, amp, out2) {
+    const D = 11;
+    const e = elevAt(wx, wy, tops, amp);
+    const gx = (elevAt(wx + D, wy, tops, amp) - elevAt(wx - D, wy, tops, amp)) / (2 * D);
+    const gy = (elevAt(wx, wy + D, tops, amp) - elevAt(wx, wy - D, tops, amp)) / (2 * D);
+    const lam = (-gx * LX - gy * LY + LZ) / Math.sqrt(gx * gx + gy * gy + 1);
+    // Anything between here and the light stands in front of it.
+    let block = 0;
+    const hx = LX / LH, hy = LY / LH;
+    for (let s = 1; s <= 10; s++) {
+      const d = s * 26;
+      const over = elevAt(wx + hx * d, wy + hy * d, tops, amp) - (e + d * TAN);
+      if (over > block) block = over;
+    }
+    const sun = 1 - Math.min(1, block / 22) * 0.55;
+    out2[0] = Math.max(0.34, Math.min(1.8, (1 + (lam - LZ) * 2.3) * sun));
+    out2[1] = Math.min(1, Math.hypot(gx, gy) * 2.4);     // how steep, 0..1
+    out2[2] = formAt(wx, wy, tops);
+    out2[3] = e;
+  }
+
   // --- painting one pixel -------------------------------------------------------------
   const out = [0, 0, 0];
   // The slow fields (border push, patches, relief, cracks) are worked out on
@@ -424,6 +540,9 @@ export function createTerrain(opts) {
 
   const G = 6;                                  // the coarse lattice's spacing
   const NF = 5;                                 // fields on it
+  const G2 = 16;                                // the relief lattice's, which is smoother
+  const STEP = 17;                              // height between one contour and the next
+  const NL = 4;                                 // lit, steep, the form's height, the whole height
 
   function startJob(cx, cy) {
     const x0 = cx * CHUNK - 1, y0 = cy * CHUNK - 1;
@@ -449,25 +568,50 @@ export function createTerrain(opts) {
     }
     const R0 = opts.raisedNear ? opts.raisedNear(x0 - 40, y0 - 40, x0 + S + 40, y0 + S + 40)
       : opts.raised || { tops: [], faces: [], stairs: [], rims: [], slopes: [] };
+    // The relief lattice: coarser than the others, because hillshade and a cast
+    // shadow are smooth by nature and the march to the light is the expensive
+    // part. Skipped altogether where the land is flat, which is most of it.
+    const midAmp = opts.reliefAmp ? opts.reliefAmp(x0 + S / 2, y0 + S / 2) : 0;
+    const wide = opts.raisedNear ? opts.raisedNear(x0 - 1600, y0 - 1600, x0 + S + 1600, y0 + S + 1600).tops : [];
+    const elevTops = wide.filter((r) => r.rise);
+    let L = null, P2 = 0;
+    if (midAmp > 0 || elevTops.length) {
+      P2 = Math.ceil(S / G2) + 2;
+      L = new Float32Array(P2 * P2 * NL);
+      const o2 = [0, 0, 0, 0];
+      for (let j = 0; j < P2; j++) {
+        for (let i = 0; i < P2; i++) {
+          const wx = x0 + i * G2, wy = y0 + j * G2;
+          reliefLight(wx, wy, elevTops, opts.reliefAmp ? opts.reliefAmp(wx, wy) : 0, o2);
+          const o = (j * P2 + i) * NL;
+          L[o] = o2[0]; L[o + 1] = o2[1]; L[o + 2] = o2[2]; L[o + 3] = o2[3];
+        }
+      }
+    }
     const near = (r) => r.x < x0 + S + 40 && r.x + r.w > x0 - 40 && r.y < y0 + S + 40 && r.y + r.h > y0 - 40;
     const J = {
       tops: R0.tops.filter(near), faces: R0.faces.filter(near), stairs: R0.stairs.filter(near), rims: R0.rims.filter(near),
       slopes: (R0.slopes || []).filter(near),
     };
     J.raised = J.tops.length + J.faces.length + J.stairs.length + J.rims.length + J.slopes.length > 0;
-    return { key: cy * 1000 + cx, x0, y0, S, c, cc, img, shadowRects, F, P, J, row: 0 };
+    return { key: cy * 1000 + cx, x0, y0, S, c, cc, img, shadowRects, F, P, J, L, P2, row: 0 };
   }
 
   /** Paint rows until the chunk is done (true) or the deadline passes. */
   function stepJob(job, deadline) {
-    const { S, P, F, x0, y0, shadowRects } = job;
+    const { S, P, F, L, P2, x0, y0, shadowRects } = job;
     const d = job.img.data;
     const R = job.rowF || (job.rowF = new Float32Array(P * NF));
+    const RL = L && (job.rowL || (job.rowL = new Float32Array(P2 * NL)));
     while (job.row < S) {
       const y = job.row;
       const gy = y / G, j = gy | 0, v = gy - j;
       // This row's fields at each lattice column, then a straight blend along it.
       for (let q = 0, o = j * P * NF; q < P * NF; q++) R[q] = F[o + q] + (F[o + P * NF + q] - F[o + q]) * v;
+      if (L) {
+        const gy2 = y / G2, j2 = gy2 | 0, v2 = gy2 - j2, o2 = j2 * P2 * NL;
+        for (let q = 0; q < P2 * NL; q++) RL[q] = L[o2 + q] + (L[o2 + P2 * NL + q] - L[o2 + q]) * v2;
+      }
       let k = y * S * 4;
       for (let x = 0; x < S; x++) {
         const gx = x / G, i = gx | 0, u = gx - i;
@@ -476,7 +620,48 @@ export function createTerrain(opts) {
           R[o] + (R[o + NF] - R[o]) * u, R[o + 1] + (R[o + 1 + NF] - R[o + 1]) * u,
           R[o + 2] + (R[o + 2 + NF] - R[o + 2]) * u, R[o + 3] + (R[o + 3 + NF] - R[o + 3]) * u,
           R[o + 4] + (R[o + 4 + NF] - R[o + 4]) * u, job.J);
-        d[k] = px[0]; d[k + 1] = px[1]; d[k + 2] = px[2]; d[k + 3] = 255;
+        if (L) {
+          // Hillshade, cast shadow and the thinning air, over whatever the
+          // ground turned out to be - grass, ash, a cliff face or a stair.
+          const gx2 = x / G2, i2 = gx2 | 0, u2 = gx2 - i2, q = i2 * NL;
+          const lit = RL[q] + (RL[q + NL] - RL[q]) * u2;
+          const steep = RL[q + 1] + (RL[q + 1 + NL] - RL[q + 1]) * u2;
+          const form = RL[q + 2] + (RL[q + 2 + NL] - RL[q + 2]) * u2;
+          const elev = RL[q + 3] + (RL[q + 3 + NL] - RL[q + 3]) * u2;
+          // Steep ground is bare: dust and ash lie on the flats and slide off
+          // the faces, so a slope shows the rock under it. That change of
+          // MATERIAL is what stops shading alone reading as weather.
+          const bare = Math.min(1, steep * 1.35) ** 2 * 0.74;
+          const a = Math.min(1, form / 260) * 0.55;       // thin air, up on the tiers
+          // CONTOUR TERRACING. Shading alone stays soft at this camera - the
+          // ground is only 880 units across the screen, and a smooth height
+          // field lit smoothly reads as crumpled cloth. So the height is also
+          // cut into bands STEP units apart and the edge of every band is
+          // drawn: a dark step up, a lit lip below it. That is the same
+          // language as the cliff faces the game already draws by hand, it is
+          // how a contour map says "slope", and it is the line the eye needs.
+          // The lines lie thick where the ground is steep and vanish where it
+          // is flat, which is the whole point of a contour.
+          let lip = 0;
+          if (steep > 0.04) {
+            const gate = Math.min(1, steep * 3.4);
+            const gmag = Math.max(0.035, steep / 2.4);
+            const f = elev / STEP - Math.floor(elev / STEP);
+            const up = f * STEP / gmag, down = (1 - f) * STEP / gmag;
+            if (up < 3.4) lip = -(1 - up / 3.4) * 0.5 * gate;
+            else if (down < 2.2) lip = (1 - down / 2.2) * 0.42 * gate;
+          }
+          const sh = lit * (1 + lip);
+          const r = px[0] * (1 - bare) + 58 * bare;
+          const g = px[1] * (1 - bare) + 52 * bare;
+          const b = px[2] * (1 - bare) + 50 * bare;
+          d[k] = Math.min(255, r * sh * (1 - 0.1 * a) + 22 * a);
+          d[k + 1] = Math.min(255, g * sh * (1 - 0.06 * a) + 24 * a);
+          d[k + 2] = Math.min(255, b * sh * (1 - 0.02 * a) + 30 * a);
+        } else {
+          d[k] = px[0]; d[k + 1] = px[1]; d[k + 2] = px[2];
+        }
+        d[k + 3] = 255;
         k += 4;
       }
       job.row++;

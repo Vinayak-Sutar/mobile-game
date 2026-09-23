@@ -67,7 +67,10 @@ const RAW_REGIONS = [
   { id: 'isle', name: 'Saltwind Isle', x: 40800, y: 12800, r: 2700, tier: 1,
     trees: 0.16, tree: 'palm', rocks: 0.06, weather: 'wind', grade: [255, 238, 196, 0.06] },
   // The Broken Peaks: volcanic - ash, black rock, glowing fissures, no snow.
-  { id: 'peaks', name: 'The Broken Peaks', x: 15600, y: 3600, r: 3900, tier: 2,
+  // `relief` is how many units of ridge and gully the ground has here, which
+  // terrain.js lights and shadows: this is the one number that makes the
+  // difference between three flat tables and a mountain.
+  { id: 'peaks', name: 'The Broken Peaks', x: 15600, y: 3600, r: 3900, tier: 2, relief: 120,
     trees: 0.05, tree: 'dead', rocks: 0.28, weather: 'ash', grade: [255, 130, 90, 0.13] },
   { id: 'gorge', name: 'The Coil Gorge', x: 12000, y: 22000, r: 2400, tier: 2,
     trees: 0.12, tree: 'dark', rocks: 0.25, weather: 'mist', grade: [90, 150, 120, 0.12] },

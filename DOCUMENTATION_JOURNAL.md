@@ -4385,6 +4385,85 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.67 The Broken Peaks gets a height, and light to fall on it (2026-09-24)
+
+The owner: "Can you make the Broken Peaks feel like the height, like we are
+actually climbing? Do some research about how we can mathematically simulate
+this, just like we simulated water."
+
+**Why it felt like a staircase.** The Broken Peaks was three plateau rectangles,
+7000x4600, 4600x2800 and 1900x1000, with a 60-unit wall between each. Over 97%
+of its area the ground had NO SLOPE AT ALL. There was no function h(x, y)
+anywhere in the game - height was a fact about collision (which rectangle you
+are standing on) and not a fact about the picture. With no slope there is
+nothing for light to fall on and nothing to cast a shadow, so the only height
+cue in the whole region was three walls. Three walls in a flat plain is a
+staircase, and that is exactly what it looked like.
+
+**So the land has a height now.** `terrain.js` gained a real height field:
+
+    h(x, y) = the authored tiers, their edges RAMPED instead of stepped
+            + ridged fractal noise, as tall as the region asks for
+
+- **The form.** Every tier now carries a `ramp` - a flank as wide as a third of
+  the tier, up to 1500 units - so the three nested tables become one mass that
+  rises the whole way to the summit. The tier edges are still the same
+  rectangles the game collides against; the ramp is only what the light sees.
+- **The detail.** Ridged noise, `1 - |2n - 1|`: ordinary value noise makes
+  rolling hills, but folding it at its middle turns every smooth maximum into a
+  crease, and a crease seen from above is a ridgeline. Squared, to narrow the
+  ridges and flatten the rubble between them. Three octaves, sampled on
+  stretched coordinates so the creases run as a range rather than a field of
+  lumps, and scaled by how high the form is - bare rubble on the shoulder,
+  smooth ground on the plain.
+
+**And three treatments, straight out of relief cartography:**
+
+| | |
+|---|---|
+| **Hillshade** | the surface normal against a low north-west sun: `N.L` where `N = normalise(-dh/dx, -dh/dy, 1)`. The shading on every printed relief map there has ever been. |
+| **Cast shadow** | march ten steps toward the light and ask whether the land ahead is higher than the ray has climbed by then. A ridge throws a shadow over what stands behind it. |
+| **Contour terracing** | the height cut into bands 17 units apart, with a dark step and a lit lip drawn at every band edge - thick where the ground is steep, gone where it is flat. |
+
+**What the looking taught, in order.** This took four passes at the preview and
+every one of them corrected something worth writing down:
+
+1. *Rubble with no mountain.* Ridged noise alone is a boulder field. It needs a
+   large-scale form under it - hence the tier ramps.
+2. *Wrong scale entirely.* The first form used 1200-unit ridges. The camera
+   shows about **880 units of ground**, so a 1200-unit ridge fills more than the
+   screen and reads as the light being uneven, not as a slope. The relief had to
+   move into the 150-500 unit band, where a ridge fills a third of the screen
+   and the eye reads it as ground going up.
+3. *Cloud.* The height tint (pale, thin air) was being driven by the TOTAL
+   height, so every noise bump went milky and the whole region looked like
+   weather. The tint now follows the form alone. The rubble is lit, never
+   tinted.
+4. *Cloth.* Shading alone, however correct, stays soft at this zoom, because a
+   smooth field lit smoothly has no edges anywhere. What the eye wanted was
+   LINES - so the contour terracing, which is the same language as the cliff
+   faces the game already draws by hand. Also: steep ground now shows the rock
+   under it, because dust and ash lie on the flats and slide off the faces, and
+   a change of MATERIAL is what stops shading reading as weather.
+
+**It costs nothing.** The relief is worked out on its own lattice, 16 units
+apart - a hillshade and a cast shadow are smooth by nature - and bilinearly
+blended per pixel, all of it baked into the chunk once. Walking 90 samples
+across the peaks: average 1.97 ms a step, worst frame 36 ms. Ninety across flat
+Heartland: 2.41 ms and 35 ms. The mountain is no more expensive than the plain,
+because painting the pixels dominates either way. Chunks with no relief near
+them skip the whole thing.
+
+**One number switches it on.** `relief: 120` on the region in `wilds-layout.js`.
+Only the Broken Peaks has it; Cloud Summit, the Moon Citadel's mesa, the Hollow
+Moors and the Echo Cliffs are each one number away.
+
+**What it is not, yet.** This is light and line on the ground. It does not yet
+move: nothing parallaxes with height, the camera does not open out as you climb,
+and the ash does not blow harder on the shoulder. Those are the cues that would
+make the CLIMB felt rather than the mountain seen, and they are the obvious next
+pass if the owner likes what is there.
+
 ### 16.66 The opening gets its music, and plays every time (2026-09-24)
 
 The owner: "Cinematic looks good. Add some music in it." Then: "Let that

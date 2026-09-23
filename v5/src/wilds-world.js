@@ -217,11 +217,34 @@ function wetNear(x, y) {
 
 const SLOPE = 60;
 
+/**
+ * How rugged the land is here, in units of height (terrain.js turns this into
+ * ridges, light and shadow). Taken from the region's own circle rather than
+ * from the classified map, so it fades in and out smoothly and never puts a
+ * seam down the middle of a mountain. Only regions that declare `relief` have
+ * any; everywhere else the ground is as flat as it always was.
+ */
+const RELIEF_REGIONS = REGIONS.filter((r) => r.relief);
+function reliefAmp(x, y) {
+  let amp = 0;
+  for (const r of RELIEF_REGIONS) {
+    const k = Math.hypot(x - r.x, y - r.y) / r.r;
+    if (k >= 1.05) continue;
+    const f = k <= 0.5 ? 1 : 1 - (k - 0.5) / 0.55;
+    const a = r.relief * f * f * (3 - 2 * f);
+    if (a > amp) amp = a;
+  }
+  return amp;
+}
+
 function buildRaised(extra = []) {
   const R = { tops: [], faces: [], stairs: [], rims: [], slopes: [] };
   const walls = [];
   for (const [x, y, w, h, faceH, stairs] of [...PLATEAUS, ...extra]) {
-    R.tops.push({ x, y, w, h });
+    // `rise` and `ramp` are what the height field is built from: how far this
+    // tier stands above the last, and how long a flank it carries out from its
+    // edge. A big table makes a mountain's shoulder; a small dais does not.
+    R.tops.push({ x, y, w, h, rise: faceH, ramp: Math.max(170, Math.min(1500, Math.min(w, h) * 0.3)) });
     let cx = x;
     for (const [sx, sw] of [...stairs, [x + w, 0]]) {
       if (sx > cx) {
@@ -489,6 +512,7 @@ function build() {
     roadDist: roadDistIn,
     shadowsNear: (x0, y0, x1, y1) => hash.query(x0, y0, x1, y1),
     raisedNear: raised.near,
+    reliefAmp,
   });
 
   const fogW = Math.ceil(WILDS.W / FOG), fogH = Math.ceil(WILDS.H / FOG);
