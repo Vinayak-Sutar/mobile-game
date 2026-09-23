@@ -685,18 +685,23 @@ export function drawWanderer(p, ctx, world, bob, hold = null) {
   const OA = armAt(p, s, -HAND_SIDE, uOff);
   const grip = hold && hold.two ? gripHand(hold, OA, toLocal) : null;
   if (grip) { OA.hx = grip.x; OA.hy = grip.y; OA.near = grip.near; }
+  // Is this arm on the far side of the body? Only in profile: head on and from
+  // behind, both arms are the same distance away.
+  const FAR = V.side > 0.6;
   const bk = backDir(p);
   const drawOffArm = () => {
     // Shoulder, elbow, hand: the elbow leans behind the figure, so the arm
     // bends like an arm and shortens as the hand comes toward the viewer.
-    const A = armElbow(OA.sx, OA.sy, OA.hx, OA.hy, bk.x * s, bk.y, grip || V.side > 0.6 ? 1 : 0.25);
-    const w = sleeveW * 0.9;
+    const A = armElbow(OA.sx, OA.sy, OA.hx, OA.hy, bk.x * s, bk.y, grip || FAR ? 1 : 0.25);
+    // In profile this is the FAR arm: shade, a little thinner, a smaller hand.
+    // Head on it is not, so it matches the arm holding the weapon - otherwise
+    // the free hand reads as a different arm (the owner, 2026-09-23).
+    const w = sleeveW * (FAR ? 0.9 : 1);
     ctx.strokeStyle = OUT; ctx.lineWidth = w + 3;
     ctx.beginPath(); ctx.moveTo(OA.sx, OA.sy); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
-    ctx.strokeStyle = col(sleeve[1]); ctx.lineWidth = w;
+    ctx.strokeStyle = col(sleeve[FAR ? 1 : 0]); ctx.lineWidth = w;
     ctx.beginPath(); ctx.moveTo(OA.sx, OA.sy); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
-    // A hand nearer the viewer is drawn a little bigger.
-    ctx.beginPath(); ctx.arc(A.hx, A.hy, O.hands.r * (0.85 + 0.016 * OA.near), 0, TAU); fillOut(col(O.hands.c(P)), 1);
+    ctx.beginPath(); ctx.arc(A.hx, A.hy, O.hands.r * (FAR ? 0.85 : 1), 0, TAU); fillOut(col(O.hands.c(P)), 1);
   };
   // A hanging arm stays behind the body unless it is clearly the near one: face
   // on, an arm drawn over the chest reads as a stick laid across it (the owner:
@@ -901,7 +906,8 @@ export function drawWandererArm(p, ctx, hold, bob, behind) {
   const A = armElbow(sx0, sy0, hx, hy, bk.x, bk.y);
   ctx.strokeStyle = OUT; ctx.lineWidth = sleeveW + 3;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
-  ctx.strokeStyle = col(behind ? sleeve[1] : sleeve[0]); ctx.lineWidth = sleeveW;
+  // The same rule as the off arm: shaded only where it really is the far one.
+  ctx.strokeStyle = col(behind && V.side > 0.6 ? sleeve[1] : sleeve[0]); ctx.lineWidth = sleeveW;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
   const Hd = O.hands;
   // A bracer or a gauntlet's cuff along the forearm, near the hand.

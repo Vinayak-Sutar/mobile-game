@@ -4385,6 +4385,28 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.60 Both arms drawn alike where both are equally near (2026-09-23)
+
+The owner: "the right hand seems different than the one holding the weapon while
+he is walking forward."
+
+Real, and in the code rather than the eye. The free arm was always drawn as the
+FAR arm - the sleeve's shade instead of its base colour, 10% thinner, and the
+hand at 0.85 of its size - because in profile that is exactly what it is. Head
+on (and from behind) neither arm is further away than the other, so the two were
+drawn differently for no reason: one pale and full, one dark and thin.
+
+Now the far treatment applies only where the arm really is the far one (in
+profile, `V.side > 0.6`); head on and from behind both arms take the same
+colour, the same width and the same hand. The arm holding the weapon follows the
+same rule, so it is shaded only in profile as well - from behind it used to be
+shaded while the free arm was not, which was the same mismatch the other way
+round.
+
+Checked in `wanderer-preview.html`: head on, the two arms now match; in profile
+the far arm is still darker and thinner behind the near one, so the depth reads
+as before. The tests of §16.57-16.59 pass unchanged.
+
 ### 16.59 The hands, head on and from behind - looked at, not guessed (2026-09-23)
 
 The owner, after three rounds of arm changes: "why the fuck do you change so many
