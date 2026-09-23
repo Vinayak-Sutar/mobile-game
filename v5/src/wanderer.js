@@ -156,7 +156,6 @@ const CARRY = {
   longarm: { x: 6, y: -17, a: 0.8, front: 1.25 },
   shield: { x: 7, y: -19, a: 1.2, front: 1.4 },      // on the forearm at the side
 };
-const SIDE_HAND_X = 8.6;      // seen from the front or back: the hand at the hip
 
 /** The rig's weapon hand, where every swing has always been drawn from. */
 function rigHand(p, lifted) {
@@ -185,68 +184,73 @@ export function wandererHold(p, lifted, bob) {
   const V = viewOf(p);
   const c = CARRY[p.weapon.id] || CARRY.blade;
   const G = p.wG;
-  // The carrying arm counter-swings the legs, foreshortened and tucked the same
-  // way as the off arm (handAt).
+  // The carrying hand, in the figure's own axes: on its right, swung against
+  // the legs, carried a little ahead (the weapon's own rest, c.x).
   const u = G && !p.dead ? (p.wArm ? p.wArm.wep : 0) : 0;
-  const hand = handAt(u, V, SIDE_HAND_X);
-  const x = p.x + s * lerp(hand.x, c.x + u * 0.8, V.side);
-  const y = p.y + 12 + bob + (p.wBodyY || 0) + c.y + lerp(hand.y - SHOULDER_Y - HAND_DROP, 0, V.side);
-  const a = lerp(c.front, c.a, V.side) + hand.fwd * 0.05;
+  const A = armAt(p, s, HAND_SIDE, u, HAND_FWD + c.x * 0.9, HAND_DROP + (c.y + 19));
+  const x = p.x + A.screenX;
+  const y = p.y + 12 + bob + (p.wBodyY || 0) + A.hy;
+  const a = lerp(c.front, c.a, V.side) + clamp(u / 4.5, -1, 1) * 0.05;
   const angle = s > 0 ? a : Math.PI - a;
-  // Face on (or turned away), the hand swung toward the viewer passes in front
-  // of the body and the one swung away passes behind it; in profile the weapon
-  // arm is the near one unless the figure has its back to us.
-  const near = hand.fwd * V.depth;
-  const swung = V.side <= 0.6 && near < 0;
-  const shown = V.side <= 0.6 && near > 0;
-  if (!rig || k <= 0.001) return { x, y, angle, behind: (behind && !shown) || swung, fwd: hand.fwd };
+  // What is nearer the camera is drawn in front: one rule for every view.
+  const swung = A.near < 0;
+  if (!rig || k <= 0.001) return { x, y, angle, behind: swung, near: A.near, arm: A };
 
   const e = k * k * (3 - 2 * k);
   return {
     x: lerp(x, rig.x, e),
     y: lerp(y, rig.y, e),
     angle: angle + angleDiff(angle, rig.angle) * e,   // the short way round
-    behind: e < 0.5 ? ((behind && !shown) || swung) : behind,
-    fwd: hand.fwd * (1 - e),
+    // Fighting, the rig's hand governs, and with it the old rule: the weapon
+    // goes behind the body when the figure has its back to us.
+    behind: e < 0.5 ? swung : behind,
+    near: A.near * (1 - e),
+    arm: A,
   };
 }
 
 // --- the arms ----------------------------------------------------------------
-// The arms were the weakest part of the walk seen head on (the owner, 2026-09-23:
-// "the hand movements when the character is coming forward don't feel right").
-// They swung a third as far as the legs, were single straight lines with no
-// elbow, hung at the same spot on the hip whichever way the figure faced, and
-// were always drawn on the same side of the body - so face on the hands moved
-// under two pixels and read as sticks pinned to the hips.
+// ROUND 3 (the owner: "I think you still have elbows reversed. Check design
+// once, and I face this issue many times: things are reversed.").
 //
-// What animators do instead (Animation Mentor, Envato's front-view walk, Adobe):
-//   - the arm swings about as far as the leg, OPPOSITE it, along an arc;
-//   - FOLLOW-THROUGH: the elbow drags behind the shoulder and the hand behind
-//     the elbow, so a hand reaches the end of its swing after the foot does;
-//   - FORESHORTENING: an arm swinging toward the viewer looks shorter, its hand
-//     lower on the screen and a touch bigger; swinging away, longer and higher;
-//   - face on the swing also reads ACROSS the body: the hand tucks in toward
-//     the hip as it comes forward and hangs out as it goes back;
-//   - the arm coming toward the viewer passes IN FRONT of the body while the
-//     other passes behind it - the clearest depth cue of the lot.
+// They were right, and it was the design, not a typo. TWO FRAMES were in play:
+// the body is drawn mirrored (the canvas is scaled by `s` so that +x is the way
+// the figure faces), while the weapon arm is drawn in world space, where it is
+// not. Every view then patched left and right by hand - lerps between a
+// "profile" number and a "face on" number, a sign here, a `back` there. Two
+// things were reversed by it:
+//   - the weapon arm's elbow bowed FORWARD in world space while the off arm's
+//     bowed backward, because its `out` sign was inverted by the missing mirror;
+//   - worse, the hands never swapped sides when the figure turned around. A
+//     right-handed figure carries the weapon on their right; walking TOWARD the
+//     camera that hand is on the viewer's LEFT, walking away it is on the
+//     viewer's RIGHT. The old placement only knew the mirror flag `s`, which
+//     says nothing about facing the camera, so the weapon stayed on the same
+//     side of the screen and effectively changed hands as you turned.
 //
-// ROUND 2 (the owner, 2026-09-23: "very bad - the elbows are bent way too much,
-// and the knight lost his charisma because of the way he walked"). Both faults
-// were mine and they had one cause each:
-//   - the elbow was placed by exact two-bone IK, and with an arm 12.8 long
-//     reaching a hand only 8 away the geometry MUST bow the elbow 5px out. On a
-//     36px figure that is a noodle. The elbow is now a slight bend along the
-//     arm, capped hard - it reads as an arm without ever breaking the line;
-//   - the swing was pushed to 0.95 of the stride with the depth exaggerated on
-//     top, so the figure walked loosely. A soldier's walk is a small, even
-//     swing, so it is back near where it started - just no longer flat when
-//     seen head on, and the near arm still passes in front of the body.
+// So the arms are no longer described on the screen at all. They are described
+// in the FIGURE'S OWN AXES - `fwd` ahead of them, `right` toward their right
+// hand - and projected for whichever of the eight ways they face. One rule,
+// holding at every angle: left and right cannot flip, the elbow always bends
+// back, and which arm passes in front of the body falls out of the same
+// numbers instead of being decided per view.
+//
+// The animation itself (rounds 1 and 2, kept): the arm swings opposite the leg
+// at about 0.6 of its stride and drags a couple of frames behind it
+// (follow-through); the elbow leans back off the line by the arm's slack,
+// capped so it can never noodle; a hand nearer the camera is drawn a little
+// bigger; and an arm swinging toward the viewer passes in front of the body.
 const ARM = 11;                   // shoulder to hand, when the arm hangs straight
 const ARM_BEND = 2.1;             // the most the elbow ever leaves the line
 const ARM_SWING = 0.62;           // how far a hand swings, against the foot's stride
 const WEP_SWING = 0.46;           // a hand carrying a weapon swings less
 const SHOULDER_Y = -27;
 const HAND_DROP = 8;              // the hand hangs this far below the shoulder
+const HAND_SIDE = 7.4;            // how far out from the middle the hands hang
+const SH_SIDE = 5.6;              // and the shoulders
+const HAND_FWD = -1.2;            // hands hang a touch behind the shoulders
+const DEPTH = 0.8;                // a step toward the camera, on the screen
+const LAT = 0.3;                  // and a step to the side (the 3/4 view's squash)
 
 /** The hands' swing, smoothed so they drag a little behind the legs. */
 function armDrag(p, dt) {
@@ -259,35 +263,51 @@ function armDrag(p, dt) {
 }
 
 /**
- * One hand, in the figure's own frame (+x the way it faces). `u` is how far it
- * is swung ahead (+) or behind (-); `baseX` where the arm hangs at the hip.
+ * A point given in the figure's own ground axes - `fwd` ahead of it, `right`
+ * toward its right hand - as an offset ON THE SCREEN (never mirrored). `near`
+ * is how far toward the camera it is, which decides what is drawn in front of
+ * what. Drawing inside the body's own (mirrored) frame multiplies `x` by `s`,
+ * and that is the ONLY place the mirror is allowed to enter.
  */
-function handAt(u, V, baseX) {
-  const fwd = clamp(u / 4.5, -1, 1);
-  // Face on, a true projection of the swing is about a pixel, which reads as
-  // nothing; it is opened up a little, and the hand shifts slightly in toward
-  // the hip as it comes forward. Small: a walk, not a swagger.
-  const tuck = 1 - 0.16 * Math.max(0, fwd);
-  const drop = clamp(HAND_DROP + u * V.depth * 1.15 * (1 - V.side * 0.5), 3.4, ARM - 0.5);
+function groundOff(p, fwd, right) {
+  const a = (p.wOct ?? 0) * OCT;
+  const ca = Math.cos(a), sa = Math.sin(a);
   return {
-    x: baseX * lerp(tuck, 1, V.side) + u * V.side,
-    y: SHOULDER_Y + drop - Math.abs(fwd) * 0.4,
-    fwd,
+    x: ca * fwd - sa * right,
+    y: sa * fwd * DEPTH + ca * right * LAT,
+    near: sa * fwd + ca * right,
   };
 }
 
+/** Which way is "behind the figure" on the screen: the elbow always leans that way. */
+function backDir(p) {
+  const a = (p.wOct ?? 0) * OCT;
+  const x = -Math.cos(a), y = -Math.sin(a) * DEPTH;
+  const d = Math.hypot(x, y) || 1;
+  return { x: x / d, y: y / d };
+}
+
 /**
- * The elbow: a little below half way along the arm, leaning `out` (away from
- * the body) by the slack in the arm - the shorter the reach, the more it bends,
- * and never past ARM_BEND. Not true IK: at this size an exact two-bone solve
- * bows the elbow further than the arm is wide.
+ * The elbow: a little past half way along the arm, leaning `bx, by` (behind the
+ * figure) by the slack in the arm - the shorter the reach the more it bends,
+ * and never past ARM_BEND. Not two-bone IK: at this size an exact solve bows
+ * the elbow further than the arm is wide (round 2's noodle).
  */
-function armElbow(sx, sy, hx, hy, out) {
-  const dx = hx - sx, dy = hy - sy;
-  const d = Math.hypot(dx, dy) || 0.01;
+function armElbow(sx, sy, hx, hy, bx, by) {
+  const d = Math.hypot(hx - sx, hy - sy) || 0.01;
   const bend = Math.min(ARM_BEND, Math.max(0, (ARM - d) * 0.42));
-  const nx = -dy / d, ny = dx / d;
-  return { ex: sx + dx * 0.52 + nx * bend * out, ey: sy + dy * 0.52 + ny * bend * out, hx, hy };
+  return { ex: sx + (hx - sx) * 0.52 + bx * bend, ey: sy + (hy - sy) * 0.52 + by * bend, hx, hy };
+}
+
+/** Where one hand is: the shoulder it hangs from, the hand, and how near the camera. */
+function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP) {
+  const sh = groundOff(p, 0, right * (SH_SIDE / HAND_SIDE));
+  const hd = groundOff(p, fwd0 + u, right);
+  return {
+    sx: sh.x * s, sy: SHOULDER_Y + sh.y,
+    hx: hd.x * s, hy: SHOULDER_Y + drop + hd.y,
+    near: hd.near, screenX: hd.x, screenY: hd.y,
+  };
 }
 
 // --- the walk ----------------------------------------------------------------
@@ -571,22 +591,23 @@ export function drawWanderer(p, ctx, world, bob) {
   const coatC = B.c(P);
   const sleeve = B.sleeve ? B.sleeve(P) : [coatC[0], coatC[1]];
   const sleeveW = B.sleeveW || 4;
-  const shX = lerp(-7.2, -4.5, V.side);
+  // The off hand: on the figure's left, swung against the far leg.
   const uOff = p.dead ? 0 : (p.wArm ? p.wArm.off : 0);
-  const offHand = handAt(uOff, V, -SIDE_HAND_X + (profile ? 4.1 : 0));
+  const OA = armAt(p, s, -HAND_SIDE, uOff);
+  const bk = backDir(p);
   const drawOffArm = () => {
-    // Shoulder, elbow, hand: the elbow bows away from the body, so the arm
+    // Shoulder, elbow, hand: the elbow leans behind the figure, so the arm
     // bends like an arm and shortens as the hand comes toward the viewer.
-    const A = armElbow(shX, SHOULDER_Y, offHand.x, offHand.y, 1);
+    const A = armElbow(OA.sx, OA.sy, OA.hx, OA.hy, bk.x * s, bk.y);
     const w = sleeveW * 0.9;
     ctx.strokeStyle = OUT; ctx.lineWidth = w + 3;
-    ctx.beginPath(); ctx.moveTo(shX, SHOULDER_Y); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(OA.sx, OA.sy); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
     ctx.strokeStyle = col(sleeve[1]); ctx.lineWidth = w;
-    ctx.beginPath(); ctx.moveTo(shX, SHOULDER_Y); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(OA.sx, OA.sy); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
     // A hand nearer the viewer is drawn a little bigger.
-    ctx.beginPath(); ctx.arc(A.hx, A.hy, O.hands.r * (0.85 + 0.1 * offHand.fwd * V.depth), 0, TAU); fillOut(col(O.hands.c(P)), 1);
+    ctx.beginPath(); ctx.arc(A.hx, A.hy, O.hands.r * (0.85 + 0.016 * OA.near), 0, TAU); fillOut(col(O.hands.c(P)), 1);
   };
-  const offInFront = profile ? back : offHand.fwd * V.depth >= 0;
+  const offInFront = OA.near >= 0;
   if (!offInFront) drawOffArm();
 
   // --- the body: a coat, armour, a robe -----------------------------------------
@@ -663,10 +684,13 @@ export function drawWanderer(p, ctx, world, bob) {
   } else if (O.back.strapsFront) O.back.strapsFront(h);
   if (O.neck.front) O.neck.front(h);
 
-  // Shoulder pieces: the near one always, the far one unless in profile.
+  // Shoulder pieces, on the same projected shoulders as the arms: the far one
+  // first, so the near one overlaps it.
   if (O.shoulders.draw) {
-    if (!profile) O.shoulders.draw(h, shX, -1);
-    O.shoulders.draw(h, lerp(7.2, 5, V.side), 1);
+    const WA = armAt(p, s, HAND_SIDE, 0);
+    const far = OA.near <= WA.near ? OA : WA, nearSh = far === OA ? WA : OA;
+    O.shoulders.draw(h, far.sx, far === OA ? -1 : 1);
+    O.shoulders.draw(h, nearSh.sx, nearSh === OA ? -1 : 1);
   }
   if (offInFront) drawOffArm();
 
@@ -755,14 +779,17 @@ export function drawWandererArm(p, ctx, hold, bob, behind) {
   const sleeve = O.body.sleeve ? O.body.sleeve(P) : [coatC[0], coatC[1]];
   const sleeveW = O.body.sleeveW || 4;
   const shift = G ? G.shift * (1 - V.side) * 0.6 : 0;
-  const sx0 = p.x + s * (lerp(7.2, 5, V.side) + shift);
-  const sy0 = p.y + 12 + bob - 27 + (p.wBodyY || 0);
+  const A0 = hold.arm || armAt(p, s, HAND_SIDE, 0);
+  const sx0 = p.x + A0.sx * s + s * shift;              // (A0.sx is in the body's frame)
+  const sy0 = p.y + 12 + bob + (p.wBodyY || 0) + A0.sy;
   const flashing = p.hurtFlash > 0 && Math.sin(performance.now() * 0.06) > 0;
   const col = (c) => (flashing ? '#fff' : c);
   ctx.globalAlpha = p.ghost ? 0.45 : p.invuln > 0 && !p.dashing ? 0.62 : 1;
   ctx.lineCap = 'round';
-  // Shoulder, elbow, hand: the elbow bows away from the body.
-  const A = armElbow(sx0, sy0, hx, hy, -s);
+  // Shoulder, elbow, hand: the elbow leans behind the figure (world space here,
+  // so no mirror - the one place the old code had the sign the wrong way round).
+  const bk = backDir(p);
+  const A = armElbow(sx0, sy0, hx, hy, bk.x, bk.y);
   ctx.strokeStyle = OUT; ctx.lineWidth = sleeveW + 3;
   ctx.beginPath(); ctx.moveTo(sx0, sy0); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
   ctx.strokeStyle = col(behind ? sleeve[1] : sleeve[0]); ctx.lineWidth = sleeveW;
@@ -778,7 +805,7 @@ export function drawWandererArm(p, ctx, hold, bob, behind) {
     ctx.stroke();
   }
   ctx.fillStyle = col(Hd.c(P));
-  ctx.beginPath(); ctx.arc(hx, hy, Hd.r * (1 + 0.1 * (hold.fwd || 0) * V.depth), 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(hx, hy, Hd.r * (1 + 0.016 * (hold.near || 0)), 0, TAU); ctx.fill();
   ctx.strokeStyle = OUT; ctx.lineWidth = 1.2; ctx.stroke();
   ctx.globalAlpha = 1;
 }

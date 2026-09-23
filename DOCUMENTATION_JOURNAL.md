@@ -4481,6 +4481,63 @@ So the walk is back to about what it was, with the head-on flatness fixed
 rather than papered over: the arms still bend a little, still drag behind the
 legs, and the near arm still passes in front of the body twice a stride.
 
+**Round 3 - the design, not a typo (the owner: "I think you still have elbows
+reversed. Check design once, and I face this issue many times: things are
+reversed.").** They were right twice over.
+
+**What was actually wrong.** The arms were described ON THE SCREEN, in two
+different frames:
+- the body is drawn mirrored - the canvas is scaled by `s` so +x is the way the
+  figure faces - while the weapon arm is drawn in world space, where it is not;
+- every view then patched left and right by hand: a lerp between a "profile"
+  number and a "face on" number, a sign here, a `back` flag there.
+
+Two reversals came out of that:
+1. **The elbow.** The off arm's lean was computed in the mirrored frame, the
+   weapon arm's in world space with the sign inverted - so the weapon arm's
+   elbow bowed FORWARD while the other bowed back. A test that measures the
+   lean against "behind the figure" fails on **all eight** facings in build 32.
+2. **The hands, worse.** A right-handed figure carries the weapon in its right
+   hand. Walking TOWARD the camera that hand is on the viewer's LEFT; walking
+   away it is on the viewer's RIGHT. The old placement knew only the mirror flag
+   `s`, which says nothing about facing the camera, so the weapon stayed on the
+   same side of the screen: it effectively **changed hands** as the figure
+   turned. Wrong in three of the eight facings (down-right, down, up-left).
+
+**The fix is the rule the enemies already use.** `figures.js` places every part
+of every enemy in the creature's own axes - `pr(f, r, h)`: forward, to its
+right, up - and projects that for the way it faces, with `depth(f, r)` deciding
+what is drawn in front. The player's Wanderer was the one figure not built that
+way. Now the arms are:
+- given in the figure's own ground axes (`groundOff(fwd, right)`), returning a
+  SCREEN offset plus `near`, how far toward the camera the point is;
+- mirrored in exactly ONE place - drawing inside the body's own frame multiplies
+  x by `s`, and nothing else is allowed to;
+- leaned back by `backDir(p)`, the projected "behind the figure" direction, so
+  the elbow bends the same way at every angle;
+- ordered by `near`: the arm closer to the camera is drawn over the body. That
+  one number replaces the old per-view special cases, including the profile
+  rule and the "facing away" flag, and the shoulder pieces now sit on the same
+  projected shoulders.
+
+**Verified in Node** (`armtest3.mjs`), with the expectations worked out
+independently of the drawing code (a figure facing `a` has its right hand toward
+`(-sin a, cos a)`):
+
+| | build 32 | now |
+|---|---|---|
+| hands on the side the body says (8 facings) | 5 of 8 | **8 of 8** |
+| elbow leaning behind the figure | 0 of 8 | **8 of 8** |
+
+Hand travel per stride is unchanged by the fix (3–4 px across in profile, about
+3.5 px up and down head on), and all 92 wardrobe pieces still draw at every
+facing with no errors.
+
+**The lesson for the rest of the game:** describe a figure's parts in ITS OWN
+axes and project once. Never write per-view left/right numbers, and never let a
+mirror multiply in more than one place - that is what has been producing
+"reversed" things.
+
 ### 16.56 Dungeons: four new ones, each built round its own trick (2026-09-22)
 
 The owner: the dungeon is fun; it needs a little rework. Build different
