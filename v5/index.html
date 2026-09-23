@@ -220,15 +220,16 @@
   .musiccard .desc{font-size:11.5px;margin-top:4px}
   .musiccard.on{border-color:#ffc070;box-shadow:0 0 0 1px #ffc07099, 0 0 18px #ffb05033}
 
-  /* Upright-phone fallback where the landscape lock isn't available. */
-  #rotate{
-    position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
-    flex-direction:column;gap:16px;background:var(--bg);text-align:center;padding:30px;
-    font-size:15px;letter-spacing:.04em;
+  /* Upright on a phone: the whole game is turned a quarter turn and laid out
+     landscape across the screen, instead of asking anyone to turn the phone.
+     game.js sets the size and the transform (it needs the real pixels, which
+     100vw/100vh get wrong while the browser's bars come and go). */
+  body.turned{
+    position:fixed;top:0;left:0;transform-origin:0 0;overflow:hidden;
+    /* Its own compositor layer: without this the turned page is rasterised at
+       the wrong size and everything lands in a corner of the screen. */
+    will-change:transform;backface-visibility:hidden;
   }
-  #rotate.on{display:flex}
-  #rotate .ph{width:52px;height:88px;border:3px solid var(--ink);border-radius:9px;animation:tilt 1.6s ease-in-out infinite}
-  @keyframes tilt{0%,40%{transform:rotate(0)}70%,100%{transform:rotate(-90deg)}}
 
   /* Narrow (upright phone) screens: menus stay usable before a run starts,
      two cards per row instead of one tall column. */
@@ -244,7 +245,6 @@
 <body>
   <canvas id="game"></canvas>
   <div id="overlay"></div>
-  <div id="rotate"><div class="ph"></div><div>Turn your phone sideways to play</div></div>
   <script type="module" src="./src/game.js"></script>
 </body>
 </html>

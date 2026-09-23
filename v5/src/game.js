@@ -89,7 +89,6 @@ import {
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
-const rotateEl = document.getElementById('rotate');
 
 const STEP = 1 / 60;
 let accumulator = 0;
@@ -97,17 +96,21 @@ let last = performance.now();
 let state = 'title';        // title | mirror | weapon | playing | boon | dead | victory | paused
 let deathTimer = 0;
 let audioStarted = false;
-// A weapon picked while the phone was still upright; the run starts once
-// it's been turned sideways.
-let pendingWeapon = null;
 // Set when the weapon screen was reached from Boss Trials.
 let pendingTrial = null;
 
 // --- setup -----------------------------------------------------------------
 
 function resize() {
-  const cw = Math.max(320, window.innerWidth);
-  const ch = Math.max(240, window.innerHeight);
+  // Upright on a phone, the whole game is turned a quarter turn and laid out
+  // landscape across the screen - the same picture the fullscreen button gives
+  // on Android, but without waiting for an orientation lock the browser may
+  // never grant (no iPhone browser does). So the width and height the game
+  // lays itself out in are the screen's, swapped.
+  const turned = isPortraitTouch();
+  view.turned = turned;
+  const cw = Math.max(320, turned ? window.innerHeight : window.innerWidth);
+  const ch = Math.max(240, turned ? window.innerWidth : window.innerHeight);
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const aspect = cw / ch;
 
@@ -132,13 +135,28 @@ function resize() {
   canvas.style.width = cw + 'px';
   canvas.style.height = ch + 'px';
 
+  // The turn itself. Everything rides on it - the canvas and the menus alike -
+  // so the browser keeps handling taps on the buttons for us; only the canvas's
+  // own pointer maths has to undo it (input.js).
+  const b = document.body;
+  b.classList.toggle('turned', turned);
+  if (turned) {
+    // A landscape box the size of the screen turned on its side, then turned
+    // back onto it: rotate(90) about the top left sends (x, y) to (ch - y, x),
+    // so the box lands exactly over the upright screen.
+    b.style.width = cw + 'px';
+    b.style.height = ch + 'px';
+    b.style.transform = `rotate(90deg) translate(0, -${ch}px)`;
+  } else {
+    b.style.width = b.style.height = b.style.transform = '';
+  }
+
   layoutControls();
   if (world.overworld) applyOverworldBounds();
   else {
     chamberArena();
     clampObstacles();
   }
-  checkOrientation();
 }
 
 /** The chambers' floor: the view, inset for the HUD. */
@@ -153,27 +171,6 @@ function chamberArena() {
 /** A phone held upright. Gameplay is landscape-only. */
 function isPortraitTouch() {
   return isTouchDevice() && window.innerHeight > window.innerWidth;
-}
-
-function inRun() {
-  return state === 'playing' || state === 'paused' || state === 'boon' || state === 'dying';
-}
-
-/**
- * Starting a run goes fullscreen and locks landscape, which on Android turns
- * the screen for you. Where the lock isn't available — every iPhone browser —
- * this prompt is the fallback: the run waits (or pauses) until the phone is
- * turned. Menus stay usable upright; only the fight needs landscape.
- */
-function checkOrientation() {
-  const upright = isPortraitTouch();
-  rotateEl.classList.toggle('on', upright && (!!pendingWeapon || inRun()));
-  if (!upright && pendingWeapon) {
-    const w = pendingWeapon;
-    pendingWeapon = null;
-    beginRun(w);
-  }
-  if (upright && state === 'playing') showPause();
 }
 
 function clampObstacles() {
@@ -2945,14 +2942,10 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'pick': {
+      // Fullscreen (and with it the landscape lock, where the browser allows
+      // it). Upright, resize() has already turned the game a quarter turn, so
+      // the run starts either way - nothing to wait for.
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
-      // The landscape lock resolves a moment after fullscreen, and never on
-      // iOS. If the phone is still upright, hold the run until it's turned.
-      if (isPortraitTouch()) {
-        pendingWeapon = WEAPONS[idx];
-        checkOrientation();
-        break;
-      }
       beginRun(WEAPONS[idx]);
       break;
     }

@@ -45,6 +45,7 @@ export const view = {
   cw: 0, ch: 0,      // css pixels
   scale: 1,
   dpr: 1,
+  turned: false,     // a phone held upright: the whole game is turned a quarter turn
 };
 
 // The top-left of the view in world units. Always 0,0 in the chambers (the

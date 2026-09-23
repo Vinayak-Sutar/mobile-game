@@ -372,8 +372,14 @@ function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP) {
   // Head on and from behind, the hands hang a little wider: at the shoulders'
   // width they sit inside the coat and only a hand shows past its edge.
   const sq = Math.abs(Math.cos((p.wOct ?? 0) * OCT)) < 0.8;
+  // Head on, a swing can only show as up and down - and a hand that only moves
+  // up and down looks like a wave, not a walk (the owner, 2026-09-23). So most
+  // of it comes out there, and what is left also slides the hand a little
+  // across the hip, so it arcs instead of pumping.
+  const swing = sq ? u * 0.38 : u;
+  const across = sq ? -Math.sign(right) * u * 0.3 : 0;
   const sh = groundOff(p, 0, right * (SH_SIDE / HAND_SIDE) * (sq ? 1.35 : 1));
-  const hd = groundOff(p, fwd0 + u, right * (sq ? 1.08 : 1));
+  const hd = groundOff(p, fwd0 + swing, right * (sq ? 1.08 : 1) + across);
   return {
     sx: sh.x * s, sy: SHOULDER_Y + sh.y,
     hx: hd.x * s, hy: SHOULDER_Y + drop + hd.y,

@@ -4385,6 +4385,52 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.61 A hand that waves, and a phone that turns itself (2026-09-23)
+
+Two from the owner.
+
+**"It feels like he is just waving his hand up and down."** Head on, the only
+way a swing can show is up and down the screen - and a hand doing nothing but
+that reads as a wave, not a walk. So face on (and from behind) most of the swing
+now comes out (0.38 of it), and what is left also slides the hand a little
+across the hip, so it travels a small arc instead of pumping: measured, a hand's
+travel goes from 0 across x 3.4 up and down to **1.3 x 1.3**. In profile,
+where a swing really does read across the screen, nothing changes.
+
+**"Remove the warning that shows rotate your phone."** Gameplay is landscape,
+and until now an upright phone got a "Turn your phone sideways to play" screen
+and the run waited. On Android the fullscreen button usually rotates the screen
+for you (the orientation lock); no iPhone browser allows that lock at all, so
+the prompt was the fallback.
+
+Now there is no prompt: **upright, the game turns itself.** `resize()` lays the
+whole page out landscape at the screen's own size, swapped, and turns it a
+quarter turn:
+
+    body.style.width  = cw;                       // = window.innerHeight
+    body.style.height = ch;                       // = window.innerWidth
+    body.style.transform = `rotate(90deg) translate(0, -${ch}px)`;
+
+- It is the WHOLE page, not just the canvas, so the menus, the pause screen and
+  the wardrobe come with it, and the browser goes on handling taps on the HTML
+  buttons itself.
+- The canvas's own pointer maths is the only thing that has to undo the turn
+  (`toWorld` in input.js): the transform sends `(x, y)` to `(H - y, x)`, so a
+  tap at `(clientX, clientY)` is at `(clientY, H - clientX)` on the canvas,
+  where H is `window.innerWidth`.
+- `body.turned` is `position: fixed` (or the oversized box zooms the page out)
+  and carries `will-change: transform` - **without that the turned page is
+  rasterised at the wrong size and everything lands in a corner of the screen**,
+  which is exactly what the first render showed.
+- The fullscreen button and the orientation lock are untouched: where Android
+  grants the lock the screen turns as before and `turned` never comes on.
+
+**Checked in the browser** (a 375x812 phone, upright): the title, the biome and
+weapon screens, and a run in progress all fill the screen landscape; a tap at
+the pause button's screen position opens the pause menu, so the input mapping is
+right; and at 812x375 (a phone already on its side) nothing is turned and the
+game is exactly as before.
+
 ### 16.60 Both arms drawn alike where both are equally near (2026-09-23)
 
 The owner: "the right hand seems different than the one holding the weapon while
