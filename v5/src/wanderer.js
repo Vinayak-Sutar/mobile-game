@@ -235,19 +235,23 @@ export function wandererHold(p, lifted, bob) {
   const A = armAt(p, s, HAND_SIDE, u, HAND_FWD + c.x * 0.9, HAND_DROP + (c.y + 19));
   const x = p.x + A.screenX;
   const y = p.y + 12 + bob + (p.wBodyY || 0) + A.hy;
+  // (c.front and c.a are drawn angles, authored for the screen: they are NOT
+  // projected again - that shortened the carried weapon and swung it across the
+  // body. Only the rig's swing, which happens on the ground, is projected.)
   const a = lerp(c.front, c.a, V.side) + clamp(u / 4.5, -1, 1) * 0.05;
   const angle = s > 0 ? a : Math.PI - a;
   // What is nearer the camera is drawn in front: one rule for every view.
-  const swung = A.near < 0;
-  const pr = project(angle);
-  if (!rig || k <= 0.001) return { x, y, angle: pr.angle, scale: pr.scale, behind: swung, near: A.near, arm: A, two: 0 };
+  // Carried, not swung: in front of the body when we can see the figure's front,
+  // behind it when we are looking at its back. Steady, like the off arm.
+  const swung = behind;
+  if (!rig || k <= 0.001) return { x, y, angle, scale: 1, behind: swung, near: A.near, arm: A, two: 0 };
 
   const e = k * k * (3 - 2 * k);
   return {
     x: lerp(x, rig.x, e),
     y: lerp(y, rig.y, e),
-    angle: pr.angle + angleDiff(pr.angle, rig.angle) * e,   // the short way round
-    scale: lerp(pr.scale, rig.scale, e),
+    angle: angle + angleDiff(angle, rig.angle) * e,   // the short way round
+    scale: lerp(1, rig.scale, e),
     // Fighting, the rig's hand governs, and with it the old rule: the weapon
     // goes behind the body when the figure has its back to us.
     behind: e < 0.5 ? swung : behind,
@@ -294,7 +298,7 @@ const ARM_SWING = 0.62;           // how far a hand swings, against the foot's s
 const WEP_SWING = 0.46;           // a hand carrying a weapon swings less
 const SHOULDER_Y = -27;
 const HAND_DROP = 8;              // the hand hangs this far below the shoulder
-const HAND_SIDE = 7.4;            // how far out from the middle the hands hang
+const HAND_SIDE = 8.6;            // how far out from the middle the hands hang
 const SH_SIDE = 5.6;              // and the shoulders
 const HAND_FWD = -1.2;            // hands hang a touch behind the shoulders
 const DEPTH = 0.8;                // a step toward the camera, on the screen
@@ -341,9 +345,9 @@ function backDir(p) {
  * and never past ARM_BEND. Not two-bone IK: at this size an exact solve bows
  * the elbow further than the arm is wide (round 2's noodle).
  */
-function armElbow(sx, sy, hx, hy, bx, by) {
+function armElbow(sx, sy, hx, hy, bx, by, k = 1) {
   const d = Math.hypot(hx - sx, hy - sy) || 0.01;
-  const bend = Math.min(ARM_BEND, Math.max(0, (ARM - d) * 0.42));
+  const bend = Math.min(ARM_BEND, Math.max(0, (ARM - d) * 0.42)) * k;
   return { ex: sx + (hx - sx) * 0.52 + bx * bend, ey: sy + (hy - sy) * 0.52 + by * bend, hx, hy };
 }
 
@@ -365,8 +369,11 @@ function gripHand(hold, OA, toLocal) {
 
 /** Where one hand is: the shoulder it hangs from, the hand, and how near the camera. */
 function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP) {
-  const sh = groundOff(p, 0, right * (SH_SIDE / HAND_SIDE));
-  const hd = groundOff(p, fwd0 + u, right);
+  // Head on and from behind, the hands hang a little wider: at the shoulders'
+  // width they sit inside the coat and only a hand shows past its edge.
+  const sq = Math.abs(Math.cos((p.wOct ?? 0) * OCT)) < 0.8;
+  const sh = groundOff(p, 0, right * (SH_SIDE / HAND_SIDE) * (sq ? 1.35 : 1));
+  const hd = groundOff(p, fwd0 + u, right * (sq ? 1.08 : 1));
   return {
     sx: sh.x * s, sy: SHOULDER_Y + sh.y,
     hx: hd.x * s, hy: SHOULDER_Y + drop + hd.y,
@@ -682,7 +689,7 @@ export function drawWanderer(p, ctx, world, bob, hold = null) {
   const drawOffArm = () => {
     // Shoulder, elbow, hand: the elbow leans behind the figure, so the arm
     // bends like an arm and shortens as the hand comes toward the viewer.
-    const A = armElbow(OA.sx, OA.sy, OA.hx, OA.hy, bk.x * s, bk.y);
+    const A = armElbow(OA.sx, OA.sy, OA.hx, OA.hy, bk.x * s, bk.y, grip || V.side > 0.6 ? 1 : 0.25);
     const w = sleeveW * 0.9;
     ctx.strokeStyle = OUT; ctx.lineWidth = w + 3;
     ctx.beginPath(); ctx.moveTo(OA.sx, OA.sy); ctx.lineTo(A.ex, A.ey); ctx.lineTo(A.hx, A.hy); ctx.stroke();
@@ -695,7 +702,21 @@ export function drawWanderer(p, ctx, world, bob, hold = null) {
   // on, an arm drawn over the chest reads as a stick laid across it (the owner:
   // the other hand "is not looking that good" coming toward us). A hand on the
   // weapon is always in front.
-  const offInFront = grip ? grip.near > -1 : OA.near >= (V.side > 0.6 ? 0 : 1.6);
+  // Which side of the body the arm is drawn on. A hand ON THE WEAPON follows the
+  // weapon. An arm merely hanging keeps to ONE side for the whole view, because a
+  // hanging arm is at the figure's side, not across its chest or its back: in
+  // profile the far arm is behind (and shows in front only when the figure has
+  // its back to us, which is the far side then); head on and from behind it
+  // hangs down the figure's side, in front of the coat, so the whole arm reads
+  // instead of one hand poking past the edge.
+  // (Flipping it with the swing is right for a swung arm and wrong for a hanging
+  // one - the owner, 2026-09-23: coming forward "his hand is backward", going
+  // away "the weird hand is coming".)
+  // Head on, down the figure's side, in front of the coat. From BEHIND, the back
+  // (and a cloak, if it wears one) covers the arms, so it goes behind the body -
+  // otherwise a hand floats over the cloak, which is the "weird hand" the owner
+  // saw walking away.
+  const offInFront = grip ? grip.near > -1 : (V.side > 0.6 ? back : V.depth > 0);
   if (!offInFront) drawOffArm();
 
   // --- the body: a coat, armour, a robe -----------------------------------------

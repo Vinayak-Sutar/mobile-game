@@ -1,0 +1,89 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Wanderer preview</title>
+<style>body{margin:0;background:#20242a;color:#ddd;font:12px system-ui}canvas{display:block}</style></head>
+<body><canvas id="c"></canvas>
+<script type="module">
+// The Wanderer at every angle, standing, walking and swinging: for checking the
+// arms and the weapon without playing. ?w=blade|maul|spear|gun|bow  &z=zoom
+// &set=knight|warden|ronin... (a wardrobe preset)  &walkPhase=0..1
+import { world, view, resetWorld } from './src/state.js';
+import { createPlayer, drawPlayer } from './src/player.js';
+import { updatePlayerAnim } from './src/rigs.js';
+import { WEAPONS } from './src/weapons.js';
+import { look, prepareWanderer } from './src/wanderer.js';
+import { PRESETS, DEFAULT_OUTFIT, setOutfit } from './src/outfits.js';
+
+const q = new URLSearchParams(location.search);
+const Z = Number(q.get('z') || 2.4);
+const wid = q.get('w') || 'blade';
+const setName = q.get('set') || 'wanderer';
+const preset = PRESETS.find((p) => p.id === setName) || PRESETS[0];
+setOutfit({ ...DEFAULT_OUTFIT, ...preset.o });
+look.skin = 'wanderer';
+
+const ALL_COLS = [
+  { name: 'stand', walk: false, phase: null },
+  { name: 'walk A', walk: true, at: 0.1 },
+  { name: 'walk B', walk: true, at: 0.35 },
+  { name: 'walk C', walk: true, at: 0.6 },
+  { name: 'wind up', walk: false, phase: 'windup' },
+  { name: 'strike', walk: false, phase: 'active' },
+  { name: 'recover', walk: false, phase: 'recover' },
+];
+const cpick = (q.get('cols') || '').split(',').filter((v) => v !== '').map(Number);
+const COLS = cpick.length ? cpick.map((i) => ALL_COLS[i]) : ALL_COLS;
+const ALL_ROWS = ['right', 'down-right', 'DOWN (toward us)', 'down-left', 'left', 'up-left', 'UP (away)', 'up-right'];
+const pick = (q.get('rows') || '').split(',').filter((v) => v !== '').map(Number);
+const IDX = pick.length ? pick : ALL_ROWS.map((_, i) => i);
+const ROWS = IDX.map((i) => ALL_ROWS[i]);
+const CW = Number(q.get('cell') || 96), CH = Math.round(CW * 1.08), PAD = 54;
+const FIG = Number(q.get('fig') || 1);     // how much bigger than in the game
+const c = document.getElementById('c');
+c.width = (PAD + COLS.length * CW) * 1; c.height = (26 + ROWS.length * CH) * 1;
+c.style.width = c.width * (Z / 2.4) + 'px';
+const ctx = c.getContext('2d');
+view.w = c.width; view.h = c.height; view.scale = 1; view.dpr = 1;
+resetWorld();
+const w = WEAPONS.find((q2) => q2.id === wid) || WEAPONS[1];
+
+ctx.fillStyle = '#20242a'; ctx.fillRect(0, 0, c.width, c.height);
+ctx.font = '600 11px system-ui'; ctx.fillStyle = '#9aa';
+COLS.forEach((col, i) => ctx.fillText(col.name, PAD + i * CW + 8, 16));
+
+let t = 0;
+for (let r = 0; r < ROWS.length; r++) {
+  ctx.fillStyle = ROWS[r].startsWith('D') || ROWS[r].startsWith('U') ? '#ffd89a' : '#9aa';
+  ctx.fillText(ROWS[r], 4, 26 + r * CH + CH / 2);
+  for (let i = 0; i < COLS.length; i++) {
+    const col = COLS[i];
+    const cx = PAD + i * CW + CW / 2, cy = 26 + r * CH + CH * 0.62;
+    const p = createPlayer(w, {});
+    world.player = p;
+    p.x = cx; p.y = cy;
+    const a = IDX[r] * Math.PI / 4;
+    p.aimAngle = a; p.wFace = a; p.moveAngle = a;
+    p.moveMag = col.walk ? 1 : 0;
+    // A few frames so the facing, the arm drag and the rig settle.
+    for (let k = 0; k < 26; k++) {
+      t += 1 / 60;
+      world.runTime = t;
+      if (col.phase) {
+        const step = w.combo[0];
+        p.attack = { step, index: 0, isSpecial: false, power: 1, phase: col.phase, angle: a,
+          t: (step[col.phase] || 0.08) * 0.45 };
+      }
+      if (col.walk) { p.x += Math.cos(a) * 3.1; p.y += Math.sin(a) * 3.1; }
+      updatePlayerAnim(p, 1 / 60);
+      prepareWanderer(p);        // the facing, the arm drag and the fighting stance settle
+    }
+    if (col.walk) { p.wPhase = col.at; p.x = cx; p.y = cy; }
+    ctx.save();
+    ctx.beginPath(); ctx.rect(PAD + i * CW, 26 + r * CH, CW, CH); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.strokeRect(PAD + i * CW, 26 + r * CH, CW, CH);
+    // Drawn at the figure's own size, then blown up about the cell's middle.
+    ctx.translate(cx, cy); ctx.scale(FIG, FIG); ctx.translate(-cx, -cy);
+    drawPlayer(p, ctx);
+    ctx.restore();
+  }
+}
+</script></body></html>

@@ -4385,6 +4385,50 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.59 The hands, head on and from behind - looked at, not guessed (2026-09-23)
+
+The owner, after three rounds of arm changes: "why the fuck do you change so many
+things at the same time... now, when he is coming forward, his hand is backward.
+And when he is going while making his back towards us, the weird hand is
+coming."
+
+Both were real, and both were mine:
+1. **Coming toward us, the free arm was drawn BEHIND the coat.** §16.58 had put
+   hanging arms behind the body to stop them lying across the chest. But the
+   shoulders are inside the coat's silhouette, so all that showed was the hand,
+   past its edge - a disembodied blob at the hip, exactly "his hand is
+   backward". Head on, the arm now hangs down the figure's SIDE, in front of the
+   coat, with the shoulders set a little wider so the whole arm reads.
+2. **Walking away, a hand floated over the cloak.** The arm flipped in front of
+   the body whenever the swing carried it toward the camera, so a hand appeared
+   and disappeared over the back - "the weird hand is coming". From behind, the
+   back (and a cloak) covers the arms, so a hanging arm is now drawn behind the
+   body there, steadily.
+3. **And one found while looking: the carried weapon was projected twice.** The
+   carry angles (CARRY.front / CARRY.a) were authored as DRAWN angles, on the
+   screen. §16.58 projected them again as if they were ground angles, which drew
+   the sword at 59% length swung across the body. Only the rig's swing, which
+   really happens on the ground, is projected now; the carry is left alone.
+
+**A preview page, because guessing at this has cost four rounds:**
+`v5/wanderer-preview.html` draws the Wanderer as a grid - eight facings against
+stand, three points of the walk, wind-up, strike and recover - with any weapon
+(`?w=maul`), any wardrobe set (`?set=warden`), chosen rows and columns
+(`?rows=2,6&cols=4,5,6`) and a zoom (`?cell=300&fig=5`). Every figure settles
+its facing, its arm drag and its fighting stance before it is drawn.
+
+**What the page showed** (and what a test could not): the arms against the
+coat's silhouette, the hand blob, the shortened carried sword, and - for the
+Ashen set - that the cloak covers the arms from behind. It also caught a fault
+in the page itself: at first it advanced the rig but not the Wanderer, so the
+two-handed grip had barely engaged and a maul looked one-handed.
+
+**Unchanged from §16.58:** the projected swing arc, the blade's smear, the
+two-handed grip while fighting, the shoulders' turn, and the cape's kick. The
+tests of §16.57 and §16.58 still pass: every hand on the correct side at all
+eight facings, every elbow leaning back, the grip on the haft, and all 92
+wardrobe pieces drawing.
+
 ### 16.58 Swinging it like a knight (2026-09-23)
 
 The owner, on the animation: the off hand looks bad coming toward the camera;
