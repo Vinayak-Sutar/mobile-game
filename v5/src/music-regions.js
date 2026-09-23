@@ -366,6 +366,92 @@ const DURGA = makeTheme({
   },
 });
 
+// --- the opening film's own two pieces ----------------------------------------------------
+//
+// A region's piece is written to be lived in: it comes and goes and leaves
+// room, because you may be under it for twenty minutes. A film's piece has
+// fifty seconds and a shape to follow, so these two are written differently -
+// slower, barer, with a drum under them keeping a pulse that is not in a hurry,
+// and a form with a lot of rest in it so the words along the foot are heard.
+//
+// They are the same two ragas the game already uses for those moods - Bhairav
+// for the ash, Bhupali for the hearth - so the opening is in the world's own
+// voice, and the turn from one to the other lands on the shot where you wake.
+
+// 1. THE ASH FALLS - Raag Bhairav, taken low and slow. Sa on F, komal re and
+// komal dha; the tune keeps falling back to Sa the way the ash does.
+const FILM_BHAIRAV_CHORDS = [['S.', 'M.', 'd.'], ['N..', 'G.', 'P.'], ['r.', 'P.', 'N.'], ['S.', 'M.', 'P.']];
+const FILM_ASH = makeTheme({
+  id: 'film-ash', name: 'The Ash Falls', raga: 'Raag Bhairav', sa: 65, beat: 0.82, fightBeat: 0.7, cycle: 16,
+  mood: 'The opening, first half: grave, bare and falling - a world already lost.',
+  hour: 'before dawn', regions: [],
+  notes: ['S', 'r', 'G', 'M', 'P', 'd', 'N'],
+  phrases: [
+    [['d.', 2], ['N.', 2], ['S', 3], ['r', 3], ['S', 2], ['N.', 4]],
+    [['S', 2], ['r', 2], ['G', 3], ['M', 3], ['P', 4], ['M', 2]],
+    [['P', 2], ['d', 3], ['N', 3], ["S'", 4], ['d', 2], ['P', 2]],
+    [['M', 2], ['G', 2], ['r', 4], ['S', 4], ['N.', 2], ['S', 2]],
+  ],
+  form: [0, null, 1, null, 2, 3, null, 1, null, null],
+  leads: ['piano'], leadVol: 0.085, leadDouble: -12,
+  barInst: 'piano', barBeats: 4, barVol: 0.032,
+  bars: [
+    ['S..', '', '', '', 'P..', '', '', ''],
+    ['d..', '', '', '', 'S.', '', '', ''],
+    ['N..', '', '', '', 'G.', '', '', ''],
+    ['P..', '', '', '', 'S.', '', '', ''],
+  ],
+  warmMore: [['piano', FILM_BHAIRAV_CHORDS.flat()], ['musicbox', ["S'"]]],
+  bed(c) {
+    // A drone that never goes away, and a drum like something distant falling.
+    if (c.s === 0) {
+      pad(c.k, [c.note('S..'), c.note('P..'), c.note('S.')], c.t, c.step * 32, 0.006);
+      drum(c.k, c.t, 0.055);
+    }
+    if (c.s === 16) drum(c.k, c.t, 0.03);
+    if (c.s % 16 === 0) {
+      const ch = FILM_BHAIRAV_CHORDS[Math.floor(c.n / 16) % 4].map(c.note);
+      roll(c.k, 'piano', ch, c.t, { vol: 0.026, dur: c.step * 16, pedal: true, spread: 0.1 });
+    }
+    if (c.s === 24 && c.cycle % 2 === 1) inst(c.k, 'musicbox', c.note("S'"), c.t, { vol: 0.026 });
+  },
+});
+
+// 2. THE ROAD OUT - Raag Bhupali, the same five open notes as the Heartland's
+// piece but climbing instead of circling: every phrase ends higher than it
+// began. This is the one that comes in on the shot where you stand up.
+const FILM_ROAD = makeTheme({
+  id: 'film-road', name: 'The Road Out', raga: 'Raag Bhupali', sa: 67, beat: 0.62, fightBeat: 0.54, cycle: 16,
+  mood: 'The opening, second half: the same world, walked into on purpose.',
+  hour: 'first light', regions: [],
+  notes: ['S', 'R', 'G', 'P', 'D'],
+  phrases: [
+    [['S', 2], ['R', 2], ['G', 4], ['P', 4], ['G', 2], ['R', 2]],
+    [['G', 2], ['P', 2], ['D', 3], ["S'", 3], ['D', 2], ['P', 2], ['G', 2]],
+    [['P', 1], ['D', 1], ["S'", 2], ["R'", 2], ["S'", 4], ['D', 3], ['P', 3]],
+    [['G', 2], ['R', 2], ['S', 3], ['D.', 3], ['S', 4], ['G', 2]],
+  ],
+  form: [0, 1, 2, 3, 1, 2, null, 3],
+  leads: ['piano', 'musicbox'], leadVol: 0.082, leadDouble: -12,
+  barInst: 'piano', barBeats: 4, barVol: 0.034,
+  bars: [
+    ['S..', '', 'P.', '', 'G.', '', 'P.', ''],
+    ['D..', '', 'G.', '', 'S.', '', 'G.', ''],
+    ['R..', '', 'D.', '', 'G.', '', 'D.', ''],
+    ['P..', '', "S'.", '', 'D.', '', 'G.', ''],
+  ],
+  bed(c) {
+    if (c.s === 0) pad(c.k, [c.note('S..'), c.note('P..')], c.t, c.step * 32, 0.005);
+    // Walking pace: a step, and a step.
+    if (c.s % 8 === 0) drum(c.k, c.t, c.s % 16 === 0 ? 0.05 : 0.034);
+    if (c.s % 8 === 6) tick(c.k, c.t, 0.008, 2800);
+  },
+});
+
+/** The opening's own music. Kept out of the region list on purpose. */
+export const FILM_THEMES = [FILM_ASH, FILM_ROAD];
+export const OPENING_MUSIC = { ash: FILM_ASH, road: FILM_ROAD };
+
 export const REGION_THEMES = [BHUPALI, MAAND, MALKAUNS, BHAIRAV, YAMAN, DURGA];
 
 const BY_REGION = new Map();
@@ -373,4 +459,4 @@ for (const th of REGION_THEMES) for (const r of th.regions) BY_REGION.set(r, th)
 
 /** The piece for a Wilds region id (or 'dungeon'); the Heartland's if none is set. */
 export function themeForRegion(id) { return BY_REGION.get(id) || BHUPALI; }
-export function themeById(id) { return REGION_THEMES.find((t) => t.id === id) || null; }
+export function themeById(id) { return [...REGION_THEMES, ...FILM_THEMES].find((t) => t.id === id) || null; }

@@ -4385,6 +4385,52 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.66 The opening gets its music, and plays every time (2026-09-24)
+
+The owner: "Cinematic looks good. Add some music in it." Then: "Let that
+cinematic play every time we click to set out into the Wilds. And since it is
+skipable, we can show it every time and also have a dedicated button to watch
+that cinematic somewhere. Like that of a training ground."
+
+**It was silent, and for a reason worth writing down.** The film DID ask for a
+theme, and the theme engine never played it: `setMusicActive` - the single line
+that decides whether the music scheduler runs at all - is the last statement of
+`tick`, and the film's branch at the top of `tick` returned before reaching it.
+The same early return also skipped `endFrameInput`, so every one-frame press
+edge stayed set once anything was pressed. Both are now done by hand in that
+branch, with a comment saying why.
+
+**Two pieces written for the film** (`music-regions.js`). A region's piece is
+written to be lived in - it comes and goes and leaves room, because you may be
+under it for twenty minutes. A film has fifty seconds and a shape to follow, so
+these are slower, barer, and their form has a lot of rest in it so the line
+along the foot is heard:
+
+- **The Ash Falls** - Raag Bhairav, Sa on F, a beat of 0.82 s. Komal re and
+  komal dha; every phrase falls back to Sa the way the ash does. One piano
+  doubled an octave down, a drone that never lifts, and a deep drum at the head
+  of each cycle like something distant coming down.
+- **The Road Out** - Raag Bhupali, the same five open notes as the Heartland's
+  piece but climbing instead of circling: every phrase ends higher than it
+  began. A walking pulse under it.
+
+They are the ragas the game already uses for those two moods, so the opening is
+in the world's own voice. The turn between them is a `beat` on the shot where
+you stand up, asked for 1.5 s in because `setAmbientTheme` takes 1.4 s to cross
+- so the new piece arrives as the figure comes up off the ground. They are kept
+out of `REGION_THEMES` on purpose (no region should ever choose them), and they
+have their own **The opening** row in the Music Room, to listen to on their own
+and to try another instrument on.
+
+**Every time now.** `save.sawOpening` is gone: Set out, New Journey and Continue
+all play the opening, and any press skips it. There are two ways to watch it on
+purpose - **The Opening** on the title screen, beside Training Ground, and
+**Watch the opening** on the Wilds screen you set out from.
+
+**Also fixed on the way:** the Music Room's card helper started asking every
+card which instrument plays its tune, and a guardian's card names a piece, not a
+theme - it has no `leads`, so the whole room threw and would not open.
+
 ### 16.65 Cinematics, and an opening to look at (2026-09-24)
 
 The owner: "I also want to see how we can have cinematics in our game. Design an

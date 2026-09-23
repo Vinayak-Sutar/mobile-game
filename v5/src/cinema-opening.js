@@ -16,7 +16,7 @@ import { updatePlayerAnim } from './rigs.js';
 import { WEAPONS } from './weapons.js';
 import { look, prepareWanderer } from './wanderer.js';
 import { sfx, setAmbientTheme, setMusicIntensity } from './audio.js';
-import { themeById } from './music-regions.js';
+import { OPENING_MUSIC } from './music-regions.js';
 import { FILM } from './cinema.js';
 
 const TAU = Math.PI * 2;
@@ -467,7 +467,7 @@ export function openingFilm() {
       hold: 4.3,
       say: 'There was a fire once. It warmed the whole of the world.',
       cam: { z0: 1, z1: 1.09 },
-      cue: () => { setMusicIntensity(0); setAmbientTheme(themeById('bhairav')); },
+      cue: () => { setMusicIntensity(0); setAmbientTheme(OPENING_MUSIC.ash); },
       draw(ctx, t) {
         sky(ctx, [[0, '#07050c'], [0.4, '#1d0a12'], [0.6, '#5d1c12'], [0.66, '#b4491a'], [0.72, '#2a1010'], [1, '#08060a']]);
         glow(ctx, HALF, 396, 330, 'rgba(255,140,50,0.55)');
@@ -727,7 +727,9 @@ export function openingFilm() {
       sayAt: 1.8,
       cam: { z0: 1.14, z1: 1.03, x0: -20, x1: 10 },
       cue: () => { settleHero({ face: Math.PI / 2 }); sfx.heal(); },
-      beats: [{ at: 2.4, run: () => { setAmbientTheme(themeById('bhupali')); sfx.spawn(); } }],
+      // The turn: the piece changes under the shot where you stand up. The
+      // swap takes 1.4 s to cross, so it is asked for before the moment.
+      beats: [{ at: 1.5, run: () => { setAmbientTheme(OPENING_MUSIC.road); sfx.spawn(); } }],
       draw(ctx, t) {
         sky(ctx, [[0, '#06070e'], [0.55, '#0a0c15'], [1, '#040509']]);
         ridge(ctx, 372, 16, 61, '#070810');

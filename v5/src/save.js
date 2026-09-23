@@ -18,8 +18,7 @@ const DEFAULTS = {
   musicLead: {},
   outfit: null,
   dungeonsCleared: {},    // dungeon id -> cleared once
-  talks: {},              // npc id -> { met, taken } (dialogue.js)
-  sawOpening: false,      // the opening film has been played once          // the Wanderer's outfit (outfits.js; the wardrobe)         // region piece id -> lead instrument (the Music Room)
+  talks: {},              // npc id -> { met, taken } (dialogue.js)          // the Wanderer's outfit (outfits.js; the wardrobe)         // region piece id -> lead instrument (the Music Room)
   biome: 'ember',
   moveSpeed: 0.85,       // walking speed multiplier (settings); 1 was the old default
   character: 'auto',     // the player's look: auto (the Wanderer in The Wilds) | hooded | wanderer

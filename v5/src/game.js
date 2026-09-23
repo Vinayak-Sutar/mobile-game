@@ -17,7 +17,7 @@ import {
 } from './wilds-progress.js';
 import { loadJourney, saveJourney, clearJourney } from './wilds-save.js';
 import { LAMPS, REGIONS, WILDS, NPCS as NPC_SPOTS } from './wilds-layout.js';
-import { REGION_THEMES, themeForRegion, themeById, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
+import { REGION_THEMES, FILM_THEMES, themeForRegion, themeById, setLeadChoice, leadFor, LEAD_OPTIONS } from './music-regions.js';
 import { DESH_THEME } from './music-desh.js';
 import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
@@ -457,9 +457,14 @@ function tick(dt) {
   updateInput(world.player);
 
   // A film is playing: nothing in the world moves, and any press walks out.
+  // The tail of this function is done here by hand, because the rest of it is
+  // skipped - and leaving it out left the film silent (the music scheduler is
+  // switched on down there) and every one-frame press edge stuck on.
   if (state === 'cinema') {
     if (input.anyPressed || input.attackPressed || input.dashPressed || input.pausePressed) skipCinema();
     updateCinema(dt);
+    setMusicActive(true);
+    endFrameInput();
     return;
   }
 
@@ -935,13 +940,21 @@ function playInRoom(theme, boss) {
 function showMusicRoom() {
   if (!musicRoom) musicRoom = { theme: null, boss: false, fight: false };
   const playing = (t) => musicRoom.theme === t;
-  const card = (t, i, boss) => `
-      <div class="card musiccard${playing(t.theme || t) ? ' on' : ''}" data-act="${boss ? 'mr-boss' : 'mr-play'}" data-idx="${i}">
+  const ACT = { region: 'mr-play', boss: 'mr-boss', film: 'mr-film' };
+  const card = (t, i, kind) => {
+    // A guardian's card names a piece, not a theme, and has no leads to ask about.
+    const on = kind === 'boss' ? '' : LEAD_OPTIONS.find((o) => o.id === leadFor(t, 0)).label.toLowerCase();
+    const foot = kind === 'boss' ? ''
+      : kind === 'film' ? `<div class="desc" style="opacity:.7">Plays under the opening. The tune on ${on}.</div>`
+        : `<div class="desc" style="opacity:.7">Plays in ${regionNames(t)}. The tune on ${on}.</div>`;
+    return `
+      <div class="card musiccard${playing(t.theme || t) ? ' on' : ''}" data-act="${ACT[kind]}" data-idx="${i}">
         <div class="name">${playing(t.theme || t) ? '♪ ' : ''}${t.name}</div>
-        <div class="desc"><b>${t.raga}</b>${boss ? ` · ${t.who}` : ` · ${t.hour}`}</div>
+        <div class="desc"><b>${t.raga}</b>${kind === 'boss' ? ` · ${t.who}` : ` · ${t.hour}`}</div>
         <div class="desc">${t.mood}</div>
-        ${boss ? '' : `<div class="desc" style="opacity:.7">Plays in ${regionNames(t)}. The tune on ${LEAD_OPTIONS.find((o) => o.id === leadFor(t, 0)).label.toLowerCase()}.</div>`}
+        ${foot}
       </div>`;
+  };
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">listen</div>
@@ -958,9 +971,11 @@ function showMusicRoom() {
       </div>
       ${leadRow()}
       <h3 style="margin:14px 0 6px">The Wilds</h3>
-      <div class="cards">${REGION_THEMES.map((t, i) => card(t, i, false)).join('')}</div>
+      <div class="cards">${REGION_THEMES.map((t, i) => card(t, i, 'region')).join('')}</div>
       <h3 style="margin:14px 0 6px">Guardians</h3>
-      <div class="cards">${BOSS_PIECES.map((t, i) => card(t, i, true)).join('')}</div>
+      <div class="cards">${BOSS_PIECES.map((t, i) => card(t, i, 'boss')).join('')}</div>
+      <h3 style="margin:14px 0 6px">The opening</h3>
+      <div class="cards">${FILM_THEMES.map((t, i) => card(t, i, 'film')).join('')}</div>
       ${musicVolumeRow()}
       <div class="row"><button class="btn ghost" data-act="mr-back">Back</button></div>
     </div>`);
@@ -1692,6 +1707,7 @@ function showWildsIntro(confirmNew = false) {
     : `<div class="row">
         ${saved ? '<button class="btn" data-act="w-continue">Continue</button>' : ''}
         <button class="btn ${saved ? 'ghost' : ''}" data-act="w-new">${saved ? 'New Journey' : 'Set out'}</button>
+        <button class="btn ghost" data-act="opening-here">Watch the opening</button>
         <button class="btn ghost" data-act="training">Training Ground loadout</button>
         <button class="btn ghost" data-act="title">Back</button>
       </div>`;
@@ -2021,17 +2037,13 @@ function playFilm(shots, after) {
   });
 }
 
-/** The opening. Shown once on the first journey, and from the title after that. */
+/**
+ * The opening. It runs every time anyone goes out into the Wilds (the owner,
+ * 2026-09-24: "since it is skipable, we can show it every time"), and from its
+ * own button whenever you want to watch it again.
+ */
 function playOpening(after) {
-  save.sawOpening = true;
-  writeSave();
   playFilm(openingFilm(), after);
-}
-
-/** Whatever is about to start - but the opening first, if it has never been seen. */
-function openingThen(go) {
-  if (save.sawOpening) go();
-  else playOpening(go);
 }
 
 // --- talking to someone ------------------------------------------------------------------------
@@ -2919,6 +2931,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'd-pick': phoneFullscreen(); startDungeonDemo(DUNGEON_LIST[idx]); break;
     case 'talk-say': talkSay(idx); break;
     case 'opening': playOpening(showTitle); break;
+    case 'opening-here': playOpening(() => showWildsIntro()); break;
     case 'music-room': showMusicRoom(); break;
     case 'wardrobe': showWardrobe(charBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
@@ -2932,6 +2945,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'w-walk': ward.walk = !ward.walk; wardRefresh(); break;
     case 'w-done': { const back = wardBack || showTitle; closeWardrobe(); wardBack = null; back(); break; }
     case 'mr-play': playInRoom(REGION_THEMES[idx], false); showMusicRoom(); break;
+    case 'mr-film': playInRoom(FILM_THEMES[idx], false); showMusicRoom(); break;
     case 'mr-boss': playInRoom(BOSS_PIECES[idx].theme, true); showMusicRoom(); break;
     case 'mr-calm': case 'mr-fight':
       musicRoom.fight = act === 'mr-fight';
@@ -2987,9 +3001,9 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'w-start':
-    case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); openingThen(() => startWilds(false)); } break;
-    case 'w-new-yes': phoneFullscreen(); openingThen(() => startWilds(false)); break;
-    case 'w-continue': phoneFullscreen(); startWilds(true); break;
+    case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); playOpening(() => startWilds(false)); } break;
+    case 'w-new-yes': phoneFullscreen(); playOpening(() => startWilds(false)); break;
+    case 'w-continue': phoneFullscreen(); playOpening(() => startWilds(true)); break;
     case 'w-cinders': world.gold += 1000; saveWilds(); showWildsPause(); break;
     case 'l-level': showLevelUp(); break;
     case 'l-travel': showTravel(); break;
