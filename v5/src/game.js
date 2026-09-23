@@ -24,6 +24,8 @@ import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
 import { DUNGEON_LIST, dungeonInfo } from './dungeon-levels.js';
 import { npcById, openingLine, lineOf, talkState } from './dialogue.js';
+import { startCinema, updateCinema, drawCinema, skipCinema } from './cinema.js';
+import { openingFilm } from './cinema-opening.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
 import { clamp, TAU, shuffle } from './util.js';
@@ -454,6 +456,13 @@ function frame(now) {
 function tick(dt) {
   updateInput(world.player);
 
+  // A film is playing: nothing in the world moves, and any press walks out.
+  if (state === 'cinema') {
+    if (input.anyPressed || input.attackPressed || input.dashPressed || input.pausePressed) skipCinema();
+    updateCinema(dt);
+    return;
+  }
+
   // A conversation holds the simulation but not the picture (see frameTalk).
   if (talking && state === 'paused') frameTalk(dt);
 
@@ -605,6 +614,8 @@ function render() {
 
   ctx.fillStyle = '#08060d';
   ctx.fillRect(0, 0, view.w, view.h);
+
+  if (state === 'cinema') { drawCinema(ctx, view); return; }
 
   const inRun = state === 'playing' || state === 'dying' || state === 'boon' || state === 'paused';
 
@@ -1134,6 +1145,7 @@ function showTitle() {
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeons</button>
+        <button class="btn ghost" data-act="opening">The Opening</button>
         <button class="btn ghost" data-act="music-room">Music Room</button>
         <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
@@ -1987,6 +1999,39 @@ function showLairGate(L) {
         <button class="btn ghost" data-act="w-away">Not yet</button>
       </div>
     </div>`);
+}
+
+// --- cinematics -------------------------------------------------------------------------------
+//
+// The film takes the whole screen and its own state: no overlay, no world, no
+// simulation, and any press at all skips out. Whatever was going to happen next
+// happens when it ends, watched or skipped.
+
+function playFilm(shots, after) {
+  ensureAudio();
+  unlockAudio();
+  hideOverlay();
+  resetInput();
+  state = 'cinema';
+  setBossTheme(null);
+  startCinema(shots, () => {
+    setAmbientTheme(null);
+    setMusicIntensity(0);
+    if (after) after();
+  });
+}
+
+/** The opening. Shown once on the first journey, and from the title after that. */
+function playOpening(after) {
+  save.sawOpening = true;
+  writeSave();
+  playFilm(openingFilm(), after);
+}
+
+/** Whatever is about to start - but the opening first, if it has never been seen. */
+function openingThen(go) {
+  if (save.sawOpening) go();
+  else playOpening(go);
 }
 
 // --- talking to someone ------------------------------------------------------------------------
@@ -2873,6 +2918,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'dungeon-demo': showDungeonList(); break;
     case 'd-pick': phoneFullscreen(); startDungeonDemo(DUNGEON_LIST[idx]); break;
     case 'talk-say': talkSay(idx); break;
+    case 'opening': playOpening(showTitle); break;
     case 'music-room': showMusicRoom(); break;
     case 'wardrobe': showWardrobe(charBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
@@ -2941,8 +2987,8 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'w-start':
-    case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); startWilds(false); } break;
-    case 'w-new-yes': phoneFullscreen(); startWilds(false); break;
+    case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); openingThen(() => startWilds(false)); } break;
+    case 'w-new-yes': phoneFullscreen(); openingThen(() => startWilds(false)); break;
     case 'w-continue': phoneFullscreen(); startWilds(true); break;
     case 'w-cinders': world.gold += 1000; saveWilds(); showWildsPause(); break;
     case 'l-level': showLevelUp(); break;
@@ -3168,8 +3214,11 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
   }
 });
 
+window.addEventListener('pointerdown', () => { if (state === 'cinema') skipCinema(); });
+
 window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
+  if (state === 'cinema') { skipCinema(); return; }
   if (k === 'm') { ensureAudio(); toggleMute(); save.muted = audio.muted; writeSave(); }
   if (state === 'map' && (k === 'escape' || k === 'tab' || k === 'p')) { closeWildsMap(); return; }
   if (k === 'g' && state === 'playing' && world.overworld) setGhost(!wildsGhost);

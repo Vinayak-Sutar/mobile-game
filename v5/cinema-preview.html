@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>Ashfall — the opening, shot by shot</title>
+<style>
+  html,body{margin:0;background:#0b0910;color:#cfc6bb;font:13px/1.5 system-ui}
+  canvas{display:block;margin:0 auto}
+  p{max-width:1100px;margin:10px auto;padding:0 12px;opacity:.7}
+</style></head><body>
+<p>Every shot of the opening, at a moment through it. <code>?f=</code> how far through each shot (0–1),
+<code>?cols=</code>, <code>?cw=</code> cell width. The film is drawn exactly as the projector draws it, cover-scaled
+into each cell with the same bars.</p>
+<canvas id="cv"></canvas>
+<script type="module">
+import { FILM } from './src/cinema.js';
+import { openingFilm } from './src/cinema-opening.js';
+import { view, world } from './src/state.js';
+
+const Q = new URLSearchParams(location.search);
+const F = Number(Q.get('f') ?? 0.5);
+const COLS = Number(Q.get('cols') ?? 3);
+const CW = Number(Q.get('cw') ?? 380);
+const CH = Math.round(CW * 9 / 16);
+const PAD = 10, LAB = 20;
+
+const ONLY = Q.get('only');
+const shots = openingFilm().filter((x, i) => ONLY === null || ONLY.split(',').includes(String(i + 1)));
+const rows = Math.ceil(shots.length / COLS);
+const cv = document.getElementById('cv');
+const dpr = Math.min(2, devicePixelRatio || 1);
+const W = COLS * (CW + PAD) + PAD, H = rows * (CH + LAB + PAD) + PAD;
+cv.width = W * dpr; cv.height = H * dpr;
+cv.style.width = W + 'px'; cv.style.height = H + 'px';
+const ctx = cv.getContext('2d');
+ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ctx.fillStyle = '#0b0910';
+ctx.fillRect(0, 0, W, H);
+
+// The shots pose the game's own figure, which wants a world to stand in.
+view.w = CW; view.h = CH;
+world.runTime = 0;
+
+const ease = (k) => k * k * (3 - 2 * k);
+const mix = (a, b, k) => a + (b - a) * k;
+
+shots.forEach((shot, i) => {
+  const cx = PAD + (i % COLS) * (CW + PAD);
+  const cy = PAD + Math.floor(i / COLS) * (CH + LAB + PAD);
+  const t = shot.hold * F;
+  const k = F;
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(cx, cy, CW, CH); ctx.clip();
+  ctx.fillStyle = '#000'; ctx.fillRect(cx, cy, CW, CH);
+
+  const cover = Math.max(CW / FILM.w, CH / FILM.h);
+  const c = shot.cam || {};
+  const e = ease(k);
+  const z = cover * mix(c.z0 ?? 1, c.z1 ?? 1, e);
+  const px = mix(c.x0 || 0, c.x1 || 0, e), py = mix(c.y0 || 0, c.y1 || 0, e);
+  ctx.translate(cx + CW / 2, cy + CH / 2);
+  ctx.scale(z, z);
+  ctx.translate(-FILM.w / 2 - px, -FILM.h / 2 - py);
+  try { shot.draw(ctx, t, k); } catch (err) { console.error('shot ' + (i + 1), err); }
+  ctx.restore();
+
+  // The bars and the line, as the projector puts them on.
+  const bar = Math.round(CH * 0.075);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(cx, cy, CW, bar);
+  ctx.fillRect(cx, cy + CH - bar, CW, bar);
+  if (shot.say) {
+    ctx.font = '600 11px system-ui';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(0,0,0,.6)';
+    ctx.fillText(shot.say, cx + CW / 2 + 1, cy + CH - bar - 9);
+    ctx.fillStyle = '#f0e2cb';
+    ctx.fillText(shot.say, cx + CW / 2, cy + CH - bar - 10);
+    ctx.textAlign = 'left';
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,.08)';
+  ctx.strokeRect(cx + .5, cy + .5, CW - 1, CH - 1);
+  ctx.fillStyle = '#8f8578';
+  ctx.font = '600 11px system-ui';
+  ctx.fillText(`${i + 1} · ${shot.hold}s`, cx + 2, cy + CH + 14);
+});
+</script></body></html>

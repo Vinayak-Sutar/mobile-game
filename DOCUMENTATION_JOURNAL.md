@@ -4385,6 +4385,86 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.65 Cinematics, and an opening to look at (2026-09-24)
+
+The owner: "I also want to see how we can have cinematics in our game. Design an
+opening cinematic to give an overall view of our game... I will take a look at
+it. And we will improve on it."
+
+So: a projector, a film, and a way to watch it.
+
+**The projector** (`cinema.js`). A film is a list of SHOTS and nothing else:
+
+    { hold, draw, say, sayAt, cam, cue, beats }
+
+`draw(ctx, t, k)` paints into a fixed **1000x560 film space** which the
+projector scales to COVER the screen, so a phone, a tablet and a desktop all
+see the same picture and only the edges differ. It adds what a player expects
+of an opening and the shots never have to think about: letterbox bars, the line
+along the foot (wrapped, over a wash, because a lamp or a dawn can sit exactly
+where the words go), a cross-fade at every cut, a fade up from black at the
+start, PRESS ANYWHERE TO SKIP after 2 s, and any press at all taking you out.
+`cam` is a slow push or drift, eased, with z never under 1 so the frame is
+always covered. `beats` fire once as the shot passes a second: a clap of
+thunder, a change of tune.
+
+It is its own game state, `'cinema'`: `tick` returns early (nothing in the world
+moves), `render` draws the film and returns, and there is no overlay, so the
+film has the screen.
+
+**The film** (`cinema-opening.js`), eleven shots, about **51 seconds**:
+
+| | | |
+|---|---|---|
+| 1 | a fire over a rim-lit ridge | "There was a fire once. It warmed the whole of the world." |
+| 2 | it comes down on a city | "Then it fell. The sky has been coming down ever since." |
+| 3 | a helmet, a broken spear, a lantern gone out | "It took the towns, then the roads, then the names." |
+| 4 | a chain of lamps going away into the dark | "But someone still walks the road, and keeps the lamps lit." |
+| 5 | a lamplighter reaching up to one | "A lamp is a promise: rest at one, and you will wake at it." |
+| 6 | five guardians standing against a red sky | "Thirteen things hold what is left of it. They do not sleep." |
+| 7 | the Ashen Gate, thirteen sockets unlit | "Behind the Ashen Gate, the Warden waits for all thirteen to fall." |
+| 8 | you, getting up at a lamp | "You woke with your name still on you. That is rare." |
+| 9 | the blow, and what comes off it | "What a fallen thing leaves is warmth. Take it, and grow." |
+| 10 | the road out, under a dawn | "Thirteen guardians. One road. Go and be the fire for a while." |
+| 11 | ASHFALL | an open world of ash and lamplight |
+
+Painted, not filmed: flat ember-and-ink silhouettes with ash blowing through
+them, which is the game's own palette and costs nothing. The vocabulary is
+small - `sky`, `ridge`/`rimRidge`, `glow`, `ash`, `lamp`, `tower`, `hooded`,
+`beast` and `ashenGate` - and every speck is placed by a hash of its index, so
+the same film plays the same way every time.
+
+**Only the Wanderer is the real thing.** Shots 8, 9 and 10 pose the game's own
+figure the way `wanderer-preview.html` does - set the facing, run
+`updatePlayerAnim` and `prepareWanderer`, call `drawPlayer` - so the figure who
+stands up at the lamp is the figure you walk out of it with, cape, hat and all.
+Nothing about the character is redrawn for the film.
+
+**Where it plays.** *The Opening* on the title screen, any time. And once, by
+itself, the first time anyone sets out on a journey - `save.sawOpening`.
+Music: Raag Bhairav (*Ash at Dawn*) for the fall, turning to Raag Bhupali
+(*Hearthfields*) on the beat where you wake.
+
+**What looking at it changed.** `cinema-preview.html` draws every shot at a
+moment through it, side by side (`?f=`, `?only=`, `?cols=`), and the first sheet
+was worth the ten minutes it took to write:
+
+- every figure sat too low and was cut by the bottom bar or the caption - the
+  whole stage moved up about 60 px;
+- the guardians were black shapes on a black hill. The land in that shot is now
+  kept LOW so every one of them stands against the sky;
+- the peacock drawn as spokes was a candelabra; as one scalloped fan with the
+  bird standing clear of it, it is a peacock;
+- waking by rotating the figure flat rotated its shadow with it and read as
+  falling over. It is a lean that straightens now;
+- the gate was a mound. Piers, a real arch, a cold light through it and the
+  thirteen sockets set over the crown.
+
+**Note for next time:** the in-app preview browser freezes `requestAnimationFrame`
+while its pane is hidden, so a film cannot be watched there. `window.ashfall.run(n)`
+steps the simulation - and therefore the film - by hand, and `.render()` draws
+one frame, which is how every shot above was looked at.
+
 ### 16.64 The conversation moves off the screen it was covering (2026-09-23)
 
 The owner, on the first cut: "Give dialog options like Avowed - it should be in
