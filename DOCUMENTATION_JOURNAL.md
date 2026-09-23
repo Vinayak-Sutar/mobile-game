@@ -4385,6 +4385,37 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
+### 16.62 Both arms the same length (2026-09-23)
+
+The owner, on the free hand coming toward the camera: "it is not the correct
+proportion... I want both of the hands to be the same length."
+
+They were right, and it was not subtle once measured. A man's arms are the same
+length; these were not drawn that way:
+
+| | before | now |
+|---|---|---|
+| the free arm, hanging | about **8** long | **11.0** |
+| the arm carrying the weapon | about **13.5** (and 7 facing away) | **11.0** |
+
+The free arm's hand hung a fixed 8 below the shoulder, while the carrying arm's
+hand was placed by the weapon's own rest (forward and down, `CARRY.x/.y`) with
+nothing capping the reach - so it stretched to 13.5 head on, and folded to 7
+facing away. Next to a long arm the other read as a stub, and a stub moving is
+what looked like waving.
+
+Now `armAt` finishes by measuring shoulder to hand and settling the length:
+a hanging arm is set to exactly `ARM` (11), and a carrying arm to `ARM` as well,
+so the two match whichever way the figure faces. Only a hand brought CLOSER than
+that - a grip on the haft, the rig's own swing - leaves the arm short, and that
+is what bends the elbow (§16.58's rule, unchanged). The weapon's drawn position
+follows the settled hand, so the carry sits a little further out than it did.
+
+**Measured** (`armlen.mjs`, both arms averaged over a stride, standing and
+walking, at all eight facings): the largest difference between the two arms is
+**0.08 px**; it was up to 4.1 px. Checked in `wanderer-preview.html` head on and
+in profile; the side, elbow and swing tests of §16.57-16.59 all still pass.
+
 ### 16.61 The stuck "turn your phone", and a hand that waves (2026-09-23)
 
 Two from the owner, and the second one turned out to be a misread on my part.

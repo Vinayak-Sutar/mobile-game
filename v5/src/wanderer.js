@@ -232,7 +232,9 @@ export function wandererHold(p, lifted, bob) {
   // The carrying hand, in the figure's own axes: on its right, swung against
   // the legs, carried a little ahead (the weapon's own rest, c.x).
   const u = G && !p.dead ? (p.wArm ? p.wArm.wep : 0) : 0;
-  const A = armAt(p, s, HAND_SIDE, u, HAND_FWD + c.x * 0.9, HAND_DROP + (c.y + 19));
+  // Carried, the arm is a full arm's length too: the same as the other one,
+  // whichever way the figure faces.
+  const A = armAt(p, s, HAND_SIDE, u, HAND_FWD + c.x * 0.9, HAND_DROP + (c.y + 19), true);
   const x = p.x + A.screenX;
   const y = p.y + 12 + bob + (p.wBodyY || 0) + A.hy;
   // (c.front and c.a are drawn angles, authored for the screen: they are NOT
@@ -368,7 +370,7 @@ function gripHand(hold, OA, toLocal) {
 }
 
 /** Where one hand is: the shoulder it hangs from, the hand, and how near the camera. */
-function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP) {
+function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP, hang = false) {
   // Head on and from behind, the hands hang a little wider: at the shoulders'
   // width they sit inside the coat and only a hand shows past its edge.
   const sq = Math.abs(Math.cos((p.wOct ?? 0) * OCT)) < 0.8;
@@ -380,10 +382,21 @@ function armAt(p, s, right, u, fwd0 = HAND_FWD, drop = HAND_DROP) {
   const across = sq ? -Math.sign(right) * u * 0.3 : 0;
   const sh = groundOff(p, 0, right * (SH_SIDE / HAND_SIDE) * (sq ? 1.35 : 1));
   const hd = groundOff(p, fwd0 + swing, right * (sq ? 1.08 : 1) + across);
+  const sx = sh.x * s, sy = SHOULDER_Y + sh.y;
+  let hx = hd.x * s, hy = SHOULDER_Y + drop + hd.y;
+  // THE SAME LENGTH, BOTH ARMS. A man's arms are the same length, and until now
+  // they were not drawn that way: hanging, an arm came out about 8 long, while
+  // the one carrying the weapon reached about 13.5, because the carry puts the
+  // hand forward and down and nothing capped it. Next to a long arm the other
+  // read as a stub - and a stub moving is what looked like waving (the owner,
+  // 2026-09-23). So a hanging arm is exactly ARM long, and a carrying one is
+  // never longer than ARM; only a hand brought CLOSER than that bends the elbow.
+  const dx = hx - sx, dy = hy - sy, d = Math.hypot(dx, dy) || 0.01;
+  if (hang || d > ARM) { const k = ARM / d; hx = sx + dx * k; hy = sy + dy * k; }
   return {
-    sx: sh.x * s, sy: SHOULDER_Y + sh.y,
-    hx: hd.x * s, hy: SHOULDER_Y + drop + hd.y,
-    near: hd.near, screenX: hd.x, screenY: hd.y,
+    sx, sy, hx, hy,
+    // Where that hand is on the screen, for the weapon (drawn in world space).
+    near: hd.near, screenX: hx * s, screenY: hy - SHOULDER_Y,
   };
 }
 
@@ -688,7 +701,7 @@ export function drawWanderer(p, ctx, world, bob, hold = null) {
   // The off hand: on the figure's left, swung against the far leg - unless the
   // weapon is two-handed and it has gone to the haft.
   const uOff = p.dead ? 0 : (p.wArm ? p.wArm.off : 0);
-  const OA = armAt(p, s, -HAND_SIDE, uOff);
+  const OA = armAt(p, s, -HAND_SIDE, uOff, HAND_FWD, HAND_DROP, true);   // hanging: a full arm's length
   const grip = hold && hold.two ? gripHand(hold, OA, toLocal) : null;
   if (grip) { OA.hx = grip.x; OA.hy = grip.y; OA.near = grip.near; }
   // Is this arm on the far side of the body? Only in profile: head on and from
