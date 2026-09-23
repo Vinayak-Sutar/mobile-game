@@ -102,13 +102,6 @@ export function layoutControls() {
 }
 
 function toWorld(clientX, clientY) {
-  // Upright on a phone the whole page is turned a quarter turn (game.js), so a
-  // tap's screen position has to be turned back before it means anything on the
-  // canvas. The turn is `rotate(90deg) translate(0, -H)` about the top left,
-  // which sends a point (x, y) to (H - y, x); undoing it is what this is.
-  if (view.turned) {
-    return { x: clientY / view.scale, y: (window.innerWidth - clientX) / view.scale };
-  }
   const rect = canvasEl.getBoundingClientRect();
   return {
     x: (clientX - rect.left) / view.scale,

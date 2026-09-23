@@ -4385,51 +4385,49 @@ telling where their ground ended. Now every fight has a place (`wilds-sites.js`)
   - wave two, then clear, then the reliquary opens, then reset;
   - every road clear; worst frame on every route about 11 ms; build 308 ms.
 
-### 16.61 A hand that waves, and a phone that turns itself (2026-09-23)
+### 16.61 The stuck "turn your phone", and a hand that waves (2026-09-23)
 
-Two from the owner.
+Two from the owner, and the second one turned out to be a misread on my part.
 
 **"It feels like he is just waving his hand up and down."** Head on, the only
-way a swing can show is up and down the screen - and a hand doing nothing but
-that reads as a wave, not a walk. So face on (and from behind) most of the swing
-now comes out (0.38 of it), and what is left also slides the hand a little
-across the hip, so it travels a small arc instead of pumping: measured, a hand's
-travel goes from 0 across x 3.4 up and down to **1.3 x 1.3**. In profile,
-where a swing really does read across the screen, nothing changes.
+way an arm swing can show is up and down the screen - and a hand doing nothing
+but that reads as a wave, not a walk. So face on (and from behind) most of the
+swing now comes out (0.38 of it is kept), and what is left also slides the hand
+a little across the hip, so it travels a small arc instead of pumping: a hand's
+travel goes from 0 across x 3.4 up and down to **1.3 x 1.3**. In profile, where
+a swing really does read across the screen, nothing changes.
 
-**"Remove the warning that shows rotate your phone."** Gameplay is landscape,
-and until now an upright phone got a "Turn your phone sideways to play" screen
-and the run waited. On Android the fullscreen button usually rotates the screen
-for you (the orientation lock); no iPhone browser allows that lock at all, so
-the prompt was the fallback.
+**"Remove the warning that shows rotate your phone."** I took this as "make
+upright work", and turned the whole page a quarter turn so an upright phone
+played landscape (build 37). The owner then explained what they had actually
+meant: *"the previous vertical was actually okay - I had a problem if I close
+the game and reopen; it used to show rotate phone and then I had to revisit the
+link to reconnect to the game."* The prompt was not the complaint. **A prompt
+that stuck after the game was closed and reopened** was, and only loading the
+page again cleared it.
 
-Now there is no prompt: **upright, the game turns itself.** `resize()` lays the
-whole page out landscape at the screen's own size, swapped, and turns it a
-quarter turn:
+So build 37's page turn is **reverted** - upright behaves as it did - and the
+actual fault is fixed:
+- **Why it stuck.** Coming back from the background, `innerWidth`/`innerHeight`
+  can still be the shape the window had BEFORE. The prompt went up on those
+  stale numbers, and since the window never actually changed afterwards, no
+  `resize` ever fired to take it down again.
+- `isPortraitTouch()` now asks the OS as well (`screen.orientation.type`, which
+  is never stale) and only calls it upright when BOTH agree. Where they
+  disagree - one stale, or the app sharing the screen - landscape wins, so a
+  stale reading can never be what leaves the prompt standing.
+- Coming back is re-checked over the next second (0, 150, 400, 900 ms), not
+  once, because the size and the orientation can both arrive late.
+- `focus` and the OS's own `screen.orientation` change event re-check too.
+- And while the prompt is up, a half-second tick keeps checking: whatever a
+  browser does or does not report, the prompt can never be the thing left
+  holding the game.
 
-    body.style.width  = cw;                       // = window.innerHeight
-    body.style.height = ch;                       // = window.innerWidth
-    body.style.transform = `rotate(90deg) translate(0, -${ch}px)`;
-
-- It is the WHOLE page, not just the canvas, so the menus, the pause screen and
-  the wardrobe come with it, and the browser goes on handling taps on the HTML
-  buttons itself.
-- The canvas's own pointer maths is the only thing that has to undo the turn
-  (`toWorld` in input.js): the transform sends `(x, y)` to `(H - y, x)`, so a
-  tap at `(clientX, clientY)` is at `(clientY, H - clientX)` on the canvas,
-  where H is `window.innerWidth`.
-- `body.turned` is `position: fixed` (or the oversized box zooms the page out)
-  and carries `will-change: transform` - **without that the turned page is
-  rasterised at the wrong size and everything lands in a corner of the screen**,
-  which is exactly what the first render showed.
-- The fullscreen button and the orientation lock are untouched: where Android
-  grants the lock the screen turns as before and `turned` never comes on.
-
-**Checked in the browser** (a 375x812 phone, upright): the title, the biome and
-weapon screens, and a run in progress all fill the screen landscape; a tap at
-the pause button's screen position opens the pause menu, so the input mapping is
-right; and at 812x375 (a phone already on its side) nothing is turned and the
-game is exactly as before.
+**Checked in the browser** (a 375x812 phone, mid-run, the OS orientation
+stubbed): the prompt shows while the phone is genuinely upright; it stays up
+across a close and reopen while it is still upright; and it takes itself down
+when the phone is turned even when the window size is slow to catch up - the
+case that used to need the link again.
 
 ### 16.60 Both arms drawn alike where both are equally near (2026-09-23)
 
