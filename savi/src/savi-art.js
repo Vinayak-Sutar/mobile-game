@@ -139,88 +139,229 @@ export function drawCanopy(ctx, T, bloom, time) {
   ctx.globalAlpha = 1;
 }
 
-/** One Great Root, reaching out from the tree to its trouble. */
+/**
+ * One Great Root, reaching out from the tree to its trouble.
+ *
+ * Not a line. A root is a thing that TAPERS and FORKS: it leaves the trunk as
+ * thick as a person, wanders, throws off rootlets that go nowhere, swells into
+ * knots, and arrives thin. Drawn as a chain of tapering segments with the bark
+ * lit along the top, and when it wakes the sap comes back up it in amber.
+ */
 export function drawRoot(ctx, T, R, woken, time) {
   const pts = rootPath(T, R);
-  const glow = woken ? 1 : 0;
-  // The root itself.
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
-  ctx.strokeStyle = 'rgba(0,0,0,0.22)';
-  ctx.lineWidth = 30;
-  stroke(ctx, pts, 4, 6);
-  ctx.strokeStyle = woken ? mixHex('#6b4c36', '#b9813f', 0.6) : '#5b5750';
-  ctx.lineWidth = 26;
-  stroke(ctx, pts, 0, 0);
-  ctx.strokeStyle = woken ? 'rgba(255,190,120,0.85)' : 'rgba(150,146,138,0.5)';
-  ctx.lineWidth = 7;
-  stroke(ctx, pts, -4, -5);
+  const n = pts.length;
 
-  // Awake: a pulse of memory running home to the tree.
-  if (glow) {
-    const k = (time * 0.22 + R.seed) % 1;
-    const p = along(pts, 1 - k);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 70);
-    g.addColorStop(0, 'rgba(255,175,80,0.55)');
-    g.addColorStop(1, 'rgba(255,150,60,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, 70, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+  // Its shadow on the ground, offset down.
+  ctx.save();
+  ctx.translate(5, 9);
+  ribbon(ctx, pts, 34, 7, 'rgba(0,0,0,0.22)');
+  ctx.restore();
+
+  // The rootlets first, so the main root lies over them.
+  for (let i = 2; i < n - 1; i++) {
+    if ((R.seed + i) % 3) continue;
+    const a = Math.atan2(pts[i].y - pts[i - 1].y, pts[i].x - pts[i - 1].x);
+    for (const side of [-1, 1]) {
+      const sp = a + side * (0.8 + rnd(R.seed + i * 3) * 0.7);
+      const len = 40 + rnd(R.seed + i * 7) * 90;
+      const w = 9 * (1 - i / n) + 3;
+      ctx.strokeStyle = woken ? '#5e4129' : '#514d46';
+      ctx.lineWidth = w;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.quadraticCurveTo(
+        pts[i].x + Math.cos(sp) * len * 0.6 + 14, pts[i].y + Math.sin(sp) * len * 0.6,
+        pts[i].x + Math.cos(sp + 0.5) * len, pts[i].y + Math.sin(sp + 0.5) * len,
+      );
+      ctx.stroke();
+    }
   }
 
-  // The tip: a knot you can stand on, and its mural once it is awake.
-  const tip = pts[pts.length - 1];
-  ctx.fillStyle = woken ? '#7a5533' : '#56524b';
-  ctx.beginPath();
-  ctx.ellipse(tip.x, tip.y, 46, 34, 0, 0, TAU);
-  ctx.fill();
-  ctx.strokeStyle = woken ? 'rgba(255,190,120,0.9)' : 'rgba(120,116,110,0.6)';
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  // The root, thick at the trunk and thin at the tip.
+  ribbon(ctx, pts, 36, 8, woken ? '#6b4a2e' : '#57534b');
+  ribbon(ctx, pts, 22, 4, woken ? '#7d5936' : '#615c54', -5);
+  // Bark, lit along the upper edge.
+  ribbon(ctx, pts, 8, 2, woken ? 'rgba(255,196,130,0.5)' : 'rgba(168,164,156,0.35)', -10);
+
+  // Knots along it.
+  for (let i = 1; i < n - 1; i++) {
+    if ((R.seed + i * 2) % 4) continue;
+    const w = (36 - (36 - 8) * (i / (n - 1))) * 0.62;
+    ctx.fillStyle = woken ? '#5b3e26' : '#4c4841';
+    ctx.beginPath();
+    ctx.ellipse(pts[i].x, pts[i].y, w, w * 0.72, i, 0, TAU);
+    ctx.fill();
+  }
+
+  // Awake: sap running home, and the knot at the end lit like a coal.
+  const tip = pts[n - 1];
   if (woken) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(tip.x, tip.y, 4, tip.x, tip.y, 120);
-    g.addColorStop(0, `rgba(255,170,70,${0.3 + Math.sin(time * 1.6 + R.seed) * 0.06})`);
-    g.addColorStop(1, 'rgba(255,150,60,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(tip.x, tip.y, 120, 0, TAU);
-    ctx.fill();
+    for (let k = 0; k < 3; k++) {
+      const f = ((time * 0.2 + R.seed * 0.3 + k / 3) % 1);
+      const p = along(pts, 1 - f);
+      const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 80);
+      g.addColorStop(0, 'rgba(255,175,80,0.5)');
+      g.addColorStop(1, 'rgba(255,150,60,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(p.x, p.y, 80, 0, TAU); ctx.fill();
+    }
     ctx.restore();
+    glow(ctx, tip.x, tip.y, 170, `rgba(255,168,72,${0.26 + Math.sin(time * 1.6 + R.seed) * 0.06})`);
+  }
+
+  // The knot at the tip, where the mural is cut.
+  ctx.fillStyle = woken ? '#7a5533' : '#4f4b44';
+  ctx.beginPath();
+  ctx.ellipse(tip.x, tip.y, 52, 38, 0, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = woken ? 'rgba(255,196,130,0.9)' : 'rgba(126,122,116,0.7)';
+  ctx.lineWidth = 3.5;
+  ctx.stroke();
+  for (let i = 0; i < 5; i++) {           // rings in the cut face
+    ctx.strokeStyle = woken ? `rgba(255,190,120,${0.3 - i * 0.05})` : `rgba(140,136,130,${0.24 - i * 0.04})`;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.ellipse(tip.x, tip.y, 46 - i * 9, 33 - i * 6.5, 0, 0, TAU);
+    ctx.stroke();
   }
 }
 
-/** The line a root takes from the trunk to its tip, bent so it never runs straight. */
+/** A tapering band down a path. `w0` at the trunk, `w1` at the tip. */
+function ribbon(ctx, pts, w0, w1, fill, lift = 0) {
+  const n = pts.length;
+  const side = (sgn) => {
+    for (let i = 0; i < n; i++) {
+      const k = sgn > 0 ? i : n - 1 - i;
+      const p = pts[k];
+      const a = pts[Math.min(n - 1, k + 1)], b = pts[Math.max(0, k - 1)];
+      const ang = Math.atan2(a.y - b.y, a.x - b.x) + Math.PI / 2;
+      const w = (w0 + (w1 - w0) * (k / (n - 1))) / 2;
+      const x = p.x + Math.cos(ang) * w * sgn, y = p.y + Math.sin(ang) * w * sgn + lift;
+      if (i === 0 && sgn > 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+  };
+  ctx.beginPath();
+  side(1); side(-1);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+/** The wandering line a root takes from the trunk out to its tip. */
 export function rootPath(T, R) {
   if (R._pts) return R._pts;
-  const n = 7, out = [];
-  const dx = R.x - T.x, dy = R.y - T.y;
-  const nx = -dy, ny = dx;
+  const to = R.at || R;
+  const n = 11, out = [];
+  const dx = to.x - T.x, dy = to.y - T.y;
   const len = Math.hypot(dx, dy) || 1;
+  const nx = -dy / len, ny = dx / len;
   for (let i = 0; i <= n; i++) {
     const k = i / n;
-    const bend = Math.sin(k * Math.PI) * (R.bend || 90) * (rnd(R.seed + i) - 0.35);
-    out.push({ x: T.x + dx * k + (nx / len) * bend, y: T.y + dy * k + (ny / len) * bend });
+    // Two waves of different lengths, so it wanders instead of bowing.
+    const bend = Math.sin(k * Math.PI) * 190 * (rnd(R.seed) - 0.5)
+      + Math.sin(k * Math.PI * 2.7 + R.seed) * 62
+      + Math.sin(k * Math.PI * 5.3 + R.seed * 2) * 20;
+    out.push({ x: T.x + dx * k + nx * bend, y: T.y + dy * k + ny * bend });
   }
   R._pts = out;
   return out;
 }
 
-function stroke(ctx, pts, ox, oy) {
-  ctx.beginPath();
-  ctx.moveTo(pts[0].x + ox, pts[0].y + oy);
-  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x + ox, pts[i].y + oy);
-  ctx.stroke();
-}
 function along(pts, k) {
   const f = clamp01(k) * (pts.length - 1);
   const i = Math.min(pts.length - 2, Math.floor(f)), u = f - i;
   return { x: mix(pts[i].x, pts[i + 1].x, u), y: mix(pts[i].y, pts[i + 1].y, u) };
+}
+
+// --- the valley's own trees and stones ---------------------------------------------------
+
+/** An autumn tree from above: a trunk and a few overlapping crowns. */
+export function drawTree(ctx, o, time, warmth) {
+  const s = o.s, x = o.x, y = o.y;
+  const sway = Math.sin(time * 0.6 + o.seed) * 2.4 * s;
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  ctx.beginPath();
+  ctx.ellipse(x + 8 * s, y + 8 * s, 34 * s, 16 * s, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = '#3d2c20';
+  ctx.beginPath();
+  ctx.moveTo(x - 6 * s, y);
+  ctx.lineTo(x - 4 * s, y - 26 * s);
+  ctx.lineTo(x + 4 * s, y - 26 * s);
+  ctx.lineTo(x + 6 * s, y);
+  ctx.closePath();
+  ctx.fill();
+  if (o.dead) {
+    ctx.strokeStyle = '#3d3229';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 6; i++) {
+      const a = -Math.PI / 2 + (i - 2.5) * 0.42;
+      ctx.lineWidth = 4.5 * s;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 22 * s);
+      ctx.quadraticCurveTo(x + Math.cos(a) * 24 * s, y - 42 * s, x + Math.cos(a) * 44 * s + sway, y - 52 * s + Math.sin(a) * 12 * s);
+      ctx.stroke();
+    }
+    return;
+  }
+  const hues = warmth > 0.55
+    ? ['#d98f2f', '#e8b148', '#c46c25', '#f0c65e']
+    : ['#8f7a3a', '#a8893c', '#7a6330', '#bd9a45'];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * TAU + o.seed;
+    const r = (26 + rnd(o.seed + i) * 16) * s;
+    ctx.fillStyle = hues[(o.seed + i) % hues.length];
+    ctx.beginPath();
+    ctx.ellipse(x + Math.cos(a) * 17 * s + sway, y - 34 * s + Math.sin(a) * 11 * s, r, r * 0.8, a, 0, TAU);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,230,180,0.14)';
+  ctx.beginPath();
+  ctx.ellipse(x - 12 * s + sway, y - 46 * s, 22 * s, 14 * s, 0, 0, TAU);
+  ctx.fill();
+}
+
+/** A stone, and its own small shadow. */
+export function drawRock(ctx, o, time, warmth) {
+  const s = o.s, x = o.x, y = o.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.24)';
+  ctx.beginPath(); ctx.ellipse(x + 4 * s, y + 4 * s, 20 * s, 10 * s, 0, 0, TAU); ctx.fill();
+  for (let i = 0; i < 3; i++) {
+    const a = o.seed + i * 2.1;
+    ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
+    ctx.beginPath();
+    ctx.ellipse(x + Math.cos(a) * 6 * s, y - 4 * s + Math.sin(a) * 4 * s, (16 - i * 3) * s, (12 - i * 2.4) * s, a, 0, TAU);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,240,210,0.16)';
+  ctx.beginPath(); ctx.ellipse(x - 5 * s, y - 9 * s, 8 * s, 4.4 * s, -0.4, 0, TAU); ctx.fill();
+}
+
+/** The cold standing over a root the valley is not ready for. */
+export function drawVeil(ctx, at, time) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(at.x, at.y, 40, at.x, at.y, 300);
+  g.addColorStop(0, 'rgba(150,180,225,0.05)');
+  g.addColorStop(0.72, 'rgba(120,155,205,0.16)');
+  g.addColorStop(1, 'rgba(90,120,170,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(at.x, at.y, 300, 0, TAU); ctx.fill();
+  ctx.restore();
+  for (let i = 0; i < 26; i++) {
+    const a = (i / 26) * TAU + time * 0.16 * (i % 2 ? 1 : -1);
+    const r = 210 + Math.sin(time * 0.8 + i) * 52;
+    ctx.globalAlpha = 0.16 + Math.sin(time + i) * 0.07;
+    ctx.strokeStyle = '#cfe0f2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(at.x, at.y, r, a, a + 0.34);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // --- Savi ----------------------------------------------------------------------------
