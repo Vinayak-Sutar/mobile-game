@@ -26,6 +26,7 @@ import { createWildsWater } from './wilds-water.js';
 import {
   sfx, initAudio, unlockAudio, setAmbientTheme, setMusicIntensity, setMusicActive, setMusicEnabled,
 } from './audio.js';
+import { rumble } from './gamepad.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX, keeperLines } from './savi-story.js';
 import {
@@ -265,7 +266,31 @@ const st = {
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null;
 const keys = new Set();
-const touch = { on: false, ox: 0, oy: 0, x: 0, y: 0 };
+const touch = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+
+// A controller, any controller. A DualSense, an Xbox pad and anything else
+// that speaks the standard mapping all arrive here the same way: the left
+// stick or the d-pad walks, and cross / square / either trigger acts.
+const pad = { on: false, mx: 0, my: 0, held: false, pressed: false };
+function pollPad() {
+  const list = navigator.getGamepads ? navigator.getGamepads() : [];
+  let gp = null;
+  for (const g of list) if (g && g.connected) { gp = g; break; }
+  pad.on = !!gp;
+  if (!gp) { pad.mx = 0; pad.my = 0; pad.held = false; pad.pressed = false; return; }
+  const dead = (v) => (Math.abs(v) < 0.24 ? 0 : (v - Math.sign(v) * 0.24) / 0.76);
+  let mx = dead(gp.axes[0] || 0), my = dead(gp.axes[1] || 0);
+  const b = gp.buttons;
+  const down = (i) => !!(b[i] && (b[i].pressed || b[i].value > 0.4));
+  if (down(12)) my = -1;
+  if (down(13)) my = 1;
+  if (down(14)) mx = -1;
+  if (down(15)) mx = 1;
+  pad.mx = mx; pad.my = my;
+  const act = down(0) || down(2) || down(5) || down(7) || down(1) || down(3);
+  pad.pressed = act && !pad.held;
+  pad.held = act;
+}
 let forceMove = null, pressAct = false, actT = 0;
 let damHits = 0, damBroken = false, drain = 0;
 const ring = { x: 0, y: 0, r: 46 };
@@ -376,6 +401,7 @@ function moveVector() {
     const dx = touch.x - touch.ox, dy = touch.y - touch.oy, d = Math.hypot(dx, dy);
     if (d > 10) { mx += dx / Math.max(d, 54); my += dy / Math.max(d, 54); }
   }
+  mx += pad.mx; my += pad.my;
   const m = Math.hypot(mx, my);
   return m > 1 ? { x: mx / m, y: my / m } : { x: mx, y: my };
 }
@@ -383,6 +409,11 @@ function moveVector() {
 function step(dt) {
   st.t += dt;
   world.runTime = st.t;
+  pollPad();
+  if (pad.pressed) {
+    begin();
+    if (st.talking) advance(); else { pressAct = true; rumble(0.28, 0.18, 90); }
+  }
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
   if (pressAct) { pressAct = false; doAct(); }
@@ -645,7 +676,7 @@ function drawHud() {
   ctx.fillStyle = 'rgba(255,224,186,0.95)';
   ctx.fillText(st.hasEmber && st.ember > 0.08 ? 'BURN' : 'CLEAR', ring.x, ring.y + 4);
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText('space, or the ring — clear what is in the way', view.w / 2, view.h - 22);
+  ctx.fillText(pad.on ? 'left stick to walk · cross or R2 to clear' : 'space, or the ring — clear what is in the way', view.w / 2, view.h - 22);
   ctx.textAlign = 'left';
 }
 
@@ -736,17 +767,34 @@ function main() {
   });
   addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
 
+  // The stick lives on ONE pointer, and it is let go by the WINDOW - lifting a
+  // finger over the HUD, off the edge of the screen, or into a dialogue never
+  // reached a listener on the canvas, and she would keep walking on her own.
+  const letGo = (e) => {
+    if (e && e.pointerId !== undefined && touch.id !== -1 && e.pointerId !== touch.id) return;
+    touch.on = false; touch.id = -1;
+  };
   cv.addEventListener('pointerdown', (e) => {
     begin();
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) { pressAct = true; return; }
-    touch.on = true; touch.ox = e.clientX; touch.oy = e.clientY; touch.x = e.clientX; touch.y = e.clientY;
+    if (touch.on) return;                       // a second finger does not steer
+    touch.on = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
+    touch.ox = e.clientX; touch.oy = e.clientY; touch.x = e.clientX; touch.y = e.clientY;
+    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
   });
-  cv.addEventListener('pointermove', (e) => { if (touch.on) { touch.x = e.clientX; touch.y = e.clientY; } });
-  const up = () => { touch.on = false; };
-  cv.addEventListener('pointerup', up);
-  cv.addEventListener('pointercancel', up);
+  cv.addEventListener('pointermove', (e) => {
+    if (!touch.on || (touch.id !== -1 && e.pointerId !== touch.id)) return;
+    touch.x = e.clientX; touch.y = e.clientY;
+  });
+  addEventListener('pointerup', letGo);
+  addEventListener('pointercancel', letGo);
+  cv.addEventListener('lostpointercapture', letGo);
+  // Tabbing away with a key or a finger down used to leave it down for good.
+  const allOff = () => { keys.clear(); touch.on = false; touch.id = -1; };
+  addEventListener('blur', allOff);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) allOff(); });
   overlay.addEventListener('pointerdown', () => { begin(); advance(); });
   document.getElementById('title').addEventListener('pointerdown', begin);
 
