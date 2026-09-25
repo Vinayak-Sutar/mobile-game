@@ -389,18 +389,33 @@ let stroke = null;                                      // { t, side, mat }
 let strokeN = 0;                                        // so only every other one is heard
 let damPull = 0;
 
-/** One press with the broom in hand: begin a stroke, if there is one to make. */
+/**
+ * One press: is this a stroke of the broom, or is it somebody else's job?
+ *
+ * This asked the wrong question and broke the game. There is a thin litter of
+ * leaves over the WHOLE valley - depth 0.16 - and anything over 0.1 counted as
+ * sweepable, so a press anywhere at all decided it was a sweep. Stood at the
+ * dam with a coal in her hand, the answer came back "where did she leave the
+ * broom?", and because that refusal ate the press the fire never ran. The water
+ * could not be cleared at all.
+ *
+ * So the broom now claims a press only when it is plainly the broom's business:
+ * not at the dam, not at anything that wants fire, and not for the ordinary
+ * litter that lies everywhere - only a real DRIFT.
+ */
 function beginStroke() {
   if (stroke || st.talking || st.reading) return false;
+  // The dam is burned, never swept.
+  if (!damBroken && Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70) return false;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
   const m = there.d > here.d ? there.m : (here.m || there.m);
-  if (!m || m === MAT.thorn || m === MAT.ash) return false;
-  if (here.d < 0.1 && there.d < 0.1) return false;
+  if (!m || m === MAT.thorn || m === MAT.ash) return false;   // those want the coal
+  if (Math.max(here.d, there.d) < 0.42) return false;          // litter is not a drift
   if (!broom.held) {
     if (actT <= 0) {
-      actT = 1.2;
-      say([['keeper', 'Her hands are too small for this. The broom — where did she leave the broom?']], null);
+      actT = 1.4;
+      say([['keeper', 'This is a drift, not a dusting. Her hands will not shift it — where did she leave the broom?']], null);
     }
     return true;
   }
@@ -477,6 +492,7 @@ function actHold(dt) {
   const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
   const m = there.d > here.d ? there.m : (here.m || there.m);
   if (m !== MAT.thorn && m !== MAT.ash) { S.act = 0; return; }
+  if (Math.max(here.d, there.d) < 0.3) { S.act = 0; return; }
   if (!(st.hasEmber && st.ember > 0.02)) {
     if (actT <= 0) {
       actT = 1.2;
