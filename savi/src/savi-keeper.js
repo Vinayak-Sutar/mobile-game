@@ -70,7 +70,7 @@ export const KEEPER = {
     ],
   },
   broom: {
-    text: 'With that broom on your back, the same as you would sweep a doorstep. Lean into it and keep leaning — you are not strong, but you are stubborn, and stubborn is the one that finishes.',
+    text: 'With that broom you picked up at the gate — the same as you would sweep a doorstep. Lean into it and keep leaning. You are not strong; you are stubborn, and stubborn is the one that finishes.',
     choices: [
       { say: 'And the thorn? The dead ground?', to: 'fire' },
       { say: 'Where do I go first?', to: 'send' },

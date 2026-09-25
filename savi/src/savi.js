@@ -71,7 +71,7 @@ const SPURS = [
 const SHELTERS = [{ x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 }];
 // The broom is a THING, left on the road out to the first root. She picks it
 // up, and she can put it down again anywhere she likes.
-const broom = { x: 2010, y: 2172, held: false };
+const broom = { x: 2492, y: 3010, held: false };
 /** Young banyans, one per freed root, each with its beat carved into it. */
 const YOUNG = [];
 
@@ -306,7 +306,7 @@ const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 // A controller, any controller. A DualSense, an Xbox pad and anything else
 // that speaks the standard mapping all arrive here the same way: the left
 // stick or the d-pad walks, and cross / square / either trigger acts.
-const pad = { on: false, mx: 0, my: 0, held: false, pressed: false };
+const pad = { on: false, mx: 0, my: 0, held: false, pressed: false, dropHeld: false, dropPressed: false };
 function pollPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
@@ -322,13 +322,16 @@ function pollPad() {
   if (down(14)) mx = -1;
   if (down(15)) mx = 1;
   pad.mx = mx; pad.my = my;
-  const act = down(0) || down(2) || down(5) || down(7) || down(1) || down(3);
+  const act = down(0) || down(2) || down(5) || down(7);
+  pad.dropPressed = down(1) && !pad.dropHeld;
+  pad.dropHeld = down(1);
   pad.pressed = act && !pad.held;
   pad.held = act;
 }
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let damBroken = false, drain = 0;
 const ring = { x: 0, y: 0, r: 46 };
+const drop = { x: 0, y: 0, r: 34, on: false };
 
 const current = () => (st.step < ROOTS.length ? ROOTS[st.step] : null);
 /** The window grass.js works in: what is on screen, and a margin. */
@@ -393,7 +396,7 @@ function actHold(dt) {
   if (!fire && !broom.held) {
     if (actT <= 0) {
       actT = 1.2;
-      say([['keeper', 'Her hands are small. There was a broom left on the road out west — fetch that first.']], null);
+      say([['keeper', 'Her hands are too small for this. The broom — where did she leave the broom?']], null);
     }
     return;
   }
@@ -481,6 +484,7 @@ function step(dt) {
   world.runTime = st.t;
   pollPad();
   if (pad.pressed) { begin(); if (st.talking) advance(); }
+  if (pad.dropPressed) dropBroom();
   holding = keys.has(' ') || keys.has('e') || touch.ring || pad.held;
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
@@ -497,6 +501,13 @@ function step(dt) {
   if (!holding) tapDone = false;
   wasHolding = holding;
   if (holding) actHold(dt); else { S.act = 0; sweepT = 0; damPull = 0; }
+
+  // The keeper. Tracked BEFORE the early return below, or the flag never gets
+  // set while she is talking and the conversation reopens the instant it ends.
+  const nearW = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 110;
+  if (nearW && !st.nearWoman && !st.talking && !st.reading) talkTo(keeperStart(st.count, ROOTS.length));
+  st.nearWoman = nearW;
+
   if (st.talking || st.reading) { stepParticles(dt); return; }
 
   const mv = moveVector();
@@ -779,6 +790,21 @@ function drawHud() {
     ctx.fillText('broom', 22, 82);
   }
 
+  // Putting it down, for a thumb and for a pad.
+  drop.on = broom.held;
+  if (drop.on) {
+    drop.x = view.w - 86; drop.y = view.h - 176;
+    ctx.beginPath(); ctx.arc(drop.x, drop.y, 28, 0, TAU);
+    ctx.fillStyle = 'rgba(200,160,90,0.18)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(200,160,90,0.65)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(230,205,160,0.9)';
+    ctx.font = '600 10px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.fillText('DROP', drop.x, drop.y + 3);
+    ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.textAlign = 'left';
+  }
+
   ring.x = view.w - 86; ring.y = view.h - 86;
   ctx.beginPath(); ctx.arc(ring.x, ring.y, 40, 0, TAU);
   ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
@@ -870,6 +896,15 @@ function advance() {
   t.i++;
   if (t.i < t.lines.length) { paintTalk(); sfx.ui(); return; }
   closeTalk();
+}
+
+/** Put it down where she stands. She can always pick it up again. */
+function dropBroom() {
+  if (!broom.held) return;
+  broom.held = false;
+  broom.x = S.x + Math.cos(S.face) * 26;
+  broom.y = S.y + 10;
+  sfx.ui();
 }
 
 /** Standing at a young banyan and reading what is cut into it, full screen. */
@@ -973,7 +1008,7 @@ function main() {
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     keys.add(k);
-    if (k === 'q' && broom.held) { broom.held = false; broom.x = S.x; broom.y = S.y + 8; sfx.ui(); }
+    if (k === 'q') dropBroom();
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
       if (st.talking) advance();
@@ -993,6 +1028,7 @@ function main() {
     begin();
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
+    if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
       touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
