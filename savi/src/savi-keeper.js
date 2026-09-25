@@ -108,12 +108,12 @@ export const KEEPER = {
     repeat: true,
     text: 'Then look at the roots, child. One of them will be lit — faint, like a coal under ash. That is the one the tree is reaching with. Follow it out, clear what sits on it, and come back and tell me.',
     choices: [
-      { say: 'And the others?', to: 'others' },
+      { say: 'Must it be that one?', to: 'others' },
       { say: 'I will go.', to: 'leave' },
     ],
   },
   others: {
-    text: 'The cold is standing over them. It will not let you near, and there is no arguing with it — not yet. One at a time, in the order the tree wants them. It knows its own story better than we do.',
+    text: 'Go to any of them you like, child — they are all choking, and any one you free is one it can breathe through. The lit one is only where it is reaching hardest today. Follow your own feet if you would rather.',
     choices: [
       { say: 'I will go.', to: 'leave' },
     ],

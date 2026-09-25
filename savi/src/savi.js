@@ -270,7 +270,7 @@ const S = {
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
-  talking: null, nearWoman: false, metKeeper: false, lastBeat: '', asked: {},
+  talking: null, nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '',
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -333,7 +333,20 @@ let damBroken = false, drain = 0;
 const ring = { x: 0, y: 0, r: 46 };
 const drop = { x: 0, y: 0, r: 34, on: false };
 
-const current = () => (st.step < ROOTS.length ? ROOTS[st.step] : null);
+/**
+ * The root the tree is reaching with. Only ever a suggestion - it is what is
+ * lit, and what the keeper points at, and nothing more. It is the NEAREST
+ * unfreed root, so it follows her about instead of marching her round a list.
+ */
+function current() {
+  let best = null, bd = 1e9;
+  for (const r of ROOTS) {
+    if (st.woken[r.id]) continue;
+    const d = Math.hypot(S.x - r.at.x, S.y - r.at.y);
+    if (d < bd) { bd = d; best = r; }
+  }
+  return best;
+}
 /** The window grass.js works in: what is on screen, and a margin. */
 const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
 
@@ -520,17 +533,14 @@ function step(dt) {
   let nx = S.x + S.vx * dt, ny = S.y + S.vy * dt;
   const ah = depAt(nx, ny + 6);
   if (ah.m === MAT.thorn && ah.d > 0.6) { nx = S.x; ny = S.y; }
-  // The cold stands over every root the valley is not ready for.
-  const cur = current();
-  for (const r of ROOTS) {
-    if (st.woken[r.id] || r === cur) continue;
-    const d = Math.hypot(nx - r.at.x, ny - r.at.y);
-    if (d < 300) {
-      nx = S.x - (r.at.x - S.x) * ((300 - d) / 300) * 0.06;
-      ny = S.y - (r.at.y - S.y) * ((300 - d) / 300) * 0.06;
-      if (Math.random() < 0.25) spark(nx + rand(-34, 34), ny + rand(-34, 34), 1, { col: ['#a8c0d8'], sp0: 5, sp1: 25, l0: 0.6, l1: 1.3, s0: 3, s1: 6, lift: 18 });
-    }
-  }
+  // NOTHING stands between her and any root. There was a cold that shoved her
+  // back from the four the tree had not named, which is a hard gate with a
+  // story pinned to it - it requires, where a soft gate should only encourage.
+  // What guides her instead: the lit root leading back to the trunk, the
+  // keeper pointing, and the tools. Thorn and dead ground want the coal from
+  // the keeper's fire, leaves and snow want the broom at the gate. Those slow
+  // her down without ever telling her no, and she can go anywhere from the
+  // first minute.
   S.x = clamp(nx, 40, V.w - 40);
   S.y = clamp(ny, 40, V.h - 40);
 
@@ -595,9 +605,12 @@ function step(dt) {
     if (Math.random() < 0.5) water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 80, 1.3);
   }
 
-  if (cur && !st.woken[cur.id]) {
-    const done = cur.mat === 'water' ? drain >= 1 : fraction(cur) > 0.52;
-    if (done) wake(cur);
+  // Any root she frees wakes, whichever it is and whenever she gets to it.
+  // Work is never wasted and nothing has to be done in an order.
+  for (const r of ROOTS) {
+    if (st.woken[r.id]) continue;
+    const done = r.mat === 'water' ? drain >= 1 : fraction(r) > 0.52;
+    if (done) wake(r);
   }
 
   if (st.count >= ROOTS.length && !st.ended && Math.hypot(S.x - TREE.x, S.y - TREE.y) < 340) {
@@ -628,11 +641,15 @@ function wake(r) {
   st.woken[r.id] = true;
   st.count++;
   st.step++;
+  // Whichever root she freed, the tree remembers the next thing it had
+  // forgotten. Route is hers; the story is still Savitri's, in order.
+  const beat = ROOTS[st.told] || ROOTS[ROOTS.length - 1];
+  st.told++;
   // An aerial root comes down where the burden was, takes hold, and is a tree.
-  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: r.mural, name: r.name, lines: r.lines, pending: true });
+  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: beat.mural, name: beat.name, lines: beat.lines, pending: true });
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
-  st.lastBeat = r.lines[r.lines.length - 1][1];
+  st.lastBeat = beat.lines[beat.lines.length - 1][1];
 }
 
 // --- drawing ----------------------------------------------------------------------------------------
@@ -740,7 +757,6 @@ function render() {
   drawFire(ctx, FIRE, st.t, st.hasEmber ? 0.4 : 1);
   drawWoman(ctx, WOMAN, st.t);
   for (const h of SHELTERS) drawFire(ctx, { x: h.x, y: h.y }, st.t + h.x, 0.6);
-  for (const r of ROOTS) if (!st.woken[r.id] && r !== current()) drawVeil(ctx, r.at, st.t);
 
   if (st.hasEmber && st.ember > 0.02) glow(ctx, S.x, S.y - 10, 190 * (0.45 + st.ember * 0.55), `rgba(255,150,60,${0.22 * st.ember + 0.05})`);
   drawSavi(ctx, S, st.t);
@@ -780,7 +796,7 @@ function drawHud() {
   const cur = current();
   if (cur && !st.ended) {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
-    ctx.fillText(`${cur.name}  —  ${cur.hint}`, 22, 50);
+    ctx.fillText(`the tree is reaching — ${cur.hint}`, 22, 50);
   }
   if (st.hasEmber) {
     ctx.fillStyle = 'rgba(255,170,80,0.28)';
