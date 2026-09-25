@@ -147,7 +147,7 @@ export function drawCanopy(ctx, T, bloom, time) {
  * knots, and arrives thin. Drawn as a chain of tapering segments with the bark
  * lit along the top, and when it wakes the sap comes back up it in amber.
  */
-export function drawRoot(ctx, T, R, woken, time) {
+export function drawRoot(ctx, T, R, woken, time, isCurrent) {
   const pts = rootPath(T, R);
   const n = pts.length;
 
@@ -212,11 +212,32 @@ export function drawRoot(ctx, T, R, woken, time) {
     glow(ctx, tip.x, tip.y, 170, `rgba(255,168,72,${0.26 + Math.sin(time * 1.6 + R.seed) * 0.06})`);
   }
 
+  // The one the tree is reaching with: a coal under ash, all the way out, so
+  // there is never a question about which root the valley wants next.
+  if (!woken && isCurrent) {
+    const pulse = 0.2 + Math.sin(time * 1.9) * 0.08;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ribbon(ctx, pts, 14, 4, `rgba(255,150,60,${pulse})`, -6);
+    ctx.restore();
+    const run = along(pts, (time * 0.24) % 1);
+    glow(ctx, run.x, run.y, 60, 'rgba(255,160,70,0.30)');
+  }
+
   // The knot at the tip, where the mural is cut.
-  ctx.fillStyle = woken ? '#7a5533' : '#4f4b44';
+  ctx.fillStyle = woken ? '#7a5533' : isCurrent ? '#5d5548' : '#4a4a52';
   ctx.beginPath();
   ctx.ellipse(tip.x, tip.y, 52, 38, 0, 0, TAU);
   ctx.fill();
+  if (!woken && !isCurrent) {                 // rimed over: not this one, not yet
+    ctx.fillStyle = 'rgba(214,230,246,0.5)';
+    for (let i = 0; i < 7; i++) {
+      const a = i * 0.9;
+      ctx.beginPath();
+      ctx.ellipse(tip.x + Math.cos(a) * 26, tip.y + Math.sin(a) * 18, 9, 5, a, 0, TAU);
+      ctx.fill();
+    }
+  }
   ctx.strokeStyle = woken ? 'rgba(255,196,130,0.9)' : 'rgba(126,122,116,0.7)';
   ctx.lineWidth = 3.5;
   ctx.stroke();
@@ -429,6 +450,42 @@ export function drawSavi(ctx, p, time) {
     ctx.lineTo(i * 2.6 + sway * 0.4, -3.4);
     ctx.stroke();
   }
+
+  // The broom. On her back when she is walking; across her, sweeping, when she
+  // is working. A child with a jhadu is the most ordinary thing in a village,
+  // and it is exactly what clearing a drift of leaves IS.
+  const sweeping = (p.act || 0) > 0;
+  ctx.save();
+  if (sweeping) {
+    const sw = p.sweep || 0;
+    ctx.translate(Math.cos(a) * 9, Math.sin(a) * 6 - 8);
+    ctx.rotate(a + sw * 0.72 + Math.PI / 2);
+  } else {
+    ctx.translate(-fx * 3, -12);
+    ctx.rotate(-0.72);
+  }
+  ctx.strokeStyle = '#6b4a2c';                 // the handle
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, sweeping ? -14 : -13);
+  ctx.lineTo(0, sweeping ? 16 : 15);
+  ctx.stroke();
+  ctx.strokeStyle = '#c8a05a';                 // the twigs
+  ctx.lineWidth = 1.5;
+  for (let i = -4; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 0.5, sweeping ? 13 : 12);
+    ctx.lineTo(i * 1.9, (sweeping ? 24 : 22) + Math.abs(i) * -0.5);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#8a5f34';                 // the binding
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-2.6, sweeping ? 12 : 11);
+  ctx.lineTo(2.6, sweeping ? 12 : 11);
+  ctx.stroke();
+  ctx.restore();
 
   // Head and hair.
   ctx.fillStyle = '#2a1c18';

@@ -26,6 +26,19 @@
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   #overlay canvas{display:block;width:100%;max-width:440px;margin:0 auto 12px;border-radius:9px}
   #overlay p{margin:0;font-size:clamp(14px,2.1vw,17px);line-height:1.55}
+  #overlay .who{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#ffb35e;margin-bottom:7px;font-weight:700}
+  #overlay .choices{display:flex;flex-direction:column;gap:7px;margin-top:13px}
+  #overlay .choice{
+    font:inherit;font-size:clamp(13px,1.9vw,15px);text-align:left;color:#e7dccb;cursor:pointer;
+    padding:10px 14px;border-radius:9px;background:rgba(26,18,14,.6);
+    border:1px solid rgba(255,255,255,.1);border-left:2px solid rgba(255,180,110,.4);
+    transition:background .14s,color .14s,transform .14s,border-color .14s;
+  }
+  #overlay .choice:hover,#overlay .choice:active{
+    background:rgba(72,44,24,.85);border-left-color:#ffb35e;color:#fff6e6;transform:translateX(3px);
+  }
+  #overlay .choice::before{content:'“';opacity:.45;margin-right:4px}
+  #overlay .choice::after{content:'”';opacity:.45;margin-left:3px}
   #overlay .more{margin-top:10px;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);opacity:.75}
 
   /* A phone held upright: the fallback where the orientation lock is refused. */

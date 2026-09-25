@@ -29,7 +29,8 @@ import {
 import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen } from './fullscreen.js';
 import { themeById } from './music-regions.js';
-import { ROOTS, CLIMAX, keeperLines } from './savi-story.js';
+import { ROOTS, CLIMAX } from './savi-story.js';
+import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil, glow, clamp01,
 } from './savi-art.js';
@@ -262,7 +263,7 @@ const S = {
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
-  talking: null, nearWoman: false,
+  talking: null, nearWoman: false, metKeeper: false, lastBeat: '',
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -293,7 +294,7 @@ function checkOrientation() {
   rotateEl.classList.toggle('on', st.started && isPortraitTouch());
 }
 const keys = new Set();
-const touch = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 
 // A controller, any controller. A DualSense, an Xbox pad and anything else
 // that speaks the standard mapping all arrive here the same way: the left
@@ -318,75 +319,101 @@ function pollPad() {
   pad.pressed = act && !pad.held;
   pad.held = act;
 }
-let forceMove = null, pressAct = false, actT = 0;
-let damHits = 0, damBroken = false, drain = 0;
+let forceMove = null, holding = false, actT = 0;
+let damBroken = false, drain = 0;
 const ring = { x: 0, y: 0, r: 46 };
 
 const current = () => (st.step < ROOTS.length ? ROOTS[st.step] : null);
 /** The window grass.js works in: what is on screen, and a margin. */
 const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
 
-// --- the one button ------------------------------------------------------------------------------
+// --- the one button, HELD ------------------------------------------------------------------
+//
+// Tapping was wrong twice over. It felt like clicking rather than doing, and it
+// never explained how a child moves a drift of leaves or a dam of branches.
+//
+// So she HOLDS it, and she has a broom - the same one anyone sweeps a doorstep
+// with. She plants her feet and sweeps in a rhythm, and the cone she clears
+// swings with the broom head. Her strength is not muscle, it is that she does
+// not stop: the dam gives to a long steady pull, the thorn draws back from a
+// coal held patiently out to it. Nothing here happens in one press.
 
-const ACT_COOL = 0.32;
+const SWEEP_RATE = 4.2;            // depth a second at the middle of the sweep
+let sweepT = 0;                    // where she is in the stroke
+let damPull = 0;
 
-function doAct() {
-  if (actT > 0 || st.talking) return;
-  const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
-  const hx = S.x + fx * 54, hy = S.y + fy * 54 + 6;
-  const here = depAt(S.x, S.y + 6), there = depAt(hx, hy);
-  const m = there.d > here.d ? there.m : (here.m || there.m);
+/** Held down: whatever is in front of her, for as long as she keeps at it. */
+function actHold(dt) {
+  if (st.talking) { sweepT = 0; S.act = 0; return; }
+  const near = Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70;
 
-  if (!damBroken && Math.hypot(hx - DAM.x, hy - DAM.y) < DAM.r + 50) {
-    actT = ACT_COOL; S.act = 0.34; S.actA = a;
-    damHits++;
-    sfx.thud();
-    water.splash(DAM.x, DAM.y, 160, 2.4);
-    spark(DAM.x, DAM.y, 24, { col: ['#6f5836', '#4e3c24', '#8a6f45'], angle: a, arc: 2.2, sp0: 60, sp1: 280, l0: 0.4, l1: 0.9 });
-    if (damHits >= 3) {
+  // The dam: a long pull, not three shoves.
+  if (!damBroken && near) {
+    S.act = 1; S.sweep = Math.sin(st.t * 9) * 0.5;
+    damPull += dt;
+    S.x -= Math.cos(S.face) * 26 * dt;                 // she leans back into it
+    S.y -= Math.sin(S.face) * 26 * dt;
+    if (Math.random() < dt * 22) {
+      water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 90, 1.1);
+      spark(DAM.x + rand(-50, 50), DAM.y + rand(-60, 60), 1, { col: ['#6f5836', '#8a6f45'], sp0: 20, sp1: 90, l0: 0.3, l1: 0.7 });
+    }
+    if (damPull > 2.4) {
       damBroken = true;
       sfx.bossDown();
-      water.splash(DAM.x, DAM.y, 340, 4);
-      spark(DAM.x, DAM.y, 80, { col: ['#8fbcc8', '#c6e2ea', '#6f9aa8'], sp0: 120, sp1: 440, l0: 0.8, l1: 1.8, s0: 4, s1: 9, kind: 'drop' });
+      water.splash(DAM.x, DAM.y, 360, 4.2);
+      spark(DAM.x, DAM.y, 90, { col: ['#8fbcc8', '#c6e2ea', '#6f9aa8'], sp0: 120, sp1: 460, l0: 0.8, l1: 1.9, s0: 4, s1: 9, kind: 'drop' });
+      rumble(0.7, 0.5, 260);
+    }
+    return;
+  }
+  damPull = 0;
+
+  const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
+  const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
+  const m = there.d > here.d ? there.m : (here.m || there.m);
+  if (!m || (here.d < 0.1 && there.d < 0.1)) { sweepT = 0; S.act = 0; return; }
+
+  const fire = (m === MAT.thorn || m === MAT.ash);
+  if (fire && !(st.hasEmber && st.ember > 0.02)) {
+    if (actT <= 0) {
+      actT = 1.2;
+      say(['This will not move for a broom. The old woman keeps a fire — take a coal from it and hold it out.'], null);
     }
     return;
   }
 
-  if (!m || (here.d < 0.12 && there.d < 0.12)) {
-    actT = 0.45; S.act = 0.28; S.actA = a;
-    sfx.ui();
-    if (water.wetAt(S.x, S.y + 6)) water.splash(S.x, S.y + 6, 100, 1.2);
-    spark(S.x, S.y - 12, 8, { col: ['#e8d9bd'], sp0: 20, sp1: 60, l0: 0.5, l1: 1.2, s0: 2, s1: 3, lift: 34 });
+  S.act = 1;
+  if (fire) {
+    // The coal held steady. No stroke - a held hand, and the thorn draws back.
+    S.sweep = Math.sin(st.t * 3) * 0.12;
+    st.ember = Math.max(0, st.ember - dt * 0.085);
+    carve(S.x + fx * 34, S.y + fy * 34 + 6, a, 124, 1.0, dt * 3.0, m);
+    if (Math.random() < dt * 34) {
+      spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
+        { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
+    }
+    if (Math.random() < dt * 4) sfx.hiss();
     return;
   }
 
-  const fire = (m === MAT.thorn || m === MAT.ash);
-  if (fire && !(st.hasEmber && st.ember > 0.08)) {
-    actT = 0.5;
-    say(['This will not move for hands. It wants fire — and the old woman keeps a fire.'], null);
-    return;
+  // The stroke: the broom swings across her, and the cone swings with it.
+  sweepT += dt * 4.4;
+  S.sweep = Math.sin(sweepT);
+  const swing = a + S.sweep * 0.72;
+  const took = carve(S.x + Math.cos(swing) * 40, S.y + Math.sin(swing) * 40 + 6, swing, 116, 1.15, dt * SWEEP_RATE, m);
+  // A puff at the broom head, thrown the way the stroke is going.
+  const bx = S.x + Math.cos(swing) * 64, by = S.y + Math.sin(swing) * 64 + 6;
+  if (took > 0.001 && Math.random() < dt * 48) {
+    const out = swing + Math.sign(Math.cos(sweepT)) * 0.9;
+    spark(bx, by, 2, m === MAT.snow
+      ? { col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: out, arc: 0.9, sp0: 90, sp1: 230, l0: 0.4, l1: 1, s0: 3, s1: 6, lift: 44 }
+      : { col: MATS[1].col, angle: out, arc: 1.0, sp0: 120, sp1: 320, l0: 0.7, l1: 1.6, s0: 5, s1: 11, lift: 40, drag: 1.3 });
   }
-
-  actT = ACT_COOL; S.act = 0.36; S.actA = a;
-  const R = fire ? 112 : 124, ARC = fire ? 1.0 : 1.3;
-  const took = carve(S.x, S.y + 6, a, R, ARC, fire ? 1.25 : 1.15, m);
-  if (fire) st.ember = Math.max(0, st.ember - 0.05);
-
-  if (m === MAT.leaves) {
-    sfx.hiss();
-    spark(S.x + fx * 42, S.y + fy * 42, 18 + ((took * 26) | 0), {
-      col: MATS[1].col, angle: a, arc: ARC * 1.6, sp0: 110, sp1: 360, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 44, drag: 1.3,
-    });
-  } else if (m === MAT.snow) {
-    sfx.clack(1.9);
-    spark(S.x + fx * 42, S.y + fy * 42, 16 + ((took * 20) | 0), {
-      col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: a, arc: ARC * 1.4, sp0: 80, sp1: 260, l0: 0.5, l1: 1.1, s0: 3, s1: 7, lift: 54,
-    });
-  } else {
-    sfx.explode();
-    spark(S.x + fx * 46, S.y + fy * 46, 22 + ((took * 24) | 0), {
-      col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], angle: a, arc: ARC * 1.3, sp0: 60, sp1: 240, l0: 0.5, l1: 1.3, s0: 3, s1: 7, kind: 'ember', drag: 1.1,
-    });
+  // One rustle per stroke, at the end of the swing.
+  const half = Math.floor(sweepT / Math.PI);
+  if (half !== S.lastSweep) {
+    S.lastSweep = half;
+    if (took > 0.0005) { m === MAT.snow ? sfx.clack(1.9) : sfx.hiss(); rumble(0.16, 0.1, 60); }
   }
 }
 
@@ -405,7 +432,7 @@ function carve(x, y, a, r, arc, power, m) {
       let da = Math.abs(Math.atan2(dy, dx) - a);
       if (da > Math.PI) da = TAU - da;
       if (da > arc) continue;
-      const t = Math.min(G.dep[q], 0.7 + (1 - d / r) * (1 - da / arc) * power);
+      const t = Math.min(G.dep[q], (0.45 + (1 - d / r) * (1 - da / arc)) * power);
       if (t <= 0) continue;
       G.dep[q] -= t;
       G.base[q] = Math.min(G.base[q], Math.max(m === MAT.leaves ? LITTER : 0, G.dep[q] + 0.05));
@@ -437,20 +464,18 @@ function step(dt) {
   st.t += dt;
   world.runTime = st.t;
   pollPad();
-  if (pad.pressed) {
-    begin();
-    if (st.talking) advance(); else { pressAct = true; rumble(0.28, 0.18, 90); }
-  }
+  if (pad.pressed) { begin(); if (st.talking) advance(); }
+  holding = keys.has(' ') || keys.has('e') || touch.ring || pad.held;
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
-  if (pressAct) { pressAct = false; doAct(); }
+  if (holding) actHold(dt); else { S.act = 0; sweepT = 0; damPull = 0; }
   if (st.talking) { stepParticles(dt); return; }
 
   const mv = moveVector();
   const under = depAt(S.x, S.y + 6);
   const drag = under.m ? MATS[under.m].drag * Math.min(1, under.d) : 0;
   const wet = water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
-  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.3 : 1);
+  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
 
   let nx = S.x + S.vx * dt, ny = S.y + S.vy * dt;
@@ -521,8 +546,11 @@ function step(dt) {
   }
 
   // The old woman speaks when she walks up, and not again until she walks away.
-  const near = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 96;
-  if (near && !st.nearWoman) say(keeperLines(st.count, ROOTS.length), null);
+  const near = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 110;
+  if (near && !st.nearWoman && !st.talking) {
+    talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
+    st.metKeeper = true;
+  }
   st.nearWoman = near;
 
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
@@ -541,6 +569,7 @@ function wake(r) {
   st.step++;
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
+  st.lastBeat = r.lines[r.lines.length - 1];
   say(r.lines, null, r.mural);
 }
 
@@ -619,14 +648,14 @@ function render() {
   grass.draw(ctx, st.t, win());
   water.draw(ctx);
 
-  for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t);
+  for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t, r === current());
 
   if (!damBroken) {
     ctx.save();
     ctx.translate(DAM.x, DAM.y);
     for (let i = 0; i < 9; i++) {
       ctx.save();
-      ctx.rotate((i * 0.83) % 1.6 - 0.8 + damHits * 0.14);
+      ctx.rotate((i * 0.83) % 1.6 - 0.8 + damPull * 0.3);
       ctx.fillStyle = i % 2 ? '#4b3a26' : '#3a2c1d';
       ctx.fillRect(-58, i * 9 - 42, 116, 11);
       ctx.restore();
@@ -684,8 +713,8 @@ function drawHud() {
   ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, 22, 30);
   const cur = current();
   if (cur && !st.ended) {
-    ctx.fillStyle = 'rgba(255,179,94,0.85)';
-    ctx.fillText(cur.hint, 22, 50);
+    ctx.fillStyle = 'rgba(255,179,94,0.92)';
+    ctx.fillText(`${cur.name}  —  ${cur.hint}`, 22, 50);
   }
   if (st.hasEmber) {
     ctx.fillStyle = 'rgba(255,170,80,0.28)';
@@ -696,40 +725,84 @@ function drawHud() {
 
   ring.x = view.w - 86; ring.y = view.h - 86;
   ctx.beginPath(); ctx.arc(ring.x, ring.y, 40, 0, TAU);
-  ctx.fillStyle = actT > 0 ? 'rgba(255,179,94,0.12)' : 'rgba(255,179,94,0.24)';
+  ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,190,120,0.75)'; ctx.lineWidth = 2; ctx.stroke();
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,224,186,0.95)';
-  ctx.fillText(st.hasEmber && st.ember > 0.08 ? 'BURN' : 'CLEAR', ring.x, ring.y + 4);
+  ctx.fillText(st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP', ring.x, ring.y + 4);
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText(pad.on ? 'left stick to walk · cross or R2 to clear' : 'space, or the ring — clear what is in the way', view.w / 2, view.h - 22);
+  ctx.fillText(pad.on ? 'left stick to walk · HOLD cross or R2 to sweep' : 'HOLD space, or the ring — and keep holding', view.w / 2, view.h - 22);
   ctx.textAlign = 'left';
 }
 
-// --- what she is told ------------------------------------------------------------------------------
+// --- what she is told, and what she can ask ------------------------------------------------
+//
+// Two shapes through one panel. A RECITAL is a run of lines she listens to (the
+// legend, over its mural), advanced with a tap. A CONVERSATION is one line of
+// the keeper's and two or three things a child might say back, which is what
+// makes her someone rather than a sign.
 
 function say(lines, onDone, mural) {
   st.talking = { lines: lines.slice(), i: 0, onDone, mural };
   paintTalk();
 }
+
+function talkTo(node) {
+  keeperFill(st.count, ROOTS.length, st.lastBeat);
+  st.talking = { keeper: node, who: 'The Keeper' };
+  paintTalk();
+}
+
 function paintTalk() {
   const t = st.talking;
   if (!t) return;
-  const m = t.mural ? '<canvas id="mural" width="460" height="250"></canvas>' : '';
-  overlay.innerHTML = `<div class="panel">${m}<p>${t.lines[t.i]}</p><div class="more">tap to go on</div></div>`;
+  let body;
+  if (t.keeper) {
+    const n = KEEPER[t.keeper];
+    // There is always a way out of a conversation. Without this you can walk
+    // in a circle round her answers and never find the door.
+    const list = n.choices.some((c) => c.to === 'leave')
+      ? n.choices : [...n.choices, { say: 'I should go.', to: 'leave' }];
+    t.list = list;
+    const cs = list.map((c, i) => `<button class="choice" data-i="${i}">${c.say}</button>`).join('');
+    body = `<div class="who">${t.who}</div><p>${n.text}</p><div class="choices">${cs}</div>`;
+  } else {
+    const m = t.mural ? `<canvas id="mural" width="460" height="250"></canvas>` : '';
+    const who = t.mural ? '<div class="who">The Keeper</div>' : '';
+    body = `${m}${who}<p>${t.lines[t.i]}</p><div class="more">tap to go on</div>`;
+  }
+  overlay.innerHTML = `<div class="panel">${body}</div>`;
   overlay.classList.add('on');
   if (t.mural) drawMural(document.getElementById('mural').getContext('2d'), t.mural, 460, 250, st.t);
+  if (t.keeper) {
+    overlay.querySelectorAll('.choice').forEach((b) => {
+      b.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        sfx.ui();
+        const to = st.talking.list[+b.dataset.i].to;
+        if (to === 'leave') closeTalk();
+        else { st.talking.keeper = to; paintTalk(); }
+      });
+    });
+  }
 }
-function advance() {
+
+function closeTalk() {
   const t = st.talking;
-  if (!t) return;
-  t.i++;
-  if (t.i < t.lines.length) { paintTalk(); sfx.ui(); return; }
   st.talking = null;
   overlay.classList.remove('on');
   overlay.innerHTML = '';
-  if (t.onDone) t.onDone();
+  if (t && t.onDone) t.onDone();
+}
+
+/** A tap anywhere: only a recital advances that way. A conversation waits. */
+function advance() {
+  const t = st.talking;
+  if (!t || t.keeper) return;
+  t.i++;
+  if (t.i < t.lines.length) { paintTalk(); sfx.ui(); return; }
+  closeTalk();
 }
 
 // --- boot --------------------------------------------------------------------------------------------
@@ -801,7 +874,7 @@ function main() {
     keys.add(k);
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
-      if (st.talking) advance(); else pressAct = true;
+      if (st.talking) advance();
       e.preventDefault();
     }
   });
@@ -812,13 +885,17 @@ function main() {
   // reached a listener on the canvas, and she would keep walking on her own.
   const letGo = (e) => {
     if (e && e.pointerId !== undefined && touch.id !== -1 && e.pointerId !== touch.id) return;
-    touch.on = false; touch.id = -1;
+    touch.on = false; touch.ring = false; touch.id = -1;
   };
   cv.addEventListener('pointerdown', (e) => {
     begin();
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
-    if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) { pressAct = true; return; }
+    if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
+      touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
+      try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
+      return;
+    }
     if (touch.on) return;                       // a second finger does not steer
     touch.on = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
     touch.ox = e.clientX; touch.oy = e.clientY; touch.x = e.clientX; touch.y = e.clientY;
@@ -832,7 +909,7 @@ function main() {
   addEventListener('pointercancel', letGo);
   cv.addEventListener('lostpointercapture', letGo);
   // Tabbing away with a key or a finger down used to leave it down for good.
-  const allOff = () => { keys.clear(); touch.on = false; touch.id = -1; };
+  const allOff = () => { keys.clear(); touch.on = false; touch.ring = false; touch.id = -1; };
   addEventListener('blur', allOff);
   document.addEventListener('visibilitychange', () => { if (document.hidden) allOff(); });
   overlay.addEventListener('pointerdown', () => { begin(); advance(); });
@@ -856,5 +933,6 @@ window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, render, resize, begin, say, advance, fraction,
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
-  press(n = 1) { for (let i = 0; i < n; i++) { pressAct = true; actT = 0; step(1 / 60); } },
+  hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); },
+  talkTo, KEEPER,
 };
