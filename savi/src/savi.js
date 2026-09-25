@@ -270,7 +270,7 @@ const S = {
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
-  talking: null, nearWoman: false, metKeeper: false, lastBeat: '',
+  talking: null, nearWoman: false, metKeeper: false, lastBeat: '', asked: {},
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -842,10 +842,15 @@ function paintTalk() {
   let body;
   if (t.keeper) {
     const n = KEEPER[t.keeper];
-    // There is always a way out of a conversation. Without this you can walk
-    // in a circle round her answers and never find the door.
-    const list = n.choices.some((c) => c.to === 'leave')
-      ? n.choices : [...n.choices, { say: 'I should go.', to: 'leave' }];
+    st.asked[t.keeper] = true;
+    // A question asked is a question answered: it does not come round again,
+    // in this conversation or any later one. Hubs and the lines that change
+    // with the valley are marked `repeat`, so there is always somewhere to go.
+    const open = n.choices.filter((c) => c.to === 'leave' || (KEEPER[c.to] && KEEPER[c.to].repeat) || !st.asked[c.to]);
+    // And there is always a way out. Without this you can walk in a circle
+    // round her answers and never find the door.
+    const list = open.some((c) => c.to === 'leave')
+      ? open : [...open, { say: 'I should go.', to: 'leave' }];
     t.list = list;
     const cs = list.map((c, i) => `<button class="choice" data-i="${i}">${c.say}</button>`).join('');
     body = `<div class="saybar"><canvas class="face" width="220" height="300"></canvas>

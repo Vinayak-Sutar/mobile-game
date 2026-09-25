@@ -11,6 +11,7 @@
 export const KEEPER = {
   // --- the first time, at the foot of a dying tree -----------------------------
   first: {
+    repeat: true,
     text: 'The wind bites harder today, little one. Come nearer the fire, you will catch your death.',
     choices: [
       { say: 'What is wrong with the tree?', to: 'tree' },
@@ -104,6 +105,7 @@ export const KEEPER = {
     ],
   },
   send: {
+    repeat: true,
     text: 'Then look at the roots, child. One of them will be lit — faint, like a coal under ash. That is the one the tree is reaching with. Follow it out, clear what sits on it, and come back and tell me.',
     choices: [
       { say: 'And the others?', to: 'others' },
@@ -119,6 +121,7 @@ export const KEEPER = {
 
   // --- between roots -----------------------------------------------------------
   back: {
+    repeat: true,
     text: 'I felt that one come home. The trunk went warm under my hand — the first warm thing in this valley for two years.',
     choices: [
       { say: 'Which root now?', to: 'send' },
@@ -126,11 +129,12 @@ export const KEEPER = {
       { say: 'How much is left?', to: 'howmuch' },
     ],
   },
-  retell: { text: '', choices: [{ say: '…', to: 'leave' }] },   // filled in by the game
-  howmuch: { text: '', choices: [{ say: 'I will go.', to: 'leave' }] },
+  retell: { repeat: true, text: '', choices: [{ say: '…', to: 'leave' }] },   // filled in by the game
+  howmuch: { repeat: true, text: '', choices: [{ say: 'I will go.', to: 'leave' }] },
 
   // --- all five ------------------------------------------------------------------
   done: {
+    repeat: true,
     text: 'All five. Every one of them warm. Do you feel it coming up through your feet?',
     choices: [
       { say: 'What happens now?', to: 'ending' },
@@ -138,6 +142,7 @@ export const KEEPER = {
     ],
   },
   ending: {
+    repeat: true,
     text: 'Now you go and stand under it, and you let it finish the story. It has been holding its breath for a long time, child. Go on.',
     choices: [{ say: 'I will.', to: 'leave' }],
   },
