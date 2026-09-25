@@ -361,22 +361,77 @@ const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
 // not stop: the dam gives to a long steady pull, the thorn draws back from a
 // coal held patiently out to it. Nothing here happens in one press.
 
-const SWEEP_RATE = 4.2;            // depth a second at the middle of the sweep
-let sweepT = 0;                    // where she is in the stroke
+// A broom is STROKES. Held down it was a cone in front of her that leaves
+// quietly vanished into - a vacuum cleaner, not a besom. So one press is one
+// sweep: she winds up, swings across herself, and the leaves go where the
+// stroke sent them. Press again for the next one, alternating sides.
+//
+// The coal is different and is still held: you hold a flame out at a thing.
+// So is the dam, which gives to one long pull. Only the broom swings.
+
+const STROKE = { wind: 0.1, work: 0.26, rest: 0.16 };   // seconds
+const SWEEP_BITE = 11;                                  // depth a second while it bites
+let stroke = null;                                      // { t, side, mat }
 let damPull = 0;
 
-/** Held down: whatever is in front of her, for as long as she keeps at it. */
+/** One press with the broom in hand: begin a stroke, if there is one to make. */
+function beginStroke() {
+  if (stroke || st.talking || st.reading) return false;
+  const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
+  const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
+  const m = there.d > here.d ? there.m : (here.m || there.m);
+  if (!m || m === MAT.thorn || m === MAT.ash) return false;
+  if (here.d < 0.1 && there.d < 0.1) return false;
+  if (!broom.held) {
+    if (actT <= 0) {
+      actT = 1.2;
+      say([['keeper', 'Her hands are too small for this. The broom — where did she leave the broom?']], null);
+    }
+    return true;
+  }
+  stroke = { t: 0, side: (S.lastSide = -(S.lastSide || 1)), mat: m };
+  return true;
+}
+
+/** The stroke, frame by frame: wind up, bite across, and follow through. */
+function stepStroke(dt) {
+  if (!stroke) return;
+  stroke.t += dt;
+  const total = STROKE.wind + STROKE.work + STROKE.rest;
+  const k = stroke.t / total;
+  // The broom goes from one side of her to the other over the whole stroke.
+  S.sweep = stroke.side * Math.cos(clamp01(k) * Math.PI) * 0.95;
+  S.act = 1;
+  const biting = stroke.t > STROKE.wind && stroke.t < STROKE.wind + STROKE.work;
+  if (biting) {
+    const a = S.face + S.sweep * 0.7;
+    const took = carve(S.x + Math.cos(a) * 40, S.y + Math.sin(a) * 40 + 6, a, 112, 1.0, dt * SWEEP_BITE, stroke.mat);
+    if (took > 0.0004) {
+      // Thrown the way the broom is going, not sucked toward her.
+      const out = a + stroke.side * 1.15;
+      spark(S.x + Math.cos(a) * 62, S.y + Math.sin(a) * 62 + 6, 3, stroke.mat === MAT.snow
+        ? { col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: out, arc: 0.7, sp0: 130, sp1: 300, l0: 0.4, l1: 1, s0: 3, s1: 7, lift: 56 }
+        : { col: MATS[1].col, angle: out, arc: 0.8, sp0: 170, sp1: 420, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 46, drag: 1.2 });
+      if (!stroke.sounded) {
+        stroke.sounded = true;
+        stroke.mat === MAT.snow ? sfx.clack(1.6) : sfx.hiss();
+        rumble(0.2, 0.12, 70);
+      }
+    }
+  }
+  if (stroke.t >= total) { stroke = null; S.act = 0; S.sweep = 0; }
+}
+
+/** Held down: the coal out at thorn or dead ground, or a long pull at the dam. */
 function actHold(dt) {
-  if (st.talking || st.reading) { sweepT = 0; S.act = 0; return; }
-  // A press near something to take or to read is that, not a sweep.
+  if (st.talking || st.reading || stroke) return;
   if (tapDone) return;
   const near = Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70;
 
-  // The dam: a long pull, not three shoves.
   if (!damBroken && near) {
-    S.act = 1; S.sweep = Math.sin(st.t * 9) * 0.5;
+    S.act = 1; S.sweep = Math.sin(st.t * 9) * 0.4;
     damPull += dt;
-    S.x -= Math.cos(S.face) * 26 * dt;                 // she leans back into it
+    S.x -= Math.cos(S.face) * 26 * dt;
     S.y -= Math.sin(S.face) * 26 * dt;
     if (Math.random() < dt * 22) {
       water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 90, 1.1);
@@ -396,57 +451,23 @@ function actHold(dt) {
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
   const m = there.d > here.d ? there.m : (here.m || there.m);
-  if (!m || (here.d < 0.1 && there.d < 0.1)) { sweepT = 0; S.act = 0; return; }
-
-  const fire = (m === MAT.thorn || m === MAT.ash);
-  if (fire && !(st.hasEmber && st.ember > 0.02)) {
+  if (m !== MAT.thorn && m !== MAT.ash) { S.act = 0; return; }
+  if (!(st.hasEmber && st.ember > 0.02)) {
     if (actT <= 0) {
       actT = 1.2;
-      say([['keeper', 'This will not move for a broom. The old woman keeps a fire — take a coal from it and hold it out.']], null);
+      say([['keeper', 'This will not move for hands. The old woman keeps a fire — take a coal from it and hold it out.']], null);
     }
     return;
   }
-  if (!fire && !broom.held) {
-    if (actT <= 0) {
-      actT = 1.2;
-      say([['keeper', 'Her hands are too small for this. The broom — where did she leave the broom?']], null);
-    }
-    return;
-  }
-
   S.act = 1;
-  if (fire) {
-    // The coal held steady. No stroke - a held hand, and the thorn draws back.
-    S.sweep = Math.sin(st.t * 3) * 0.12;
-    st.ember = Math.max(0, st.ember - dt * 0.085);
-    carve(S.x + fx * 34, S.y + fy * 34 + 6, a, 124, 1.0, dt * 3.0, m);
-    if (Math.random() < dt * 34) {
-      spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
-        { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
-    }
-    if (Math.random() < dt * 4) sfx.hiss();
-    return;
+  S.sweep = Math.sin(st.t * 3) * 0.12;
+  st.ember = Math.max(0, st.ember - dt * 0.085);
+  carve(S.x + fx * 34, S.y + fy * 34 + 6, a, 124, 1.0, dt * 3.0, m);
+  if (Math.random() < dt * 34) {
+    spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
+      { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
   }
-
-  // The stroke: the broom swings across her, and the cone swings with it.
-  sweepT += dt * 4.4;
-  S.sweep = Math.sin(sweepT);
-  const swing = a + S.sweep * 0.72;
-  const took = carve(S.x + Math.cos(swing) * 40, S.y + Math.sin(swing) * 40 + 6, swing, 116, 1.15, dt * SWEEP_RATE, m);
-  // A puff at the broom head, thrown the way the stroke is going.
-  const bx = S.x + Math.cos(swing) * 64, by = S.y + Math.sin(swing) * 64 + 6;
-  if (took > 0.001 && Math.random() < dt * 48) {
-    const out = swing + Math.sign(Math.cos(sweepT)) * 0.9;
-    spark(bx, by, 2, m === MAT.snow
-      ? { col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: out, arc: 0.9, sp0: 90, sp1: 230, l0: 0.4, l1: 1, s0: 3, s1: 6, lift: 44 }
-      : { col: MATS[1].col, angle: out, arc: 1.0, sp0: 120, sp1: 320, l0: 0.7, l1: 1.6, s0: 5, s1: 11, lift: 40, drag: 1.3 });
-  }
-  // One rustle per stroke, at the end of the swing.
-  const half = Math.floor(sweepT / Math.PI);
-  if (half !== S.lastSweep) {
-    S.lastSweep = half;
-    if (took > 0.0005 && (half & 1)) { m === MAT.snow ? sfx.clack(1.6) : sfx.hiss(); rumble(0.16, 0.1, 60); }
-  }
+  if (Math.random() < dt * 4) sfx.hiss();
 }
 
 /** Take a bite out of the layer, in a cone in front of her. */
@@ -509,11 +530,14 @@ function step(dt) {
     } else {
       const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
       if (yt) { openReading(yt); tapDone = true; }
+      else if (beginStroke()) tapDone = true;   // one press, one sweep
     }
   }
   if (!holding) tapDone = false;
   wasHolding = holding;
-  if (holding) actHold(dt); else { S.act = 0; sweepT = 0; damPull = 0; }
+  if (holding && !tapDone && !stroke) beginStroke();
+  stepStroke(dt);
+  if (holding) actHold(dt); else if (!stroke) { S.act = 0; damPull = 0; }
 
   // The keeper. Tracked BEFORE the early return below, or the flag never gets
   // set while she is talking and the conversation reopens the instant it ends.
@@ -843,7 +867,7 @@ function drawHud() {
       : st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP';
   ctx.fillText(label, ring.x, ring.y + 4);
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText(pad.on ? 'left stick to walk · HOLD cross or R2 to sweep' : 'HOLD space, or the ring — and keep holding', view.w / 2, view.h - 22);
+  ctx.fillText(pad.on ? 'left stick to walk · cross to sweep · hold it out at thorn' : 'space or the ring to sweep — hold it out at thorn and ash', view.w / 2, view.h - 22);
   ctx.textAlign = 'left';
 }
 
@@ -1108,5 +1132,6 @@ window.savi = {
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
   hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); step(1 / 60); },
+  sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add(' '); step(1 / 60); keys.delete(' '); for (let j = 0; j < 34; j++) step(1 / 60); } },
   talkTo, KEEPER,
 };
