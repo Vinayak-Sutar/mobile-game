@@ -746,5 +746,18 @@ export function createTerrain(opts) {
     }
   }
 
-  return { typeAt, roadAt, draw, warm, prefill, CELL };
+  /**
+   * Forget the classification of everything in a rectangle, so `classify` is
+   * asked again for it. For when the LAND itself changes - a basin that drains,
+   * a channel that starts running - rather than only its painting.
+   */
+  function invalidate(x0, y0, x1, y1) {
+    const bi0 = Math.max(0, Math.floor(x0 / CELL / BLK)), bi1 = Math.min(bw - 1, Math.floor(x1 / CELL / BLK));
+    const bj0 = Math.max(0, Math.floor(y0 / CELL / BLK)), bj1 = Math.min(bh - 1, Math.floor(y1 / CELL / BLK));
+    for (let bj = bj0; bj <= bj1; bj++) for (let bi = bi0; bi <= bi1; bi++) done[bj * bw + bi] = 0;
+    cache.clear();
+    pending = null;
+  }
+
+  return { typeAt, roadAt, draw, warm, prefill, invalidate, CELL };
 }

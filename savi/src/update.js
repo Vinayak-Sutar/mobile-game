@@ -2,7 +2,7 @@
 //
 // GitHub Pages serves every file with `cache-control: max-age=600`, so a
 // browser may keep using a copy up to ten minutes old - and since the game is
-// sixty-odd separate script files, each one can be a different age. After a
+// several separate script files, each one can be a different age. After a
 // push that looks like "my change isn't there", or worse, half of it.
 //
 // Two answers to that:
@@ -13,7 +13,7 @@
 //     version's service worker and offline cache, re-downloads every script
 //     the game is made of straight from the server, and reloads.
 //
-// The build number is bumped automatically on every commit that touches v5/
+// The build number is bumped automatically on every commit that touches savi/
 // (tools/bump-build.py, run by the git pre-commit hook).
 
 import { BUILD, BUILT } from './build.js';
@@ -74,7 +74,7 @@ export async function hardRefresh(onStep = () => {}) {
     }
     if (window.caches) {
       const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith('ashfall-v5-')).map((k) => caches.delete(k)));
+      await Promise.all(keys.filter((k) => k.startsWith('savi-')).map((k) => caches.delete(k)));
     }
   } catch { /* carry on: the downloads below still refresh the browser's copy */ }
 
@@ -82,7 +82,7 @@ export async function hardRefresh(onStep = () => {}) {
   for (const f of ['./', './index.html', './manifest.json', './sw.js']) {
     await fetch(new URL(f, here), { cache: 'reload' }).catch(() => {});
   }
-  await refetchModules(new URL('./src/game.js', here).href, (n) => onStep(`Downloading the latest files… ${n}`));
+  await refetchModules(new URL('./src/savi.js', here).href, (n) => onStep(`Downloading the latest files… ${n}`));
 
   onStep('Restarting…');
   location.reload();

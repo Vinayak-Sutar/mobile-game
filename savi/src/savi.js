@@ -28,12 +28,13 @@ import {
 } from './audio.js';
 import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
+import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
-  drawYoungTree, drawBroom, drawShrine, glow, clamp01,
+  drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
 
@@ -44,6 +45,23 @@ const TREE = { x: 2600, y: 1560 };
 const WOMAN = { x: 2456, y: 1790 };
 const FIRE = { x: 2556, y: 1812 };
 const START = { x: 2600, y: 3120 };
+// The avenue: two rows of trees up to the shrine, and a torana over the road
+// where she comes in. Everything else about the approach hangs off these.
+const GATE = { x: 2600, y: 3230 };
+const AVENUE = [];
+for (let i = 0; i < 9; i++) {
+  const y = 3140 - i * 150;
+  const w = 168 + i * 5;
+  AVENUE.push({ x: 2600 - w, y, s: 1.05 + (i % 3) * 0.16, seed: i * 2 });
+  AVENUE.push({ x: 2600 + w, y, s: 1.05 + ((i + 1) % 3) * 0.16, seed: i * 2 + 1 });
+}
+// Leaves bank against the trunks and pool in the hollows, never in a square.
+const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26, r: 74 + (i % 4) * 16, d: 0.42 + (i % 3) * 0.1 }))
+  .concat([
+    { x: 2470, y: 2960, r: 120, d: 0.55 },
+    { x: 2735, y: 2790, r: 108, d: 0.5 },
+    { x: 2520, y: 2620, r: 132, d: 0.6 },
+  ]);
 
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
@@ -55,10 +73,28 @@ const PLACES = {
 };
 ROOTS.forEach((r, i) => Object.assign(r, PLACES[r.id], { seed: i * 5 + 3, order: i }));
 
-// The pond, as a blob rather than a box: an ellipse pushed about by noise.
-const POND = { x: 4010, y: 2190, rx: 470, ry: 330 };
-// What holds it in. Break this and it runs out east, off the drowned root.
-const DAM = { x: 4470, y: 2240, r: 120 };
+// THE DROWNED HOLLOW.
+//
+// It was a blob of water with a rectangle of sticks at the edge and no reason
+// for either. It is a PLACE now, and the place explains itself:
+//
+//   a stream comes down out of the north-east and fills a basin in the land
+//   the basin drains east through a narrow NECK between two boulders
+//   the neck is jammed with dry deadfall, so the basin has nowhere to go
+//   and the Great Root at the bottom of it has been under water for two years
+//
+// Burn the deadfall and the neck runs. The basin lets go, the water drops away
+// east down the channel, and the root comes up into the air.
+const POND = { x: 4010, y: 2210, rx: 460, ry: 320 };
+const INFLOW = [[4330, 1470], [4290, 1700], [4180, 1900], [4090, 2030]];
+const NECK = { x: 4520, y: 2230, w: 150 };                 // the way out, if it were clear
+const OUTFLOW = [[4520, 2230], [4760, 2260], [5000, 2330]];
+const DAM = { x: 4520, y: 2230, r: 110 };
+const BOULDERS = [
+  { x: 4492, y: 2118, r: 62 }, { x: 4556, y: 2348, r: 70 },
+  { x: 4420, y: 2078, r: 34 }, { x: 4614, y: 2402, r: 40 },
+];
+let drained = false;                                        // the basin has let go
 
 const ROAD = [[2600, 3340], [2600, 2900], [2560, 2500], [2600, 2100], [2600, 1820]];
 const SPURS = [
@@ -77,11 +113,18 @@ const SHRINE = { x: TREE.x, y: TREE.y + 150, r: 300 };
 const COURT = { x: SHRINE.x - 270, y: SHRINE.y - 120, w: 540, h: 300 };
 // The broom is a THING, left on the road out to the first root. She picks it
 // up, and she can put it down again anywhere she likes.
-const broom = { x: 2492, y: 3010, held: false };
+const broom = { x: 2492, y: 3120, held: false };   // leaning on the gatepost
 /** Young banyans, one per freed root, each with its beat carved into it. */
 const YOUNG = [];
 
 // --- what the ground is made of --------------------------------------------------------------
+
+/** Distance from a point to a polyline, for streams and roads alike. */
+function polyDist(x, y, pts) {
+  let d = 1e9;
+  for (let i = 1; i < pts.length; i++) d = Math.min(d, seg(x, y, pts[i - 1], pts[i]));
+  return d;
+}
 
 const seg = (x, y, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1];
@@ -125,9 +168,23 @@ function inSoft(x, y, r, soft) {
 
 /** The valley, classified. terrain.js paints whatever it is told - this is the picture. */
 function classify(x, y) {
+  // The stream in, always running.
+  const inD = polyDist(x, y, INFLOW);
+  if (inD < 26) return TT.WATER;
+  if (inD < 46) return TT.SHALLOW;
+  // The channel out, dry until the neck is opened.
+  const outD = polyDist(x, y, OUTFLOW);
+  if (drained && outD < 30) return TT.WATER;
+  if (outD < 52) return drained ? TT.SHALLOW : TT.GRAVEL;
+  // The basin. Once it has let go it is a marsh, not a pond.
   const k = pondK(x, y);
-  if (k < 0.86) return TT.WATER;
-  if (k < 1.0) return TT.SHALLOW;
+  if (drained) {
+    if (k < 0.5) return TT.SHALLOW;
+    if (k < 1.0) return TT.MUD;
+  } else {
+    if (k < 0.86) return TT.WATER;
+    if (k < 1.0) return TT.SHALLOW;
+  }
   const n = fbm(x * 0.0016, y * 0.0016);
   if (roadDist(x, y) < 46) return TT.DIRT;
   if (inSoft(x, y, PLACES.boon.patch, 280) > 0.34 + n * 0.3) return TT.ASH;
@@ -175,10 +232,14 @@ function buildGround() {
     }
   };
   put({ x: -200, y: -200, w: V.w + 400, h: V.h + 400 }, MAT.leaves, LITTER + 0.05, 1);
-  // The way in: a little deeper along the avenue up to the shrine, so the
-  // leaves lift round her feet as she walks it, but never a wall to be got
-  // through. Nothing is asked of her until someone asks.
-  put({ x: 2420, y: 2500, w: 360, h: 680 }, MAT.leaves, 0.42, 220);
+  // THE WAY IN. It was a rectangle of leaves, which is not a place. Now the
+  // avenue up to the shrine is lined with trees, and the leaves lie where
+  // leaves actually lie: banked against the trunks, pooled in the hollows on
+  // the lee side of the path, thin in the middle where feet have been. She
+  // never has to get through any of it - it just moves as she goes.
+  for (const d of DRIFTS) {
+    put({ x: d.x - d.r, y: d.y - d.r * 0.62, w: d.r * 2, h: d.r * 1.24 }, MAT.leaves, d.d, d.r * 0.85);
+  }
   // The shrine's courtyard, under a season of it. This is the broom's work.
   put(COURT, MAT.leaves, 0.95, 150);
   for (const r of ROOTS) if (r.mat !== 'water') put(r.patch, MAT[r.mat], 1.0, r.mat === 'thorn' ? 90 : 190);
@@ -319,7 +380,12 @@ const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 // A controller, any controller. A DualSense, an Xbox pad and anything else
 // that speaks the standard mapping all arrive here the same way: the left
 // stick or the d-pad walks, and cross / square / either trigger acts.
-const pad = { on: false, mx: 0, my: 0, held: false, pressed: false, dropHeld: false, dropPressed: false };
+const pad = {
+  on: false, mx: 0, my: 0,
+  held: false, pressed: false,           // cross / R2: the thing in front of her
+  dashHeld: false, dashPressed: false,   // square / L1 / R1: a little run
+  dropHeld: false, dropPressed: false,   // circle: put the broom down
+};
 function pollPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
@@ -335,7 +401,10 @@ function pollPad() {
   if (down(14)) mx = -1;
   if (down(15)) mx = 1;
   pad.mx = mx; pad.my = my;
-  const act = down(0) || down(2) || down(5) || down(7);
+  const act = down(0) || down(7);
+  const dash = down(2) || down(4) || down(5);
+  pad.dashPressed = dash && !pad.dashHeld;
+  pad.dashHeld = dash;
   pad.dropPressed = down(1) && !pad.dropHeld;
   pad.dropHeld = down(1);
   pad.pressed = act && !pad.held;
@@ -344,8 +413,37 @@ function pollPad() {
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let damBroken = false, drain = 0;
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
+
+// A little run, not a combat roll. Ashfall dashes 156 units in 0.17 s, which
+// out here would put her across a drift in one press; hers goes about 90, and
+// she has two of them back in a couple of seconds. It is for skipping a puddle
+// and for the joy of the leaves going up behind her.
+const DASH_TIME = 0.16, DASH_SPEED = 570, DASH_MAX = 2, DASH_BACK = 1.1;
+let dashT = 0, dashDir = 0, dashStock = DASH_MAX, dashRecharge = 0, dashWant = false;
+
+function startDash() {
+  if (dashT > 0 || dashStock <= 0 || st.talking || st.reading) return;
+  const mv = moveVector();
+  const m = Math.hypot(mv.x, mv.y);
+  dashDir = m > 0.15 ? Math.atan2(mv.y, mv.x) : S.face;
+  S.face = dashDir;
+  dashT = DASH_TIME;
+  dashStock--;
+  if (dashRecharge <= 0) dashRecharge = DASH_BACK;
+  sfx.dash();
+  rumble(0.3, 0.2, 90);
+  // Whatever she is standing in comes up behind her.
+  const u = depAt(S.x, S.y + 6);
+  if (water.wetAt(S.x, S.y + 6)) {
+    water.splash(S.x, S.y + 6, 120, 2);
+    spark(S.x, S.y + 6, 14, { col: ['#bfe0e8', '#8fbcc8'], angle: dashDir + Math.PI, arc: 1.5, sp0: 80, sp1: 260, l0: 0.4, l1: 0.9, s0: 3, s1: 7, kind: 'drop', lift: 50 });
+  } else if (u.m && u.d > 0.12) {
+    spark(S.x, S.y + 6, 16, { col: MATS[u.m].col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300, l0: 0.6, l1: 1.5, s0: 4, s1: 10, lift: 40, drag: 1.3 });
+  }
+}
 const ring = { x: 0, y: 0, r: 46 };
 const drop = { x: 0, y: 0, r: 34, on: false };
+const dashRing = { x: 0, y: 0, r: 38 };
 
 /**
  * The root the tree is reaching with. Only ever a suggestion - it is what is
@@ -478,6 +576,12 @@ function actHold(dt) {
     crackT -= dt; if (crackT <= 0) { crackT = 0.8 + Math.random() * 0.5; sfx.hiss(); }
     if (damPull > 2.6) {
       damBroken = true;
+      drained = true;
+      // The land itself has changed, so it is CLASSIFIED again, not merely
+      // repainted: the basin becomes a marsh and the channel east runs.
+      terrain.invalidate(POND.x - POND.rx - 400, POND.y - POND.ry - 400,
+        OUTFLOW[OUTFLOW.length - 1][0] + 300, POND.y + POND.ry + 400);
+      terrain.warm(camera.x, camera.y, view.w, view.h);
       sfx.bossDown(); sfx.explode();
       water.splash(DAM.x, DAM.y, 360, 4.2);
       spark(DAM.x, DAM.y, 60, { col: ['#ffb35e', '#ff7a2e'], sp0: 60, sp1: 300, l0: 0.7, l1: 1.8, s0: 3, s1: 8, kind: 'ember' });
@@ -560,6 +664,7 @@ function step(dt) {
   pollPad();
   if (pad.pressed) { begin(); if (st.talking) advance(); }
   if (pad.dropPressed) dropBroom();
+  if (pad.dashPressed) { begin(); dashWant = true; }
   holding = keys.has(' ') || keys.has('e') || touch.ring || pad.held;
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
@@ -588,12 +693,29 @@ function step(dt) {
 
   if (st.talking || st.reading) { stepParticles(dt); return; }
 
+  // The dash, and the two charges coming back.
+  if (dashWant) { dashWant = false; startDash(); }
+  if (dashStock < DASH_MAX) {
+    dashRecharge -= dt;
+    if (dashRecharge <= 0) { dashStock++; dashRecharge = dashStock < DASH_MAX ? DASH_BACK : 0; }
+  }
+
   const mv = moveVector();
   const under = depAt(S.x, S.y + 6);
   const drag = under.m ? MATS[under.m].drag * Math.min(1, under.d) : 0;
   const wet = water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
   const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
+  if (dashT > 0) {
+    dashT -= dt;
+    S.vx = Math.cos(dashDir) * DASH_SPEED;
+    S.vy = Math.sin(dashDir) * DASH_SPEED;
+    S.dashing = true;
+    if (Math.random() < dt * 40) {
+      const u2 = depAt(S.x, S.y + 6);
+      if (u2.m && u2.d > 0.1) spark(S.x, S.y + 6, 1, { col: MATS[u2.m].col, sp0: 30, sp1: 140, l0: 0.4, l1: 1, s0: 4, s1: 8, lift: 30 });
+    }
+  } else S.dashing = false;
 
   let nx = S.x + S.vx * dt, ny = S.y + S.vy * dt;
   const ah = depAt(nx, ny + 6);
@@ -666,8 +788,13 @@ function step(dt) {
   }
 
   if (damBroken && drain < 1) {
-    drain = Math.min(1, drain + dt / 7);
-    if (Math.random() < 0.5) water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 80, 1.3);
+    drain = Math.min(1, drain + dt / 5);
+    // It pours out of the neck and away down the channel for a few seconds.
+    water.splash(NECK.x + rand(-40, 40), NECK.y + rand(-50, 50), 90, 1.6);
+    if (Math.random() < dt * 30) {
+      spark(NECK.x + rand(-30, 30), NECK.y + rand(-40, 40), 1,
+        { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], angle: 0.2, arc: 1.2, sp0: 120, sp1: 340, l0: 0.5, l1: 1.2, s0: 3, s1: 7, kind: 'drop' });
+    }
   }
 
   // The courtyard, swept. The lamps take it as thanks and light themselves.
@@ -775,10 +902,13 @@ function drawLayer(c) {
 
 const SCENERY = [];
 function sowScenery() {
+  // The avenue first, so it is always there and always in the same place.
+  for (const t of AVENUE) SCENERY.push({ x: t.x, y: t.y, rock: false, s: t.s, seed: t.seed, dead: false, avenue: 1 });
   for (let i = 0; i < 760; i++) {
     const x = rand(60, V.w - 60), y = rand(60, V.h - 60);
     if (pondK(x, y) < 1.15 || roadDist(x, y) < 72) continue;
     if (Math.hypot(x - TREE.x, y - TREE.y) < 500) continue;
+    if (Math.abs(x - 2600) < 230 && y > 2300) continue;      // keep the avenue clear
     let onPatch = false;
     for (const r of ROOTS) if (inSoft(x, y, r.patch, 60) > 0) onPatch = true;
     if (onPatch && Math.random() < 0.72) continue;
@@ -805,8 +935,9 @@ function render() {
   drawShrine(ctx, SHRINE, st.t, st.swept ? 1 : 0);
   for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t, r === current());
 
+  drawHollow(ctx);
   if (!damBroken) {
-    // A raft of dry deadfall jammed across the outflow: logs, not a wall.
+    // A raft of dry deadfall wedged in the neck: logs, not a wall.
     const left = Math.max(0, 1 - damPull / 2.6);
     ctx.save();
     ctx.translate(DAM.x, DAM.y);
@@ -832,6 +963,7 @@ function render() {
   if (!broom.held) drawBroom(ctx, broom, st.t);
   for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t);
 
+  drawGate(ctx, GATE, st.t, st.warmth);
   const below = [], above = [];
   for (const o of SCENERY) {
     if (o.x < camera.x - 160 || o.x > camera.x + view.w + 160 || o.y < camera.y - 240 || o.y > camera.y + view.h + 200) continue;
@@ -851,7 +983,9 @@ function render() {
   drawParticles(ctx);
   drawCanopy(ctx, TREE, st.bloomK, st.t);
 
-  const n = 46 + Math.round(st.bloomK * 60);
+  // Along the avenue the air is full of them.
+  const onAvenue = Math.abs(S.x - 2600) < 420 && S.y > 2250;
+  const n = (onAvenue ? 92 : 46) + Math.round(st.bloomK * 60);
   for (let i = 0; i < n; i++) {
     const sp = 0.4 + ((i * 37) % 13) / 13;
     ctx.globalAlpha = 0.55;
@@ -872,6 +1006,63 @@ function render() {
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, view.w, view.h);
   drawHud();
+}
+
+/** The boulders that make the neck, the reeds round the shore, the lily pads. */
+function drawHollow(ctx) {
+  // Reeds, standing where the water is shallow.
+  for (let i = 0; i < 90; i++) {
+    const a = (i / 90) * TAU;
+    const wob = 0.93 + vn(i * 3.1, 7) * 0.17;
+    const x = POND.x + Math.cos(a) * POND.rx * wob, y = POND.y + Math.sin(a) * POND.ry * wob;
+    if (x < camera.x - 60 || x > camera.x + view.w + 60 || y < camera.y - 90 || y > camera.y + view.h + 60) continue;
+    const n = 3 + ((i * 7) % 4);
+    for (let k = 0; k < n; k++) {
+      const rx = x + (vn(i, k) - 0.5) * 34, ry = y + (vn(k, i) - 0.5) * 22;
+      const h = 22 + vn(i * 2, k * 3) * 26;
+      const lean = Math.sin(st.t * 0.9 + i + k) * 4;
+      ctx.strokeStyle = drained ? '#7d7b46' : '#5f6b3e';
+      ctx.lineWidth = 1.7;
+      ctx.beginPath();
+      ctx.moveTo(rx, ry);
+      ctx.quadraticCurveTo(rx + lean * 0.5, ry - h * 0.6, rx + lean, ry - h);
+      ctx.stroke();
+      if ((i + k) % 5 === 0) {
+        ctx.fillStyle = '#6b5a32';
+        ctx.beginPath(); ctx.ellipse(rx + lean, ry - h - 3, 1.7, 4.4, 0, 0, TAU); ctx.fill();
+      }
+    }
+  }
+  // Lily pads, while there is water to float on.
+  if (!drained) {
+    for (let i = 0; i < 26; i++) {
+      const a = vn(i, 1) * TAU, r = Math.sqrt(vn(i, 2)) * 0.74;
+      const x = POND.x + Math.cos(a) * POND.rx * r, y = POND.y + Math.sin(a) * POND.ry * r;
+      const drift = Math.sin(st.t * 0.4 + i) * 3;
+      ctx.fillStyle = i % 4 ? '#3d6b46' : '#4b7a4e';
+      ctx.beginPath();
+      ctx.ellipse(x + drift, y, 16 + vn(i, 5) * 10, 12 + vn(i, 7) * 7, a, 0.5, TAU);
+      ctx.fill();
+      if (i % 6 === 0) {
+        ctx.fillStyle = '#e8d8e4';
+        ctx.beginPath(); ctx.arc(x + drift + 4, y - 3, 3.4, 0, TAU); ctx.fill();
+      }
+    }
+  }
+  // The boulders the neck runs between.
+  for (const b of BOULDERS) {
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.beginPath(); ctx.ellipse(b.x + 7, b.y + 8, b.r * 1.02, b.r * 0.52, 0, 0, TAU); ctx.fill();
+    for (let i = 0; i < 3; i++) {
+      ctx.fillStyle = ['#6f6a62', '#807a70', '#5c5850'][i];
+      ctx.beginPath();
+      ctx.ellipse(b.x + Math.cos(i * 2.2) * b.r * 0.18, b.y - b.r * 0.2 + Math.sin(i * 2.2) * b.r * 0.12,
+        b.r * (1 - i * 0.2), b.r * (0.72 - i * 0.16), i * 0.7, 0, TAU);
+      ctx.fill();
+    }
+    ctx.fillStyle = 'rgba(255,240,210,0.15)';
+    ctx.beginPath(); ctx.ellipse(b.x - b.r * 0.3, b.y - b.r * 0.5, b.r * 0.4, b.r * 0.2, -0.4, 0, TAU); ctx.fill();
+  }
 }
 
 function drawHud() {
@@ -922,6 +1113,26 @@ function drawHud() {
     ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
     ctx.textAlign = 'left';
   }
+
+  // The dash, and how many she has left.
+  dashRing.x = view.w - 176; dashRing.y = view.h - 62;
+  ctx.beginPath(); ctx.arc(dashRing.x, dashRing.y, 32, 0, TAU);
+  ctx.fillStyle = dashStock > 0 ? 'rgba(150,190,225,0.2)' : 'rgba(150,190,225,0.07)';
+  ctx.fill();
+  ctx.strokeStyle = dashStock > 0 ? 'rgba(180,215,245,0.7)' : 'rgba(180,215,245,0.25)';
+  ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(214,236,255,0.9)';
+  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.fillText('DASH', dashRing.x, dashRing.y + 3);
+  for (let i = 0; i < DASH_MAX; i++) {
+    ctx.beginPath();
+    ctx.arc(dashRing.x - 8 + i * 16, dashRing.y + 18, 3.2, 0, TAU);
+    ctx.fillStyle = i < dashStock ? 'rgba(190,225,255,0.95)' : 'rgba(190,225,255,0.22)';
+    ctx.fill();
+  }
+  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.textAlign = 'left';
 
   ring.x = view.w - 86; ring.y = view.h - 86;
   ctx.beginPath(); ctx.arc(ring.x, ring.y, 40, 0, TAU);
@@ -1107,6 +1318,32 @@ function main() {
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
   rotateEl = document.getElementById('rotate');
+
+  // Which build this phone is running, and whether it is the one on the server.
+  // Pages caches every file for ten minutes, so "my change isn't there" is a
+  // real thing and this is how you tell.
+  const ver = document.getElementById('ver');
+  if (ver) {
+    ver.innerHTML = `build ${BUILD} &middot; ${BUILT}`;
+    latestBuild().then((n) => {
+      if (n === null) ver.innerHTML += ' &middot; <span class="dim">offline</span>';
+      else if (n > BUILD) {
+        ver.innerHTML += ` &middot; <b class="new">build ${n} is out</b> `
+          + '<button id="refresh" class="mini">fetch it</button>';
+        document.getElementById('refresh').addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          hardRefresh((msg) => { ver.textContent = msg; });
+        });
+      } else {
+        ver.innerHTML += ' &middot; <span class="ok">up to date</span>'
+          + ' <button id="refresh" class="mini">refetch</button>';
+        document.getElementById('refresh').addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          hardRefresh((msg) => { ver.textContent = msg; });
+        });
+      }
+    });
+  }
   world.player = S;                 // grass.js and wilds-water.js both follow her
   world.overworld = true;
   world.enemies.length = 0;
@@ -1127,6 +1364,7 @@ function main() {
     const k = e.key.toLowerCase();
     keys.add(k);
     if (k === 'q') dropBroom();
+    if (k === 'shift' || k === 'x') { begin(); dashWant = true; e.preventDefault(); }
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
       if (st.talking) advance();
@@ -1148,6 +1386,7 @@ function main() {
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
     if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
+    if (Math.hypot(e.clientX / sc - dashRing.x, e.clientY / sc - dashRing.y) < dashRing.r) { dashWant = true; return; }
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
       touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
@@ -1187,10 +1426,12 @@ function main() {
 
 main();
 window.savi = {
-  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, broom, YOUNG, render, resize, begin, say, advance, fraction,
+  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, NECK, POND, broom, YOUNG, render, resize, begin, say, advance, fraction,
+  get terrain() { return terrain; }, get drained() { return drained; },
   face: drawPortrait, openReading,
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
+  dash() { dashWant = true; step(1 / 60); for (let i = 0; i < 20; i++) step(1 / 60); },
   hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); step(1 / 60); },
   sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add(' '); step(1 / 60); keys.delete(' '); for (let j = 0; j < 34; j++) step(1 / 60); } },
   talkTo, KEEPER,

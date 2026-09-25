@@ -695,6 +695,71 @@ export function drawShrine(ctx, S, time, lit) {
   ctx.beginPath(); ctx.arc(bx - 29, by - 33, 3.4, 0, TAU); ctx.fill();
 }
 
+/**
+ * The torana over the road where she comes in: two carved posts and a lintel,
+ * leaning a little, with a bell on a chain and the last of its marigolds. It
+ * says "someone used to come here" before a word is spoken.
+ */
+export function drawGate(ctx, G, time, warmth) {
+  const x = G.x, y = G.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  ctx.beginPath(); ctx.ellipse(x, y + 10, 150, 26, 0, 0, TAU); ctx.fill();
+
+  for (const side of [-1, 1]) {
+    const px = x + side * 116, lean = side * 0.035;
+    ctx.save();
+    ctx.translate(px, y);
+    ctx.rotate(lean);
+    ctx.fillStyle = '#7b6a52';
+    ctx.fillRect(-15, -128, 30, 128);
+    ctx.fillStyle = '#8d7c62';
+    ctx.fillRect(-15, -128, 11, 128);
+    ctx.fillStyle = '#5f5340';                       // carved bands
+    for (let i = 0; i < 4; i++) ctx.fillRect(-17, -112 + i * 30, 34, 6);
+    ctx.fillStyle = '#6d5f49';
+    ctx.fillRect(-21, -4, 42, 10);
+    ctx.restore();
+  }
+  ctx.fillStyle = '#7b6a52';                          // the lintel, sagging
+  ctx.beginPath();
+  ctx.moveTo(x - 132, y - 128);
+  ctx.quadraticCurveTo(x, y - 116, x + 132, y - 128);
+  ctx.lineTo(x + 132, y - 150);
+  ctx.quadraticCurveTo(x, y - 138, x - 132, y - 150);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#8d7c62';
+  ctx.beginPath();
+  ctx.moveTo(x - 132, y - 150);
+  ctx.quadraticCurveTo(x, y - 138, x + 132, y - 150);
+  ctx.lineTo(x + 132, y - 156);
+  ctx.quadraticCurveTo(x, y - 144, x - 132, y - 156);
+  ctx.closePath();
+  ctx.fill();
+
+  // A string of marigolds, most of them gone brown.
+  for (let i = 0; i < 15; i++) {
+    const k = i / 14;
+    const mx = x - 120 + k * 240;
+    const my = y - 124 + Math.sin(k * Math.PI) * 22 + Math.sin(time * 0.7 + i) * 1.4;
+    const fresh = warmth > 0.5 && i % 3 === 0;
+    ctx.fillStyle = fresh ? '#e8a32a' : '#8a6a34';
+    ctx.beginPath(); ctx.arc(mx, my, fresh ? 5 : 4, 0, TAU); ctx.fill();
+  }
+  // And a bell on a chain in the middle.
+  const bx = x, by = y - 116 + Math.sin(time * 0.9) * 0.8;
+  ctx.strokeStyle = '#5a5040'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(bx, y - 122); ctx.lineTo(bx, by + 4); ctx.stroke();
+  ctx.fillStyle = warmth > 0.5 ? '#c9a24a' : '#867c6a';
+  ctx.beginPath();
+  ctx.moveTo(bx - 9, by + 4);
+  ctx.quadraticCurveTo(bx - 10, by + 20, bx - 6, by + 24);
+  ctx.lineTo(bx + 6, by + 24);
+  ctx.quadraticCurveTo(bx + 10, by + 20, bx + 9, by + 4);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx, by + 27, 2.6, 0, TAU); ctx.fill();
+}
+
 // --- Savi ----------------------------------------------------------------------------
 
 /**

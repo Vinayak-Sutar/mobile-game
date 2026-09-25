@@ -13,7 +13,8 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BUILD_JS = os.path.join(ROOT, 'v5', 'src', 'build.js')
+# Every folder that carries its own build number, and the file it lives in.
+GAMES = [('v5', 'Version 5'), ('savi', 'Savi')]
 HOOK = os.path.join(ROOT, '.git', 'hooks', 'pre-commit')
 
 
@@ -28,19 +29,26 @@ def install():
     print('pre-commit hook installed')
 
 
-def main():
-    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=ROOT,
-                            capture_output=True, text=True, check=True).stdout.split()
-    if not any(p.startswith('v5/') and p != 'v5/src/build.js' for p in staged):
+def bump(folder, label, staged):
+    rel = '%s/src/build.js' % folder
+    if not any(p.startswith(folder + '/') and p != rel for p in staged):
         return
-    src = io.open(BUILD_JS, encoding='utf-8').read()
+    path = os.path.join(ROOT, folder, 'src', 'build.js')
+    src = io.open(path, encoding='utf-8').read()
     n = int(re.search(r'BUILD\s*=\s*(\d+)', src).group(1)) + 1
     when = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
     src = re.sub(r'BUILD\s*=\s*\d+', 'BUILD = %d' % n, src)
     src = re.sub(r"BUILT\s*=\s*'[^']*'", "BUILT = '%s'" % when, src)
-    io.open(BUILD_JS, 'w', encoding='utf-8', newline='\n').write(src)
-    subprocess.run(['git', 'add', 'v5/src/build.js'], cwd=ROOT, check=True)
-    print('Version 5 build %d' % n)
+    io.open(path, 'w', encoding='utf-8', newline='\n').write(src)
+    subprocess.run(['git', 'add', rel], cwd=ROOT, check=True)
+    print('%s build %d' % (label, n))
+
+
+def main():
+    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=ROOT,
+                            capture_output=True, text=True, check=True).stdout.split()
+    for folder, label in GAMES:
+        bump(folder, label, staged)
 
 
 if __name__ == '__main__':

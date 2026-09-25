@@ -1,6 +1,6 @@
-// Which build of Version 5 this is. Bumped automatically by
-// tools/bump-build.py (the git pre-commit hook) on every commit that touches
-// v5/ - do not edit by hand. The title screen compares it with the copy on
-// the server to tell whether this phone is running the latest (update.js).
-export const BUILD = 45;
-export const BUILT = '2026-09-24 01:16';
+// Which build of Savi this is. Bumped automatically by tools/bump-build.py
+// (the git pre-commit hook) on every commit that touches savi/ - do not edit by
+// hand. The title screen compares it with the copy on the server, so the phone
+// can say whether it is running what was just pushed.
+export const BUILD = 2;
+export const BUILT = '2026-09-26 02:32';
