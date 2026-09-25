@@ -574,7 +574,15 @@ function step(dt) {
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
   else if (broom.held) st.prompt = 'hold to sweep · Q to put the broom down';
 
-  for (const yt of YOUNG) if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
+  for (const yt of YOUNG) {
+    if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
+    // Grown, and the carving lit: NOW it tells what it remembers.
+    else if (yt.pending && !st.talking && !st.reading) {
+      yt.pending = false;
+      sfx.chime();
+      say(yt.lines, null, yt.mural);
+    }
+  }
 
   if (Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 80 && !st.hasEmber) {
     st.hasEmber = true; st.ember = 1;
@@ -621,11 +629,10 @@ function wake(r) {
   st.count++;
   st.step++;
   // An aerial root comes down where the burden was, takes hold, and is a tree.
-  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: r.mural, name: r.name, lines: r.lines });
+  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: r.mural, name: r.name, lines: r.lines, pending: true });
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
   st.lastBeat = r.lines[r.lines.length - 1][1];
-  say(r.lines, null, r.mural);
 }
 
 // --- drawing ----------------------------------------------------------------------------------------
@@ -815,7 +822,10 @@ function drawHud() {
   ctx.strokeStyle = 'rgba(255,190,120,0.75)'; ctx.lineWidth = 2; ctx.stroke();
   ctx.textAlign = 'center';
   ctx.fillStyle = 'rgba(255,224,186,0.95)';
-  ctx.fillText(st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP', ring.x, ring.y + 4);
+  const label = st.prompt.startsWith('take') ? 'TAKE'
+    : st.prompt.startsWith('read') ? 'READ'
+      : st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP';
+  ctx.fillText(label, ring.x, ring.y + 4);
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
   ctx.fillText(pad.on ? 'left stick to walk · HOLD cross or R2 to sweep' : 'HOLD space, or the ring — and keep holding', view.w / 2, view.h - 22);
   ctx.textAlign = 'left';

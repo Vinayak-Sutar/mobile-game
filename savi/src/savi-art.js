@@ -73,74 +73,139 @@ export function drawFloor(ctx, V, warmth, time) {
 // so she walks under it and among the props.
 
 const PROPS = [];
-function banyanProps(T) {
-  if (PROPS.length) return PROPS;
-  for (let i = 0; i < 26; i++) {
-    const a = rnd(i) * Math.PI + 0.05;                    // the near half only
-    const r = 96 + rnd(i * 3) * 250;
+const LIMBS = [];
+const CURTAIN = [];
+
+function banyanBones(T) {
+  if (LIMBS.length) return;
+  // The framework: heavy limbs curving out and down from the crown. Everything
+  // else in a banyan hangs off these.
+  for (let i = 0; i < 9; i++) {
+    const a0 = (i / 9) * TAU + 0.35;
+    const reach = 210 + rnd(i * 5) * 190;
+    LIMBS.push({
+      a: a0, reach,
+      x1: T.x + Math.cos(a0) * reach,
+      y1: T.y - 96 + Math.sin(a0) * reach * 0.58,
+      mx: T.x + Math.cos(a0) * reach * 0.5,
+      my: T.y - 132 + Math.sin(a0) * reach * 0.26,
+      w: 24 - (i % 3) * 5,
+    });
+  }
+  // The curtain. This is the whole silhouette of the tree: strands hanging off
+  // the limbs, most of them stopping in mid-air, a few reaching the ground and
+  // thickening into a trunk of their own.
+  for (let i = 0; i < 96; i++) {
+    const L = LIMBS[i % LIMBS.length];
+    const k = 0.22 + rnd(i * 3) * 0.78;
+    const x = T.x + (L.x1 - T.x) * k + (rnd(i * 7) - 0.5) * 34;
+    const y = T.y - 96 + (L.y1 - (T.y - 96)) * k + (rnd(i * 11) - 0.5) * 22;
+    const ground = T.y + 30 + Math.sin(i) * 26;
+    const full = rnd(i * 13) < 0.24;           // this one made it down
+    CURTAIN.push({
+      x, y,
+      len: full ? ground - y : 40 + rnd(i * 17) * 190,
+      w: full ? 5 + rnd(i * 19) * 9 : 1.4 + rnd(i * 23) * 3.2,
+      full, seed: i,
+      front: y > T.y - 130,                     // hangs in front of her, or behind
+    });
+  }
+  for (let i = 0; i < 22; i++) {
+    const a0 = rnd(i) * Math.PI + 0.05;
+    const r = 110 + rnd(i * 3) * 250;
     PROPS.push({
-      x: T.x + Math.cos(a) * r,
-      y: T.y + 26 + Math.sin(a) * r * 0.62,
-      w: 7 + rnd(i * 5) * 19,
-      h: 54 + rnd(i * 7) * 62,
-      lean: (rnd(i * 11) - 0.5) * 0.3,
+      x: T.x + Math.cos(a0) * r,
+      y: T.y + 30 + Math.sin(a0) * r * 0.6,
+      w: 9 + rnd(i * 5) * 21,
+      h: 58 + rnd(i * 7) * 70,
+      lean: (rnd(i * 11) - 0.5) * 0.28,
       seed: i,
     });
   }
   PROPS.sort((p, q) => p.y - q.y);
-  return PROPS;
 }
 
-/** The buttress roots, the braided trunk and the props: everything below the leaves. */
+/** One hanging root: tapering, curved, and swaying at its free end. */
+function strand(ctx, c, time, col) {
+  const sway = Math.sin(time * 0.7 + c.seed) * (c.full ? 1.4 : 4 + c.len * 0.03);
+  ctx.strokeStyle = col;
+  ctx.lineWidth = c.w;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y);
+  ctx.quadraticCurveTo(c.x + sway * 0.4, c.y + c.len * 0.55, c.x + sway, c.y + c.len);
+  ctx.stroke();
+  if (!c.full) {                                // a blunt growing tip
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(c.x + sway, c.y + c.len, c.w * 0.85, 0, TAU);
+    ctx.fill();
+  }
+}
+
+/** Buttresses, the braided trunk, the limbs, the back of the curtain, the props. */
 export function drawBanyan(ctx, T, bloom, time) {
-  const props = banyanProps(T);
+  banyanBones(T);
   const bark = mixHex('#38281e', '#5e4430', bloom * 0.8);
   const lit = mixHex('#4a3627', '#8a6442', bloom * 0.8);
 
-  // The shade the whole thing throws.
   ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(T.x + 16, T.y + 52, 330, 208, 0, 0, TAU);
+  ctx.ellipse(T.x + 16, T.y + 56, 350, 218, 0, 0, TAU);
   ctx.fill();
 
-  // Buttress roots, flat on the ground and running away in every direction.
-  for (let i = 0; i < 18; i++) {
-    const a = (i / 18) * TAU + 0.2;
-    const r = 150 + rnd(i * 13) * 210;
+  for (let i = 0; i < 18; i++) {                // buttress roots, flat and wide
+    const a0 = (i / 18) * TAU + 0.2;
+    const r = 150 + rnd(i * 13) * 220;
     ctx.strokeStyle = bark;
-    ctx.lineWidth = 10 + rnd(i) * 20;
+    ctx.lineWidth = 11 + rnd(i) * 21;
     ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(T.x, T.y + 20);
-    ctx.quadraticCurveTo(
-      T.x + Math.cos(a) * r * 0.55, T.y + 20 + Math.sin(a) * r * 0.4,
-      T.x + Math.cos(a) * r, T.y + 24 + Math.sin(a) * r * 0.66,
-    );
+    ctx.quadraticCurveTo(T.x + Math.cos(a0) * r * 0.55, T.y + 20 + Math.sin(a0) * r * 0.4,
+      T.x + Math.cos(a0) * r, T.y + 24 + Math.sin(a0) * r * 0.66);
     ctx.stroke();
   }
 
-  // The main trunk: many stems fused, not one cylinder.
+  // The limbs: drawn before the trunk so they appear to leave it.
+  for (const L of LIMBS) {
+    ctx.strokeStyle = bark;
+    ctx.lineWidth = L.w;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(T.x, T.y - 70);
+    ctx.quadraticCurveTo(L.mx, L.my, L.x1, L.y1);
+    ctx.stroke();
+    ctx.strokeStyle = lit;
+    ctx.lineWidth = L.w * 0.34;
+    ctx.beginPath();
+    ctx.moveTo(T.x, T.y - 76);
+    ctx.quadraticCurveTo(L.mx, L.my - 5, L.x1, L.y1 - 4);
+    ctx.stroke();
+  }
+
+  for (const c of CURTAIN) if (!c.front) strand(ctx, c, time, bark);
+
+  // The trunk: many stems fused, with the channels between them.
   for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * TAU;
+    const a0 = (i / 9) * TAU;
     const rr = i ? 34 + rnd(i * 17) * 26 : 0;
     ctx.fillStyle = i % 2 ? bark : lit;
     ctx.beginPath();
-    ctx.ellipse(T.x + Math.cos(a) * rr, T.y + Math.sin(a) * rr * 0.6, 46 - i * 1.8, 60 - i * 2.2, a * 0.3, 0, TAU);
+    ctx.ellipse(T.x + Math.cos(a0) * rr, T.y + Math.sin(a0) * rr * 0.6, 48 - i * 1.8, 64 - i * 2.2, a0 * 0.3, 0, TAU);
     ctx.fill();
   }
-  // Its channels, which is what a braided banyan trunk reads as.
-  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 7; i++) {
-    const x = T.x - 48 + i * 16;
+  ctx.strokeStyle = 'rgba(0,0,0,0.32)';
+  ctx.lineWidth = 3.4;
+  for (let i = 0; i < 8; i++) {
+    const x = T.x - 52 + i * 15;
     ctx.beginPath();
-    ctx.moveTo(x, T.y - 56);
-    ctx.quadraticCurveTo(x + (rnd(i) - 0.5) * 22, T.y, x + (rnd(i * 3) - 0.5) * 18, T.y + 44);
+    ctx.moveTo(x, T.y - 60);
+    ctx.quadraticCurveTo(x + (rnd(i) - 0.5) * 24, T.y, x + (rnd(i * 3) - 0.5) * 20, T.y + 48);
     ctx.stroke();
   }
 
-  // The props: the tree standing on a hundred legs.
-  for (const p of props) {
+  for (const p of PROPS) {                      // the ones that made it to the ground
     const sway = Math.sin(time * 0.5 + p.seed) * 1.2;
     ctx.fillStyle = 'rgba(0,0,0,0.26)';
     ctx.beginPath();
@@ -154,10 +219,10 @@ export function drawBanyan(ctx, T, bloom, time) {
     g.addColorStop(0.45, bark);
     g.addColorStop(1, '#241a13');
     ctx.fillStyle = g;
-    ctx.beginPath();                       // tapering, wider where it meets the ground
+    ctx.beginPath();
     ctx.moveTo(-p.w * 0.36 + sway, -p.h);
-    ctx.quadraticCurveTo(-p.w * 0.5, -p.h * 0.4, -p.w * 0.6, 0);
-    ctx.lineTo(p.w * 0.6, 0);
+    ctx.quadraticCurveTo(-p.w * 0.5, -p.h * 0.4, -p.w * 0.62, 0);
+    ctx.lineTo(p.w * 0.62, 0);
     ctx.quadraticCurveTo(p.w * 0.5, -p.h * 0.4, p.w * 0.36 + sway, -p.h);
     ctx.closePath();
     ctx.fill();
@@ -165,71 +230,53 @@ export function drawBanyan(ctx, T, bloom, time) {
   }
 }
 
-/**
- * The leaves, and the roots still hanging from them. Drawn after the player, so
- * she is under the tree rather than on top of a picture of one.
- */
+/** The front of the curtain — she walks inside it — and then the leaves. */
 export function drawCanopy(ctx, T, bloom, time) {
-  // Aerial roots that have not touched down: thin, and they sway.
-  for (let i = 0; i < 34; i++) {
-    const a = rnd(i * 7) * TAU;
-    const r = 70 + rnd(i * 3) * 290;
-    const x = T.x + Math.cos(a) * r, y0 = T.y + Math.sin(a) * r * 0.66 - 150;
-    const len = 40 + rnd(i * 5) * 96;
-    const sway = Math.sin(time * 0.8 + i) * (5 + len * 0.05);
-    ctx.strokeStyle = `rgba(48,34,26,${0.5 + rnd(i * 11) * 0.4})`;
-    ctx.lineWidth = 1.6 + rnd(i * 13) * 3;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x, y0);
-    ctx.quadraticCurveTo(x + sway * 0.5, y0 + len * 0.6, x + sway, y0 + len);
-    ctx.stroke();
-  }
+  banyanBones(T);
+  const bark = mixHex('#33241b', '#543c2a', bloom * 0.7);
+  for (const c of CURTAIN) if (c.front) strand(ctx, c, time, bark);
 
   if (bloom <= 0.02) {
-    ctx.strokeStyle = 'rgba(44,32,26,0.62)';
+    ctx.strokeStyle = 'rgba(44,32,26,0.5)';
     ctx.lineCap = 'round';
-    for (let i = 0; i < 34; i++) {
-      const a = (i / 34) * TAU;
-      const r = 190 + rnd(i) * 220;
-      ctx.lineWidth = 7 - (i % 3) * 1.6;
+    for (let i = 0; i < 30; i++) {
+      const a0 = (i / 30) * TAU;
+      const r = 200 + rnd(i) * 200;
+      ctx.lineWidth = 5 - (i % 3) * 1.2;
       ctx.beginPath();
-      ctx.moveTo(T.x, T.y - 40);
-      ctx.quadraticCurveTo(T.x + Math.cos(a) * r * 0.55, T.y - 110 + Math.sin(a) * r * 0.38,
-        T.x + Math.cos(a) * r, T.y - 60 + Math.sin(a) * r * 0.62);
+      ctx.moveTo(T.x, T.y - 96);
+      ctx.quadraticCurveTo(T.x + Math.cos(a0) * r * 0.55, T.y - 150 + Math.sin(a0) * r * 0.34,
+        T.x + Math.cos(a0) * r, T.y - 110 + Math.sin(a0) * r * 0.58);
       ctx.stroke();
     }
     return;
   }
 
-  // Layered lobes rather than one blob: a banyan's crown is enormous and lumpy.
   const pal = [['#7d6b33', '#94803a'], ['#c08a34', '#a8702a'], ['#e6ac45', '#c98a33'], ['#f2c65e', '#db9c3c']];
   for (let layer = 0; layer < 3; layer++) {
-    const spread = 1 - layer * 0.22;
-    const n = 26 - layer * 5;
+    const spread = 1 - layer * 0.2;
+    const n = 30 - layer * 6;
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * TAU + layer * 0.8 + rnd(i + layer * 31) * 0.5;
-      const r = (110 + rnd(i * 3 + layer) * 230) * spread;
+      const a0 = (i / n) * TAU + layer * 0.8 + rnd(i + layer * 31) * 0.5;
+      const r = (120 + rnd(i * 3 + layer) * 250) * spread;
       const sway = Math.sin(time * 0.55 + i + layer) * (3 + layer);
-      const size = (52 + rnd(i * 5 + layer) * 62) * (0.62 + bloom * 0.38);
-      const c = pal[Math.min(3, Math.floor(bloom * 3) + (i & 1))];
-      ctx.fillStyle = c[layer % 2];
-      ctx.globalAlpha = 0.86;
+      const size = (56 + rnd(i * 5 + layer) * 66) * (0.62 + bloom * 0.38);
+      ctx.fillStyle = pal[Math.min(3, Math.floor(bloom * 3) + (i & 1))][layer % 2];
+      ctx.globalAlpha = 0.88;
       ctx.beginPath();
-      ctx.ellipse(T.x + Math.cos(a) * r + sway, T.y - 92 - layer * 26 + Math.sin(a) * r * 0.6, size, size * 0.74, a, 0, TAU);
+      ctx.ellipse(T.x + Math.cos(a0) * r + sway, T.y - 150 - layer * 26 + Math.sin(a0) * r * 0.55, size, size * 0.72, a0, 0, TAU);
       ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
-  // The light coming down the north-west side of the crown.
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const lg = ctx.createRadialGradient(T.x - 130, T.y - 210, 20, T.x - 130, T.y - 210, 320);
+  const lg = ctx.createRadialGradient(T.x - 140, T.y - 250, 20, T.x - 140, T.y - 250, 330);
   lg.addColorStop(0, `rgba(255,214,140,${0.16 * bloom})`);
   lg.addColorStop(1, 'rgba(255,190,110,0)');
   ctx.fillStyle = lg;
   ctx.beginPath();
-  ctx.arc(T.x - 130, T.y - 210, 320, 0, TAU);
+  ctx.arc(T.x - 140, T.y - 250, 330, 0, TAU);
   ctx.fill();
   ctx.restore();
 }
@@ -658,7 +705,7 @@ export function drawSavi(ctx, p, time) {
   if (sweeping) {
     const sw = p.sweep || 0;
     ctx.translate(Math.cos(a) * 9, Math.sin(a) * 6 - 8);
-    ctx.rotate(a + sw * 0.72 + Math.PI / 2);
+    ctx.rotate(a + sw * 0.72 - Math.PI / 2);   // twigs forward, not the handle
   } else {
     ctx.translate(-fx * 3, -12);
     ctx.rotate(-0.72);
