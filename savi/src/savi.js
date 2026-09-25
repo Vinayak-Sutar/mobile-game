@@ -432,7 +432,7 @@ function actHold(dt) {
   const half = Math.floor(sweepT / Math.PI);
   if (half !== S.lastSweep) {
     S.lastSweep = half;
-    if (took > 0.0005) { m === MAT.snow ? sfx.clack(1.9) : sfx.hiss(); rumble(0.16, 0.1, 60); }
+    if (took > 0.0005 && (half & 1)) { m === MAT.snow ? sfx.clack(1.6) : sfx.hiss(); rumble(0.16, 0.1, 60); }
   }
 }
 
@@ -545,9 +545,11 @@ function step(dt) {
         sfx.splash();
         spark(S.x, S.y + 6, 5, { col: ['#bfe0e8'], sp0: 30, sp1: 120, l0: 0.3, l1: 0.7, s0: 2, s1: 5, kind: 'drop', lift: 44 });
       } else if (under.d > 0.3 && under.m === MAT.leaves) {
-        sfx.hiss();
+        // No sound for this. The leaves move, and that is the whole of it - a
+        // tick on every footfall through a valley knee-deep in them was a
+        // metronome, not an atmosphere. The broom still rustles.
         spark(S.x, S.y + 6, 3, { col: MATS[1].col, sp0: 20, sp1: 80, l0: 0.5, l1: 1.1, s0: 4, s1: 8, lift: 26 });
-      } else if (under.d > 0.3 && under.m === MAT.snow) sfx.clack(1.7);
+      } else if (under.d > 0.5 && under.m === MAT.snow && (k & 1)) sfx.clack(1.4);
     }
   }
 

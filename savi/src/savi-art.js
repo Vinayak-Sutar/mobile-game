@@ -687,6 +687,27 @@ export function drawSavi(ctx, p, time) {
   ctx.restore();
   }
 
+  // Her braid hangs BEHIND her, and which side of the head that is depends on
+  // which way she is facing. Coming toward the camera it is on the far side, so
+  // it has to be drawn before the head - drawn after, it lay across her face,
+  // which is exactly what it was doing.
+  const swing = walking ? Math.sin(ph) * 1.7 : Math.sin(time * 1.2) * 0.7;
+  const toward = clamp01((fy + 1) / 2);        // 0 facing away, 1 facing us
+  const tipX = -fx * 8.5 + swing;
+  const tipY = mix(-12, -33, toward);          // down her back, or up behind her
+  const braid = () => {
+    ctx.strokeStyle = '#2a1c18';
+    ctx.lineWidth = 3.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-fx * 3, -27.5);
+    ctx.quadraticCurveTo(tipX * 0.55, (tipY - 27.5) * 0.45 - 27.5 + 6, tipX, tipY);
+    ctx.stroke();
+    ctx.fillStyle = '#c94f6d';                 // the thread tied at the end
+    ctx.beginPath(); ctx.arc(tipX, tipY, 1.9, 0, TAU); ctx.fill();
+  };
+  if (!away) braid();
+
   // Head and hair.
   ctx.fillStyle = '#2a1c18';
   ctx.beginPath(); ctx.arc(0, -25.5, 7.4, 0, TAU); ctx.fill();
@@ -699,18 +720,7 @@ export function drawSavi(ctx, p, time) {
     ctx.fillRect(fx * 1.4 - 2.6, -25.4, 1.5, 1.9);
     ctx.fillRect(fx * 1.4 + 1.1, -25.4, 1.5, 1.9);
   }
-  // A braid that swings behind her.
-  const bx = -fx * 7, by = -fy * 5 + (walking ? Math.sin(ph) * 1.8 : Math.sin(time * 1.3) * 0.8);
-  ctx.strokeStyle = '#2a1c18';
-  ctx.lineWidth = 3.4;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(0, -26);
-  ctx.quadraticCurveTo(bx * 0.6, -22 + by, bx, -16 + by);
-  ctx.stroke();
-  ctx.fillStyle = '#c94f6d';
-  ctx.beginPath(); ctx.arc(bx, -16 + by, 1.8, 0, TAU); ctx.fill();
-
+  if (away) braid();                           // her back is to us: it is in front
   ctx.restore();
 }
 
