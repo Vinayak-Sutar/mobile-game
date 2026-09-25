@@ -32,8 +32,10 @@ import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
-  drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil, glow, clamp01,
+  drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
+  drawYoungTree, drawBroom, glow, clamp01,
 } from './savi-art.js';
+import { drawPortrait } from './savi-faces.js';
 
 // --- the valley ---------------------------------------------------------------------------
 
@@ -67,6 +69,11 @@ const SPURS = [
   [[2600, 1320], [2600, 960], [2600, 600], [2600, 420]],
 ];
 const SHELTERS = [{ x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 }];
+// The broom is a THING, left on the road out to the first root. She picks it
+// up, and she can put it down again anywhere she likes.
+const broom = { x: 2010, y: 2172, held: false };
+/** Young banyans, one per freed root, each with its beat carved into it. */
+const YOUNG = [];
 
 // --- what the ground is made of --------------------------------------------------------------
 
@@ -319,7 +326,7 @@ function pollPad() {
   pad.pressed = act && !pad.held;
   pad.held = act;
 }
-let forceMove = null, holding = false, actT = 0;
+let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let damBroken = false, drain = 0;
 const ring = { x: 0, y: 0, r: 46 };
 
@@ -344,7 +351,9 @@ let damPull = 0;
 
 /** Held down: whatever is in front of her, for as long as she keeps at it. */
 function actHold(dt) {
-  if (st.talking) { sweepT = 0; S.act = 0; return; }
+  if (st.talking || st.reading) { sweepT = 0; S.act = 0; return; }
+  // A press near something to take or to read is that, not a sweep.
+  if (tapDone) return;
   const near = Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70;
 
   // The dam: a long pull, not three shoves.
@@ -377,7 +386,14 @@ function actHold(dt) {
   if (fire && !(st.hasEmber && st.ember > 0.02)) {
     if (actT <= 0) {
       actT = 1.2;
-      say(['This will not move for a broom. The old woman keeps a fire — take a coal from it and hold it out.'], null);
+      say([['keeper', 'This will not move for a broom. The old woman keeps a fire — take a coal from it and hold it out.']], null);
+    }
+    return;
+  }
+  if (!fire && !broom.held) {
+    if (actT <= 0) {
+      actT = 1.2;
+      say([['keeper', 'Her hands are small. There was a broom left on the road out west — fetch that first.']], null);
     }
     return;
   }
@@ -468,8 +484,20 @@ function step(dt) {
   holding = keys.has(' ') || keys.has('e') || touch.ring || pad.held;
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
+  // The press that TAKES or READS happens on the way down, before any sweeping.
+  if (holding && !wasHolding) {
+    tapDone = false;
+    if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
+      broom.held = true; tapDone = true; sfx.pickup();
+    } else {
+      const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
+      if (yt) { openReading(yt); tapDone = true; }
+    }
+  }
+  if (!holding) tapDone = false;
+  wasHolding = holding;
   if (holding) actHold(dt); else { S.act = 0; sweepT = 0; damPull = 0; }
-  if (st.talking) { stepParticles(dt); return; }
+  if (st.talking || st.reading) { stepParticles(dt); return; }
 
   const mv = moveVector();
   const under = depAt(S.x, S.y + 6);
@@ -523,10 +551,22 @@ function step(dt) {
     if (st.ember > 0.05 && Math.random() < 0.4) {
       spark(S.x + rand(-6, 6), S.y - 18, 1, { col: ['#ffb35e', '#ff8a3c'], sp0: 4, sp1: 20, l0: 0.6, l1: 1.4, s0: 2, s1: 4, kind: 'ember', lift: 28 });
     }
-  } else if (Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 80) {
+  }
+
+  // What she can reach, and what the button would do about it.
+  st.prompt = '';
+  const nearBroom = !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
+  const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
+  if (nearBroom) st.prompt = 'take the broom';
+  else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
+  else if (broom.held) st.prompt = 'hold to sweep · Q to put the broom down';
+
+  for (const yt of YOUNG) if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
+
+  if (Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 80 && !st.hasEmber) {
     st.hasEmber = true; st.ember = 1;
     sfx.boon();
-    say(['You lift a coal out of her fire. It sits in your palm and does not burn you.'], null);
+    say([['keeper', 'You lift a coal out of her fire. It sits in your palm and does not burn you.']], null);
   }
 
   if (damBroken && drain < 1) {
@@ -567,9 +607,11 @@ function wake(r) {
   st.woken[r.id] = true;
   st.count++;
   st.step++;
+  // An aerial root comes down where the burden was, takes hold, and is a tree.
+  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: r.mural, name: r.name, lines: r.lines });
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
-  st.lastBeat = r.lines[r.lines.length - 1];
+  st.lastBeat = r.lines[r.lines.length - 1][1];
   say(r.lines, null, r.mural);
 }
 
@@ -663,6 +705,9 @@ function render() {
     ctx.restore();
   }
 
+  if (!broom.held) drawBroom(ctx, broom, st.t);
+  for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t);
+
   const below = [], above = [];
   for (const o of SCENERY) {
     if (o.x < camera.x - 160 || o.x > camera.x + view.w + 160 || o.y < camera.y - 240 || o.y > camera.y + view.h + 200) continue;
@@ -723,6 +768,17 @@ function drawHud() {
     ctx.fillRect(22, 60, 104 * st.ember, 7);
   }
 
+  if (st.prompt) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,214,170,0.92)';
+    ctx.fillText(st.prompt, view.w / 2, view.h - 54);
+    ctx.textAlign = 'left';
+  }
+  if (broom.held) {
+    ctx.fillStyle = 'rgba(200,160,90,0.9)';
+    ctx.fillText('broom', 22, 82);
+  }
+
   ring.x = view.w - 86; ring.y = view.h - 86;
   ctx.beginPath(); ctx.arc(ring.x, ring.y, 40, 0, TAU);
   ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
@@ -766,15 +822,25 @@ function paintTalk() {
       ? n.choices : [...n.choices, { say: 'I should go.', to: 'leave' }];
     t.list = list;
     const cs = list.map((c, i) => `<button class="choice" data-i="${i}">${c.say}</button>`).join('');
-    body = `<div class="who">${t.who}</div><p>${n.text}</p><div class="choices">${cs}</div>`;
+    body = `<div class="saybar"><canvas class="face" width="220" height="300"></canvas>
+      <div class="readtext"><div class="who">${t.who}</div><p>${n.text}</p>
+      <div class="choices">${cs}</div></div></div>`;
+    t.face = 'keeper';
   } else {
-    const m = t.mural ? `<canvas id="mural" width="460" height="250"></canvas>` : '';
-    const who = t.mural ? '<div class="who">The Keeper</div>' : '';
-    body = `${m}${who}<p>${t.lines[t.i]}</p><div class="more">tap to go on</div>`;
+    const line = t.lines[t.i];
+    const who = Array.isArray(line) ? line[0] : 'keeper';
+    const text = Array.isArray(line) ? line[1] : line;
+    const m = t.mural ? '<canvas id="mural" width="460" height="250"></canvas>' : '';
+    body = `${m}<div class="saybar"><canvas class="face" width="220" height="300"></canvas>
+      <div class="readtext"><div class="who">${WHO[who] || ''}</div><p>${text}</p>
+      <div class="more">tap to go on</div></div></div>`;
+    t.face = who;
   }
   overlay.innerHTML = `<div class="panel">${body}</div>`;
   overlay.classList.add('on');
   if (t.mural) drawMural(document.getElementById('mural').getContext('2d'), t.mural, 460, 250, st.t);
+  const fc = overlay.querySelector('.face');
+  if (fc) drawPortrait(fc.getContext('2d'), t.face, 0, 0, 220, st.t, 1);
   if (t.keeper) {
     overlay.querySelectorAll('.choice').forEach((b) => {
       b.addEventListener('pointerdown', (e) => {
@@ -798,12 +864,47 @@ function closeTalk() {
 
 /** A tap anywhere: only a recital advances that way. A conversation waits. */
 function advance() {
+  if (st.reading) { stepReading(); return; }
   const t = st.talking;
   if (!t || t.keeper) return;
   t.i++;
   if (t.i < t.lines.length) { paintTalk(); sfx.ui(); return; }
   closeTalk();
 }
+
+/** Standing at a young banyan and reading what is cut into it, full screen. */
+function openReading(yt) {
+  st.reading = { yt, i: 0 };
+  sfx.chime();
+  paintReading();
+}
+function paintReading() {
+  const r = st.reading;
+  if (!r) return;
+  const [who, text] = r.yt.lines[r.i];
+  overlay.innerHTML = `<div class="read">
+      <canvas id="bigmural" width="880" height="470"></canvas>
+      <div class="readbar">
+        <canvas id="bigface" width="220" height="300"></canvas>
+        <div class="readtext"><div class="who">${WHO[who] || ''}</div><p>${text}</p>
+          <div class="more">${r.i + 1} / ${r.yt.lines.length} &nbsp;·&nbsp; tap to go on</div></div>
+      </div>
+    </div>`;
+  overlay.classList.add('on', 'full');
+  drawMural(document.getElementById('bigmural').getContext('2d'), r.yt.mural, 880, 470, st.t);
+  drawPortrait(document.getElementById('bigface').getContext('2d'), who, 0, 0, 220, st.t, 1);
+}
+function stepReading() {
+  const r = st.reading;
+  if (!r) return;
+  r.i++;
+  if (r.i < r.yt.lines.length) { paintReading(); sfx.ui(); return; }
+  st.reading = null;
+  overlay.classList.remove('on', 'full');
+  overlay.innerHTML = '';
+}
+
+const WHO = { keeper: 'The Keeper', savitri: 'Savitri', satyavan: 'Satyavan', yama: 'Yama, Lord of Death', narada: 'Narada' };
 
 // --- boot --------------------------------------------------------------------------------------------
 
@@ -872,6 +973,7 @@ function main() {
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     keys.add(k);
+    if (k === 'q' && broom.held) { broom.held = false; broom.x = S.x; broom.y = S.y + 8; sfx.ui(); }
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
       if (st.talking) advance();
@@ -930,9 +1032,10 @@ function main() {
 
 main();
 window.savi = {
-  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, render, resize, begin, say, advance, fraction,
+  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, broom, YOUNG, render, resize, begin, say, advance, fraction,
+  face: drawPortrait, openReading,
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
-  hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); },
+  hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); step(1 / 60); },
   talkTo, KEEPER,
 };

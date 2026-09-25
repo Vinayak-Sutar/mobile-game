@@ -59,84 +59,282 @@ export function drawFloor(ctx, V, warmth, time) {
 }
 
 // --- the Great Banyan ---------------------------------------------------------------
+//
+// A banyan is not a tree with a trunk. It is a tree that WALKS: it drops aerial
+// roots from its limbs, they touch down, thicken, and become trunks of their
+// own, until one tree is a colonnade you can stand inside. That is the whole
+// silhouette, and from straight above you would see none of it - only canopy.
+//
+// So it is drawn in the game's three-quarter view, in four layers back to
+// front: the buttress roots spread flat on the ground, the braided main trunk,
+// the forest of PROP TRUNKS marching out from under the southern half of the
+// canopy with light between them, and the hanging roots that have not reached
+// down yet, swaying. The canopy itself is drawn last, over the player's head,
+// so she walks under it and among the props.
 
-/**
- * The tree, from above. A knot of trunks with aerial roots hanging round it and
- * a canopy that comes back as the valley wakes: bare and grey at `bloom` 0,
- * full and gold at 1.
- */
+const PROPS = [];
+function banyanProps(T) {
+  if (PROPS.length) return PROPS;
+  for (let i = 0; i < 26; i++) {
+    const a = rnd(i) * Math.PI + 0.05;                    // the near half only
+    const r = 96 + rnd(i * 3) * 250;
+    PROPS.push({
+      x: T.x + Math.cos(a) * r,
+      y: T.y + 26 + Math.sin(a) * r * 0.62,
+      w: 7 + rnd(i * 5) * 19,
+      h: 54 + rnd(i * 7) * 62,
+      lean: (rnd(i * 11) - 0.5) * 0.3,
+      seed: i,
+    });
+  }
+  PROPS.sort((p, q) => p.y - q.y);
+  return PROPS;
+}
+
+/** The buttress roots, the braided trunk and the props: everything below the leaves. */
 export function drawBanyan(ctx, T, bloom, time) {
-  const { x, y } = T;
-  // Its shadow.
-  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  const props = banyanProps(T);
+  const bark = mixHex('#38281e', '#5e4430', bloom * 0.8);
+  const lit = mixHex('#4a3627', '#8a6442', bloom * 0.8);
+
+  // The shade the whole thing throws.
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(x + 14, y + 26, 236, 160, 0, 0, TAU);
+  ctx.ellipse(T.x + 16, T.y + 52, 330, 208, 0, 0, TAU);
   ctx.fill();
 
-  // The aerial roots: a ring of props round the trunk.
-  for (let i = 0; i < 11; i++) {
-    const a = (i / 11) * TAU + 0.3;
-    const rr = 118 + rnd(i) * 66;
-    const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * 0.72;
-    ctx.strokeStyle = mixHex('#463126', PAL.barkLit, bloom * 0.6);
-    ctx.lineWidth = 9 + rnd(i * 3) * 11;
+  // Buttress roots, flat on the ground and running away in every direction.
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * TAU + 0.2;
+    const r = 150 + rnd(i * 13) * 210;
+    ctx.strokeStyle = bark;
+    ctx.lineWidth = 10 + rnd(i) * 20;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x + Math.cos(a) * 46, y + Math.sin(a) * 30 - 10);
-    ctx.quadraticCurveTo(px + Math.cos(a) * 12, py - 24, px, py);
+    ctx.moveTo(T.x, T.y + 20);
+    ctx.quadraticCurveTo(
+      T.x + Math.cos(a) * r * 0.55, T.y + 20 + Math.sin(a) * r * 0.4,
+      T.x + Math.cos(a) * r, T.y + 24 + Math.sin(a) * r * 0.66,
+    );
     ctx.stroke();
   }
 
-  // The trunk: several fused stems.
-  ctx.fillStyle = mixHex('#3a2a21', PAL.bark, bloom * 0.7);
-  ctx.beginPath();
-  ctx.ellipse(x, y, 96, 70, 0, 0, TAU);
-  ctx.fill();
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * TAU + 0.7;
+  // The main trunk: many stems fused, not one cylinder.
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * TAU;
+    const rr = i ? 34 + rnd(i * 17) * 26 : 0;
+    ctx.fillStyle = i % 2 ? bark : lit;
     ctx.beginPath();
-    ctx.ellipse(x + Math.cos(a) * 52, y + Math.sin(a) * 36, 34, 27, a, 0, TAU);
+    ctx.ellipse(T.x + Math.cos(a) * rr, T.y + Math.sin(a) * rr * 0.6, 46 - i * 1.8, 60 - i * 2.2, a * 0.3, 0, TAU);
     ctx.fill();
   }
-  ctx.fillStyle = 'rgba(255,220,170,0.1)';
-  ctx.beginPath();
-  ctx.ellipse(x - 22, y - 18, 44, 30, 0, 0, TAU);
-  ctx.fill();
+  // Its channels, which is what a braided banyan trunk reads as.
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 7; i++) {
+    const x = T.x - 48 + i * 16;
+    ctx.beginPath();
+    ctx.moveTo(x, T.y - 56);
+    ctx.quadraticCurveTo(x + (rnd(i) - 0.5) * 22, T.y, x + (rnd(i * 3) - 0.5) * 18, T.y + 44);
+    ctx.stroke();
+  }
 
-  // The canopy, drawn over everything else in the overhead pass.
-  T.canopy = bloom;
+  // The props: the tree standing on a hundred legs.
+  for (const p of props) {
+    const sway = Math.sin(time * 0.5 + p.seed) * 1.2;
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.beginPath();
+    ctx.ellipse(p.x + 4, p.y + 3, p.w * 0.9, p.w * 0.42, 0, 0, TAU);
+    ctx.fill();
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.lean);
+    const g = ctx.createLinearGradient(-p.w / 2, 0, p.w / 2, 0);
+    g.addColorStop(0, lit);
+    g.addColorStop(0.45, bark);
+    g.addColorStop(1, '#241a13');
+    ctx.fillStyle = g;
+    ctx.beginPath();                       // tapering, wider where it meets the ground
+    ctx.moveTo(-p.w * 0.36 + sway, -p.h);
+    ctx.quadraticCurveTo(-p.w * 0.5, -p.h * 0.4, -p.w * 0.6, 0);
+    ctx.lineTo(p.w * 0.6, 0);
+    ctx.quadraticCurveTo(p.w * 0.5, -p.h * 0.4, p.w * 0.36 + sway, -p.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
 }
 
-/** The leaves, drawn above the player so she walks under them. */
+/**
+ * The leaves, and the roots still hanging from them. Drawn after the player, so
+ * she is under the tree rather than on top of a picture of one.
+ */
 export function drawCanopy(ctx, T, bloom, time) {
-  if (bloom <= 0.01) {
-    // Bare: a scribble of branches.
-    ctx.strokeStyle = 'rgba(58,44,38,0.5)';
-    ctx.lineWidth = 5;
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * TAU;
-      const r = 150 + rnd(i) * 180;
+  // Aerial roots that have not touched down: thin, and they sway.
+  for (let i = 0; i < 34; i++) {
+    const a = rnd(i * 7) * TAU;
+    const r = 70 + rnd(i * 3) * 290;
+    const x = T.x + Math.cos(a) * r, y0 = T.y + Math.sin(a) * r * 0.66 - 150;
+    const len = 40 + rnd(i * 5) * 96;
+    const sway = Math.sin(time * 0.8 + i) * (5 + len * 0.05);
+    ctx.strokeStyle = `rgba(48,34,26,${0.5 + rnd(i * 11) * 0.4})`;
+    ctx.lineWidth = 1.6 + rnd(i * 13) * 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y0);
+    ctx.quadraticCurveTo(x + sway * 0.5, y0 + len * 0.6, x + sway, y0 + len);
+    ctx.stroke();
+  }
+
+  if (bloom <= 0.02) {
+    ctx.strokeStyle = 'rgba(44,32,26,0.62)';
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 34; i++) {
+      const a = (i / 34) * TAU;
+      const r = 190 + rnd(i) * 220;
+      ctx.lineWidth = 7 - (i % 3) * 1.6;
       ctx.beginPath();
-      ctx.moveTo(T.x, T.y - 8);
-      ctx.quadraticCurveTo(T.x + Math.cos(a) * r * 0.6, T.y + Math.sin(a) * r * 0.45 - 30, T.x + Math.cos(a) * r, T.y + Math.sin(a) * r * 0.7);
+      ctx.moveTo(T.x, T.y - 40);
+      ctx.quadraticCurveTo(T.x + Math.cos(a) * r * 0.55, T.y - 110 + Math.sin(a) * r * 0.38,
+        T.x + Math.cos(a) * r, T.y - 60 + Math.sin(a) * r * 0.62);
       ctx.stroke();
     }
     return;
   }
-  const n = Math.round(30 + bloom * 42);
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * TAU * 3.1 + i * 0.7;
-    const r = (60 + rnd(i) * 250) * (0.55 + bloom * 0.45);
-    const px = T.x + Math.cos(a) * r, py = T.y + Math.sin(a) * r * 0.72;
-    const s = (44 + rnd(i * 3) * 54) * (0.6 + bloom * 0.4);
-    const sway = Math.sin(time * 0.7 + i) * 4 * bloom;
-    ctx.globalAlpha = 0.5 + rnd(i * 5) * 0.4;
-    ctx.fillStyle = [['#8a7a3e', '#a08a42'], ['#e0a443', '#c8802f'], ['#f0bf5c', '#d99138']][Math.min(2, Math.floor(bloom * 3))][i % 2];
-    ctx.beginPath();
-    ctx.ellipse(px + sway, py, s, s * 0.74, a, 0, TAU);
-    ctx.fill();
+
+  // Layered lobes rather than one blob: a banyan's crown is enormous and lumpy.
+  const pal = [['#7d6b33', '#94803a'], ['#c08a34', '#a8702a'], ['#e6ac45', '#c98a33'], ['#f2c65e', '#db9c3c']];
+  for (let layer = 0; layer < 3; layer++) {
+    const spread = 1 - layer * 0.22;
+    const n = 26 - layer * 5;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU + layer * 0.8 + rnd(i + layer * 31) * 0.5;
+      const r = (110 + rnd(i * 3 + layer) * 230) * spread;
+      const sway = Math.sin(time * 0.55 + i + layer) * (3 + layer);
+      const size = (52 + rnd(i * 5 + layer) * 62) * (0.62 + bloom * 0.38);
+      const c = pal[Math.min(3, Math.floor(bloom * 3) + (i & 1))];
+      ctx.fillStyle = c[layer % 2];
+      ctx.globalAlpha = 0.86;
+      ctx.beginPath();
+      ctx.ellipse(T.x + Math.cos(a) * r + sway, T.y - 92 - layer * 26 + Math.sin(a) * r * 0.6, size, size * 0.74, a, 0, TAU);
+      ctx.fill();
+    }
   }
   ctx.globalAlpha = 1;
+  // The light coming down the north-west side of the crown.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const lg = ctx.createRadialGradient(T.x - 130, T.y - 210, 20, T.x - 130, T.y - 210, 320);
+  lg.addColorStop(0, `rgba(255,214,140,${0.16 * bloom})`);
+  lg.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = lg;
+  ctx.beginPath();
+  ctx.arc(T.x - 130, T.y - 210, 320, 0, TAU);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * A young banyan, risen where a Great Root was freed: one slim braided stem,
+ * a first aerial root already reaching down, a small crown - and the beat of
+ * the legend carved into its bark, which is why it is there.
+ */
+export function drawYoungTree(ctx, o, time) {
+  const g = clamp01(o.grow), x = o.x, y = o.y;
+  if (g <= 0.01) return;
+  const h = 128 * g;
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 6, 46 * g, 20 * g, 0, 0, TAU); ctx.fill();
+
+  for (let i = 0; i < 5; i++) {              // roots gripping the old one
+    const a = (i / 5) * TAU + 0.4;
+    ctx.strokeStyle = '#4a3323';
+    ctx.lineWidth = 7 * g;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 6);
+    ctx.quadraticCurveTo(x + Math.cos(a) * 26 * g, y + Math.sin(a) * 14 * g, x + Math.cos(a) * 48 * g, y + 6 + Math.sin(a) * 26 * g);
+    ctx.stroke();
+  }
+  const bg = ctx.createLinearGradient(x - 16, 0, x + 16, 0);
+  bg.addColorStop(0, '#7b5838');
+  bg.addColorStop(0.5, '#523a26');
+  bg.addColorStop(1, '#2f2118');
+  ctx.fillStyle = bg;
+  ctx.beginPath();
+  ctx.moveTo(x - 15 * g, y);
+  ctx.quadraticCurveTo(x - 11 * g, y - h * 0.5, x - 9 * g, y - h);
+  ctx.lineTo(x + 9 * g, y - h);
+  ctx.quadraticCurveTo(x + 11 * g, y - h * 0.5, x + 15 * g, y);
+  ctx.closePath();
+  ctx.fill();
+  // The first aerial root, already on its way down.
+  ctx.strokeStyle = '#4a3323';
+  ctx.lineWidth = 3.4 * g;
+  ctx.beginPath();
+  ctx.moveTo(x + 22 * g, y - h * 0.86);
+  ctx.quadraticCurveTo(x + 34 * g + Math.sin(time) * 3, y - h * 0.4, x + 30 * g, y - h * 0.06);
+  ctx.stroke();
+
+  for (let i = 0; i < 9; i++) {              // its small crown
+    const a = (i / 9) * TAU;
+    const r = 34 * g;
+    ctx.fillStyle = ['#e0a443', '#c8802f', '#f0bf5c'][i % 3];
+    ctx.beginPath();
+    ctx.ellipse(x + Math.cos(a) * r + Math.sin(time * 0.7 + i) * 2, y - h - 12 * g + Math.sin(a) * r * 0.6, 26 * g, 20 * g, a, 0, TAU);
+    ctx.fill();
+  }
+
+  // The carving, lit, on the south face of the stem.
+  if (g > 0.75) {
+    const k = (g - 0.75) / 0.25;
+    ctx.save();
+    ctx.globalAlpha = k;
+    glow(ctx, x, y - h * 0.55, 92, 'rgba(255,170,80,0.3)');
+    ctx.fillStyle = '#1d140f';
+    roundRect(ctx, x - 13, y - h * 0.72, 26, h * 0.42, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,196,130,0.85)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,190,120,0.75)';
+    for (let i = 0; i < 4; i++) ctx.fillRect(x - 8, y - h * 0.66 + i * (h * 0.09), 16, 2.4);
+    ctx.restore();
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+/** The broom, leaning where it was left. */
+export function drawBroom(ctx, o, time) {
+  const bob = Math.sin(time * 1.4) * 1.2;
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  ctx.beginPath(); ctx.ellipse(o.x + 3, o.y + 3, 13, 5, 0, 0, TAU); ctx.fill();
+  ctx.save();
+  ctx.translate(o.x, o.y + bob);
+  ctx.rotate(-0.42);
+  ctx.strokeStyle = '#6b4a2c';
+  ctx.lineWidth = 3.4;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, -46); ctx.stroke();
+  ctx.strokeStyle = '#c8a05a';
+  ctx.lineWidth = 1.8;
+  for (let i = -4; i <= 4; i++) {
+    ctx.beginPath(); ctx.moveTo(i * 0.6, 0); ctx.lineTo(i * 2.6, 15 - Math.abs(i) * 0.8); ctx.stroke();
+  }
+  ctx.strokeStyle = '#8a5f34';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-3.4, 0); ctx.lineTo(3.4, 0); ctx.stroke();
+  ctx.restore();
+  glow(ctx, o.x, o.y - 20, 70, 'rgba(255,190,120,0.16)');
 }
 
 /**

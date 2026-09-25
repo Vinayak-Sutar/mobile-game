@@ -26,6 +26,17 @@
   @keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
   #overlay canvas{display:block;width:100%;max-width:440px;margin:0 auto 12px;border-radius:9px}
   #overlay p{margin:0;font-size:clamp(14px,2.1vw,17px);line-height:1.55}
+  #overlay.full{align-items:center;padding:0}
+  #overlay .read{pointer-events:auto;width:100%;height:100%;display:flex;flex-direction:column;
+    justify-content:center;gap:0;background:rgba(8,6,5,.93)}
+  #overlay .read canvas#bigmural{width:min(94%,880px);max-height:56vh;object-fit:contain;margin:0 auto;border-radius:10px}
+  #overlay .readbar{display:flex;align-items:flex-end;gap:14px;width:min(94%,880px);margin:10px auto 0}
+  #overlay .saybar{display:flex;align-items:flex-end;gap:12px;text-align:left}
+  #overlay canvas.face,#overlay canvas#bigface{
+    width:clamp(74px,12vw,132px);height:auto;flex:0 0 auto;align-self:flex-end;
+    filter:drop-shadow(0 6px 18px rgba(0,0,0,.6));
+  }
+  #overlay .readtext{flex:1;min-width:0}
   #overlay .who{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#ffb35e;margin-bottom:7px;font-weight:700}
   #overlay .choices{display:flex;flex-direction:column;gap:7px;margin-top:13px}
   #overlay .choice{
