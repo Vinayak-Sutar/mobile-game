@@ -28,6 +28,16 @@
   #overlay p{margin:0;font-size:clamp(14px,2.1vw,17px);line-height:1.55}
   #overlay .more{margin-top:10px;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);opacity:.75}
 
+  /* A phone held upright: the fallback where the orientation lock is refused. */
+  #rotate{
+    position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;
+    flex-direction:column;gap:18px;background:#120e0c;text-align:center;padding:30px;
+    font-size:15px;letter-spacing:.04em;color:var(--ink);
+  }
+  #rotate.on{display:flex}
+  #rotate .ph{width:52px;height:88px;border:3px solid #d8702f;border-radius:9px;animation:tilt 1.6s ease-in-out infinite}
+  @keyframes tilt{0%,40%{transform:rotate(0)}70%,100%{transform:rotate(-90deg)}}
+
   /* The way in. */
   #title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
     z-index:20;background:radial-gradient(ellipse at center,#2a1d17,#120e0c 75%);text-align:center;padding:24px}
@@ -45,6 +55,7 @@
 <body>
   <canvas id="game"></canvas>
   <div id="overlay"></div>
+  <div id="rotate"><div class="ph"></div><div>Turn your phone sideways</div></div>
   <div id="title" class="on">
     <h1>SAVI</h1>
     <p class="sub">The Fall has lasted too long. The Great Banyan is forgetting the story it was planted to keep —

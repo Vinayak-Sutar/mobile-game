@@ -27,6 +27,7 @@ import {
   sfx, initAudio, unlockAudio, setAmbientTheme, setMusicIntensity, setMusicActive, setMusicEnabled,
 } from './audio.js';
 import { rumble } from './gamepad.js';
+import { initFullscreen, enterFullscreen, isFullscreen } from './fullscreen.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX, keeperLines } from './savi-story.js';
 import {
@@ -264,7 +265,33 @@ const st = {
   talking: null, nearWoman: false,
 };
 
-let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null;
+let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
+
+// --- a phone held the right way up ------------------------------------------------------
+//
+// The same two-part answer Ashfall settled on. On Android the fullscreen
+// request carries an orientation lock, so the screen turns itself and there is
+// nothing to ask for. Every iPhone browser refuses the lock, so there the
+// prompt is the fallback - and it is raised on `screen.orientation`, never on
+// innerWidth alone, because coming back from the background those numbers are
+// still the shape the window had BEFORE and a prompt raised on them used to
+// stick with nothing able to clear it.
+
+const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
+
+function isPortraitTouch() {
+  if (!isTouch()) return false;
+  const type = screen.orientation && screen.orientation.type;
+  const tall = window.innerHeight > window.innerWidth;
+  if (!type) return tall;
+  // Where the two disagree one of them is stale: whichever says landscape wins.
+  return type.startsWith('portrait') && tall;
+}
+
+function checkOrientation() {
+  if (!rotateEl) return;
+  rotateEl.classList.toggle('on', st.started && isPortraitTouch());
+}
 const keys = new Set();
 const touch = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
 
@@ -722,12 +749,17 @@ function resize() {
   cv.style.width = W2 + 'px';
   cv.style.height = H2 + 'px';
   arena.x = 0; arena.y = 0; arena.w = V.w; arena.h = V.h;
+  checkOrientation();
 }
 
 function begin() {
   if (st.started) return;
   st.started = true;
   document.getElementById('title').classList.remove('on');
+  // The tap that starts it is the gesture a phone needs: fullscreen, and with
+  // it the landscape lock and the screen kept awake.
+  if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
+  checkOrientation();
   try {
     initAudio(); unlockAudio();
     setMusicEnabled(true); setMusicActive(true); setMusicIntensity(0);
@@ -739,6 +771,14 @@ function main() {
   cv = document.getElementById('game');
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
+  rotateEl = document.getElementById('rotate');
+  initFullscreen({ onChange: checkOrientation });
+  if (screen.orientation && screen.orientation.addEventListener) {
+    screen.orientation.addEventListener('change', checkOrientation);
+  }
+  // Whatever a browser does or does not report, the prompt can never be what is
+  // left holding the game.
+  setInterval(checkOrientation, 500);
 
   world.player = S;                 // grass.js and wilds-water.js both follow her
   world.overworld = true;
@@ -804,7 +844,8 @@ function main() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (window.innerWidth !== lastW || window.innerHeight !== lastH) resize();
-    if (st.started) step(dt);
+    // Nothing moves while the phone is being turned.
+    if (st.started && !(rotateEl && rotateEl.classList.contains('on'))) step(dt);
     render();
   };
   requestAnimationFrame(frame);
