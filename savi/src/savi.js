@@ -33,10 +33,9 @@ import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
-  drawYoungTree, drawBroom, glow, clamp01,
+  drawYoungTree, drawBroom, drawShrine, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
-import { LOOKS } from './savi-looks.js';
 
 // --- the valley ---------------------------------------------------------------------------
 
@@ -70,6 +69,12 @@ const SPURS = [
   [[2600, 1320], [2600, 960], [2600, 600], [2600, 420]],
 ];
 const SHELTERS = [{ x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 }];
+// The shrine: a low stone platform round the foot of the Banyan, with steps up
+// to it, oil lamps at its corners and a bell hung on a post. Its courtyard is
+// under a season of leaves, and sweeping it is the first thing anyone asks of
+// her - which is what a broom is FOR, and how she learns what her hands do.
+const SHRINE = { x: TREE.x, y: TREE.y + 150, r: 300 };
+const COURT = { x: SHRINE.x - 270, y: SHRINE.y - 120, w: 540, h: 300 };
 // The broom is a THING, left on the road out to the first root. She picks it
 // up, and she can put it down again anywhere she likes.
 const broom = { x: 2492, y: 3010, held: false };
@@ -170,7 +175,12 @@ function buildGround() {
     }
   };
   put({ x: -200, y: -200, w: V.w + 400, h: V.h + 400 }, MAT.leaves, LITTER + 0.05, 1);
-  put({ x: 2280, y: 2380, w: 660, h: 560 }, MAT.leaves, 1.0, 200);   // the drift over the road home
+  // The way in: a little deeper along the avenue up to the shrine, so the
+  // leaves lift round her feet as she walks it, but never a wall to be got
+  // through. Nothing is asked of her until someone asks.
+  put({ x: 2420, y: 2500, w: 360, h: 680 }, MAT.leaves, 0.42, 220);
+  // The shrine's courtyard, under a season of it. This is the broom's work.
+  put(COURT, MAT.leaves, 0.95, 150);
   for (const r of ROOTS) if (r.mat !== 'water') put(r.patch, MAT[r.mat], 1.0, r.mat === 'thorn' ? 90 : 190);
   G.cv = document.createElement('canvas');
   G.cv.width = G.w; G.cv.height = G.h;
@@ -201,8 +211,8 @@ function settle(dt) {
 }
 
 /** How much of a root's burden is gone, measured against what was there at the start. */
-function fraction(r) {
-  const p = r.patch, m = MAT[r.mat];
+/** How much of a rectangle has been cleared of one material, 0..1. */
+function cleared(p, m) {
   const i0 = Math.max(0, (p.x / CELL) | 0), i1 = Math.min(G.w - 1, ((p.x + p.w) / CELL) | 0);
   const j0 = Math.max(0, (p.y / CELL) | 0), j1 = Math.min(G.h - 1, ((p.y + p.h) / CELL) | 0);
   let t = 0, o = 0;
@@ -216,6 +226,8 @@ function fraction(r) {
   }
   return t ? o / t : 1;
 }
+
+const fraction = (r) => cleared(r.patch, MAT[r.mat]);
 
 // --- particles --------------------------------------------------------------------------------
 
@@ -267,12 +279,11 @@ function drawParticles(c) {
 const S = {
   x: START.x, y: START.y, r: 12, vx: 0, vy: 0, face: -Math.PI / 2,
   phase: 0, speed: 0, act: 0, actA: 0, dead: false, lastStep: 0, dashing: false,
-  look: (() => { try { return localStorage.getItem('savi.look') || 'frock'; } catch (e) { return 'frock'; } })(),
 };
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
-  talking: null, nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '',
+  talking: null, nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -431,18 +442,27 @@ function actHold(dt) {
   const near = Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70;
 
   if (!damBroken && near) {
-    S.act = 1; S.sweep = Math.sin(st.t * 9) * 0.4;
-    damPull += dt;
-    S.x -= Math.cos(S.face) * 26 * dt;
-    S.y -= Math.sin(S.face) * 26 * dt;
-    if (Math.random() < dt * 22) {
-      water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 90, 1.1);
-      spark(DAM.x + rand(-50, 50), DAM.y + rand(-60, 60), 1, { col: ['#6f5836', '#8a6f45'], sp0: 20, sp1: 90, l0: 0.3, l1: 0.7 });
+    if (!(st.hasEmber && st.ember > 0.02)) {
+      if (actT <= 0) {
+        actT = 1.4;
+        say([['keeper', 'Dry wood, jammed across the throat of the hollow. That is what is holding the water in.'],
+          ['keeper', 'It will not shift for hands, and it will not shift for a broom. Dry wood wants a coal.']], null);
+      }
+      return;
     }
-    if (damPull > 2.4) {
+    S.act = 1; S.sweep = Math.sin(st.t * 5) * 0.16;
+    damPull += dt;
+    st.ember = Math.max(0, st.ember - dt * 0.08);
+    if (Math.random() < dt * 40) {
+      spark(DAM.x + rand(-54, 54), DAM.y + rand(-64, 64), 1,
+        { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 90, l0: 0.5, l1: 1.4, s0: 3, s1: 7, kind: 'ember', lift: 34 });
+    }
+    if (Math.random() < dt * 5) sfx.hiss();
+    if (damPull > 2.6) {
       damBroken = true;
-      sfx.bossDown();
+      sfx.bossDown(); sfx.explode();
       water.splash(DAM.x, DAM.y, 360, 4.2);
+      spark(DAM.x, DAM.y, 60, { col: ['#ffb35e', '#ff7a2e'], sp0: 60, sp1: 300, l0: 0.7, l1: 1.8, s0: 3, s1: 8, kind: 'ember' });
       spark(DAM.x, DAM.y, 90, { col: ['#8fbcc8', '#c6e2ea', '#6f9aa8'], sp0: 120, sp1: 460, l0: 0.8, l1: 1.9, s0: 4, s1: 9, kind: 'drop' });
       rumble(0.7, 0.5, 260);
     }
@@ -631,6 +651,16 @@ function step(dt) {
     if (Math.random() < 0.5) water.splash(DAM.x + rand(-40, 40), DAM.y + rand(-60, 60), 80, 1.3);
   }
 
+  // The courtyard, swept. The lamps take it as thanks and light themselves.
+  if (!st.swept && cleared(COURT, MAT.leaves) > 0.72) {
+    st.swept = true;
+    sfx.chime(); sfx.boon();
+    spark(SHRINE.x, SHRINE.y - 40, 60, { col: ['#ffb35e', '#ffd9a0'], sp0: 30, sp1: 200, l0: 1, l1: 2.2, s0: 3, s1: 7, kind: 'ember' });
+    say([['keeper', 'Look at that. Swept clean, the way it used to be kept.'],
+      ['keeper', 'The lamps have taken it for a kindness. That is the first warm thing here in two winters.'],
+      ['keeper', 'Now — the roots, child. Follow the lit one out and do for it what you did for my doorstep.']], null);
+  }
+
   // Any root she frees wakes, whichever it is and whenever she gets to it.
   // Work is never wasted and nothing has to be done in an order.
   for (const r of ROOTS) {
@@ -753,17 +783,28 @@ function render() {
   grass.draw(ctx, st.t, win());
   water.draw(ctx);
 
+  drawShrine(ctx, SHRINE, st.t, st.swept ? 1 : 0);
   for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t, r === current());
 
   if (!damBroken) {
+    // A raft of dry deadfall jammed across the outflow: logs, not a wall.
+    const left = Math.max(0, 1 - damPull / 2.6);
     ctx.save();
     ctx.translate(DAM.x, DAM.y);
-    for (let i = 0; i < 9; i++) {
+    for (let i = 0; i < 11; i++) {
+      if (i / 11 > left) continue;
       ctx.save();
-      ctx.rotate((i * 0.83) % 1.6 - 0.8 + damPull * 0.3);
-      ctx.fillStyle = i % 2 ? '#4b3a26' : '#3a2c1d';
-      ctx.fillRect(-58, i * 9 - 42, 116, 11);
+      ctx.rotate((i * 0.83) % 1.7 - 0.85);
+      ctx.fillStyle = i % 2 ? '#5a4529' : '#42311f';
+      ctx.beginPath();
+      ctx.ellipse(0, i * 8 - 40, 58 - (i % 3) * 9, 5.5, 0, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = '#6d5432';
+      ctx.beginPath(); ctx.ellipse(-56 + (i % 3) * 9, i * 8 - 40, 4, 5, 0, 0, TAU); ctx.fill();
       ctx.restore();
+    }
+    if (damPull > 0.05) {           // and it catches
+      glow(ctx, 0, 0, 140 * Math.min(1, damPull), `rgba(255,150,60,${0.3 * Math.min(1, damPull)})`);
     }
     ctx.restore();
   }
@@ -824,11 +865,17 @@ function drawHud() {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
     ctx.fillText(`the tree is reaching — ${cur.hint}`, 22, 50);
   }
+  // This bar is the COAL burning down, and nothing else. The broom never runs
+  // out - it is a broom.
   if (st.hasEmber) {
-    ctx.fillStyle = 'rgba(255,170,80,0.28)';
-    ctx.fillRect(22, 60, 104, 7);
+    ctx.fillStyle = 'rgba(240,226,203,0.55)';
+    ctx.font = '600 10px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.fillText('COAL', 22, 66);
+    ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(255,170,80,0.26)';
+    ctx.fillRect(56, 59, 88, 7);
     ctx.fillStyle = `rgba(255,${(150 + st.ember * 70) | 0},${(60 + st.ember * 70) | 0},0.95)`;
-    ctx.fillRect(22, 60, 104 * st.ember, 7);
+    ctx.fillRect(56, 59, 88 * st.ember, 7);
   }
 
   if (st.prompt) {
@@ -838,8 +885,8 @@ function drawHud() {
     ctx.textAlign = 'left';
   }
   if (broom.held) {
-    ctx.fillStyle = 'rgba(200,160,90,0.9)';
-    ctx.fillText('broom', 22, 82);
+    ctx.fillStyle = 'rgba(200,160,90,0.85)';
+    ctx.fillText('broom in hand', 22, st.hasEmber ? 84 : 66);
   }
 
   // Putting it down, for a thumb and for a pad.
@@ -1041,27 +1088,6 @@ function main() {
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
   rotateEl = document.getElementById('rotate');
-  // Five of her to choose between, on the way in.
-  const row = document.getElementById('looks');
-  if (row) {
-    row.innerHTML = LOOKS.map((l) => `<button class="look${l.id === S.look ? ' on' : ''}" data-look="${l.id}">${l.name}</button>`).join('');
-    row.addEventListener('pointerdown', (ev) => {
-      const b = ev.target.closest('[data-look]');
-      if (!b) return;
-      ev.stopPropagation();
-      S.look = b.dataset.look;
-      try { localStorage.setItem('savi.look', S.look); } catch (e) { /* private window */ }
-      row.querySelectorAll('.look').forEach((q) => q.classList.toggle('on', q.dataset.look === S.look));
-    });
-  }
-  initFullscreen({ onChange: checkOrientation });
-  if (screen.orientation && screen.orientation.addEventListener) {
-    screen.orientation.addEventListener('change', checkOrientation);
-  }
-  // Whatever a browser does or does not report, the prompt can never be what is
-  // left holding the game.
-  setInterval(checkOrientation, 500);
-
   world.player = S;                 // grass.js and wilds-water.js both follow her
   world.overworld = true;
   world.enemies.length = 0;

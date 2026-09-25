@@ -5,8 +5,6 @@
 // autumn gold going grey at the edges; the Banyan is the one thing in it with
 // any weight.
 
-import { drawSaviLook, lookById } from './savi-looks.js';
-
 const TAU = Math.PI * 2;
 export const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const mix = (a, b, k) => a + (b - a) * k;
@@ -632,6 +630,71 @@ export function drawVeil(ctx, at, time) {
   ctx.globalAlpha = 1;
 }
 
+
+/**
+ * The shrine at the foot of the Banyan: a low stone platform with steps up to
+ * it, an oil lamp at each corner and a bell on a post. Someone kept this once.
+ * The lamps are dead until the courtyard is swept, and then they are not.
+ */
+export function drawShrine(ctx, S, time, lit) {
+  const x = S.x, y = S.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath(); ctx.ellipse(x + 8, y + 16, 286, 132, 0, 0, TAU); ctx.fill();
+
+  // The platform, and a course of stone round its edge.
+  ctx.fillStyle = '#8d8272';
+  ctx.beginPath(); ctx.ellipse(x, y, 272, 124, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#7a705f';
+  ctx.beginPath(); ctx.ellipse(x, y - 8, 262, 116, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(52,44,34,0.5)'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(x, y - 8, 262, 116, 0, 0, TAU); ctx.stroke();
+  // Flagstones, so it is paving and not a disc.
+  ctx.strokeStyle = 'rgba(52,44,34,0.24)'; ctx.lineWidth = 1.8;
+  for (let i = -5; i <= 5; i++) {
+    ctx.beginPath(); ctx.moveTo(x + i * 46, y - 112); ctx.lineTo(x + i * 46, y + 102); ctx.stroke();
+  }
+  for (let j = -2; j <= 2; j++) {
+    ctx.beginPath(); ctx.ellipse(x, y - 8, 262 - Math.abs(j) * 52, 116 - Math.abs(j) * 26, 0, 0, TAU); ctx.stroke();
+  }
+
+  // Three steps up, on the side she comes from.
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = ['#9b907e', '#8d8272', '#7f7565'][i];
+    ctx.beginPath();
+    ctx.ellipse(x, y + 104 + i * 13, 128 - i * 16, 22 - i * 3, 0, 0, Math.PI);
+    ctx.fill();
+  }
+
+  // A lamp at each corner, and the bell.
+  const lamps = [[-224, -48], [224, -48], [-150, 86], [150, 86]];
+  for (const [dx, dy] of lamps) {
+    const lx = x + dx, ly = y + dy;
+    ctx.fillStyle = '#6e6454';
+    ctx.beginPath(); ctx.ellipse(lx, ly, 13, 7, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#857a67';
+    ctx.fillRect(lx - 4, ly - 26, 8, 26);
+    ctx.fillStyle = '#9a8f79';
+    ctx.beginPath(); ctx.ellipse(lx, ly - 29, 11, 6, 0, 0, TAU); ctx.fill();
+    if (lit > 0.02) {
+      const f = 0.8 + Math.sin(time * 6 + dx) * 0.16;
+      glow(ctx, lx, ly - 32, 96 * lit * f, `rgba(255,158,70,${0.42 * lit})`);
+      ctx.fillStyle = `rgba(255,206,130,${lit * f})`;
+      ctx.beginPath(); ctx.ellipse(lx, ly - 34, 4, 7 * f, 0, 0, TAU); ctx.fill();
+    }
+  }
+  const bx = x + 250, by = y + 30;
+  ctx.strokeStyle = '#6a5a44'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx, by - 74); ctx.lineTo(bx - 34, by - 74); ctx.stroke();
+  ctx.fillStyle = lit > 0.5 ? '#c9a24a' : '#8b8272';
+  ctx.beginPath();
+  ctx.moveTo(bx - 44, by - 64);
+  ctx.quadraticCurveTo(bx - 46, by - 42, bx - 34, by - 38);
+  ctx.lineTo(bx - 14, by - 38);
+  ctx.quadraticCurveTo(bx - 22, by - 42, bx - 24, by - 64);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(bx - 29, by - 33, 3.4, 0, TAU); ctx.fill();
+}
+
 // --- Savi ----------------------------------------------------------------------------
 
 /**
@@ -639,7 +702,138 @@ export function drawVeil(ctx, at, time) {
  * hand rather than borrowed from the knight: she has to read as a child.
  */
 export function drawSavi(ctx, p, time) {
-  drawSaviLook(ctx, p, time, lookById(p.look || 'frock'));
+  const a = p.face;
+  const walking = p.speed > 12;
+  const ph = p.phase;
+  const bob = walking ? Math.sin(ph * 2) * 1.6 : Math.sin(time * 1.6) * 0.7;
+  const fx = Math.cos(a), fy = Math.sin(a);
+  const away = fy < -0.25;                 // facing away from the camera
+
+  ctx.save();
+  ctx.translate(p.x, p.y + bob);
+
+  // Shadow.
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(1, 5, 12, 5, 0, 0, TAU);
+  ctx.fill();
+
+  // Boots, stepping.
+  const st = walking ? Math.sin(ph) * 5 : 0;
+  ctx.fillStyle = '#3a2b22';
+  ctx.beginPath(); ctx.ellipse(-4.5 + fx * st * 0.5, 1 + st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(4.5 - fx * st * 0.5, 1 - st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
+
+  // Skirt, swaying with the step.
+  const sway = walking ? Math.sin(ph) * 2.2 : 0;
+  ctx.fillStyle = '#7b4b52';
+  ctx.beginPath();
+  ctx.moveTo(-6.5, -10);
+  ctx.quadraticCurveTo(-10 + sway, -2, -8.5 + sway, 2.5);
+  ctx.lineTo(8.5 + sway, 2.5);
+  ctx.quadraticCurveTo(10 + sway, -2, 6.5, -10);
+  ctx.closePath();
+  ctx.fill();
+
+  // The shawl: a warm triangle over her shoulders, the one bright thing out here.
+  ctx.fillStyle = '#d8702f';
+  ctx.beginPath();
+  ctx.moveTo(-9, -20);
+  ctx.quadraticCurveTo(-11.5, -11, -7.5, -6);
+  ctx.lineTo(7.5, -6);
+  ctx.quadraticCurveTo(11.5, -11, 9, -20);
+  ctx.quadraticCurveTo(0, -23, -9, -20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.13)';
+  ctx.beginPath();
+  ctx.moveTo(1, -21); ctx.lineTo(9, -20);
+  ctx.quadraticCurveTo(11.5, -11, 7.5, -6); ctx.lineTo(1, -6);
+  ctx.closePath();
+  ctx.fill();
+  // Its fringe.
+  ctx.strokeStyle = '#efb76a';
+  ctx.lineWidth = 1.1;
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 2.6, -6);
+    ctx.lineTo(i * 2.6 + sway * 0.4, -3.4);
+    ctx.stroke();
+  }
+
+  // The broom. On her back when she is walking; across her, sweeping, when she
+  // is working. A child with a jhadu is the most ordinary thing in a village,
+  // and it is exactly what clearing a drift of leaves IS.
+  const sweeping = (p.act || 0) > 0;
+  if (p.broom) {
+  ctx.save();
+  if (sweeping) {
+    const sw = p.sweep || 0;
+    ctx.translate(Math.cos(a) * 9, Math.sin(a) * 6 - 8);
+    ctx.rotate(a + sw * 0.72 - Math.PI / 2);   // twigs forward, not the handle
+  } else {
+    ctx.translate(-fx * 3, -12);
+    ctx.rotate(-0.72);
+  }
+  ctx.strokeStyle = '#6b4a2c';                 // the handle
+  ctx.lineWidth = 2.6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, sweeping ? -14 : -13);
+  ctx.lineTo(0, sweeping ? 16 : 15);
+  ctx.stroke();
+  ctx.strokeStyle = '#c8a05a';                 // the twigs
+  ctx.lineWidth = 1.5;
+  for (let i = -4; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(i * 0.5, sweeping ? 13 : 12);
+    ctx.lineTo(i * 1.9, (sweeping ? 24 : 22) + Math.abs(i) * -0.5);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#8a5f34';                 // the binding
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-2.6, sweeping ? 12 : 11);
+  ctx.lineTo(2.6, sweeping ? 12 : 11);
+  ctx.stroke();
+  ctx.restore();
+  }
+
+  // Her braid hangs BEHIND her, and which side of the head that is depends on
+  // which way she is facing. Coming toward the camera it is on the far side, so
+  // it has to be drawn before the head - drawn after, it lay across her face,
+  // which is exactly what it was doing.
+  const swing = walking ? Math.sin(ph) * 1.7 : Math.sin(time * 1.2) * 0.7;
+  const toward = clamp01((fy + 1) / 2);        // 0 facing away, 1 facing us
+  const tipX = -fx * 8.5 + swing;
+  const tipY = mix(-12, -33, toward);          // down her back, or up behind her
+  const braid = () => {
+    ctx.strokeStyle = '#2a1c18';
+    ctx.lineWidth = 3.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-fx * 3, -27.5);
+    ctx.quadraticCurveTo(tipX * 0.55, (tipY - 27.5) * 0.45 - 27.5 + 6, tipX, tipY);
+    ctx.stroke();
+    ctx.fillStyle = '#c94f6d';                 // the thread tied at the end
+    ctx.beginPath(); ctx.arc(tipX, tipY, 1.9, 0, TAU); ctx.fill();
+  };
+  if (!away) braid();
+
+  // Head and hair.
+  ctx.fillStyle = '#2a1c18';
+  ctx.beginPath(); ctx.arc(0, -25.5, 7.4, 0, TAU); ctx.fill();
+  if (!away) {
+    ctx.fillStyle = '#d9a06e';
+    ctx.beginPath(); ctx.ellipse(fx * 1.4, -24.6, 5.2, 5.6, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2a1c18';
+    ctx.beginPath(); ctx.ellipse(fx * 1.4, -28.4, 5.6, 3.4, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#1b120f';
+    ctx.fillRect(fx * 1.4 - 2.6, -25.4, 1.5, 1.9);
+    ctx.fillRect(fx * 1.4 + 1.1, -25.4, 1.5, 1.9);
+  }
+  if (away) braid();                           // her back is to us: it is in front
+  ctx.restore();
 }
 
 // --- the Old Woman and her fire ------------------------------------------------------
