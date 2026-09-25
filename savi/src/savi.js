@@ -343,6 +343,7 @@ function pollPad() {
 }
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let damBroken = false, drain = 0;
+let crackT = 0;            // the fire crackles on a slow clock, never per frame
 const ring = { x: 0, y: 0, r: 46 };
 const drop = { x: 0, y: 0, r: 34, on: false };
 
@@ -385,6 +386,7 @@ const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
 const STROKE = { wind: 0.1, work: 0.26, rest: 0.16 };   // seconds
 const SWEEP_BITE = 11;                                  // depth a second while it bites
 let stroke = null;                                      // { t, side, mat }
+let strokeN = 0;                                        // so only every other one is heard
 let damPull = 0;
 
 /** One press with the broom in hand: begin a stroke, if there is one to make. */
@@ -427,7 +429,8 @@ function stepStroke(dt) {
         : { col: MATS[1].col, angle: out, arc: 0.8, sp0: 170, sp1: 420, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 46, drag: 1.2 });
       if (!stroke.sounded) {
         stroke.sounded = true;
-        stroke.mat === MAT.snow ? sfx.clack(1.6) : sfx.hiss();
+        strokeN++;
+        if (strokeN & 1) { stroke.mat === MAT.snow ? sfx.clack(1.6) : sfx.hiss(); }
         rumble(0.2, 0.12, 70);
       }
     }
@@ -457,7 +460,7 @@ function actHold(dt) {
       spark(DAM.x + rand(-54, 54), DAM.y + rand(-64, 64), 1,
         { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 90, l0: 0.5, l1: 1.4, s0: 3, s1: 7, kind: 'ember', lift: 34 });
     }
-    if (Math.random() < dt * 5) sfx.hiss();
+    crackT -= dt; if (crackT <= 0) { crackT = 0.8 + Math.random() * 0.5; sfx.hiss(); }
     if (damPull > 2.6) {
       damBroken = true;
       sfx.bossDown(); sfx.explode();
@@ -489,7 +492,7 @@ function actHold(dt) {
     spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
       { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
   }
-  if (Math.random() < dt * 4) sfx.hiss();
+  crackT -= dt; if (crackT <= 0) { crackT = 0.9 + Math.random() * 0.6; sfx.hiss(); }
 }
 
 /** Take a bite out of the layer, in a cone in front of her. */
