@@ -653,6 +653,7 @@ export function drawSavi(ctx, p, time) {
   // is working. A child with a jhadu is the most ordinary thing in a village,
   // and it is exactly what clearing a drift of leaves IS.
   const sweeping = (p.act || 0) > 0;
+  if (p.broom) {
   ctx.save();
   if (sweeping) {
     const sw = p.sweep || 0;
@@ -684,6 +685,7 @@ export function drawSavi(ctx, p, time) {
   ctx.lineTo(2.6, sweeping ? 12 : 11);
   ctx.stroke();
   ctx.restore();
+  }
 
   // Head and hair.
   ctx.fillStyle = '#2a1c18';

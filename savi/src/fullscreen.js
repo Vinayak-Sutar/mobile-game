@@ -14,6 +14,17 @@ export const screenState = {
 
 function el() { return document.documentElement; }
 
+/**
+ * Plenty of Android browsers report `pointer: coarse` as false - a phone with a
+ * mouse attached, a desktop-mode tab, some webviews - and gating the fullscreen
+ * and the orientation lock on that one query alone meant neither ever ran.
+ */
+export function touchLike() {
+  return window.matchMedia('(pointer: coarse)').matches
+    || (navigator.maxTouchPoints || 0) > 0
+    || 'ontouchstart' in window;
+}
+
 export function fullscreenSupported() {
   const d = document;
   return !!(el().requestFullscreen || el().webkitRequestFullscreen ||
@@ -63,7 +74,7 @@ export async function toggleFullscreen() {
 async function lockOrientation() {
   const so = screen.orientation;
   if (!so || !so.lock) return;
-  if (!window.matchMedia('(pointer: coarse)').matches) return;
+  if (!touchLike()) return;
   try {
     await so.lock('landscape');
     screenState.orientationLocked = true;

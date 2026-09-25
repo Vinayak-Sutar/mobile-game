@@ -27,7 +27,7 @@ import {
   sfx, initAudio, unlockAudio, setAmbientTheme, setMusicIntensity, setMusicActive, setMusicEnabled,
 } from './audio.js';
 import { rumble } from './gamepad.js';
-import { initFullscreen, enterFullscreen, isFullscreen } from './fullscreen.js';
+import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
@@ -285,7 +285,7 @@ let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay =
 // still the shape the window had BEFORE and a prompt raised on them used to
 // stick with nothing able to clear it.
 
-const isTouch = () => window.matchMedia('(pointer: coarse)').matches;
+const isTouch = touchLike;
 
 function isPortraitTouch() {
   if (!isTouch()) return false;
@@ -716,6 +716,7 @@ function render() {
     ctx.restore();
   }
 
+  S.broom = broom.held;
   if (!broom.held) drawBroom(ctx, broom, st.t);
   for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t);
 
@@ -1031,6 +1032,7 @@ function main() {
   };
   cv.addEventListener('pointerdown', (e) => {
     begin();
+    if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
     if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
