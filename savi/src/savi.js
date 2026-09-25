@@ -36,6 +36,7 @@ import {
   drawYoungTree, drawBroom, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
+import { LOOKS } from './savi-looks.js';
 
 // --- the valley ---------------------------------------------------------------------------
 
@@ -266,6 +267,7 @@ function drawParticles(c) {
 const S = {
   x: START.x, y: START.y, r: 12, vx: 0, vy: 0, face: -Math.PI / 2,
   phase: 0, speed: 0, act: 0, actA: 0, dead: false, lastStep: 0, dashing: false,
+  look: (() => { try { return localStorage.getItem('savi.look') || 'frock'; } catch (e) { return 'frock'; } })(),
 };
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
@@ -1039,6 +1041,19 @@ function main() {
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
   rotateEl = document.getElementById('rotate');
+  // Five of her to choose between, on the way in.
+  const row = document.getElementById('looks');
+  if (row) {
+    row.innerHTML = LOOKS.map((l) => `<button class="look${l.id === S.look ? ' on' : ''}" data-look="${l.id}">${l.name}</button>`).join('');
+    row.addEventListener('pointerdown', (ev) => {
+      const b = ev.target.closest('[data-look]');
+      if (!b) return;
+      ev.stopPropagation();
+      S.look = b.dataset.look;
+      try { localStorage.setItem('savi.look', S.look); } catch (e) { /* private window */ }
+      row.querySelectorAll('.look').forEach((q) => q.classList.toggle('on', q.dataset.look === S.look));
+    });
+  }
   initFullscreen({ onChange: checkOrientation });
   if (screen.orientation && screen.orientation.addEventListener) {
     screen.orientation.addEventListener('change', checkOrientation);

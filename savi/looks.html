@@ -1,0 +1,46 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Savi — five designs</title>
+<style>
+ html,body{margin:0;background:#171310;color:#e8dcc8;font:14px/1.6 system-ui;-webkit-text-size-adjust:100%}
+ h1{font-size:19px;letter-spacing:.2em;margin:18px 16px 4px;color:#ffb35e}
+ p.lead{margin:0 16px 14px;max-width:760px;color:#a89880;font-size:13px}
+ .look{border-top:1px solid rgba(255,255,255,.08);padding:14px 16px}
+ .look h2{font-size:15px;margin:0 0 2px;color:#ffc98a;letter-spacing:.08em}
+ .look p{margin:0 0 9px;color:#a89880;font-size:12.5px;max-width:720px}
+ canvas{display:block;width:100%;max-width:760px;height:auto;image-rendering:auto}
+</style></head><body>
+<h1>SAVI — FIVE DESIGNS</h1>
+<p class="lead">Each one at the size she is actually drawn, and again at three times that, from four sides:
+coming toward you, going away, and both profiles. Judge the outline first — that is what you see when she is moving.</p>
+<div id="out"></div>
+<script type="module">
+import { LOOKS, drawSaviLook } from './src/savi-looks.js';
+const out = document.getElementById('out');
+const FACES = [[Math.PI/2,'toward you'],[-Math.PI/2,'away'],[0,'right'],[Math.PI,'left']];
+for (const L of LOOKS) {
+  const d = document.createElement('div');
+  d.className = 'look';
+  d.innerHTML = `<h2>${L.name}</h2><p>${L.note}</p>`;
+  const cv = document.createElement('canvas');
+  const W = 760, H = 210, dpr = Math.min(2, devicePixelRatio || 1);
+  cv.width = W*dpr; cv.height = H*dpr; cv.style.maxWidth = W+'px';
+  const c = cv.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.fillStyle = '#241d18'; c.fillRect(0,0,W,H);
+  FACES.forEach(([f,label], i) => {
+    const x = 96 + i*172;
+    c.fillStyle = 'rgba(255,255,255,.05)';
+    c.fillRect(x-84, 8, 168, H-16);
+    c.fillStyle = '#8d7f6c'; c.font = '600 10px system-ui'; c.textAlign='center';
+    c.fillText(label.toUpperCase(), x, H-10);
+    const p = { x:0, y:0, face:f, phase:1.1, speed:80, act:0, sweep:0, broom:i===2, look:L.id };
+    // small, as in play
+    c.save(); c.translate(x-46, 74); drawSaviLook(c, p, 1.2, L); c.restore();
+    // and blown up
+    c.save(); c.translate(x+34, 152); c.scale(3,3); c.translate(0,0); drawSaviLook(c, p, 1.2, L); c.restore();
+  });
+  d.appendChild(cv);
+  out.appendChild(d);
+}
+</script></body></html>

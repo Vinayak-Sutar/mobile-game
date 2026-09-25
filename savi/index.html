@@ -71,6 +71,13 @@
     background:linear-gradient(180deg,#fff0d8,#ffab52 62%,#c2532f);
     -webkit-background-clip:text;background-clip:text;color:transparent}
   #title .sub{margin:10px 0 0;color:var(--dim);font-size:clamp(12px,2.4vw,15px);letter-spacing:.08em;max-width:520px;line-height:1.6}
+  .looks{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin-top:20px;max-width:560px}
+  .looks .look{
+    font:inherit;font-size:11px;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+    padding:8px 13px;border-radius:20px;color:#b6a68e;background:rgba(30,20,16,.6);
+    border:1px solid rgba(255,255,255,.12);
+  }
+  .looks .look.on{color:#1a1208;background:#e8a24a;border-color:#ffc98a;font-weight:700}
   #title .go{margin-top:26px;font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:#ffb35e;
     animation:pulse 2.2s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}
@@ -85,6 +92,7 @@
     <p class="sub">The Fall has lasted too long. The Great Banyan is forgetting the story it was planted to keep —
       and when it forgets the last of it, the valley freezes for good.</p>
     <p class="sub" style="opacity:.7">Walk, and the ground answers. That is the whole of it.</p>
+    <div id="looks" class="looks"></div>
     <div class="go">tap, press space, or any controller button</div>
   </div>
   <script type="module" src="./src/savi.js"></script>
