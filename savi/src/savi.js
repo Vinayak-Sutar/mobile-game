@@ -32,6 +32,9 @@ import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
+import { stage, has, objective, brief, rootDone } from './savi-quest.js';
+import { startCinema, updateCinema, drawCinema, skipCinema, cinemaOn } from './cinema.js';
+import { openingFilm } from './savi-open.js';
 import { preload, PORTRAITS, MURALS, keeperMood } from './savi-assets.js';
 import {
   COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt,
@@ -75,7 +78,7 @@ const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26,
 
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
-  choice: { at: { x: 1160, y: 2340 }, patch: { x: 880, y: 2060, w: 620, h: 540 }, mat: 'leaves' },
+  choice: { at: { x: 2980, y: 2320 }, patch: { x: 2700, y: 2040, w: 620, h: 540 }, mat: 'leaves' },
   fall: { at: { x: ROOT_AT[0], y: ROOT_AT[1] }, patch: { x: 2800, y: 1300, w: 2400, h: 1900 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
@@ -133,6 +136,8 @@ const COURT = { x: SHRINE.x - 270, y: SHRINE.y - 120, w: 540, h: 300 };
 // picked up from 74 and she is spoken to from 104, so anything closer than 178
 // means one of them silently eats the other's press.
 const BROOM_HOME = { x: 2296, y: 1932 };
+/** What she calls each of them when she hands it over. */
+const TOOLNAME = { broom: 'her broom', crank: 'the iron crank', lamp: 'her lamp' };
 const broom = { x: BROOM_HOME.x, y: BROOM_HOME.y, held: false };
 /** Young banyans, one per freed root, each with its beat carved into it. */
 const YOUNG = [];
@@ -442,6 +447,9 @@ const S = {
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
+  // The apprenticeship: how many roots are awake, and whether she has been
+  // told about the next one and handed the tool for it. See savi-quest.js.
+  done: 0, briefed: false, tools: {}, sawOpening: false,
   talking: null, reading: null, metKeeper: false,
   nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
 };
@@ -612,6 +620,14 @@ function fallIn() {
 let lastTurn = 0;
 function stepCapstan(dt) {
   if (drained) return;
+  // No handle, no capstan. The bar was taken off so the hill folk could not
+  // flood the road with it, and the keeper has it.
+  if (!has(st, 'crank')) {
+    if (Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) {
+      st.prompt = 'the capstan has no handle — the keeper has it';
+    }
+    return;
+  }
   const moving = S.speed > 30 && S.z <= 0.5;
   const opened = windCapstan(S.x, S.y, moving);
   // A creak of rope for every eighth of a turn, so it sounds like work.
@@ -672,13 +688,10 @@ const drop = { x: 0, y: 0, r: 30, on: false };
  * unfreed root, so it follows her about instead of marching her round a list.
  */
 function current() {
-  let best = null, bd = 1e9;
-  for (const r of ROOTS) {
-    if (st.woken[r.id]) continue;
-    const d = Math.hypot(S.x - r.at.x, S.y - r.at.y);
-    if (d < bd) { bd = d; best = r; }
-  }
-  return best;
+  // The lit root is the one she has been SENT to, not whichever is nearest.
+  const s2 = stage(st);
+  if (!s2) return null;
+  return ROOTS.find((r) => r.id === s2.root && !st.woken[r.id]) || null;
 }
 /** The window grass.js works in: what is on screen, and a margin. */
 const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
@@ -845,7 +858,7 @@ function actHold(dt) {
   // A short reach for the thorn, so what she opens is a PATH - a corridor about
   // three cells wide that she has to walk down - rather than a clearing that
   // melts away in front of her before she gets to it.
-  const took = carve(S.x, S.y + 6, a, thorny ? 46 : 124, 1.0, dt * (thorny ? 1.1 : 3.0), m);
+  const took = carve(S.x, S.y + 6, a, thorny ? 68 : 124, 1.0, dt * (thorny ? 2.4 : 3.0), m);
   // And a coal held out at nothing costs nothing. She used to be able to stand
   // in a corridor she had already cleared and burn a whole coal down to ash
   // against thin air, which is what makes this feel broken rather than slow.
@@ -966,6 +979,7 @@ function step(dt) {
     return;
   }
   if (pad.jumpPressed) { begin(); if (st.talking || st.reading) advance(); else jumpWant = BUFFER; }
+  if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) skipCinema();
   held = pad.jumpHeld || keys.has(' ');
   if (pad.dropPressed) dropBroom();
   if (pad.dashPressed) { begin(); dashWant = true; }
@@ -985,10 +999,10 @@ function step(dt) {
     const atKeeper = !busy && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
     if (yt) {
       openReading(yt); tapDone = true;
-    } else if (!busy && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
+    } else if (!busy && has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
       broom.held = true; tapDone = true; sfx.pickup();
     } else if (atKeeper) {
-      talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
+      talkTo(keeperStart(st, ROOTS.length));
       st.metKeeper = true;
       tapDone = true;
     } else if (!busy && beginStroke()) {
@@ -1191,7 +1205,7 @@ function step(dt) {
 
   // What she can reach, and what the button would do about it.
   st.prompt = '';
-  const nearBroom = !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
+  const nearBroom = has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
   const atCapstan = !drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40;
   const boon = ROOTS.find((r) => r.mat === 'ash');
@@ -1219,10 +1233,11 @@ function step(dt) {
     }
   }
 
-  if (Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 80 && !st.hasEmber) {
+  // Her fire fills the lamp - but only a lamp she has been given.
+  if (has(st, 'lamp') && Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 80 && st.ember < 0.6) {
     st.hasEmber = true; st.ember = 1;
     sfx.boon();
-    say([['keeper', 'You lift a coal out of her fire. It sits in your palm and does not burn you.']], null);
+    toast = { t: 0, text: 'the lamp takes a coal from her fire' };
   }
 
   if (drained && drain < 1) {
@@ -1310,6 +1325,7 @@ function wither(p, m) {
 
 function wake(r) {
   st.woken[r.id] = true;
+  rootDone(st);
   // The last of it comes off the root and the whole burden lets go at once -
   // the drift, the mat, whatever was lying on it. The work is the uncovering.
   wither(r.mat === 'water' ? { x: 0, y: 0, w: 0, h: 0 } : r.patch, MAT[r.mat] || 0);
@@ -1416,6 +1432,7 @@ function render() {
   ctx.setTransform(s, 0, 0, s, 0, 0);
   ctx.fillStyle = '#14100e';
   ctx.fillRect(0, 0, view.w, view.h);
+  if (cinemaOn()) { drawCinema(ctx, view); return; }
   ctx.save();
   ctx.translate(-Math.round(camera.x), -Math.round(camera.y));
 
@@ -1469,6 +1486,7 @@ function render() {
   vig.addColorStop(1, `rgba(20,28,48,${0.52 - st.warmth * 0.3})`);
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, view.w, view.h);
+  drawWaypoint(ctx);
   drawHud();
   if (st.talking) paintFace();
 }
@@ -1561,18 +1579,58 @@ function drawRootProgress(ctx) {
   }
 }
 
+/**
+ * AN ARROW AT THE EDGE OF THE SCREEN, pointing at whatever she has been sent to
+ * do, whenever that is off screen. A game that tells you where to go has to
+ * also show you, or the line at the top is just a reproach.
+ */
+function drawWaypoint(ctx) {
+  const job = objective(st, ROOTS, WOMAN, TREE);
+  if (!job || st.talking || st.reading) return;
+  const sx = job.x - camera.x, sy = job.y - camera.y;
+  const m = 54;
+  if (sx > m && sx < view.w - m && sy > m && sy < view.h - m) return;   // she can see it
+  const cx = view.w / 2, cy = view.h / 2;
+  const a = Math.atan2(sy - cy, sx - cx);
+  const rx = view.w / 2 - m, ry = view.h / 2 - m;
+  const k = Math.min(Math.abs(rx / Math.cos(a)), Math.abs(ry / Math.sin(a)));
+  const x = cx + Math.cos(a) * k, y = cy + Math.sin(a) * k;
+  const pulse = 0.72 + 0.28 * Math.sin(st.t * 2.4);
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(a);
+  ctx.fillStyle = `rgba(255,190,110,${pulse})`;
+  ctx.beginPath();
+  ctx.moveTo(15, 0); ctx.lineTo(-9, 9); ctx.lineTo(-4, 0); ctx.lineTo(-9, -9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(40,24,12,0.8)'; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.restore();
+  // How far, so the walk has a shape.
+  const d = Math.round(Math.hypot(job.x - S.x, job.y - S.y) / 50);
+  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.fillStyle = `rgba(255,214,170,${pulse * 0.8})`;
+  ctx.textAlign = 'center';
+  ctx.fillText(`${d}`, x - Math.cos(a) * 22, y - Math.sin(a) * 22 + 4);
+  ctx.textAlign = 'left';
+  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+}
+
 function drawHud() {
   ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(240,226,203,0.8)';
   ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, 22, 30);
-  const cur = current();
-  if (cur && !st.ended) {
+  // WHAT SHE IS DOING, in one line, from one place - so these words and the
+  // arrow at the edge of the screen can never disagree with each other.
+  const job = objective(st, ROOTS, WOMAN, TREE);
+  if (job) {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
-    const near = Math.hypot(S.x - cur.at.x, S.y - cur.at.y) < 460;
-    const pc = near && (cur.mat === 'leaves' || cur.mat === 'snow')
-      ? ` — ${Math.min(99, Math.round(clamp01(fraction(cur) / 0.8) * 100))}% uncovered` : '';
-    ctx.fillText(`the tree is reaching — ${cur.hint}${pc}`, 22, 50);
+    const cur2 = ROOTS.find((r) => r.id === (stage(st) || {}).root);
+    const near = cur2 && st.briefed && Math.hypot(S.x - cur2.at.x, S.y - cur2.at.y) < 460;
+    const pc = near && (cur2.mat === 'leaves' || cur2.mat === 'snow')
+      ? ` — ${Math.min(99, Math.round(clamp01(fraction(cur2) / 0.8) * 100))}% uncovered` : '';
+    ctx.fillText(job.text + pc, 22, 50);
   }
   // This bar is the COAL burning down, and nothing else. The broom never runs
   // out - it is a broom.
@@ -1691,7 +1749,7 @@ function say(lines, onDone, mural) {
 }
 
 function talkTo(node) {
-  keeperFill(st.count, ROOTS.length, st.lastBeat);
+  keeperFill(st, ROOTS.length, st.lastBeat, stage(st));
   st.talking = { keeper: node, who: 'The Keeper' };
   paintTalk();
 }
@@ -1703,10 +1761,25 @@ function paintTalk() {
   if (t.keeper) {
     const n = KEEPER[t.keeper];
     st.asked[t.keeper] = true;
+    // She puts it in Savi's hands as she says the line. The tool arriving IS
+    // the moment the task begins, which is the whole of "deliberate".
+    if (n.give && !has(st, n.give)) {
+      const s2 = brief(st);
+      if (n.give === 'broom') { broom.held = true; }
+      if (n.give === 'lamp') { st.hasEmber = true; st.ember = 1; }
+      sfx.pickup();
+      toast = { t: 0, text: `she gives you ${TOOLNAME[n.give] || n.give}` };
+      if (s2) st.prompt = '';
+    }
     // A question asked is a question answered: it does not come round again,
     // in this conversation or any later one. Hubs and the lines that change
     // with the valley are marked `repeat`, so there is always somewhere to go.
-    const open = n.choices.filter((c) => c.to === 'leave' || (KEEPER[c.to] && KEEPER[c.to].repeat) || !st.asked[c.to]);
+    // A SPINE CHOICE IS NEVER TAKEN AWAY. Everything else retires once it has
+    // been answered, which is what makes asking feel like finding something -
+    // but the story itself used to retire with them, so asking "Who are you?"
+    // first could eat "What is wrong with the tree?" for the rest of the game.
+    const open = n.choices.filter((c) => c.spine || c.to === 'leave'
+      || (KEEPER[c.to] && KEEPER[c.to].repeat) || !st.asked[c.to]);
     // And there is always a way out. Without this you can walk in a circle
     // round her answers and never find the door.
     const list = open.some((c) => c.to === 'leave')
@@ -1893,10 +1966,26 @@ function resize() {
   checkOrientation();
 }
 
+/**
+ * THE OPENING. The projector is cinema.js: it letterboxes, cross-fades, wraps
+ * the line along the foot and offers the skip. While it runs the world does not
+ * step at all - but the music scheduler and the input edges DO have to be
+ * serviced, or the film plays silent and every press is still held down when it
+ * ends. That was learned the hard way in the game this engine came from.
+ */
+function playOpening(after) {
+  startCinema(openingFilm(), () => {
+    setAmbientTheme(themeById('hearthfields'));
+    setMusicIntensity(0.4);
+    if (after) after();
+  });
+}
+
 function begin() {
   if (st.started) return;
   st.started = true;
   document.getElementById('title').classList.remove('on');
+  if (!st.sawOpening) { st.sawOpening = true; playOpening(null); }
   // The tap that starts it is the gesture a phone needs: fullscreen, and with
   // it the landscape lock and the screen kept awake.
   if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
@@ -1965,6 +2054,7 @@ function main() {
 
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
+    if (cinemaOn()) { skipCinema(); e.preventDefault(); return; }
     keys.add(k);
     if (st.talking && st.talking.keeper) {
       if (k === 'arrowup' || k === 'w') { moveSel(-1); e.preventDefault(); return; }
@@ -1990,6 +2080,7 @@ function main() {
     touch.on = false; touch.ring = false; touch.id = -1;
   };
   cv.addEventListener('pointerdown', (e) => {
+    if (cinemaOn()) { skipCinema(); return; }
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
     if (st.talking || st.reading) { advance(); return; }
@@ -2027,6 +2118,16 @@ function main() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     if (window.innerWidth !== lastW || window.innerHeight !== lastH) resize();
+    if (cinemaOn()) {
+      // The world is still while a film plays, but the music and the input
+      // edges are not - the scheduler lives at the foot of step() and the
+      // press flags are cleared there too.
+      updateCinema(dt);
+      pollPad();
+      setMusicActive(true);
+      render();
+      return;
+    }
     // Nothing moves while the phone is being turned.
     if (st.started && !(rotateEl && rotateEl.classList.contains('on'))) step(dt);
     render();
@@ -2039,6 +2140,7 @@ window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
+  opening() { playOpening(null); },
   isDeep, supported, leafAt, get onLeaf() { return onLeaf; },
   litterAt: (x, y) => litterAt(x, y, { dx: 0, dy: 0, sp: 0 }), breezeAt,
   get terrain() { return terrain; }, get drained() { return drained; }, get drain() { return drain; },
