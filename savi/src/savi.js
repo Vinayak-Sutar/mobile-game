@@ -37,6 +37,9 @@ import {
   drawDeep, drawSluice, drawLeaves,
 } from './savi-shallows.js';
 import {
+  initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
+} from './savi-litter.js';
+import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
@@ -234,6 +237,32 @@ function buildGround() {
   G.cv.width = G.w; G.cv.height = G.h;
   G.cx = G.cv.getContext('2d');
   G.img = G.cx.createImageData(G.w, G.h);
+  paintLayerColours();
+}
+
+/**
+ * The colour of every cell of the layer, once, for good.
+ *
+ * What is in a cell never changes - leaves stay leaves. Only HOW MUCH of it is
+ * there changes, and that is the alpha. This used to be redone every frame,
+ * three parseInt() calls and three String.slice() allocations per cell across
+ * ninety thousand cells: a quarter of a million string parses at sixty frames
+ * a second, which measured at twelve of the sixteen milliseconds a frame cost.
+ * Now the frame writes one byte per cell and nothing else.
+ */
+function paintLayerColours() {
+  const d = G.img.data;
+  for (let j = 0, q = 0, p = 0; j < G.h; j++) {
+    for (let i = 0; i < G.w; i++, q++, p += 4) {
+      const m = G.mat[q];
+      if (!m) continue;
+      const col = MATS[m].col[(i * 5 + j * 3) & 3];
+      const lit = 0.8 + vn(i * 0.7, j * 0.9) * 0.36;
+      d[p] = Math.min(255, parseInt(col.slice(1, 3), 16) * lit);
+      d[p + 1] = Math.min(255, parseInt(col.slice(3, 5), 16) * lit);
+      d[p + 2] = Math.min(255, parseInt(col.slice(5, 7), 16) * lit);
+    }
+  }
 }
 
 function depAt(x, y) {
@@ -302,6 +331,12 @@ function stepParticles(dt) {
     const k = Math.exp(-p.drag * dt);
     p.vx *= k; p.vy *= k;
     if (p.kind === 'ember') p.vy -= 30 * dt;
+    // A leaf is a flat plate. It sheds speed fast, wanders across its own path
+    // as it turns, and settles rather than dropping.
+    if (p.kind === 'leaf') {
+      p.vx += Math.cos(p.rot * 1.6) * 34 * dt;
+      p.vy += (26 - Math.sin(p.rot * 1.6) * 20) * dt;
+    }
     p.x += p.vx * dt; p.y += p.vy * dt;
     p.rot += p.spin * dt;
   }
@@ -316,6 +351,7 @@ function drawParticles(c) {
     c.rotate(p.rot);
     if (p.kind === 'ember') { c.beginPath(); c.arc(0, 0, p.s * a * 0.6, 0, TAU); c.fill(); }
     else if (p.kind === 'drop') { c.beginPath(); c.ellipse(0, 0, p.s * 0.5, p.s, 0, 0, TAU); c.fill(); }
+    else if (p.kind === 'leaf') drawLeafSprite(c, p.s * 0.8, p.rot * 1.6);
     else { c.beginPath(); c.ellipse(0, 0, p.s * 0.6, p.s * 0.36, 0, 0, TAU); c.fill(); }
     c.restore();
   }
@@ -494,7 +530,12 @@ function startDash() {
     water.splash(S.x, S.y + 6, 120, 2);
     spark(S.x, S.y + 6, 14, { col: ['#bfe0e8', '#8fbcc8'], angle: dashDir + Math.PI, arc: 1.5, sp0: 80, sp1: 260, l0: 0.4, l1: 0.9, s0: 3, s1: 7, kind: 'drop', lift: 50 });
   } else if (u.m && u.d > 0.12) {
-    spark(S.x, S.y + 6, 16, { col: MATS[u.m].col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300, l0: 0.6, l1: 1.5, s0: 4, s1: 10, lift: 40, drag: 1.3 });
+    const leafy = u.m === MAT.leaves;
+    spark(S.x, S.y + 6, 16, {
+      col: MATS[u.m].col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300,
+      l0: 0.6, l1: 1.5, s0: 4, s1: 10, lift: 40, drag: 1.3, kind: leafy ? 'leaf' : undefined,
+    });
+    if (leafy) pushLitter(S.x, S.y + 8, 58, Math.cos(dashDir), Math.sin(dashDir), 9);
   }
 }
 // Three rings in a controller's diamond, bottom right: ACTION on the left where
@@ -595,6 +636,9 @@ function stepStroke(dt) {
     if (took > 0.0004) {
       // Thrown the way the broom is going, not sucked toward her.
       const out = a + stroke.side * 1.15;
+      if (stroke.mat === MAT.leaves) {
+        pushLitter(S.x + Math.cos(a) * 46, S.y + Math.sin(a) * 46 + 6, 52, Math.cos(out), Math.sin(out), dt * 70);
+      }
       spark(S.x + Math.cos(a) * 62, S.y + Math.sin(a) * 62 + 6, 3, stroke.mat === MAT.snow
         ? { col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: out, arc: 0.7, sp0: 130, sp1: 300, l0: 0.4, l1: 1, s0: 3, s1: 7, lift: 56 }
         : { col: MATS[1].col, angle: out, arc: 0.8, sp0: 170, sp1: 420, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 46, drag: 1.2 });
@@ -735,7 +779,18 @@ function step(dt) {
       onLeaf = leafAt(S.x, S.y);
       if (!supported(S.x, S.y)) fallIn();
       else if (onLeaf) { sfx.thud(); water.splash(S.x, S.y + 6, 90, 1.4); }
-      else sfx.thud();
+      else {
+        sfx.thud();
+        // Landing throws the litter outward in a ring and kicks some of it up.
+        const u3 = depAt(S.x, S.y + 6);
+        if (u3.m === MAT.leaves && u3.d > 0.12) {
+          pushLitter(S.x, S.y + 8, 62, 0, 0, 7);
+          spark(S.x, S.y + 6, 9, {
+            col: MATS[1].col, sp0: 70, sp1: 210, l0: 0.7, l1: 1.6,
+            s0: 4, s1: 9, lift: 60, drag: 2, kind: 'leaf',
+          });
+        }
+      }
     }
   }
 
@@ -810,10 +865,28 @@ function step(dt) {
         // No sound for this. The leaves move, and that is the whole of it - a
         // tick on every footfall through a valley knee-deep in them was a
         // metronome, not an atmosphere. The broom still rustles.
-        spark(S.x, S.y + 6, 3, { col: MATS[1].col, sp0: 20, sp1: 80, l0: 0.5, l1: 1.1, s0: 4, s1: 8, lift: 26 });
+        //
+        // Two or three kicked up on the step itself, thrown the way the foot
+        // was going. Event-driven, like an animation notify - never a stream.
+        spark(S.x, S.y + 6, 2 + (k & 1), {
+          col: MATS[1].col, angle: S.face, arc: 1.5, sp0: 40, sp1: 130,
+          l0: 0.6, l1: 1.3, s0: 4, s1: 8, lift: 34, drag: 2.2, kind: 'leaf',
+        });
       } else if (under.d > 0.5 && under.m === MAT.snow && (k & 1)) sfx.clack(1.4);
     }
   }
+
+  // Walking through deep litter shoves it aside and leaves a path. This is the
+  // deformation map every game with snow or long grass keeps around the player;
+  // it is what makes the ground remember her instead of twitching at her.
+  if (S.speed > 14 && S.z <= 0.5) {
+    const u2 = depAt(S.x, S.y + 6);
+    if (u2.m === MAT.leaves && u2.d > 0.12) {
+      const inv = 1 / S.speed;
+      pushLitter(S.x, S.y + 8, 46 + S.speed * 0.08, S.vx * inv, S.vy * inv, dt * (S.dashing ? 170 : 90));
+    }
+  }
+  settleLitter(dt);
 
   settle(dt);
   stepParticles(dt);
@@ -918,37 +991,51 @@ function wake(r) {
 // --- drawing ----------------------------------------------------------------------------------------
 
 function drawLayer(c) {
-  const d = G.img.data;
-  for (let j = 0, q = 0, p = 0; j < G.h; j++) {
-    for (let i = 0; i < G.w; i++, q++, p += 4) {
-      const m = G.mat[q], dep = G.dep[q];
-      if (!m || dep < 0.06) { d[p + 3] = 0; continue; }
-      const col = MATS[m].col[(i * 5 + j * 3) & 3];
-      const lit = 0.8 + vn(i * 0.7, j * 0.9) * 0.36;
-      d[p] = Math.min(255, parseInt(col.slice(1, 3), 16) * lit);
-      d[p + 1] = Math.min(255, parseInt(col.slice(3, 5), 16) * lit);
-      d[p + 2] = Math.min(255, parseInt(col.slice(5, 7), 16) * lit);
-      d[p + 3] = Math.min(250, 40 + dep * 215);
-    }
+  // How much is lying here, and nothing else. The colours were painted once.
+  const d = G.img.data, dep = G.dep;
+  for (let q = 0, p = 3, n = dep.length; q < n; q++, p += 4) {
+    const v = dep[q];
+    d[p] = v < 0.06 ? 0 : (v > 0.98 ? 250 : (40 + v * 215) | 0);
   }
   G.cx.putImageData(G.img, 0, 0);
   c.drawImage(G.cv, 0, 0, V.w, V.h);
 
   // Loose leaves over the mass, so it reads as leaves and not as paint.
-  const i0 = Math.max(0, (camera.x / CELL) | 0), i1 = Math.min(G.w - 1, ((camera.x + view.w) / CELL) | 0);
-  const j0 = Math.max(0, (camera.y / CELL) | 0), j1 = Math.min(G.h - 1, ((camera.y + view.h) / CELL) | 0);
+  //
+  // `& ~1` is the whole flicker bug. These come from every other cell, and the
+  // first index used to be `(camera.x / CELL) | 0` - so every 14 pixels of
+  // walking, the parity of that index flipped and EVERY leaf on screen was
+  // replaced by the leaves of the cells in between. Snapping the start to an
+  // even cell in WORLD space means a given leaf is either always drawn or
+  // never drawn, and the ground holds still.
+  const i0 = Math.max(0, ((camera.x / CELL) | 0) & ~1), i1 = Math.min(G.w - 1, ((camera.x + view.w) / CELL) | 0);
+  const j0 = Math.max(0, ((camera.y / CELL) | 0) & ~1), j1 = Math.min(G.h - 1, ((camera.y + view.h) / CELL) | 0);
+  const f = FIELD;
   for (let j = j0; j <= j1; j += 2) {
     for (let i = i0; i <= i1; i += 2) {
       const q = j * G.w + i, m = G.mat[q];
       if (!m || G.dep[q] < 0.3) continue;
       const h = vn(i * 3.1, j * 7.7);
+      const lx = i * CELL + h * CELL, ly = j * CELL + vn(i * 5.3, j * 2.9) * CELL;
       c.save();
-      c.translate(i * CELL + h * CELL, j * CELL + vn(i * 5.3, j * 2.9) * CELL);
-      c.rotate(h * TAU);
+      if (m === MAT.leaves) {
+        // Shoved by whatever has walked through here, and stirred by the wind:
+        // one wave crossing the ground, not a wobble of its own.
+        litterAt(lx, ly, f);
+        c.translate(lx + f.dx, ly + f.dy * 0.8);
+        c.rotate(h * TAU + f.sp + breezeAt(st.t, lx, ly));
+      } else {
+        c.translate(lx, ly);
+        c.rotate(h * TAU);
+      }
       c.globalAlpha = Math.min(1, G.dep[q]);
       if (m === MAT.thorn) {
         c.strokeStyle = '#120d18'; c.lineWidth = 2.2;
         c.beginPath(); c.moveTo(-7, 4); c.lineTo(0, -9); c.lineTo(7, 3); c.stroke();
+      } else if (m === MAT.leaves) {
+        c.fillStyle = MATS[m].col[(i + j) & 3];
+        // Lying flat until something lifts an edge of it.
+        drawLeafSprite(c, 7, 1.15 + h * 0.5 + Math.hypot(f.dx, f.dy) * 0.07);
       } else {
         c.fillStyle = MATS[m].col[(i + j) & 3];
         c.beginPath();
@@ -960,6 +1047,8 @@ function drawLayer(c) {
   }
   c.globalAlpha = 1;
 }
+/** Scratch for litterAt, so drawing a thousand leaves allocates nothing. */
+const FIELD = { dx: 0, dy: 0, sp: 0 };
 
 const SCENERY = [];
 function sowScenery() {
@@ -1027,19 +1116,8 @@ function render() {
 
   // Along the avenue the air is full of them.
   const onAvenue = Math.abs(S.x - 2600) < 420 && S.y > 2250;
-  const n = (onAvenue ? 92 : 46) + Math.round(st.bloomK * 60);
-  for (let i = 0; i < n; i++) {
-    const sp = 0.4 + ((i * 37) % 13) / 13;
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = MATS[1].col[i & 3];
-    ctx.save();
-    ctx.translate(((i * 613 + st.t * 30 * sp) % (view.w + 260)) + camera.x - 130,
-      ((i * 971 + st.t * 21 * sp) % (view.h + 260)) + camera.y - 130);
-    ctx.rotate(st.t * sp + i);
-    ctx.beginPath(); ctx.ellipse(0, 0, 5, 3, 0, 0, TAU); ctx.fill();
-    ctx.restore();
-  }
-  ctx.globalAlpha = 1;
+  const n = (onAvenue ? 74 : 38) + Math.round(st.bloomK * 50);
+  drawFallingLeaves(ctx, st.t, camera, view, n, MATS[1].col);
   ctx.restore();
 
   const vig = ctx.createRadialGradient(view.w / 2, view.h / 2, view.h * 0.32, view.w / 2, view.h / 2, view.w * 0.74);
@@ -1395,6 +1473,7 @@ function main() {
   gfx.epoch = 0;
 
   buildGround();
+  initLitter(V.w, V.h);
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
   grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => pondK(x, y) < 1.05 && !onIsle(x, y) });
   water = createWildsWater();
@@ -1476,6 +1555,7 @@ window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, JAM, ISLE, POND, LEAVES, broom, YOUNG, render, resize, begin, say, advance, fraction,
   jump() { jumpWant = true; step(1 / 60); },
   isDeep, supported, leafAt, get onLeaf() { return onLeaf; },
+  litterAt: (x, y) => litterAt(x, y, { dx: 0, dy: 0, sp: 0 }), breezeAt,
   get terrain() { return terrain; }, get drained() { return drained; }, get drain() { return drain; },
   face: drawPortrait, openReading,
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
