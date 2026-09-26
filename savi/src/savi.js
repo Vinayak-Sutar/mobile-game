@@ -99,7 +99,14 @@ const SPURS = [
   [[2820, 1420], [3400, 1120], [3900, 880], [4180, 760]],
   [[2600, 1320], [2600, 960], [2600, 600], [2600, 420]],
 ];
-const SHELTERS = [{ x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 }];
+// Little fires along the roads, where a coal that has gone dim comes back to
+// itself. The keeper's own dialogue promises these; there only used to be two,
+// both on the north road, so the thorn in the WEST had none at all and a
+// second coal meant a sixteen second walk back to her hearth for it.
+const SHELTERS = [
+  { x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 },       // the north road
+  { x: 1810, y: 1330, r: 110 }, { x: 1250, y: 1200, r: 110 },      // the west road
+];
 // The shrine: a low stone platform round the foot of the Banyan, with steps up
 // to it, oil lamps at its corners and a bell hung on a post. Its courtyard is
 // under a season of leaves, and sweeping it is the first thing anyone asks of
@@ -304,7 +311,37 @@ function cleared(p, m) {
   return t ? o / t : 1;
 }
 
-const fraction = (r) => cleared(r.patch, MAT[r.mat]);
+/**
+ * The ground the root itself is under. This - not the whole field - is what
+ * has to come off it.
+ *
+ * Asking for half of a root's whole patch by area was the same mistake in two
+ * places. A broom stroke lifts about two and a half cells of a 1645 cell field,
+ * so freeing one root by area came to some 350 separate taps; the coal cuts a
+ * corridor, so by area it was worse than that. Neither was finishable, and
+ * neither was ever the point. She is uncovering a root, and the root is where
+ * the root is.
+ */
+/** How much of the ground within `rad` of a point is clear of `m`. */
+function clearedNear(at, rad, m) {
+  const i0 = Math.max(0, ((at.x - rad) / CELL) | 0), i1 = Math.min(G.w - 1, ((at.x + rad) / CELL) | 0);
+  const j0 = Math.max(0, ((at.y - rad) / CELL) | 0), j1 = Math.min(G.h - 1, ((at.y + rad) / CELL) | 0);
+  let t = 0, o = 0;
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const q = j * G.w + i;
+      if (G.mat[q] !== m || G.orig[q] < 0.5) continue;
+      if (Math.hypot(i * CELL + 7 - at.x, j * CELL + 7 - at.y) > rad) continue;
+      t++;
+      if (G.dep[q] < 0.22) o++;
+    }
+  }
+  return t ? o / t : 1;
+}
+// A circle, not a box: she sweeps in arcs, so the corners of a rectangle were
+// ground she could never quite get to, and the last twenty per cent of the job
+// was chasing them. This is "the ground within a couple of paces of the root".
+const fraction = (r) => clearedNear(r.at, 132, MAT[r.mat]);
 
 // --- particles --------------------------------------------------------------------------------
 
@@ -604,11 +641,17 @@ function beginStroke() {
   if (stroke || st.talking || st.reading) return false;
   // The jam is hauled, never swept.
   if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) return false;
+  // What is in front of her, the whole length of a stroke's reach. Two point
+  // samples missed the mound she was standing in front of as soon as the two
+  // points themselves were clear, and the broom just stopped working.
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
-  const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
-  const m = there.d > here.d ? there.m : (here.m || there.m);
-  if (!m || m === MAT.thorn || m === MAT.ash) return false;   // those want the coal
-  if (Math.max(here.d, there.d) < 0.42) return false;          // litter is not a drift
+  let m = 0, deepest = 0;
+  for (let d = 0; d <= 96; d += 16) {
+    const c = depAt(S.x + fx * d, S.y + fy * d + 6);
+    if (c.m && c.m !== MAT.thorn && c.m !== MAT.ash && c.d > deepest) { deepest = c.d; m = c.m; }
+  }
+  if (!m) return false;                       // nothing here, or it wants the coal
+  if (deepest < 0.42) return false;           // litter is not a drift
   if (!broom.held) {
     if (actT <= 0) {
       actT = 1.4;
@@ -632,7 +675,7 @@ function stepStroke(dt) {
   const biting = stroke.t > STROKE.wind && stroke.t < STROKE.wind + STROKE.work;
   if (biting) {
     const a = S.face + S.sweep * 0.7;
-    const took = carve(S.x + Math.cos(a) * 40, S.y + Math.sin(a) * 40 + 6, a, 112, 1.0, dt * SWEEP_BITE, stroke.mat);
+    const took = carve(S.x + Math.cos(a) * 18, S.y + Math.sin(a) * 18 + 6, a, 112, 1.0, dt * SWEEP_BITE, stroke.mat);
     if (took > 0.0004) {
       // Thrown the way the broom is going, not sucked toward her.
       const out = a + stroke.side * 1.15;
@@ -658,26 +701,77 @@ function actHold(dt) {
   if (st.talking || st.reading || stroke) return;
   if (tapDone) return;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
-  const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
-  const m = there.d > here.d ? there.m : (here.m || there.m);
-  if (m !== MAT.thorn && m !== MAT.ash) { S.act = 0; return; }
-  if (Math.max(here.d, there.d) < 0.3) { S.act = 0; return; }
+  // WHAT IS IN FRONT OF HER, sampled the whole way along her reach.
+  //
+  // This used to probe exactly two points - the cell under her feet and the
+  // cell 54 ahead - and burn only if one of them was deeper than 0.3. Thorn
+  // stops her walking at 0.6. So a ridge of thorn twenty units in front of her,
+  // with thinner stuff beyond it, was invisible to both: she could not walk
+  // through it and the burn looked at 0.05 and 0.23 and decided there was
+  // nothing worth burning. Stuck, with a lit coal in her hand and a wall of
+  // thorn in her face. That is why the thorn could not be cleared.
+  let m = 0, deepest = 0;
+  for (let d = 0; d <= 60; d += 12) {
+    const c = depAt(S.x + fx * d, S.y + fy * d + 6);
+    if ((c.m === MAT.thorn || c.m === MAT.ash) && c.d > deepest) { deepest = c.d; m = c.m; }
+  }
+  if (!m || deepest < 0.12) { S.act = 0; return; }
   if (!(st.hasEmber && st.ember > 0.02)) {
     if (actT <= 0) {
       actT = 1.2;
-      say([['keeper', 'This will not move for hands. The old woman keeps a fire — take a coal from it and hold it out.']], null);
+      say(st.hasEmber
+        ? [['keeper', `Your coal has gone out, child. There is a fire ${towardFire()} — stand at it a moment and it will come back to itself.`]]
+        : [['keeper', 'This will not move for hands. The old woman keeps a fire — take a coal from it and hold it out.']], null);
     }
     return;
   }
   S.act = 1;
   S.sweep = Math.sin(st.t * 3) * 0.12;
+  // Thorn DRAWS BACK from warmth - it is not being cut - so it goes faster than
+  // dead ground, which has to be burned off.
+  // Thorn DRAWS BACK from warmth rather than being cut, so it is worked close
+  // and slowly: a narrow reach, and slower than she walks, so the wall gives
+  // way at its own pace and she has to follow it in. Dead ground has to be
+  // burned off, which is broader and faster.
+  const thorny = m === MAT.thorn;
+  // THE CONE STARTS AT HER FEET, and this is the other half of the thorn bug.
+  // It used to start 34 in front of her, and a cone opening forward from a
+  // point 34 ahead does not contain the ground between her and that point: the
+  // angle from the origin back to her own feet is 180 degrees, well outside the
+  // 57 the arc allows. So the one cell that stops her walking - the cell she is
+  // about to step into - was the one cell the fire could never touch. Cells
+  // only ever cleared while they were still far enough ahead to be inside the
+  // cone, which works right up until one is not clear by the time she reaches
+  // it, and then she is stuck against it for good with a lit coal in her hand.
+  //
+  // From her feet, the nearest ground gets the strongest heat, which is also
+  // what the thorn drawing back from her ought to look like.
+  // A short reach for the thorn, so what she opens is a PATH - a corridor about
+  // three cells wide that she has to walk down - rather than a clearing that
+  // melts away in front of her before she gets to it.
+  const took = carve(S.x, S.y + 6, a, thorny ? 46 : 124, 1.0, dt * (thorny ? 1.1 : 3.0), m);
+  // And a coal held out at nothing costs nothing. She used to be able to stand
+  // in a corridor she had already cleared and burn a whole coal down to ash
+  // against thin air, which is what makes this feel broken rather than slow.
+  if (took <= 0.0006) { crackT = 0; return; }
   st.ember = Math.max(0, st.ember - dt * 0.085);
-  carve(S.x + fx * 34, S.y + fy * 34 + 6, a, 124, 1.0, dt * 3.0, m);
   if (Math.random() < dt * 34) {
     spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
       { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
   }
   crackT -= dt; if (crackT <= 0) { crackT = 0.9 + Math.random() * 0.6; sfx.hiss(); }
+}
+
+/** Which way the nearest fire is, in words a child would use. */
+function towardFire() {
+  let best = FIRE, bd = Math.hypot(S.x - FIRE.x, S.y - FIRE.y);
+  for (const h of SHELTERS) {
+    const d = Math.hypot(S.x - h.x, S.y - h.y);
+    if (d < bd) { bd = d; best = h; }
+  }
+  const dx = best.x - S.x, dy = best.y - S.y;
+  const way = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north');
+  return bd < 420 ? `just ${way} of you` : `back ${way}`;
 }
 
 /** Take a bite out of the layer, in a cone in front of her. */
@@ -906,7 +1000,11 @@ function step(dt) {
   const nearBroom = !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
   const nearJam = !jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54;
-  if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
+  const boon = ROOTS.find((r) => r.mat === 'ash');
+  const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 200;
+  if (atBoon && !(st.hasEmber && st.ember > 0.02)) st.prompt = `the coal has gone out — there is a fire ${towardFire()}`;
+  else if (atBoon) st.prompt = 'take it to the root and give it away';
+  else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
   else if (nearJam) st.prompt = 'haul the driftwood out';
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
@@ -940,7 +1038,7 @@ function step(dt) {
   }
 
   // The courtyard, swept. The lamps take it as thanks and light themselves.
-  if (!st.swept && cleared(COURT, MAT.leaves) > 0.72) {
+  if (!st.swept && cleared(COURT, MAT.leaves) > 0.5) {
     st.swept = true;
     sfx.chime(); sfx.boon();
     spark(SHRINE.x, SHRINE.y - 40, 60, { col: ['#ffb35e', '#ffd9a0'], sp0: 30, sp1: 200, l0: 1, l1: 2.2, s0: 3, s1: 7, kind: 'ember' });
@@ -951,10 +1049,30 @@ function step(dt) {
 
   // Any root she frees wakes, whichever it is and whenever she gets to it.
   // Work is never wasted and nothing has to be done in an order.
+  // WHAT COUNTS AS FREEING A ROOT depends on what is on it, and this is where
+  // the thorn was broken. The broom throws leaves wide, so wading a drift until
+  // half of it is gone is a thing that happens by itself. The coal cuts a
+  // CORRIDOR - so asking for half of a 620x520 mat of thorn by area meant
+  // walking the same patch back and forth about ten times, on a coal that only
+  // lasts nine seconds, from a fire 1581 away. Measured: fifty-four seconds of
+  // honest work and two whole coals got 10.4% of the way there.
+  //
+  // So for the two the coal is for, what counts is REACHING THE ROOT. Cut a way
+  // in to it and the whole mat lets go at once, which is what it was always
+  // meant to do. For dead ground she has to arrive with the coal still alight,
+  // and she gives it away - and stands there in the dark until the tree blooms.
   for (const r of ROOTS) {
     if (st.woken[r.id]) continue;
-    const done = r.mat === 'water' ? (drained && drain >= 1) : fraction(r) > 0.52;
-    if (done) wake(r);
+    const near = Math.hypot(S.x - r.at.x, S.y - r.at.y) < 78;
+    let done;
+    if (r.mat === 'water') done = drained && drain >= 1;
+    else if (r.mat === 'thorn') done = near;
+    else if (r.mat === 'ash') done = near && st.hasEmber && st.ember > 0.02;
+    else done = fraction(r) > 0.86;
+    if (done) {
+      if (r.mat === 'ash') { st.hasEmber = false; st.ember = 0; }
+      wake(r);
+    }
   }
 
   if (st.count >= ROOTS.length && !st.ended && Math.hypot(S.x - TREE.x, S.y - TREE.y) < 340) {
@@ -973,8 +1091,27 @@ function step(dt) {
   camera.y += (ty - camera.y) * f;
 }
 
+/** The whole burden lets go at once. Used when she reaches a root under it. */
+function wither(p, m) {
+  const i0 = Math.max(0, (p.x / CELL) | 0), i1 = Math.min(G.w - 1, ((p.x + p.w) / CELL) | 0);
+  const j0 = Math.max(0, (p.y / CELL) | 0), j1 = Math.min(G.h - 1, ((p.y + p.h) / CELL) | 0);
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const q = j * G.w + i;
+      if (G.mat[q] !== m) continue;
+      if (G.dep[q] > 0.05 && Math.random() < 0.05) {
+        spark(i * CELL, j * CELL, 1, { col: MATS[m].col, sp0: 20, sp1: 90, l0: 0.8, l1: 1.8, s0: 3, s1: 7, lift: 40 });
+      }
+      G.dep[q] = 0; G.base[q] = 0;
+    }
+  }
+}
+
 function wake(r) {
   st.woken[r.id] = true;
+  // The last of it comes off the root and the whole burden lets go at once -
+  // the drift, the mat, whatever was lying on it. The work is the uncovering.
+  wither(r.mat === 'water' ? { x: 0, y: 0, w: 0, h: 0 } : r.patch, MAT[r.mat] || 0);
   st.count++;
   st.step++;
   // Whichever root she freed, the tree remembers the next thing it had
