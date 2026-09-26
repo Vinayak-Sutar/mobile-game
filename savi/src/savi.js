@@ -205,6 +205,17 @@ function classify(x, y) {
 
 const CELL = 14;
 const LITTER = 0.16;
+/**
+ * WHEN GROUND IS CLEAR, and there is exactly one of these numbers now.
+ *
+ * There used to be two, and they disagreed. The loose golden leaves stopped
+ * being DRAWN below 0.30, and a cell only COUNTED as clear below 0.22. So
+ * between those two figures a cell showed no leaf whatsoever and still told the
+ * root it was buried: you swept until the gold was gone, stood on bare ground,
+ * and nothing happened, with nothing left on screen to sweep. One number, used
+ * by the drawing and by the counting, or the game is lying to your eyes.
+ */
+const CLEAR = 0.3;
 const MAT = { none: 0, leaves: 1, snow: 2, thorn: 3, ash: 4 };
 const MATS = [
   null,
@@ -311,7 +322,7 @@ function cleared(p, m) {
       const q = j * G.w + i;
       if (G.mat[q] !== m || G.orig[q] < 0.5) continue;
       t++;
-      if (G.dep[q] < 0.22) o++;
+      if (G.dep[q] < CLEAR) o++;
     }
   }
   return t ? o / t : 1;
@@ -339,7 +350,7 @@ function clearedNear(at, rad, m) {
       if (G.mat[q] !== m || G.orig[q] < 0.5) continue;
       if (Math.hypot(i * CELL + 7 - at.x, j * CELL + 7 - at.y) > rad) continue;
       t++;
-      if (G.dep[q] < 0.22) o++;
+      if (G.dep[q] < CLEAR) o++;
     }
   }
   return t ? o / t : 1;
@@ -347,7 +358,7 @@ function clearedNear(at, rad, m) {
 // A circle, not a box: she sweeps in arcs, so the corners of a rectangle were
 // ground she could never quite get to, and the last twenty per cent of the job
 // was chasing them. This is "the ground within a couple of paces of the root".
-const fraction = (r) => clearedNear(r.at, 132, MAT[r.mat]);
+const fraction = (r) => clearedNear(r.at, 118, MAT[r.mat]);
 
 // --- particles --------------------------------------------------------------------------------
 
@@ -1138,7 +1149,7 @@ function step(dt) {
     if (r.mat === 'water') done = drained && drain >= 1;
     else if (r.mat === 'thorn') done = near;
     else if (r.mat === 'ash') done = near && st.hasEmber && st.ember > 0.02;
-    else done = fraction(r) > 0.86;
+    else done = fraction(r) > 0.8;
     if (done) {
       if (r.mat === 'ash') { st.hasEmber = false; st.ember = 0; }
       wake(r);
@@ -1221,7 +1232,7 @@ function drawLayer(c) {
   for (let j = j0; j <= j1; j += 2) {
     for (let i = i0; i <= i1; i += 2) {
       const q = j * G.w + i, m = G.mat[q];
-      if (!m || G.dep[q] < 0.3) continue;
+      if (!m || G.dep[q] < CLEAR * 0.66) continue;
       const h = vn(i * 3.1, j * 7.7);
       const lx = i * CELL + h * CELL, ly = j * CELL + vn(i * 5.3, j * 2.9) * CELL;
       c.save();
@@ -1235,7 +1246,9 @@ function drawLayer(c) {
         c.translate(lx, ly);
         c.rotate(h * TAU);
       }
-      c.globalAlpha = Math.min(1, G.dep[q]);
+      // Thinning out as the cell approaches clear, so the last of it goes
+      // gradually and she can see she is nearly there.
+      c.globalAlpha = Math.min(1, G.dep[q]) * clamp01((G.dep[q] - CLEAR * 0.66) / (CLEAR * 0.5));
       if (m === MAT.thorn) {
         c.strokeStyle = '#120d18'; c.lineWidth = 2.2;
         c.beginPath(); c.moveTo(-7, 4); c.lineTo(0, -9); c.lineTo(7, 3); c.stroke();
@@ -1292,6 +1305,7 @@ function render() {
 
   drawShrine(ctx, SHRINE, st.t, st.swept ? 1 : 0);
   for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t, r === current());
+  drawRootProgress(ctx);
 
   drawHollow(ctx);
   drawSluice(ctx, st.t, drained);
@@ -1379,6 +1393,39 @@ function drawHollow(ctx) {
   }
 }
 
+/**
+ * HOW MUCH OF A ROOT IS FREE, drawn on the root itself.
+ *
+ * Only for the two the broom is for - the others announce themselves, since
+ * walking towards a root through thorn, or hauling a jam apart, tell you where
+ * you are without a dial. But sweeping a drift gave no sign of progress at all
+ * until the instant it finished, so there was no way to tell "nearly" from
+ * "this is not working", and no reason to keep going.
+ */
+function drawRootProgress(ctx) {
+  for (const r of ROOTS) {
+    if (st.woken[r.id] || (r.mat !== 'leaves' && r.mat !== 'snow')) continue;
+    const d = Math.hypot(S.x - r.at.x, S.y - r.at.y);
+    if (d > 460) continue;
+    const k = clamp01(fraction(r) / 0.8);
+    const a = clamp01((460 - d) / 160) * (0.35 + k * 0.5);
+    const rad = 126;
+    ctx.save();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = `rgba(240,226,203,${a * 0.22})`;
+    ctx.beginPath(); ctx.ellipse(r.at.x, r.at.y, rad, rad * 0.62, 0, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(255,${(180 + k * 60) | 0},${(94 + k * 90) | 0},${a})`;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.ellipse(r.at.x, r.at.y, rad, rad * 0.62, 0, -Math.PI / 2, -Math.PI / 2 + TAU * k);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // And the root itself glowing warmer the nearer it is to breathing.
+    if (k > 0.04) glow(ctx, r.at.x, r.at.y, 90 + k * 90, `rgba(255,170,80,${0.05 + k * 0.16})`);
+    ctx.restore();
+  }
+}
+
 function drawHud() {
   ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.textAlign = 'left';
@@ -1387,7 +1434,10 @@ function drawHud() {
   const cur = current();
   if (cur && !st.ended) {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
-    ctx.fillText(`the tree is reaching — ${cur.hint}`, 22, 50);
+    const near = Math.hypot(S.x - cur.at.x, S.y - cur.at.y) < 460;
+    const pc = near && (cur.mat === 'leaves' || cur.mat === 'snow')
+      ? ` — ${Math.min(99, Math.round(clamp01(fraction(cur) / 0.8) * 100))}% uncovered` : '';
+    ctx.fillText(`the tree is reaching — ${cur.hint}${pc}`, 22, 50);
   }
   // This bar is the COAL burning down, and nothing else. The broom never runs
   // out - it is a broom.
