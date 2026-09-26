@@ -33,8 +33,9 @@ import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
-  POOL, ISLE, JAM, LEAVES, deepBand, onIsle, leafAt, stepShallows, haul, jamClear,
-  drawDeep, drawSluice, drawLeaves,
+  POOL, SHELF, ISLES, SLUICE, LEAVES, FERRY, CAPSTAN, onIsle, leafAt,
+  GATE as SLUICE_GATE, stepShallows, windCapstan, gateOpen, gateLift,
+  drawDeep, drawIsles, drawSluice, drawLeaves,
 } from './savi-shallows.js';
 import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
@@ -73,7 +74,7 @@ const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26,
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
   choice: { at: { x: 1160, y: 2340 }, patch: { x: 880, y: 2060, w: 620, h: 540 }, mat: 'leaves' },
-  fall: { at: { x: 4440, y: 2170 }, patch: { x: 3200, y: 1700, w: 1900, h: 1020 }, mat: 'water' },
+  fall: { at: { x: 4500, y: 2212 }, patch: { x: 2900, y: 1420, w: 2300, h: 1560 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
   boon: { at: { x: 2600, y: 420 }, patch: { x: 2250, y: 220, w: 700, h: 440 }, mat: 'ash' },
@@ -120,7 +121,10 @@ const COURT = { x: SHRINE.x - 270, y: SHRINE.y - 120, w: 540, h: 300 };
 // the gate behind one of the avenue trees. And wherever she puts it down, that
 // is where it will be next time she wants it - nobody should have to go looking
 // through a valley for a broom.
-const BROOM_HOME = { x: 2366, y: 1852 };
+// Far enough from the keeper that their two radii do not overlap: the broom is
+// picked up from 74 and she is spoken to from 104, so anything closer than 178
+// means one of them silently eats the other's press.
+const BROOM_HOME = { x: 2296, y: 1932 };
 const broom = { x: BROOM_HOME.x, y: BROOM_HOME.y, held: false };
 /** Young banyans, one per freed root, each with its beat carved into it. */
 const YOUNG = [];
@@ -184,9 +188,10 @@ function classify(x, y) {
   // is over her head. Once it has let go the whole bowl is a marsh.
   const k = pondK(x, y);
   if (k < 1.0) {
-    if (onIsle(x, y)) return TT.ROCK;                 // the hummock, above the water
+    const isle = onIsle(x, y);
+    if (isle) return isle.kind === 'stone' ? TT.ROCK : TT.SAND;
     if (drained) return k < 0.55 ? TT.SHALLOW : TT.MUD;
-    return deepBand(x, y) ? TT.WATER : TT.SHALLOW;
+    return k < SHELF ? TT.WATER : TT.SHALLOW;
   }
   const n = fbm(x * 0.0016, y * 0.0016);
   if (roadDist(x, y) < 46) return TT.DIRT;
@@ -340,15 +345,20 @@ function cleared(p, m) {
  * the root is.
  */
 /** How much of the ground within `rad` of a point is clear of `m`. */
-function clearedNear(at, rad, m) {
-  const i0 = Math.max(0, ((at.x - rad) / CELL) | 0), i1 = Math.min(G.w - 1, ((at.x + rad) / CELL) | 0);
-  const j0 = Math.max(0, ((at.y - rad) / CELL) | 0), j1 = Math.min(G.h - 1, ((at.y + rad) / CELL) | 0);
+const GOAL = { rx: 126, ry: 78 };
+function clearedNear(at, m) {
+  const i0 = Math.max(0, ((at.x - GOAL.rx) / CELL) | 0), i1 = Math.min(G.w - 1, ((at.x + GOAL.rx) / CELL) | 0);
+  const j0 = Math.max(0, ((at.y - GOAL.ry) / CELL) | 0), j1 = Math.min(G.h - 1, ((at.y + GOAL.ry) / CELL) | 0);
   let t = 0, o = 0;
-  for (let j = j0; j <= j1; j++) {
-    for (let i = i0; i <= i1; i++) {
+  // Even cells only: drawLayer draws a loose leaf from every other cell, so
+  // three counted cells in four never showed one. What is counted is now
+  // exactly what she can see lying there.
+  for (let j = j0 & ~1; j <= j1; j += 2) {
+    for (let i = i0 & ~1; i <= i1; i += 2) {
       const q = j * G.w + i;
       if (G.mat[q] !== m || G.orig[q] < 0.5) continue;
-      if (Math.hypot(i * CELL + 7 - at.x, j * CELL + 7 - at.y) > rad) continue;
+      const dx = (i * CELL + 7 - at.x) / GOAL.rx, dy = (j * CELL + 7 - at.y) / GOAL.ry;
+      if (dx * dx + dy * dy > 1) continue;
       t++;
       if (G.dep[q] < CLEAR) o++;
     }
@@ -358,7 +368,7 @@ function clearedNear(at, rad, m) {
 // A circle, not a box: she sweeps in arcs, so the corners of a rectangle were
 // ground she could never quite get to, and the last twenty per cent of the job
 // was chasing them. This is "the ground within a couple of paces of the root".
-const fraction = (r) => clearedNear(r.at, 118, MAT[r.mat]);
+const fraction = (r) => clearedNear(r.at, MAT[r.mat]);
 
 // --- particles --------------------------------------------------------------------------------
 
@@ -427,7 +437,8 @@ const S = {
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
   bloom: 0, bloomK: 0, warmth: 0, ended: false, started: false,
-  talking: null, nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
+  talking: null, reading: null, metKeeper: false,
+  nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -509,6 +520,7 @@ function pollPad() {
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
+let ripT = 0;              // and the water is only allowed a ring so often
 
 // A little run, not a combat roll. Ashfall dashes 156 units in 0.17 s, which
 // out here would put her across a drift in one press; hers goes about 90, and
@@ -522,13 +534,28 @@ let dashT = 0, dashDir = 0, dashStock = DASH_MAX, dashRecharge = 0, dashWant = f
 // the air, 207. Those two numbers ARE the water level: every channel over there
 // is wider than 207 so she cannot skip it, and every gap between one leaf and
 // the next is under 116 except the single one that teaches the dash.
-const JUMP_V = 350, GRAV = 1180;
-let jumpWant = false, onLeaf = null;
+// THE JUMP, with the affordances every platformer has and this one did not.
+//
+//   COYOTE TIME   you can still jump for a moment after walking off an edge
+//   A BUFFER      a jump pressed just before landing fires on landing instead
+//                 of being thrown away, which is what it used to do
+//   VARIABLE      letting go early cuts the arc short
+//   HEAVY FALL    she comes down faster than she goes up, which is what makes
+//                 a jump feel weighted instead of floaty
+//   APEX HANG     gravity eases at the top, so there is a beat of control there
+//
+// Between them these are most of "a few jumps are not possible": the gaps
+// always measured fine, because the measurement pressed the button on the
+// perfect frame and a person does not.
+const JUMP_V = 350, GRAV_UP = 1180, GRAV_DOWN = 1600;
+const COYOTE = 0.12, BUFFER = 0.14;
+let jumpWant = 0, coyote = 0, held = false, wasHeld = false, onLeaf = null;
 
 function startJump() {
-  if (S.z > 0.5 || st.talking || st.reading) return;
+  if (st.talking || st.reading) return;
   S.vz = JUMP_V;
   S.z = 0.6;
+  jumpWant = 0; coyote = 0; wasHeld = true;
   sfx.click();
   // Whatever she is standing on pushes back.
   if (onLeaf) { onLeaf.sink = Math.min(1, onLeaf.sink + 0.14); water.splash(S.x, S.y + 6, 70, 1.1); }
@@ -540,7 +567,11 @@ function startJump() {
 }
 
 /** Deep water is a wall. A leaf on it, or being in the air, is not. */
-const isDeep = (x, y) => !drained && pondK(x, y) < 1.0 && deepBand(x, y) && !onIsle(x, y);
+// Deep water: inside the bowl, inside the shelf, and not standing on an island.
+// The shelf is a wadeable rim all the way round the lake, so she can paddle its
+// edge; the deep is a lens lying in the middle of it, and the only way over
+// that is the leaves. savi/tools/check-level.mjs proves there is no way round.
+const isDeep = (x, y) => !drained && pondK(x, y) < SHELF && !onIsle(x, y);
 const supported = (x, y) => !isDeep(x, y) || !!leafAt(x, y);
 
 /** In she goes - which costs her nothing but the walk back. */
@@ -554,28 +585,37 @@ function fallIn() {
   camera.y = clamp(S.y - view.h / 2, 0, Math.max(0, V.h - view.h));
 }
 
-/** The jam in the sluice gate: one haul a press, and four of them frees it. */
-function doHaul() {
-  S.act = 0.45;
-  S.sweep = Math.sin(st.t * 9) * 0.5;
-  sfx.rattle(); sfx.thud();
-  rumble(0.4, 0.25, 120);
-  water.splash(JAM.x - 30, JAM.y, 130, 1.8);
-  spark(JAM.x - 20, JAM.y, 14, { col: ['#6d5432', '#42311f', '#8a6a34'], sp0: 40, sp1: 190, l0: 0.5, l1: 1.4, s0: 4, s1: 9, lift: 40 });
-  if (!haul()) {
-    const n = JAM.need - JAM.hauls;
-    st.prompt = n > 1 ? `it gives — ${n} more` : 'it is nearly out';
-    return;
+/**
+ * THE CAPSTAN. She opens the sluice by walking the bar round, not by pressing a
+ * button four times: it is something a child can plainly do, it gives back
+ * something the whole way round, and stopping costs nothing.
+ */
+let lastTurn = 0;
+function stepCapstan(dt) {
+  if (drained) return;
+  const moving = S.speed > 30 && S.z <= 0.5;
+  const opened = windCapstan(S.x, S.y, moving);
+  // A creak of rope for every eighth of a turn, so it sounds like work.
+  if (CAPSTAN.turns > lastTurn + 0.125) {
+    lastTurn = CAPSTAN.turns;
+    sfx.clack(0.7);
+    rumble(0.18, 0.1, 60);
+    if (Math.random() < 0.5) {
+      spark(SLUICE_GATE.x, SLUICE_GATE.y + rand(-30, 30), 1,
+        { col: ['#bfe0e8', '#8fbcc8'], sp0: 20, sp1: 90, l0: 0.4, l1: 1, s0: 2, s1: 5, kind: 'drop' });
+    }
   }
-  // Free. The hollow empties down the sluice, and the land itself changes.
+  if (CAPSTAN.turns < lastTurn) lastTurn = CAPSTAN.turns;
+  if (!opened) return;
+  // Open. The hollow empties down it, and the land itself changes.
+  sfx.bossDown();
   drained = true;
   terrain.invalidate(POND.x - POND.rx - 300, POND.y - POND.ry - 300,
     POND.x + POND.rx + 300, POND.y + POND.ry + 300);
   terrain.warm(camera.x, camera.y, view.w, view.h);
-  sfx.bossDown();
-  water.splash(JAM.x, JAM.y, 420, 4.4);
-  spark(JAM.x, JAM.y, 110, { col: ['#bfe0e8', '#c6e2ea', '#8fbcc8'], sp0: 120, sp1: 460, l0: 0.9, l1: 2.1, s0: 4, s1: 10, kind: 'drop' });
-  rumble(0.8, 0.5, 300);
+  water.splash(SLUICE_GATE.x, SLUICE_GATE.y, 420, 4.4);
+  spark(SLUICE_GATE.x, SLUICE_GATE.y, 110, { col: ['#bfe0e8', '#c6e2ea', '#8fbcc8'], sp0: 120, sp1: 460, l0: 0.9, l1: 2.1, s0: 4, s1: 10, kind: 'drop' });
+  rumble(0.9, 0.6, 340);
 }
 
 function startDash() {
@@ -666,7 +706,7 @@ let strokeN = 0;                                        // so only every other o
 function beginStroke() {
   if (stroke || st.talking || st.reading) return false;
   // The jam is hauled, never swept.
-  if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) return false;
+  if (!drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) return false;
   // A BROOM IN HER HAND ALWAYS SWEEPS. It used to refuse unless it found
   // something worth its while within two point samples, so half the presses did
   // nothing at all - no swing, no sound, no answer of any kind - which is the
@@ -674,11 +714,19 @@ function beginStroke() {
   // is a separate question, answered by the carve.
   if (!broom.held) return false;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
-  let m = 0, deepest = 0;
+  let m = 0, deepest = 0, burny = 0;
   for (let d = 0; d <= 70; d += 14) {
     const c = depAt(S.x + fx * d, S.y + fy * d + 6);
-    if (c.m && c.m !== MAT.thorn && c.m !== MAT.ash && c.d > deepest) { deepest = c.d; m = c.m; }
+    if (!c.m) continue;
+    if (c.m === MAT.thorn || c.m === MAT.ash) { if (c.d > burny) burny = c.d; continue; }
+    if (c.d > deepest) { deepest = c.d; m = c.m; }
   }
+  // THE COAL BEATS THE BROOM at thorn and dead ground, and this one line is why
+  // the thorn root could not be cleared at all. Holding the button repeats
+  // strokes, a stroke blocks actHold for the whole 0.37s it lasts, and actHold
+  // is the only thing that removes thorn - so with a broom in her hand the coal
+  // worked at about one frame in twenty-two while the HUD cheerfully said HOLD.
+  if (burny > 0.12) return false;
   stroke = { t: 0, side: (S.lastSide = -(S.lastSide || 1)), mat: m || MAT.leaves, dry: deepest < 0.24 };
   sfx.swish(stroke.dry ? 0.7 : 1);
   return true;
@@ -783,7 +831,7 @@ function actHold(dt) {
   // And a coal held out at nothing costs nothing. She used to be able to stand
   // in a corridor she had already cleared and burn a whole coal down to ash
   // against thin air, which is what makes this feel broken rather than slow.
-  if (took <= 0.0006) { crackT = 0; return; }
+  if (took <= 0.0006) { crackT = 0; S.act = 0; return; }
   st.ember = Math.max(0, st.ember - dt * 0.085);
   if (Math.random() < dt * 34) {
     spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
@@ -856,7 +904,12 @@ function carve(x, y, a, r, arc, power, m) {
       const t = Math.min(G.dep[q], (0.45 + (1 - d / r) * (1 - da / arc)) * power);
       if (t <= 0) continue;
       G.dep[q] -= t;
-      G.base[q] = Math.min(G.base[q], Math.max(m === MAT.leaves ? LITTER : 0, G.dep[q] + 0.05));
+      // What is carved stays carved. Thorn is held below the depth that blocks
+      // her, or a corridor heals shut behind her and she is walled in.
+      const floor = m === MAT.leaves ? LITTER : 0;
+      let base = Math.max(floor, G.dep[q] + 0.05);
+      if (m === MAT.thorn) base = Math.min(base, 0.5);
+      G.base[q] = Math.min(G.base[q], base);
       took += t;
     }
   }
@@ -885,7 +938,7 @@ function step(dt) {
   st.t += dt;
   world.runTime = st.t;
   pollPad();
-  if (pad.pressed) { begin(); if (st.talking) advance(); }
+  if (pad.pressed) { begin(); if (st.talking || st.reading) advance(); }
   // A CONVERSATION ON A CONTROLLER. The choices were pointer-only, so with a
   // pad in your hands the game simply stopped at the first thing she asks.
   if (st.talking && st.talking.keeper) {
@@ -894,7 +947,8 @@ function step(dt) {
     if (pad.pressed || pad.jumpPressed) pickSel();
     return;
   }
-  if (pad.jumpPressed) { begin(); if (st.talking) advance(); else jumpWant = true; }
+  if (pad.jumpPressed) { begin(); if (st.talking || st.reading) advance(); else jumpWant = BUFFER; }
+  held = pad.jumpHeld || keys.has(' ');
   if (pad.dropPressed) dropBroom();
   if (pad.dashPressed) { begin(); dashWant = true; }
   holding = keys.has('e') || touch.ring || pad.held;   // space is the jump now
@@ -905,27 +959,23 @@ function step(dt) {
   // standing in the middle of - every press there would open her mouth instead.
   if (holding && !wasHolding) {
     tapDone = false;
-    const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
-    // Close enough to talk to her, the press talks. A step back from that and
-    // the broom has it again - or she could never sweep the courtyard the
-    // keeper is standing in the middle of, and with a broom in hand she could
-    // never talk to her at all.
-    const atKeeper = !st.talking && !st.reading && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
-    if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) {
-      doHaul(); tapDone = true;
-    } else if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
-      // Standing over the broom, the press picks up the broom. It leans within
-      // arm's reach of the keeper, so this has to come before she does.
+    // WHO GETS THE PRESS, and the order is the whole of it. Reading a mural
+    // used to sit AFTER the broom stroke, and since a broom in hand always
+    // swings, a player carrying the broom could never read one.
+    const busy = st.talking || st.reading;
+    const yt = !busy && YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
+    const atKeeper = !busy && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
+    if (yt) {
+      openReading(yt); tapDone = true;
+    } else if (!busy && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
       broom.held = true; tapDone = true; sfx.pickup();
     } else if (atKeeper) {
       talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
       st.metKeeper = true;
       tapDone = true;
-    } else if (broom.held && beginStroke()) {
+    } else if (!busy && beginStroke()) {
       tapDone = true;                           // one press, one sweep
-    } else if (yt) {
-      openReading(yt); tapDone = true;
-    } else if (beginStroke()) tapDone = true;
+    }
   }
   if (!holding) tapDone = false;
   wasHolding = holding;
@@ -935,18 +985,44 @@ function step(dt) {
 
   if (st.talking || st.reading) { stepParticles(dt); return; }
 
+  stepCapstan(dt);
   // The leaves first, so a drifting one carries her with it.
   stepShallows(dt, st.t, drained ? null : onLeaf);
   if (onLeaf && !drained && S.z <= 0.5) { S.x += onLeaf.dx; S.y += onLeaf.dy; }
 
   // The jump, and the fall.
-  if (jumpWant) { jumpWant = false; startJump(); }
+  const grounded = S.z <= 0.5;
+  coyote = grounded ? COYOTE : Math.max(0, coyote - dt);
+  jumpWant = Math.max(0, jumpWant - dt);
+  if (jumpWant > 0 && (grounded || coyote > 0)) startJump();
   if (S.z > 0 || S.vz !== 0) {
-    S.vz -= GRAV * dt;
+    // Letting go early cuts it short - ONCE, on the frame she lets go. Applied
+    // every frame instead, as it was, 0.45 compounds to nothing in a fifth of a
+    // second and the jump dies on the spot.
+    if (S.vz > 0 && wasHeld && !held) S.vz *= 0.45;
+    wasHeld = held;
+    const g = S.vz > 0 ? GRAV_UP : GRAV_DOWN;
+    S.vz -= g * (Math.abs(S.vz) < 60 ? 0.62 : 1) * dt;
     S.z += S.vz * dt;
     if (S.z <= 0) {
       S.z = 0; S.vz = 0;
       onLeaf = leafAt(S.x, S.y);
+      if (!onLeaf && isDeep(S.x, S.y)) {
+        // Landing snap: a hand's breadth short of a leaf is on it, not in the
+        // water. Every platformer does this and nobody notices it but the
+        // player who would otherwise have fallen.
+        for (const L of LEAVES) {
+          if (L.sink >= 1) continue;
+          const d = Math.hypot(S.x - L.x, S.y - (L.y + L.dip));
+          if (d < L.r * 0.9 + 13) {
+            const k = (L.r * 0.86) / d;
+            S.x = L.x + (S.x - L.x) * k;
+            S.y = L.y + L.dip + (S.y - L.y - L.dip) * k;
+            onLeaf = L;
+            break;
+          }
+        }
+      }
       if (!supported(S.x, S.y)) fallIn();
       else if (onLeaf) { sfx.thud(); water.splash(S.x, S.y + 6, 90, 1.4); }
       else {
@@ -1033,7 +1109,9 @@ function step(dt) {
       const gf = groundFx(S.x, S.y + 6);
       if (gf && gf.wet) {
         // Not sfx.splash(). A splash is a body going in; this is a foot in two
-        // inches of water, and it happens twice a second while she wades.
+        // inches of water, and it happens twice a second while she wades. And
+        // no ring from here either - wilds-water.js already puts one out for
+        // every step, so this was making two of everything.
         sfx.wade();
         spark(S.x, S.y + 6, 4, { col: gf.col, sp0: 30, sp1: 120, l0: 0.3, l1: 0.7, s0: 2, s1: 5, kind: 'drop', lift: 44 });
       } else if (gf) {
@@ -1080,13 +1158,17 @@ function step(dt) {
   st.prompt = '';
   const nearBroom = !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
-  const nearJam = !jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54;
+  const atCapstan = !drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40;
   const boon = ROOTS.find((r) => r.mat === 'ash');
   const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 200;
   if (atBoon && !(st.hasEmber && st.ember > 0.02)) st.prompt = `the coal has gone out — there is a fire ${towardFire()}`;
   else if (atBoon) st.prompt = 'take it to the root and give it away';
   else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
-  else if (nearJam) st.prompt = 'haul the driftwood out';
+  else if (atCapstan) {
+    st.prompt = CAPSTAN.turns < 0.08
+      ? 'walk round the capstan to raise the gate'
+      : `the gate is coming up — ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
+  }
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
   else if (onLeaf) st.prompt = 'jump';
@@ -1111,9 +1193,12 @@ function step(dt) {
   if (drained && drain < 1) {
     drain = Math.min(1, drain + dt / 5);
     // It goes down the sluice for a few seconds, and hard.
-    water.splash(JAM.x + rand(-30, 30), JAM.y + rand(-50, 50), 100, 1.8);
+    // ONE ring every third of a second, not one every frame. This line used to
+    // put about three hundred expanding rings on the water in five seconds.
+    ripT -= dt;
+    if (ripT <= 0) { ripT = 0.34; water.splash(SLUICE_GATE.x + rand(-20, 20), SLUICE_GATE.y + rand(-30, 30), 110, 1.6); }
     if (Math.random() < dt * 30) {
-      spark(JAM.x + rand(-20, 20), JAM.y + rand(-40, 40), 1,
+      spark(SLUICE_GATE.x + rand(-20, 20), SLUICE_GATE.y + rand(-40, 40), 1,
         { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], angle: 0.1, arc: 1.2, sp0: 120, sp1: 340, l0: 0.5, l1: 1.2, s0: 3, s1: 7, kind: 'drop' });
     }
   }
@@ -1213,7 +1298,9 @@ function drawLayer(c) {
   const d = G.img.data, dep = G.dep;
   for (let q = 0, p = 3, n = dep.length; q < n; q++, p += 4) {
     const v = dep[q];
-    d[p] = v < 0.06 ? 0 : (v > 0.98 ? 250 : (40 + v * 215) | 0);
+    // Fading to nothing as a cell approaches clear, instead of sitting at two
+    // fifths opaque at the exact depth that counts as cleared.
+    d[p] = v < 0.06 ? 0 : (v > 0.98 ? 246 : ((v - 0.06) * 262) | 0);
   }
   G.cx.putImageData(G.img, 0, 0);
   c.drawImage(G.cv, 0, 0, V.w, V.h);
@@ -1308,6 +1395,7 @@ function render() {
   drawRootProgress(ctx);
 
   drawHollow(ctx);
+  drawIsles(ctx, st.t);
   drawSluice(ctx, st.t, drained);
   drawLeaves(ctx, st.t, drained);
 
@@ -1404,20 +1492,33 @@ function drawHollow(ctx) {
  */
 function drawRootProgress(ctx) {
   for (const r of ROOTS) {
-    if (st.woken[r.id] || (r.mat !== 'leaves' && r.mat !== 'snow')) continue;
+    if (st.woken[r.id]) continue;
     const d = Math.hypot(S.x - r.at.x, S.y - r.at.y);
     if (d > 460) continue;
+    if (r.mat === 'thorn' || r.mat === 'ash') {
+      // These two are not cleared, they are REACHED, so the mark is a target
+      // and not a dial. They were the only roots with no readout at all, and
+      // they are the ones whose goal is least obvious.
+      const pulse = 0.5 + 0.5 * Math.sin(st.t * 2.2);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255,190,110,${clamp01((460 - d) / 200) * (0.25 + pulse * 0.3)})`;
+      ctx.lineWidth = 4;
+      ctx.setLineDash([10, 12]);
+      ctx.beginPath(); ctx.ellipse(r.at.x, r.at.y, 78, 48, 0, st.t * 0.3, st.t * 0.3 + TAU); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+      continue;
+    }
     const k = clamp01(fraction(r) / 0.8);
     const a = clamp01((460 - d) / 160) * (0.35 + k * 0.5);
-    const rad = 126;
     ctx.save();
     ctx.lineWidth = 5;
     ctx.strokeStyle = `rgba(240,226,203,${a * 0.22})`;
-    ctx.beginPath(); ctx.ellipse(r.at.x, r.at.y, rad, rad * 0.62, 0, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(r.at.x, r.at.y, GOAL.rx, GOAL.ry, 0, 0, TAU); ctx.stroke();
     ctx.strokeStyle = `rgba(255,${(180 + k * 60) | 0},${(94 + k * 90) | 0},${a})`;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.ellipse(r.at.x, r.at.y, rad, rad * 0.62, 0, -Math.PI / 2, -Math.PI / 2 + TAU * k);
+    ctx.ellipse(r.at.x, r.at.y, GOAL.rx, GOAL.ry, 0, -Math.PI / 2, -Math.PI / 2 + TAU * k);
     ctx.stroke();
     ctx.lineCap = 'butt';
     // And the root itself glowing warmer the nearer it is to breathing.
@@ -1801,6 +1902,7 @@ function main() {
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
   grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => pondK(x, y) < 1.05 && !onIsle(x, y) });
   water = createWildsWater();
+  water.setCalm(2.6);          // a lake this wide has too much shore to lap at
   sowScenery();
   resize();
   camera.x = clamp(S.x - view.w / 2, 0, Math.max(0, V.w - view.w));
@@ -1820,8 +1922,8 @@ function main() {
     if (k === 'shift' || k === 'x') { begin(); dashWant = true; e.preventDefault(); }
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
-      if (st.talking) advance();
-      else if (k === ' ') jumpWant = true;
+      if (st.talking || st.reading) advance();
+      else if (k === ' ') jumpWant = BUFFER;
       e.preventDefault();
     }
   });
@@ -1837,10 +1939,10 @@ function main() {
   cv.addEventListener('pointerdown', (e) => {
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
-    if (st.talking) { advance(); return; }
+    if (st.talking || st.reading) { advance(); return; }
     const sc = view.scale || 1;
     if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
-    if (Math.hypot(e.clientX / sc - jumpRing.x, e.clientY / sc - jumpRing.y) < jumpRing.r) { jumpWant = true; return; }
+    if (Math.hypot(e.clientX / sc - jumpRing.x, e.clientY / sc - jumpRing.y) < jumpRing.r) { jumpWant = BUFFER; return; }
     if (Math.hypot(e.clientX / sc - dashRing.x, e.clientY / sc - dashRing.y) < dashRing.r) { dashWant = true; return; }
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
       touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
@@ -1881,8 +1983,9 @@ function main() {
 
 main();
 window.savi = {
-  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, JAM, ISLE, POND, LEAVES, broom, YOUNG, render, resize, begin, say, advance, fraction,
-  jump() { jumpWant = true; step(1 / 60); },
+  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, SLUICE, ISLES, POND, LEAVES, FERRY, broom, YOUNG,
+  render, resize, begin, say, advance, fraction, gateOpen, gateLift,
+  jump() { jumpWant = BUFFER; step(1 / 60); },
   isDeep, supported, leafAt, get onLeaf() { return onLeaf; },
   litterAt: (x, y) => litterAt(x, y, { dx: 0, dy: 0, sp: 0 }), breezeAt,
   get terrain() { return terrain; }, get drained() { return drained; }, get drain() { return drain; },

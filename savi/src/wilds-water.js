@@ -43,7 +43,7 @@ export function createWildsWater() {
     hgt: null, vel: null, wet: null,
     canvas: null, cx: null, img: null,
     ripples: [], lapT: 0, dripT: 0, stepT: 0, lastP: null,
-    any: false, t: 0, tint: TINTS.clear,
+    any: false, t: 0, tint: TINTS.clear, calm: 1,
   };
 
   const isWet = (t) => t === TT.WATER || t === TT.SHALLOW;
@@ -127,7 +127,9 @@ export function createWildsWater() {
   }
 
   function ripple(x, y, r0, r1, life, alpha) {
-    if (S.ripples.length > 40) S.ripples.shift();
+    // Eighteen, not forty. Over a lake this size they were stacking into a
+    // moire and the surface never once held still.
+    if (S.ripples.length > 18) S.ripples.shift();
     S.ripples.push({ x, y, r0, r1, t: 0, life, alpha });
   }
 
@@ -181,8 +183,9 @@ export function createWildsWater() {
           disturb(p.x, p.y + p.r * 0.5, p.r, -Math.min(sp, 1400) * 0.0009);
           S.stepT -= dt;
           if (S.stepT <= 0) {
-            ripple(p.x, p.y + p.r * 0.5, p.r * 0.5, p.r * 2.6, 0.8, p.dashing || p.ghost ? 0.5 : 0.32);
-            S.stepT = p.dashing || p.ghost ? 0.05 : 0.26;
+            ripple(p.x, p.y + p.r * 0.5, p.r * 0.5, p.r * 2.6, 0.8, p.dashing || p.ghost ? 0.42 : 0.28);
+            // A dash used to throw a ring every three frames.
+            S.stepT = p.dashing || p.ghost ? 0.14 : 0.34;
           }
         }
       }
@@ -198,14 +201,14 @@ export function createWildsWater() {
     // Waves lapping in at the shore.
     S.lapT -= dt;
     if (S.lapT <= 0) {
-      S.lapT = rand(0.18, 0.4);
+      S.lapT = rand(0.18, 0.4) * S.calm;
       const c = randomCell(true);
       if (c) disturb(c.x, c.y, 26, rand(0.35, 0.7));
     }
     // A fish rising, a drip - something now and then out on the open water.
     S.dripT -= dt;
     if (S.dripT <= 0) {
-      S.dripT = rand(0.25, 0.9);
+      S.dripT = rand(0.25, 0.9) * S.calm;
       const c = randomCell(false);
       if (c) { disturb(c.x, c.y, 14, -rand(0.6, 1.1)); ripple(c.x, c.y, 2, rand(18, 36), 1, 0.3); }
     }
@@ -260,6 +263,13 @@ export function createWildsWater() {
     /** 'clear' or 'swamp': the colour its glints and rings take. */
     setTint(name) { S.tint = TINTS[name] || TINTS.clear; },
     splash(x, y, r, amt) { disturb(x, y, r, amt); ripple(x, y, r * 0.4, r * 2.4, 1, 0.5); },
+    /**
+     * How still the water is when nothing is touching it. The lapping and the
+     * drips fire on timers tuned for a pond a few hundred units across; over a
+     * lake two thousand wide there is several times as much shore on screen at
+     * once, so at calm 1 it never stops twitching. Higher is quieter.
+     */
+    setCalm(k) { S.calm = Math.max(0.2, k); },
     wetAt,
     /** For tests: how much of the grid is water. */
     stats: () => ({ w: S.w, h: S.h, any: S.any }),
