@@ -550,6 +550,13 @@ let dashT = 0, dashDir = 0, dashStock = DASH_MAX, dashRecharge = 0, dashWant = f
 const JUMP_V = 350, GRAV_UP = 1180, GRAV_DOWN = 1600;
 const COYOTE = 0.12, BUFFER = 0.14;
 let jumpWant = 0, coyote = 0, held = false, wasHeld = false, onLeaf = null;
+/**
+ * The last thing she actually stood on - a leaf, or an island. Missing a jump
+ * used to send her back to the last DRY ground, which halfway across meant the
+ * shore, and losing four hops for one miss is not a cozy game. She goes back to
+ * the leaf she jumped from now, and the crossing costs a couple of seconds.
+ */
+let footing = null;
 
 function startJump() {
   if (st.talking || st.reading) return;
@@ -574,12 +581,18 @@ function startJump() {
 const isDeep = (x, y) => !drained && pondK(x, y) < SHELF && !onIsle(x, y);
 const supported = (x, y) => !isDeep(x, y) || !!leafAt(x, y);
 
-/** In she goes - which costs her nothing but the walk back. */
+/** In she goes - which costs her a moment and nothing else. */
 function fallIn() {
   water.splash(S.x, S.y + 6, 220, 2.6);
   spark(S.x, S.y + 6, 26, { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], sp0: 60, sp1: 260, l0: 0.5, l1: 1.3, s0: 3, s1: 8, kind: 'drop', lift: 70 });
   sfx.splash();
-  S.x = S.safeX; S.y = S.safeY;
+  // Back onto the leaf she left, if it is still up - not all the way to the
+  // shore. One miss should cost one hop.
+  if (footing && footing.sink !== undefined && footing.sink < 0.9) {
+    S.x = footing.x; S.y = footing.y + (footing.dip || 0);
+  } else if (footing) {
+    S.x = footing.x; S.y = footing.y;
+  } else { S.x = S.safeX; S.y = S.safeY; }
   S.z = 0; S.vz = 0; onLeaf = null;
   camera.x = clamp(S.x - view.w / 2, 0, Math.max(0, V.w - view.w));
   camera.y = clamp(S.y - view.h / 2, 0, Math.max(0, V.h - view.h));
@@ -999,7 +1012,7 @@ function step(dt) {
     // Letting go early cuts it short - ONCE, on the frame she lets go. Applied
     // every frame instead, as it was, 0.45 compounds to nothing in a fifth of a
     // second and the jump dies on the spot.
-    if (S.vz > 0 && wasHeld && !held) S.vz *= 0.45;
+    if (S.vz > 0 && wasHeld && !held) S.vz *= 0.8;
     wasHeld = held;
     const g = S.vz > 0 ? GRAV_UP : GRAV_DOWN;
     S.vz -= g * (Math.abs(S.vz) < 60 ? 0.62 : 1) * dt;
@@ -1014,8 +1027,8 @@ function step(dt) {
         for (const L of LEAVES) {
           if (L.sink >= 1) continue;
           const d = Math.hypot(S.x - L.x, S.y - (L.y + L.dip));
-          if (d < L.r * 0.9 + 13) {
-            const k = (L.r * 0.86) / d;
+          if (d < L.r * 0.96 + 30) {
+            const k = (L.r * 0.9) / d;
             S.x = L.x + (S.x - L.x) * k;
             S.y = L.y + L.dip + (S.y - L.y - L.dip) * k;
             onLeaf = L;
@@ -1096,7 +1109,12 @@ function step(dt) {
   if (S.z <= 0.5) {
     onLeaf = drained ? null : leafAt(S.x, S.y);
     if (onLeaf && onLeaf.sink >= 1) { onLeaf = null; if (!supported(S.x, S.y)) fallIn(); }
-    if (!isDeep(S.x, S.y)) { S.safeX = S.x; S.safeY = S.y; }
+    if (onLeaf) footing = onLeaf;
+    if (!isDeep(S.x, S.y)) {
+      S.safeX = S.x; S.safeY = S.y;
+      const isle = onIsle(S.x, S.y);
+      footing = isle ? { x: S.x, y: S.y } : null;
+    }
   } else onLeaf = null;
 
   S.speed = Math.hypot(S.vx, S.vy);

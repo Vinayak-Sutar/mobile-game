@@ -102,7 +102,10 @@ for (let i = 1; i < ROUTE.length; i++) {
     ok(g >= DASH_MIN && g <= DASH_MAX, `${label} (a dash; wants ${DASH_MIN}-${DASH_MAX})`);
   } else if (want === 'hop') {
     ok(g <= HOP_MAX, `${label} (a hop; wants under ${HOP_MAX})`);
-    if (g > HOP_MAX * 0.55 && g <= HOP_MAX) note('comfortable');
+    // 95 is what she CAN clear. 75 is what is pleasant to clear without
+    // thinking about it, and this is a cozy game, so anything above that is
+    // worth knowing about even though it passes.
+    if (g > 75) { console.log(`         tight for a cozy hop — 75 or under reads better`); warn++; }
   } else {
     ok(g <= 60, `${label} (a step off; wants under 60)`);
   }

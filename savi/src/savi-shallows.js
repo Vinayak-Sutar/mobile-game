@@ -77,17 +77,20 @@ function leaf(x, y, r, o) {
   };
 }
 
+// THE LEAVES ARE BROAD AND THE GAPS ARE SHORT, and both of those are on
+// purpose. A jump carries 117 at full press and 75 at a tap, so a gap of 87 -
+// which is what these were - meant a short press fell in the water. That is a
+// precision game's arithmetic and this is not a precision game. Sixty-six
+// across, onto a target a hundred and twenty wide, is a hop you can take
+// while thinking about something else.
 export const LEAVES = [
-  // ONE — north-east off the shore. Three hops of 87, and nothing else. The
-  // shelf comes further in along this leg than the ellipse suggests, so there
-  // is room for two leaves here and not three; the check script found the first
-  // one sitting on the edge of the shallows where she could walk onto it.
-  leaf(3359, 2370, 44), leaf(3506, 2275, 44),
-  // TWO — south-east off the sandbar. The first gap wants the dash; then a hop.
-  leaf(3888, 2360, 42), leaf(3991, 2475, 42),
+  // ONE — north-east off the shore. Three hops of 66 onto lily-broad leaves.
+  leaf(3354, 2373, 60), leaf(3510, 2272, 60),
+  // TWO — south-east off the sandbar. The first gap wants the dash; then a step.
+  leaf(3896, 2369, 54), leaf(3996, 2481, 54),
   // THREE — the ferry, north-east to the hummock. 346 of travel, 7.5s a breath,
   // so the wait is never more than about four seconds and the ride is the same.
-  leaf(4343, 2415, 46, { ax: 127.5, ay: -117, rate: TAU / 7.5, ferry: true }),
+  leaf(4343, 2415, 66, { ax: 127.5, ay: -117, rate: TAU / 7.5, ferry: true }),
 ];
 export const FERRY = LEAVES[LEAVES.length - 1];
 
@@ -105,7 +108,7 @@ export function onIsle(x, y) {
 export function leafAt(x, y) {
   for (const L of LEAVES) {
     if (L.sink >= 1) continue;
-    if (Math.hypot(x - L.x, y - (L.y + L.dip)) < L.r * 0.9) return L;
+    if (Math.hypot(x - L.x, y - (L.y + L.dip)) < L.r * 0.96) return L;
   }
   return null;
 }
