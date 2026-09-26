@@ -258,6 +258,19 @@ export const sfx = {
     noise({ dur: 0.4, vol: 0.28, freq: 1600, freq2: 300, type: 'bandpass', q: 0.8 });
     tone({ freq: 420, freq2: 160, type: 'sine', dur: 0.25, vol: 0.12 });
   },
+  /**
+   * A foot going into shallow water, which is not a splash. A splash is a body
+   * falling in; this is a soft low swish with none of the bright top on it, so
+   * a hundred of them in a row do not become a noise.
+   */
+  wade(power = 1) {
+    noise({ dur: 0.26 * power, vol: 0.075, freq: 760, freq2: 180, type: 'lowpass', q: 0.7 });
+    tone({ freq: 190, freq2: 120, type: 'sine', dur: 0.14, vol: 0.035 });
+  },
+  /** The broom going past, whether or not it finds anything to move. */
+  swish(power = 1) {
+    noise({ dur: 0.2 * power, vol: 0.055, freq: 2400, freq2: 900, type: 'bandpass', q: 0.9 });
+  },
   whirr() {
     tone({ freq: 260, freq2: 780, type: 'sawtooth', dur: 0.6, vol: 0.1, filter: { freq: 1500 } });
   },

@@ -115,7 +115,13 @@ const SHRINE = { x: TREE.x, y: TREE.y + 150, r: 300 };
 const COURT = { x: SHRINE.x - 270, y: SHRINE.y - 120, w: 540, h: 300 };
 // The broom is a THING, left on the road out to the first root. She picks it
 // up, and she can put it down again anywhere she likes.
-const broom = { x: 2492, y: 3120, held: false };   // leaning on the gatepost
+// The broom leans against the shrine steps beside the old woman, where anyone
+// would keep a broom, and where Savi can plainly see it. It used to be down at
+// the gate behind one of the avenue trees. And wherever she puts it down, that
+// is where it will be next time she wants it - nobody should have to go looking
+// through a valley for a broom.
+const BROOM_HOME = { x: 2366, y: 1852 };
+const broom = { x: BROOM_HOME.x, y: BROOM_HOME.y, held: false };
 /** Young banyans, one per freed root, each with its beat carved into it. */
 const YOUNG = [];
 
@@ -368,6 +374,7 @@ function stepParticles(dt) {
     const k = Math.exp(-p.drag * dt);
     p.vx *= k; p.vy *= k;
     if (p.kind === 'ember') p.vy -= 30 * dt;
+    if (p.kind === 'dust') p.vy -= 14 * dt;      // it hangs, and drifts up as it thins
     // A leaf is a flat plate. It sheds speed fast, wanders across its own path
     // as it turns, and settles rather than dropping.
     if (p.kind === 'leaf') {
@@ -389,6 +396,10 @@ function drawParticles(c) {
     if (p.kind === 'ember') { c.beginPath(); c.arc(0, 0, p.s * a * 0.6, 0, TAU); c.fill(); }
     else if (p.kind === 'drop') { c.beginPath(); c.ellipse(0, 0, p.s * 0.5, p.s, 0, 0, TAU); c.fill(); }
     else if (p.kind === 'leaf') drawLeafSprite(c, p.s * 0.8, p.rot * 1.6);
+    else if (p.kind === 'dust') {
+      c.globalAlpha = a * a * 0.5;
+      c.beginPath(); c.arc(0, 0, p.s * (0.7 + (1 - a) * 1.5), 0, TAU); c.fill();
+    }
     else { c.beginPath(); c.ellipse(0, 0, p.s * 0.6, p.s * 0.36, 0, 0, TAU); c.fill(); }
     c.restore();
   }
@@ -447,6 +458,8 @@ const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 const pad = {
   on: false, mx: 0, my: 0,
   held: false, pressed: false,           // square / R2: the action
+  upHeld: false, upPressed: false,       // and the stick, for choosing a reply
+  downHeld: false, downPressed: false,
   jumpHeld: false, jumpPressed: false,   // cross
   dashHeld: false, dashPressed: false,   // circle
   dropHeld: false, dropPressed: false,   // triangle
@@ -469,6 +482,10 @@ function pollPad() {
   const act = down(2) || down(7);
   const jump = down(0);
   const dash = down(1) || down(5);
+  // Up and down, edge triggered, for walking the list of things she can say.
+  const up = my < -0.55, dn = my > 0.55;
+  pad.upPressed = up && !pad.upHeld; pad.upHeld = up;
+  pad.downPressed = dn && !pad.downHeld; pad.downHeld = dn;
   pad.jumpPressed = jump && !pad.jumpHeld;
   pad.jumpHeld = jump;
   pad.dashPressed = dash && !pad.dashHeld;
@@ -562,17 +579,15 @@ function startDash() {
   sfx.dash();
   rumble(0.3, 0.2, 90);
   // Whatever she is standing in comes up behind her.
-  const u = depAt(S.x, S.y + 6);
-  if (water.wetAt(S.x, S.y + 6)) {
-    water.splash(S.x, S.y + 6, 120, 2);
-    spark(S.x, S.y + 6, 14, { col: ['#bfe0e8', '#8fbcc8'], angle: dashDir + Math.PI, arc: 1.5, sp0: 80, sp1: 260, l0: 0.4, l1: 0.9, s0: 3, s1: 7, kind: 'drop', lift: 50 });
-  } else if (u.m && u.d > 0.12) {
-    const leafy = u.m === MAT.leaves;
-    spark(S.x, S.y + 6, 16, {
-      col: MATS[u.m].col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300,
-      l0: 0.6, l1: 1.5, s0: 4, s1: 10, lift: 40, drag: 1.3, kind: leafy ? 'leaf' : undefined,
+  const fx2 = groundFx(S.x, S.y + 6);
+  if (water.wetAt(S.x, S.y + 6)) water.splash(S.x, S.y + 6, 120, 2);
+  if (fx2) {
+    spark(S.x, S.y + 6, fx2.kind === 'drop' ? 14 : 16, {
+      col: fx2.col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300,
+      l0: 0.5, l1: 1.4, s0: 4, s1: 10, lift: fx2.lift, drag: 1.3, kind: fx2.kind,
     });
-    if (leafy) pushLitter(S.x, S.y + 8, 58, Math.cos(dashDir), Math.sin(dashDir), 9);
+    const u = depAt(S.x, S.y + 6);
+    if (u.m === MAT.leaves && u.d > 0.2) pushLitter(S.x, S.y + 8, 58, Math.cos(dashDir), Math.sin(dashDir), 9);
   }
 }
 // Three rings in a controller's diamond, bottom right: ACTION on the left where
@@ -618,8 +633,8 @@ const win = () => ({ x: camera.x, y: camera.y, w: view.w, h: view.h });
 // The coal is different and is still held: you hold a flame out at a thing.
 // So is the dam, which gives to one long pull. Only the broom swings.
 
-const STROKE = { wind: 0.1, work: 0.26, rest: 0.16 };   // seconds
-const SWEEP_BITE = 11;                                  // depth a second while it bites
+const STROKE = { wind: 0.07, work: 0.2, rest: 0.1 };    // seconds
+const SWEEP_BITE = 16;                                  // depth a second while it bites
 let stroke = null;                                      // { t, side, mat }
 let strokeN = 0;                                        // so only every other one is heard
 
@@ -641,25 +656,20 @@ function beginStroke() {
   if (stroke || st.talking || st.reading) return false;
   // The jam is hauled, never swept.
   if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) return false;
-  // What is in front of her, the whole length of a stroke's reach. Two point
-  // samples missed the mound she was standing in front of as soon as the two
-  // points themselves were clear, and the broom just stopped working.
+  // A BROOM IN HER HAND ALWAYS SWEEPS. It used to refuse unless it found
+  // something worth its while within two point samples, so half the presses did
+  // nothing at all - no swing, no sound, no answer of any kind - which is the
+  // one thing a button must never do. The stroke always happens; what it finds
+  // is a separate question, answered by the carve.
+  if (!broom.held) return false;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   let m = 0, deepest = 0;
-  for (let d = 0; d <= 96; d += 16) {
+  for (let d = 0; d <= 70; d += 14) {
     const c = depAt(S.x + fx * d, S.y + fy * d + 6);
     if (c.m && c.m !== MAT.thorn && c.m !== MAT.ash && c.d > deepest) { deepest = c.d; m = c.m; }
   }
-  if (!m) return false;                       // nothing here, or it wants the coal
-  if (deepest < 0.42) return false;           // litter is not a drift
-  if (!broom.held) {
-    if (actT <= 0) {
-      actT = 1.4;
-      say([['keeper', 'This is a drift, not a dusting. Her hands will not shift it — where did she leave the broom?']], null);
-    }
-    return true;
-  }
-  stroke = { t: 0, side: (S.lastSide = -(S.lastSide || 1)), mat: m };
+  stroke = { t: 0, side: (S.lastSide = -(S.lastSide || 1)), mat: m || MAT.leaves, dry: deepest < 0.24 };
+  sfx.swish(stroke.dry ? 0.7 : 1);
   return true;
 }
 
@@ -675,7 +685,9 @@ function stepStroke(dt) {
   const biting = stroke.t > STROKE.wind && stroke.t < STROKE.wind + STROKE.work;
   if (biting) {
     const a = S.face + S.sweep * 0.7;
-    const took = carve(S.x + Math.cos(a) * 18, S.y + Math.sin(a) * 18 + 6, a, 112, 1.0, dt * SWEEP_BITE, stroke.mat);
+    // A broom's width, not a semicircle of the parish. The head is about 60
+    // across and it is out in front of her where she is looking.
+    const took = carve(S.x + Math.cos(a) * 34, S.y + Math.sin(a) * 34 + 6, a, 62, 0.8, dt * SWEEP_BITE, stroke.mat);
     if (took > 0.0004) {
       // Thrown the way the broom is going, not sucked toward her.
       const out = a + stroke.side * 1.15;
@@ -693,7 +705,14 @@ function stepStroke(dt) {
       }
     }
   }
-  if (stroke.t >= total) { stroke = null; S.act = 0; S.sweep = 0; }
+  if (stroke.t >= total) {
+    stroke = null; S.act = 0; S.sweep = 0;
+    // Holding the broom down keeps her sweeping, stroke after stroke, with the
+    // rest beat between them. This is not the vacuum cleaner that got thrown
+    // out - that was one continuous cone sucking everything in. This is the
+    // same single stroke, repeating, at the pace a person actually sweeps.
+    tapDone = false;
+  }
 }
 
 /** Held down: the coal out at thorn or dead ground. */
@@ -774,6 +793,40 @@ function towardFire() {
   return bd < 420 ? `just ${way} of you` : `back ${way}`;
 }
 
+/**
+ * WHAT FLIES UP WHEN SHE HITS THE GROUND HERE.
+ *
+ * Every dash and every landing threw golden leaves, everywhere in the valley,
+ * because the whole valley has a thin scatter of litter on it (0.16) and the
+ * test was `depth > 0.12`. So she kicked up autumn leaves in the middle of a
+ * lake. A drift has to actually BE a drift to throw leaves, and everywhere
+ * else throws whatever is really there.
+ */
+function groundFx(x, y) {
+  const u = depAt(x, y);
+  if (u.m && u.d > 0.34) {                      // a real drift, not the ambient litter
+    if (u.m === MAT.leaves) return { col: MATS[1].col, kind: 'leaf', lift: 40 };
+    if (u.m === MAT.snow) return { col: ['#ffffff', '#e8eff6', '#cfdae6'], kind: 'dust', lift: 30 };
+    if (u.m === MAT.ash) return { col: ['#8a8378', '#6f6a62', '#a49c90'], kind: 'dust', lift: 22 };
+    if (u.m === MAT.thorn) return null;          // nothing kicks up out of thorn
+  }
+  switch (terrain.typeAt(x, y)) {
+    case TT.WATER: case TT.SHALLOW:
+      return { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], kind: 'drop', lift: 54, wet: true };
+    case TT.SNOW: case TT.ICE:
+      return { col: ['#ffffff', '#e8eff6', '#cfdae6'], kind: 'dust', lift: 26 };
+    case TT.MUD:
+      return { col: ['#5a4b33', '#6b5a3e', '#463a28'], kind: 'dust', lift: 14 };
+    case TT.ASH:
+      return { col: ['#8a8378', '#6f6a62', '#a49c90'], kind: 'dust', lift: 24 };
+    case TT.GRASS: case TT.TALL: case TT.MOSS:
+      return { col: ['#6f8a3e', '#87a54c', '#55703a'], kind: 'leaf', lift: 26 };
+    default:
+      // Stone, gravel, sand, the road: dust, and not much of it.
+      return { col: ['#9a8f7e', '#b0a695', '#877d6d'], kind: 'dust', lift: 18 };
+  }
+}
+
 /** Take a bite out of the layer, in a cone in front of her. */
 function carve(x, y, a, r, arc, power, m) {
   const i0 = Math.max(0, ((x - r) / CELL) | 0), i1 = Math.min(G.w - 1, ((x + r) / CELL) | 0);
@@ -822,6 +875,14 @@ function step(dt) {
   world.runTime = st.t;
   pollPad();
   if (pad.pressed) { begin(); if (st.talking) advance(); }
+  // A CONVERSATION ON A CONTROLLER. The choices were pointer-only, so with a
+  // pad in your hands the game simply stopped at the first thing she asks.
+  if (st.talking && st.talking.keeper) {
+    if (pad.upPressed) moveSel(-1);
+    if (pad.downPressed) moveSel(1);
+    if (pad.pressed || pad.jumpPressed) pickSel();
+    return;
+  }
   if (pad.jumpPressed) { begin(); if (st.talking) advance(); else jumpWant = true; }
   if (pad.dropPressed) dropBroom();
   if (pad.dashPressed) { begin(); dashWant = true; }
@@ -834,21 +895,25 @@ function step(dt) {
   if (holding && !wasHolding) {
     tapDone = false;
     const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
+    // Close enough to talk to her, the press talks. A step back from that and
+    // the broom has it again - or she could never sweep the courtyard the
+    // keeper is standing in the middle of, and with a broom in hand she could
+    // never talk to her at all.
+    const atKeeper = !st.talking && !st.reading && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
     if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) {
       doHaul(); tapDone = true;
+    } else if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
+      // Standing over the broom, the press picks up the broom. It leans within
+      // arm's reach of the keeper, so this has to come before she does.
+      broom.held = true; tapDone = true; sfx.pickup();
+    } else if (atKeeper) {
+      talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
+      st.metKeeper = true;
+      tapDone = true;
     } else if (broom.held && beginStroke()) {
       tapDone = true;                           // one press, one sweep
     } else if (yt) {
       openReading(yt); tapDone = true;
-    } else if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
-      broom.held = true; tapDone = true; sfx.pickup();
-    } else if (!st.talking && !st.reading && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) {
-      // She speaks when she is SPOKEN TO. She used to start talking the moment
-      // Savi came within a hundred units of her, every single time, which is a
-      // person standing in a doorway explaining her own house to you.
-      talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
-      st.metKeeper = true;
-      tapDone = true;
     } else if (beginStroke()) tapDone = true;
   }
   if (!holding) tapDone = false;
@@ -874,15 +939,17 @@ function step(dt) {
       if (!supported(S.x, S.y)) fallIn();
       else if (onLeaf) { sfx.thud(); water.splash(S.x, S.y + 6, 90, 1.4); }
       else {
-        sfx.thud();
-        // Landing throws the litter outward in a ring and kicks some of it up.
-        const u3 = depAt(S.x, S.y + 6);
-        if (u3.m === MAT.leaves && u3.d > 0.12) {
-          pushLitter(S.x, S.y + 8, 62, 0, 0, 7);
+        // Landing throws whatever is down there outward in a ring.
+        const g3 = groundFx(S.x, S.y + 6);
+        if (g3 && g3.wet) { sfx.wade(1.4); water.splash(S.x, S.y + 6, 150, 2); }
+        else sfx.thud();
+        if (g3) {
           spark(S.x, S.y + 6, 9, {
-            col: MATS[1].col, sp0: 70, sp1: 210, l0: 0.7, l1: 1.6,
-            s0: 4, s1: 9, lift: 60, drag: 2, kind: 'leaf',
+            col: g3.col, sp0: 70, sp1: 210, l0: 0.7, l1: 1.6,
+            s0: 4, s1: 9, lift: g3.lift + 20, drag: 2, kind: g3.kind,
           });
+          const u3 = depAt(S.x, S.y + 6);
+          if (u3.m === MAT.leaves && u3.d > 0.2) pushLitter(S.x, S.y + 8, 62, 0, 0, 7);
         }
       }
     }
@@ -952,21 +1019,24 @@ function step(dt) {
     const k = Math.floor(S.phase / Math.PI);
     if (k !== S.lastStep) {
       S.lastStep = k;
-      if (water.wetAt(S.x, S.y + 6)) {
-        sfx.splash();
-        spark(S.x, S.y + 6, 5, { col: ['#bfe0e8'], sp0: 30, sp1: 120, l0: 0.3, l1: 0.7, s0: 2, s1: 5, kind: 'drop', lift: 44 });
-      } else if (under.d > 0.3 && under.m === MAT.leaves) {
-        // No sound for this. The leaves move, and that is the whole of it - a
-        // tick on every footfall through a valley knee-deep in them was a
-        // metronome, not an atmosphere. The broom still rustles.
-        //
+      const gf = groundFx(S.x, S.y + 6);
+      if (gf && gf.wet) {
+        // Not sfx.splash(). A splash is a body going in; this is a foot in two
+        // inches of water, and it happens twice a second while she wades.
+        sfx.wade();
+        spark(S.x, S.y + 6, 4, { col: gf.col, sp0: 30, sp1: 120, l0: 0.3, l1: 0.7, s0: 2, s1: 5, kind: 'drop', lift: 44 });
+      } else if (gf) {
         // Two or three kicked up on the step itself, thrown the way the foot
         // was going. Event-driven, like an animation notify - never a stream.
-        spark(S.x, S.y + 6, 2 + (k & 1), {
-          col: MATS[1].col, angle: S.face, arc: 1.5, sp0: 40, sp1: 130,
-          l0: 0.6, l1: 1.3, s0: 4, s1: 8, lift: 34, drag: 2.2, kind: 'leaf',
+        // No sound: a tick on every footfall through a valley knee-deep in
+        // leaves was a metronome, not an atmosphere.
+        const deep = under.d > 0.3 && under.m;
+        spark(S.x, S.y + 6, deep ? 2 + (k & 1) : 1, {
+          col: gf.col, angle: S.face, arc: 1.5, sp0: 30, sp1: deep ? 130 : 70,
+          l0: 0.5, l1: 1.2, s0: 3, s1: deep ? 8 : 5, lift: gf.lift, drag: 2.2, kind: gf.kind,
         });
-      } else if (under.d > 0.5 && under.m === MAT.snow && (k & 1)) sfx.clack(1.4);
+        if (under.d > 0.5 && under.m === MAT.snow && (k & 1)) sfx.clack(1.4);
+      }
     }
   }
 
@@ -1009,7 +1079,7 @@ function step(dt) {
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
   else if (onLeaf) st.prompt = 'jump';
-  else if (broom.held) st.prompt = 'hold to sweep · Q to put the broom down';
+  else if (broom.held) st.prompt = 'hold to sweep · Q puts the broom back';
 
   for (const yt of YOUNG) {
     if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
@@ -1331,6 +1401,18 @@ function drawHud() {
     ctx.fillRect(56, 59, 88 * st.ember, 7);
   }
 
+  if (toast) {
+    toast.t += 1 / 60;
+    if (toast.t > 3.4) toast = null;
+    else {
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = Math.min(1, (3.4 - toast.t) * 1.6);
+      ctx.fillStyle = 'rgba(240,226,203,0.9)';
+      ctx.fillText(toast.text, view.w / 2, 76);
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'left';
+    }
+  }
   if (st.prompt) {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,214,170,0.92)';
@@ -1465,16 +1547,47 @@ function paintTalk() {
   const fc = overlay.querySelector('.face');
   if (fc) drawPortrait(fc.getContext('2d'), t.face, 0, 0, 220, st.t, 1);
   if (t.keeper) {
+    if (t.sel === undefined || t.sel >= t.list.length) t.sel = 0;
     overlay.querySelectorAll('.choice').forEach((b) => {
       b.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
-        sfx.ui();
-        const to = st.talking.list[+b.dataset.i].to;
-        if (to === 'leave') closeTalk();
-        else { st.talking.keeper = to; paintTalk(); }
+        choose(st.talking.list[+b.dataset.i].to);
       });
+      // A finger or a mouse moving over one also moves the highlight, so the
+      // two ways of choosing never disagree about what is selected.
+      b.addEventListener('pointerenter', () => { st.talking.sel = +b.dataset.i; markSel(); });
     });
+    markSel();
   }
+}
+
+/** Move the highlight up or down the list of things she could say. */
+function moveSel(d) {
+  const t = st.talking;
+  if (!t || !t.list || !t.list.length) return;
+  t.sel = ((t.sel || 0) + d + t.list.length) % t.list.length;
+  markSel();
+  sfx.tick();
+}
+
+/** Put the highlight on the right button. */
+function markSel() {
+  const t = st.talking;
+  if (!t || !t.list) return;
+  overlay.querySelectorAll('.choice').forEach((b, i) => b.classList.toggle('sel', i === (t.sel || 0)));
+}
+
+/** Say the highlighted one. */
+function pickSel() {
+  const t = st.talking;
+  if (!t || !t.list || !t.list.length) return;
+  choose(t.list[t.sel || 0].to);
+}
+
+function choose(to) {
+  sfx.ui();
+  if (to === 'leave') closeTalk();
+  else { st.talking.keeper = to; st.talking.sel = 0; paintTalk(); }
 }
 
 function closeTalk() {
@@ -1495,14 +1608,17 @@ function advance() {
   closeTalk();
 }
 
-/** Put it down where she stands. She can always pick it up again. */
+/** She puts it down, and it goes back to its place by the old woman. */
 function dropBroom() {
   if (!broom.held) return;
   broom.held = false;
-  broom.x = S.x + Math.cos(S.face) * 26;
-  broom.y = S.y + 10;
+  broom.x = BROOM_HOME.x;
+  broom.y = BROOM_HOME.y;
+  st.prompt = '';
+  toast = { t: 0, text: 'left against the shrine steps, by the old woman' };
   sfx.ui();
 }
+let toast = null;
 
 /** Standing at a young banyan and reading what is cut into it, full screen. */
 function openReading(yt) {
@@ -1624,6 +1740,11 @@ function main() {
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     keys.add(k);
+    if (st.talking && st.talking.keeper) {
+      if (k === 'arrowup' || k === 'w') { moveSel(-1); e.preventDefault(); return; }
+      if (k === 'arrowdown' || k === 's') { moveSel(1); e.preventDefault(); return; }
+      if (k === 'enter' || k === ' ' || k === 'e') { pickSel(); e.preventDefault(); return; }
+    }
     if (k === 'q') dropBroom();
     if (k === 'shift' || k === 'x') { begin(); dashWant = true; e.preventDefault(); }
     if (k === ' ' || k === 'enter' || k === 'e') {
