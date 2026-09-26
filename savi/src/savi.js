@@ -1333,6 +1333,7 @@ function render() {
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, view.w, view.h);
   drawHud();
+  if (st.talking) paintFace();
 }
 
 /** The boulders that make the neck, the reeds round the shore, the lily pads. */
@@ -1543,9 +1544,15 @@ function paintTalk() {
   }
   overlay.innerHTML = `<div class="panel">${body}</div>`;
   overlay.classList.add('on');
-  if (t.mural) drawMural(document.getElementById('mural').getContext('2d'), t.mural, 460, 250, st.t);
+  // The portrait is kept, not just drawn. It used to be painted once into a
+  // dead canvas, so the speaker was a still photograph with a voice; Hades
+  // leans its portraits into the words and breathes them between the lines.
   const fc = overlay.querySelector('.face');
-  if (fc) drawPortrait(fc.getContext('2d'), t.face, 0, 0, 220, st.t, 1);
+  t.faceCtx = fc ? fc.getContext('2d') : null;
+  t.muralCtx = t.mural ? document.getElementById('mural').getContext('2d') : null;
+  if (t.shownAt === undefined) t.shownAt = st.t;
+  t.lineAt = st.t;
+  paintFace();
   if (t.keeper) {
     if (t.sel === undefined || t.sel >= t.list.length) t.sel = 0;
     overlay.querySelectorAll('.choice').forEach((b) => {
@@ -1588,6 +1595,20 @@ function choose(to) {
   sfx.ui();
   if (to === 'leave') closeTalk();
   else { st.talking.keeper = to; st.talking.sel = 0; paintTalk(); }
+}
+
+/**
+ * The speaker, every frame while she is speaking: the slide-in when she first
+ * arrives, the breath between lines, and the lean into a new one.
+ */
+function paintFace() {
+  const t = st.talking;
+  if (!t || !t.faceCtx) return;
+  const k = clamp01((st.t - (t.shownAt || st.t)) / 0.3);
+  const emph = clamp01(1 - (st.t - (t.lineAt || st.t)) / 0.42);
+  t.faceCtx.clearRect(0, 0, 220, 300);
+  drawPortrait(t.faceCtx, t.face, 0, 0, 220, st.t, k, emph);
+  if (t.muralCtx) drawMural(t.muralCtx, t.mural, 460, 250, st.t);
 }
 
 function closeTalk() {

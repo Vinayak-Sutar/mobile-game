@@ -1,3 +1,8 @@
+
+import {
+  G, field as gField, blob as gBlob, limb as gLimb, leaf as gLeafShape,
+  disc as gDisc, bird as gBird, band as gBand, frame as gFrame, motif as gMotif,
+} from './savi-gond.js';
 // Savi — everything that gets drawn.
 //
 // Flat shapes, warm palette, no images: the same way the rest of this repo
@@ -976,159 +981,207 @@ export function glow(ctx, x, y, r, col) {
 // the same language as the game's own opening film.
 
 export function drawMural(ctx, id, W, H, time) {
-  const g = ctx.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#2a1a1e');
-  g.addColorStop(0.55, '#4a2a22');
-  g.addColorStop(1, '#1a1114');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, W, H);
-  glow(ctx, W / 2, H * 0.62, W * 0.5, 'rgba(255,150,60,0.24)');
-
-  const S = Math.min(W / 420, H / 240);
+  // A GOND PANEL. Flat ground colour, a border band of pattern round the edge
+  // the way a digna floor is edged before it is filled, and inside it the beat
+  // of the legend told in outlined, infilled shapes. No perspective, no
+  // modelling, no depth - the figures stand on the same line and the story is
+  // read across, which is how these panels are read.
   ctx.save();
-  ctx.translate(W / 2, H * 0.5);
+  ctx.fillStyle = '#efe0c0';                       // the wall, limed
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 0.5;
+  gMotif(ctx, { x: 0, y: 0, w: W, h: H }, 'dots', 'rgba(140,105,60,0.35)', 13);
+  ctx.globalAlpha = 1;
+
+  const m = Math.max(7, Math.round(Math.min(W, H) * 0.035));
+  gFrame(ctx, W, H, m, { fill: G.geru, motif: 'crescents', on: 'rgba(245,225,190,0.8)', pitch: 11, lw: 2 });
+
+  const S = Math.min((W - m * 2) / 430, (H - m * 2) / 250);
+  ctx.save();
+  ctx.translate(W / 2, H * 0.54);
   ctx.scale(S, S);
-  ctx.fillStyle = '#1a1014';
-  const F = (x, y, s, o = {}) => figure(ctx, x, y, s, o);
+
+  const ground = () => {
+    gBand(ctx, -215, 86, 430, 16, { fill: G.mitti, motif: 'waves', on: 'rgba(245,225,190,0.55)', pitch: 7, lw: 2 });
+  };
+  const sun = (x, y, r) => gDisc(ctx, x, y, r, {
+    fill: G.haldi, motif: 'dots', on: 'rgba(120,60,20,0.45)', pitch: 10, rays: 18, spin: time * 0.04, lw: 1.8,
+  });
 
   if (id === 'choice') {
-    F(-70, 40, 1.15, { skirt: 1, crown: 1, warm: 1 });    // Savitri in silks
-    F(48, 42, 1.05, { plain: 1 });                        // Satyavan in the dust
-    ctx.globalAlpha = 0.35;
-    F(130, 36, 0.9, { staff: 1 });                        // Narada, at the edge
-    ctx.globalAlpha = 1;
-  } else if (id === 'fall') {
-    tree(ctx, 0, -6, 1.4);
-    F(-26, 46, 1.05, { skirt: 1, kneel: 1 });
-    ctx.save();                                            // Satyavan, fallen
-    ctx.translate(6, 44); ctx.rotate(-1.35);
-    F(0, 0, 1, { plain: 1 });
-    ctx.restore();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = '#0b0710';
-    ctx.beginPath(); ctx.ellipse(96, 6, 46, 78, 0, 0, TAU); ctx.fill();   // the shadow
-    ctx.globalAlpha = 1;
-  } else if (id === 'pursuit') {
-    yama(ctx, 74, 36, 1.3);
-    F(-52, 44, 1, { skirt: 1, bark: 1 });
-    ctx.strokeStyle = 'rgba(255,170,80,0.5)';              // the soul on his noose
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(30, -12, 11, 0, TAU); ctx.stroke();
-  } else if (id === 'steps') {
-    ctx.fillStyle = 'rgba(210,225,240,0.13)';
-    ctx.fillRect(-220, 46, 440, 60);                       // frozen ground
-    yama(ctx, 62, 44, 1.22);
-    F(-30, 46, 1, { skirt: 1, bark: 1 });
-    ctx.fillStyle = 'rgba(230,240,250,0.3)';               // seven footprints
-    for (let i = 0; i < 7; i++) ctx.fillRect(-140 + i * 22, 52 + (i % 2) * 7, 9, 5);
-  } else if (id === 'boon') {
-    ctx.strokeStyle = 'rgba(150,180,230,0.35)';            // the gate
-    ctx.lineWidth = 5;
-    ctx.beginPath();
-    ctx.moveTo(120, 60); ctx.lineTo(120, -46);
-    ctx.quadraticCurveTo(166, -80, 212, -46); ctx.lineTo(212, 60);
-    ctx.stroke();
-    yama(ctx, 76, 40, 1.2, 1);
-    F(-46, 44, 1, { skirt: 1, bark: 1 });
-  } else if (id === 'bloom') {
-    ctx.fillStyle = '#2a1a14';
-    tree(ctx, 0, 10, 2.5);
-    ctx.globalAlpha = 0.9;
-    for (let i = 0; i < 40; i++) {
-      const a = rnd(i) * TAU, r = 40 + rnd(i * 3) * 130;
-      ctx.fillStyle = ['#e8a343', '#f2c25c', '#d3762e'][i % 3];
-      ctx.beginPath();
-      ctx.ellipse(Math.cos(a) * r, -30 + Math.sin(a) * r * 0.66, 12, 9, a, 0, TAU);
-      ctx.fill();
+    // She chooses him, and is told he has a year. Narada at the edge of it.
+    sun(-150, -66, 26);
+    ground();
+    gFigure(ctx, -66, 0, 1, 'savitri', time);
+    gFigure(ctx, 42, 0, 1, 'satyavan', time);
+    gFigure(ctx, 146, 4, 0.82, 'narada', time);
+    // The garland she puts on him: a chain of seeds between them.
+    ctx.strokeStyle = G.geru; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(-40, -18); ctx.quadraticCurveTo(-4, 6, 22, -18); ctx.stroke();
+    for (let i = 0; i < 7; i++) {
+      const k = i / 6, x = -40 + k * 62, y = -18 + Math.sin(k * Math.PI) * 22;
+      ctx.fillStyle = i % 2 ? G.haldi : G.chuna;
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, TAU); ctx.fill();
     }
-    ctx.globalAlpha = 1;
-    F(-96, 52, 1, { skirt: 1, warm: 1 });
-    F(-60, 52, 1, { plain: 1 });
-  }
-  ctx.restore();
-
-  // A carved border, so it reads as cut into the root.
-  ctx.strokeStyle = 'rgba(255,190,120,0.3)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(6, 6, W - 12, H - 12);
-}
-
-function figure(ctx, x, y, s, o) {
-  const c = ctx;
-  c.save();
-  c.translate(x, y);
-  c.scale(s, s);
-  c.fillStyle = o.warm ? '#c76a32' : o.bark ? '#5c4632' : '#181016';
-  if (o.kneel) {
-    c.beginPath();
-    c.moveTo(-16, 0); c.quadraticCurveTo(-20, -22, -6, -34);
-    c.lineTo(10, -34); c.quadraticCurveTo(20, -18, 22, 0);
-    c.closePath(); c.fill();
-  } else {
-    c.beginPath();
-    c.moveTo(-13, 0);
-    c.quadraticCurveTo(-15, -30, -8, -52);
-    c.lineTo(8, -52);
-    c.quadraticCurveTo(15, -30, 13, 0);
-    c.closePath(); c.fill();
-  }
-  const hy = o.kneel ? -42 : -60;
-  c.beginPath(); c.arc(0, hy, 9, 0, TAU); c.fill();
-  if (o.crown) {
-    c.fillStyle = '#e8b45c';
-    c.beginPath();
-    c.moveTo(-9, hy - 8); c.lineTo(-5, hy - 16); c.lineTo(0, hy - 9);
-    c.lineTo(5, hy - 16); c.lineTo(9, hy - 8);
-    c.closePath(); c.fill();
-  }
-  if (o.staff) {
-    c.strokeStyle = '#3a2a1e'; c.lineWidth = 3;
-    c.beginPath(); c.moveTo(13, 2); c.lineTo(17, -70); c.stroke();
-  }
-  c.restore();
-}
-
-function tree(ctx, x, y, s) {
-  ctx.save();
-  ctx.translate(x, y); ctx.scale(s, s);
-  ctx.fillStyle = '#20141a';
-  ctx.fillRect(-13, -50, 26, 50);
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI - 0.1;
+  } else if (id === 'fall') {
+    // The year is up. He lies down in the forest with his head in her lap.
+    gTree(ctx, -120, 10, 1.15, time);
+    gTree(ctx, 150, 6, 0.9, time);
+    ground();
+    gFigure(ctx, -30, 0, 1, 'savitri', time, { kneel: 1 });
     ctx.save();
-    ctx.translate(0, -48);
-    ctx.rotate(a - Math.PI / 2);
-    ctx.fillRect(-3, -46, 6, 46);
+    ctx.translate(58, 62); ctx.rotate(-1.42);
+    gFigure(ctx, 0, 0, 0.94, 'satyavan', time, { lying: 1 });
     ctx.restore();
+    // The axe, put down.
+    gLimb(ctx, [[96, 78], [124, 70]], 3, 3, { fill: G.mitti, ink: true });
+  } else if (id === 'pursuit') {
+    // Yama takes him south, and she will not stop walking.
+    ground();
+    gFigure(ctx, 96, -6, 1.24, 'yama', time);
+    gFigure(ctx, -104, 2, 0.98, 'savitri', time, { walk: 1 });
+    // The soul on the noose: a small bright seed drawn along behind him.
+    ctx.strokeStyle = G.geru; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.moveTo(52, -14); ctx.lineTo(-4, 2); ctx.stroke();
+    gBlob(ctx, -10, 4, 11, 11, 0, { fill: G.haldiPale, motif: 'dots', on: 'rgba(140,70,20,0.5)', pitch: 6, lw: 2 });
+    for (let i = 0; i < 5; i++) {
+      gBird(ctx, -170 + i * 26, -72 + (i % 2) * 14, 8,
+        { fill: G.soot, motif: null, lw: 1.6 });
+    }
+  } else if (id === 'steps') {
+    // Seven steps, and after seven steps you are friends. So he keeps talking.
+    ground();
+    gFigure(ctx, 78, -4, 1.2, 'yama', time);
+    gFigure(ctx, -96, 2, 0.98, 'savitri', time, { walk: 1 });
+    // The seven footprints, as seeds pressed into the road.
+    for (let i = 0; i < 7; i++) {
+      const x = -60 + i * 20;
+      ctx.fillStyle = i % 2 ? G.geru : G.mitti;
+      ctx.beginPath();
+      ctx.ellipse(x, 92 + (i % 2) * 6, 5, 7, 0, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = G.soot; ctx.lineWidth = 1.2; ctx.stroke();
+    }
+  } else if (id === 'boon') {
+    // Ask for anything but his life. So she asks for sons by Satyavan.
+    ground();
+    gFigure(ctx, 86, -4, 1.2, 'yama', time, { giving: 1 });
+    gFigure(ctx, -92, 2, 0.98, 'savitri', time);
+    // The boon passing between them: a run of dots that becomes a sun.
+    for (let i = 0; i < 9; i++) {
+      const k = i / 8, x = 34 - k * 96, y = -22 - Math.sin(k * Math.PI) * 18;
+      ctx.fillStyle = G.haldi;
+      ctx.beginPath(); ctx.arc(x, y, 2 + k * 2.6, 0, TAU); ctx.fill();
+    }
+    sun(-92, -74, 20);
+  } else if (id === 'bloom') {
+    // The tree remembers all of it at once.
+    sun(0, -78, 34);
+    ground();
+    gTree(ctx, 0, 14, 1.9, time);
+    for (let i = 0; i < 22; i++) {
+      const a = (i / 22) * TAU + time * 0.05;
+      const r = 58 + ((i * 37) % 11) * 7;
+      gLeafShape(ctx, Math.cos(a) * r, -26 + Math.sin(a) * r * 0.62, 11, 6, a,
+        { fill: i % 3 ? G.patta : G.haldi, motif: null, lw: 1.4 });
+    }
+    gFigure(ctx, -118, 6, 0.9, 'savitri', time);
+    gFigure(ctx, -54, 6, 0.9, 'satyavan', time);
   }
-  ctx.beginPath();
-  ctx.ellipse(0, -62, 62, 30, 0, 0, TAU);
-  ctx.fill();
+  ctx.restore();
   ctx.restore();
 }
 
-function yama(ctx, x, y, s, calm = 0) {
+/** A Gond figure at mural scale: the same grammar as the portraits, smaller. */
+function gFigure(ctx, x, y, s, who, time, o = {}) {
+  const P = {
+    savitri: { cloth: G.geru, motif: 'dotLines', on: 'rgba(245,225,190,0.8)', hair: '#160f12' },
+    satyavan: { cloth: G.patta, motif: 'shoots', on: 'rgba(240,235,200,0.6)', hair: '#1a1410' },
+    narada: { cloth: G.haldi, motif: 'seeds', on: 'rgba(70,40,20,0.5)', hair: '#efe7d6' },
+    yama: { cloth: G.neelDark, motif: 'scales', on: 'rgba(150,180,235,0.5)', hair: '#0d0912' },
+  }[who] || { cloth: G.mitti, motif: 'comb', on: 'rgba(240,227,200,0.5)', hair: '#ded6c6' };
+  const big = who === 'yama';
   ctx.save();
-  ctx.translate(x, y); ctx.scale(s, s);
-  ctx.fillStyle = calm ? '#241826' : '#0d080f';
-  ctx.beginPath();
-  ctx.moveTo(-28, 0);
-  ctx.quadraticCurveTo(-34, -44, -18, -76);
-  ctx.lineTo(18, -76);
-  ctx.quadraticCurveTo(34, -44, 28, 0);
-  ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, -88, 15, 0, TAU); ctx.fill();
-  ctx.beginPath();                                   // his crown
-  ctx.moveTo(-15, -98); ctx.lineTo(-9, -116); ctx.lineTo(0, -100);
-  ctx.lineTo(9, -116); ctx.lineTo(15, -98);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = calm ? 'rgba(255,190,110,0.9)' : 'rgba(255,90,50,0.95)';
-  ctx.fillRect(-8, -91, 5, 3.4);
-  ctx.fillRect(3, -91, 5, 3.4);
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  if (o.lying) ctx.scale(1, 0.92);
+
+  const hy = o.kneel ? -18 : -52;
+  const foot = 86;
+  // Body: one field, hem to shoulder.
+  gField(ctx, (g) => {
+    const w = big ? 40 : 30, wl = big ? 34 : 24;
+    g.moveTo(-w, foot);
+    g.quadraticCurveTo(-wl - 4, hy + 34, -wl, hy + 22);
+    g.lineTo(wl, hy + 22);
+    g.quadraticCurveTo(wl + 4, hy + 34, w, foot);
+    g.closePath();
+  }, { fill: P.cloth, motif: P.motif, on: P.on, pitch: big ? 11 : 9, lw: 2, box: { x: -46, y: hy, w: 92, h: foot - hy + 6 } });
+
+  // Arms.
+  const reach = o.giving ? 44 : o.walk ? 20 : 26;
+  gLimb(ctx, [[-22, hy + 28], [-34, hy + 52], [-30 - (o.walk ? 8 : 0), hy + 74]], 5, 4,
+    { fill: G.skin, motif: null, lw: 1.8 });
+  gLimb(ctx, [[22, hy + 28], [30, hy + 46], [18 + reach, hy + 52]], 5, 4,
+    { fill: G.skin, motif: null, lw: 1.8 });
+  // Legs, if she is walking.
+  if (o.walk) {
+    gLimb(ctx, [[-8, foot - 6], [-20, foot + 14]], 5, 4, { fill: G.skin, lw: 1.8 });
+    gLimb(ctx, [[10, foot - 6], [24, foot + 14]], 5, 4, { fill: G.skin, lw: 1.8 });
+  }
+  // Head.
+  gBlob(ctx, 0, hy, big ? 24 : 20, big ? 26 : 22, 0,
+    { fill: big ? '#4a3f63' : G.skin, motif: big ? 'dots' : null, on: 'rgba(150,180,235,0.35)', pitch: 9, lw: 2 });
+  gField(ctx, (g) => {
+    g.moveTo(-20, hy - 2);
+    g.quadraticCurveTo(-22, hy - 28, 0, hy - 28);
+    g.quadraticCurveTo(22, hy - 28, 20, hy - 2);
+    g.quadraticCurveTo(12, hy - 14, 0, hy - 14);
+    g.quadraticCurveTo(-12, hy - 14, -20, hy - 2);
+    g.closePath();
+  }, { fill: P.hair, motif: 'crescents', on: 'rgba(210,190,220,0.4)', pitch: 7, lw: 1.6, box: { x: -24, y: hy - 30, w: 48, h: 34 } });
+  // Two eyes and a mouth, and that is a face.
+  ctx.fillStyle = G.chuna;
+  ctx.beginPath(); ctx.arc(-7, hy, 4.4, 0, TAU); ctx.arc(7, hy, 4.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = G.soot;
+  ctx.beginPath(); ctx.arc(-7, hy, 2.2, 0, TAU); ctx.arc(7, hy, 2.2, 0, TAU); ctx.fill();
+  ctx.strokeStyle = G.soot; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(0, hy + 5); ctx.lineTo(0, hy + 10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-5, hy + 14); ctx.quadraticCurveTo(0, hy + 17, 5, hy + 14); ctx.stroke();
+
+  if (big) {
+    for (const sgn of [-1, 1]) {
+      gLimb(ctx, [[sgn * 20, hy - 16], [sgn * 38, hy - 26], [sgn * 47, hy - 10]], 6, 2,
+        { fill: G.chuna, motif: null, lw: 1.8 });
+    }
+  }
+  if (who === 'savitri') {
+    gLimb(ctx, [[18, hy - 4], [28, hy + 20], [24, hy + 52]], 5, 3,
+      { fill: P.hair, motif: null, lw: 1.6 });
+  }
   ctx.restore();
 }
 
-// --- helpers ---------------------------------------------------------------------------
+/** A Gond tree: a trunk of limbs with leaves on every branch end. */
+function gTree(ctx, x, y, s, time) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  gLimb(ctx, [[0, 88], [-4, 40], [0, -4]], 13, 8,
+    { fill: G.mitti, motif: 'comb', on: 'rgba(245,225,190,0.45)', pitch: 6, lw: 2 });
+  for (let i = 0; i < 6; i++) {
+    const a = -2.5 + i * 0.5;
+    const ex = Math.cos(a) * 54, ey = -10 + Math.sin(a) * 40;
+    gLimb(ctx, [[0, -2], [ex * 0.55, ey * 0.7], [ex, ey]], 5, 3,
+      { fill: G.mitti, motif: null, lw: 1.8 });
+    for (let k = 0; k < 3; k++) {
+      const b = a + (k - 1) * 0.42 + Math.sin(time * 0.4 + i) * 0.04;
+      gLeafShape(ctx, ex + Math.cos(b) * 16, ey + Math.sin(b) * 13, 13, 7, b,
+        { fill: k === 1 ? G.patta : G.pattaDark, motif: 'comb', on: 'rgba(240,240,200,0.45)', pitch: 4, lw: 1.4 });
+    }
+  }
+  ctx.restore();
+}
 
 export function mixHex(a, b, k) {
   k = clamp01(k);
