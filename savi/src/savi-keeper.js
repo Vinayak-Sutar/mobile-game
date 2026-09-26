@@ -57,7 +57,7 @@ export const KEEPER = {
     ],
   },
   burdens: {
-    text: 'Leaves, where the wind piles them. Water, where it should not stand. Black thorn in the west. Snow that never goes. And in the north, ground so dead nothing will grow on it at all.',
+    text: 'Leaves, where the wind piles them. Black thorn in the west, snow that never goes, and ground in the north so dead nothing will grow on it. And the hollow east is drowned — a root of it has been under water two years, and the only way out over that water is the leaves floating on it.',
     choices: [
       { say: 'That is a great deal for one girl.', to: 'frail' },
       { say: 'I will start with the leaves.', to: 'send' },
@@ -106,14 +106,7 @@ export const KEEPER = {
   },
   send: {
     repeat: true,
-    text: 'Then look at the roots, child. One of them will be lit — faint, like a coal under ash. That is the one the tree is reaching with. Follow it out, clear what sits on it, and come back and tell me.',
-    choices: [
-      { say: 'Must it be that one?', to: 'others' },
-      { say: 'I will go.', to: 'leave' },
-    ],
-  },
-  others: {
-    text: 'Go to any of them you like, child — they are all choking, and any one you free is one it can breathe through. The lit one is only where it is reaching hardest today. Follow your own feet if you would rather.',
+    text: 'Then go, child. One of the roots will be lit — faint, like a coal under ash. Follow it out.',
     choices: [
       { say: 'I will go.', to: 'leave' },
     ],

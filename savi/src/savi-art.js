@@ -774,14 +774,16 @@ export function drawSavi(ctx, p, time) {
   const fx = Math.cos(a), fy = Math.sin(a);
   const away = fy < -0.25;                 // facing away from the camera
 
-  ctx.save();
-  ctx.translate(p.x, p.y + bob);
+  // How high off the ground she is. The shadow stays behind on the ground and
+  // shrinks, which is the only thing that says "in the air" from straight above.
+  const z = p.z || 0;
 
-  // Shadow.
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.save();
+  ctx.fillStyle = `rgba(0,0,0,${0.3 - Math.min(0.16, z * 0.0042)})`;
   ctx.beginPath();
-  ctx.ellipse(1, 5, 12, 5, 0, 0, TAU);
+  ctx.ellipse(p.x + 1, p.y + 5, 12 - Math.min(4.5, z * 0.1), 5 - Math.min(2, z * 0.045), 0, 0, TAU);
   ctx.fill();
+  ctx.translate(p.x, p.y + bob - z);
 
   // Boots, stepping.
   const st = walking ? Math.sin(ph) * 5 : 0;
@@ -885,17 +887,26 @@ export function drawSavi(ctx, p, time) {
   };
   if (!away) braid();
 
-  // Head and hair.
-  ctx.fillStyle = '#2a1c18';
-  ctx.beginPath(); ctx.arc(0, -25.5, 7.4, 0, TAU); ctx.fill();
-  if (!away) {
-    ctx.fillStyle = '#d9a06e';
-    ctx.beginPath(); ctx.ellipse(fx * 1.4, -24.6, 5.2, 5.6, 0, 0, TAU); ctx.fill();
+  // Head and hair. The face IS the head - a full dark circle behind a SMALLER
+  // face ellipse left a ring of dark showing below her chin all the way round,
+  // which is exactly the beard it looked like. The hair is a cap on top now.
+  const hx = fx * 0.9;
+  if (away) {
     ctx.fillStyle = '#2a1c18';
-    ctx.beginPath(); ctx.ellipse(fx * 1.4, -28.4, 5.6, 3.4, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, -25.4, 7, 7.3, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillStyle = '#d9a06e';
+    ctx.beginPath(); ctx.ellipse(hx, -25.2, 6.5, 7, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#2a1c18';                 // the cap, over the crown only
+    ctx.beginPath();
+    ctx.ellipse(hx, -25.2, 6.8, 7.2, 0, Math.PI, TAU);
+    ctx.quadraticCurveTo(hx + 3.2, -27.4, hx + 0.4, -28.4);
+    ctx.quadraticCurveTo(hx - 3.4, -27.2, hx - 6.8, -25.2);
+    ctx.closePath();
+    ctx.fill();
     ctx.fillStyle = '#1b120f';
-    ctx.fillRect(fx * 1.4 - 2.6, -25.4, 1.5, 1.9);
-    ctx.fillRect(fx * 1.4 + 1.1, -25.4, 1.5, 1.9);
+    ctx.fillRect(hx - 2.9, -25.2, 1.6, 2);
+    ctx.fillRect(hx + 1.3, -25.2, 1.6, 2);
   }
   if (away) braid();                           // her back is to us: it is in front
   ctx.restore();

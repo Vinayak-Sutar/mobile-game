@@ -33,6 +33,10 @@ import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
+  POOL, ISLE, JAM, LEAVES, deepBand, onIsle, leafAt, stepShallows, haul, jamClear,
+  drawDeep, drawSluice, drawLeaves,
+} from './savi-shallows.js';
+import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
@@ -66,40 +70,28 @@ const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26,
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
   choice: { at: { x: 1160, y: 2340 }, patch: { x: 880, y: 2060, w: 620, h: 540 }, mat: 'leaves' },
-  fall: { at: { x: 4020, y: 2190 }, patch: { x: 3540, y: 1860, w: 900, h: 660 }, mat: 'water' },
+  fall: { at: { x: 4440, y: 2170 }, patch: { x: 3200, y: 1700, w: 1900, h: 1020 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
   boon: { at: { x: 2600, y: 420 }, patch: { x: 2250, y: 220, w: 700, h: 440 }, mat: 'ash' },
 };
 ROOTS.forEach((r, i) => Object.assign(r, PLACES[r.id], { seed: i * 5 + 3, order: i }));
 
-// THE DROWNED HOLLOW.
+// THE DROWNED HOLLOW. A place with a way across it, and the way is the level -
+// see savi-shallows.js for the crossing itself. Here: the bowl it sits in, the
+// stream that fills it, and whether it has let go yet.
 //
-// It was a blob of water with a rectangle of sticks at the edge and no reason
-// for either. It is a PLACE now, and the place explains itself:
-//
-//   a stream comes down out of the north-east and fills a basin in the land
-//   the basin drains east through a narrow NECK between two boulders
-//   the neck is jammed with dry deadfall, so the basin has nowhere to go
-//   and the Great Root at the bottom of it has been under water for two years
-//
-// Burn the deadfall and the neck runs. The basin lets go, the water drops away
-// east down the channel, and the root comes up into the air.
-const POND = { x: 4010, y: 2210, rx: 460, ry: 320 };
-const INFLOW = [[4330, 1470], [4290, 1700], [4180, 1900], [4090, 2030]];
-const NECK = { x: 4520, y: 2230, w: 150 };                 // the way out, if it were clear
-const OUTFLOW = [[4520, 2230], [4760, 2260], [5000, 2330]];
-const DAM = { x: 4520, y: 2230, r: 110 };
-const BOULDERS = [
-  { x: 4492, y: 2118, r: 62 }, { x: 4556, y: 2348, r: 70 },
-  { x: 4420, y: 2078, r: 34 }, { x: 4614, y: 2402, r: 40 },
-];
-let drained = false;                                        // the basin has let go
+// The coal has no business here. Dry wood wanted fire; a jam of wet driftwood
+// in a sluice gate wants two hands and four good hauls, which is a thing a
+// child can plainly do, and it is the same ACTION button she uses everywhere.
+const POND = POOL;
+const INFLOW = [[4640, 1180], [4560, 1430], [4470, 1620], [4400, 1740]];
+let drained = false;                                        // the hollow has let go
 
 const ROAD = [[2600, 3340], [2600, 2900], [2560, 2500], [2600, 2100], [2600, 1820]];
 const SPURS = [
   [[2420, 2000], [2000, 2180], [1500, 2300], [1160, 2340]],
-  [[2820, 1900], [3300, 2050], [3700, 2150], [4020, 2190]],
+  [[2820, 1900], [3020, 1990], [3240, 2080]],
   [[2380, 1480], [1800, 1320], [1200, 1180], [760, 1120]],
   [[2820, 1420], [3400, 1120], [3900, 880], [4180, 760]],
   [[2600, 1320], [2600, 960], [2600, 600], [2600, 420]],
@@ -172,18 +164,13 @@ function classify(x, y) {
   const inD = polyDist(x, y, INFLOW);
   if (inD < 26) return TT.WATER;
   if (inD < 46) return TT.SHALLOW;
-  // The channel out, dry until the neck is opened.
-  const outD = polyDist(x, y, OUTFLOW);
-  if (drained && outD < 30) return TT.WATER;
-  if (outD < 52) return drained ? TT.SHALLOW : TT.GRAVEL;
-  // The basin. Once it has let go it is a marsh, not a pond.
+  // The bowl. The near shore and the two sandbars are wadeable; the rest of it
+  // is over her head. Once it has let go the whole bowl is a marsh.
   const k = pondK(x, y);
-  if (drained) {
-    if (k < 0.5) return TT.SHALLOW;
-    if (k < 1.0) return TT.MUD;
-  } else {
-    if (k < 0.86) return TT.WATER;
-    if (k < 1.0) return TT.SHALLOW;
+  if (k < 1.0) {
+    if (onIsle(x, y)) return TT.ROCK;                 // the hummock, above the water
+    if (drained) return k < 0.55 ? TT.SHALLOW : TT.MUD;
+    return deepBand(x, y) ? TT.WATER : TT.SHALLOW;
   }
   const n = fbm(x * 0.0016, y * 0.0016);
   if (roadDist(x, y) < 46) return TT.DIRT;
@@ -340,6 +327,7 @@ function drawParticles(c) {
 const S = {
   x: START.x, y: START.y, r: 12, vx: 0, vy: 0, face: -Math.PI / 2,
   phase: 0, speed: 0, act: 0, actA: 0, dead: false, lastStep: 0, dashing: false,
+  z: 0, vz: 0, safeX: START.x, safeY: START.y,
 };
 const st = {
   t: 0, woken: {}, count: 0, step: 0, ember: 0, hasEmber: false,
@@ -380,18 +368,22 @@ const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 // A controller, any controller. A DualSense, an Xbox pad and anything else
 // that speaks the standard mapping all arrive here the same way: the left
 // stick or the d-pad walks, and cross / square / either trigger acts.
+// One button, one verb, and they are where a thumb expects them:
+//   CROSS    jump          CIRCLE  dash
+//   SQUARE   action        TRIANGLE  put the broom down
 const pad = {
   on: false, mx: 0, my: 0,
-  held: false, pressed: false,           // cross / R2: the thing in front of her
-  dashHeld: false, dashPressed: false,   // square / L1 / R1: a little run
-  dropHeld: false, dropPressed: false,   // circle: put the broom down
+  held: false, pressed: false,           // square / R2: the action
+  jumpHeld: false, jumpPressed: false,   // cross
+  dashHeld: false, dashPressed: false,   // circle
+  dropHeld: false, dropPressed: false,   // triangle
 };
 function pollPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
   let gp = null;
   for (const g of list) if (g && g.connected) { gp = g; break; }
   pad.on = !!gp;
-  if (!gp) { pad.mx = 0; pad.my = 0; pad.held = false; pad.pressed = false; return; }
+  if (!gp) { pad.mx = 0; pad.my = 0; pad.held = false; pad.pressed = false; pad.jumpHeld = false; pad.jumpPressed = false; return; }
   const dead = (v) => (Math.abs(v) < 0.24 ? 0 : (v - Math.sign(v) * 0.24) / 0.76);
   let mx = dead(gp.axes[0] || 0), my = dead(gp.axes[1] || 0);
   const b = gp.buttons;
@@ -401,17 +393,20 @@ function pollPad() {
   if (down(14)) mx = -1;
   if (down(15)) mx = 1;
   pad.mx = mx; pad.my = my;
-  const act = down(0) || down(7);
-  const dash = down(2) || down(4) || down(5);
+  const act = down(2) || down(7);
+  const jump = down(0);
+  const dash = down(1) || down(5);
+  pad.jumpPressed = jump && !pad.jumpHeld;
+  pad.jumpHeld = jump;
   pad.dashPressed = dash && !pad.dashHeld;
   pad.dashHeld = dash;
-  pad.dropPressed = down(1) && !pad.dropHeld;
-  pad.dropHeld = down(1);
+  pad.dropPressed = down(3) && !pad.dropHeld;
+  pad.dropHeld = down(3);
   pad.pressed = act && !pad.held;
   pad.held = act;
 }
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
-let damBroken = false, drain = 0;
+let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
 
 // A little run, not a combat roll. Ashfall dashes 156 units in 0.17 s, which
@@ -420,6 +415,67 @@ let crackT = 0;            // the fire crackles on a slow clock, never per frame
 // and for the joy of the leaves going up behind her.
 const DASH_TIME = 0.16, DASH_SPEED = 570, DASH_MAX = 2, DASH_BACK = 1.1;
 let dashT = 0, dashDir = 0, dashStock = DASH_MAX, dashRecharge = 0, dashWant = false;
+
+// THE JUMP. 350 up against 1180 of gravity is 0.59 s in the air and 52 high,
+// which at her walking speed carries her 116 across - and with a dash out of
+// the air, 207. Those two numbers ARE the water level: every channel over there
+// is wider than 207 so she cannot skip it, and every gap between one leaf and
+// the next is under 116 except the single one that teaches the dash.
+const JUMP_V = 350, GRAV = 1180;
+let jumpWant = false, onLeaf = null;
+
+function startJump() {
+  if (S.z > 0.5 || st.talking || st.reading) return;
+  S.vz = JUMP_V;
+  S.z = 0.6;
+  sfx.click();
+  // Whatever she is standing on pushes back.
+  if (onLeaf) { onLeaf.sink = Math.min(1, onLeaf.sink + 0.14); water.splash(S.x, S.y + 6, 70, 1.1); }
+  else if (water.wetAt(S.x, S.y + 6)) water.splash(S.x, S.y + 6, 90, 1.3);
+  else {
+    const u = depAt(S.x, S.y + 6);
+    if (u.m && u.d > 0.12) spark(S.x, S.y + 6, 8, { col: MATS[u.m].col, sp0: 40, sp1: 160, l0: 0.5, l1: 1.2, s0: 4, s1: 9, lift: 40 });
+  }
+}
+
+/** Deep water is a wall. A leaf on it, or being in the air, is not. */
+const isDeep = (x, y) => !drained && pondK(x, y) < 1.0 && deepBand(x, y) && !onIsle(x, y);
+const supported = (x, y) => !isDeep(x, y) || !!leafAt(x, y);
+
+/** In she goes - which costs her nothing but the walk back. */
+function fallIn() {
+  water.splash(S.x, S.y + 6, 220, 2.6);
+  spark(S.x, S.y + 6, 26, { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], sp0: 60, sp1: 260, l0: 0.5, l1: 1.3, s0: 3, s1: 8, kind: 'drop', lift: 70 });
+  sfx.splash();
+  S.x = S.safeX; S.y = S.safeY;
+  S.z = 0; S.vz = 0; onLeaf = null;
+  camera.x = clamp(S.x - view.w / 2, 0, Math.max(0, V.w - view.w));
+  camera.y = clamp(S.y - view.h / 2, 0, Math.max(0, V.h - view.h));
+}
+
+/** The jam in the sluice gate: one haul a press, and four of them frees it. */
+function doHaul() {
+  S.act = 0.45;
+  S.sweep = Math.sin(st.t * 9) * 0.5;
+  sfx.rattle(); sfx.thud();
+  rumble(0.4, 0.25, 120);
+  water.splash(JAM.x - 30, JAM.y, 130, 1.8);
+  spark(JAM.x - 20, JAM.y, 14, { col: ['#6d5432', '#42311f', '#8a6a34'], sp0: 40, sp1: 190, l0: 0.5, l1: 1.4, s0: 4, s1: 9, lift: 40 });
+  if (!haul()) {
+    const n = JAM.need - JAM.hauls;
+    st.prompt = n > 1 ? `it gives — ${n} more` : 'it is nearly out';
+    return;
+  }
+  // Free. The hollow empties down the sluice, and the land itself changes.
+  drained = true;
+  terrain.invalidate(POND.x - POND.rx - 300, POND.y - POND.ry - 300,
+    POND.x + POND.rx + 300, POND.y + POND.ry + 300);
+  terrain.warm(camera.x, camera.y, view.w, view.h);
+  sfx.bossDown();
+  water.splash(JAM.x, JAM.y, 420, 4.4);
+  spark(JAM.x, JAM.y, 110, { col: ['#bfe0e8', '#c6e2ea', '#8fbcc8'], sp0: 120, sp1: 460, l0: 0.9, l1: 2.1, s0: 4, s1: 10, kind: 'drop' });
+  rumble(0.8, 0.5, 300);
+}
 
 function startDash() {
   if (dashT > 0 || dashStock <= 0 || st.talking || st.reading) return;
@@ -441,9 +497,12 @@ function startDash() {
     spark(S.x, S.y + 6, 16, { col: MATS[u.m].col, angle: dashDir + Math.PI, arc: 1.7, sp0: 90, sp1: 300, l0: 0.6, l1: 1.5, s0: 4, s1: 10, lift: 40, drag: 1.3 });
   }
 }
-const ring = { x: 0, y: 0, r: 46 };
-const drop = { x: 0, y: 0, r: 34, on: false };
+// Three rings in a controller's diamond, bottom right: ACTION on the left where
+// square is, JUMP below where cross is, DASH on the right where circle is.
+const ring = { x: 0, y: 0, r: 42 };
+const jumpRing = { x: 0, y: 0, r: 38 };
 const dashRing = { x: 0, y: 0, r: 38 };
+const drop = { x: 0, y: 0, r: 30, on: false };
 
 /**
  * The root the tree is reaching with. Only ever a suggestion - it is what is
@@ -485,7 +544,6 @@ const STROKE = { wind: 0.1, work: 0.26, rest: 0.16 };   // seconds
 const SWEEP_BITE = 11;                                  // depth a second while it bites
 let stroke = null;                                      // { t, side, mat }
 let strokeN = 0;                                        // so only every other one is heard
-let damPull = 0;
 
 /**
  * One press: is this a stroke of the broom, or is it somebody else's job?
@@ -503,8 +561,8 @@ let damPull = 0;
  */
 function beginStroke() {
   if (stroke || st.talking || st.reading) return false;
-  // The dam is burned, never swept.
-  if (!damBroken && Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70) return false;
+  // The jam is hauled, never swept.
+  if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) return false;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
   const m = there.d > here.d ? there.m : (here.m || there.m);
@@ -551,47 +609,10 @@ function stepStroke(dt) {
   if (stroke.t >= total) { stroke = null; S.act = 0; S.sweep = 0; }
 }
 
-/** Held down: the coal out at thorn or dead ground, or a long pull at the dam. */
+/** Held down: the coal out at thorn or dead ground. */
 function actHold(dt) {
   if (st.talking || st.reading || stroke) return;
   if (tapDone) return;
-  const near = Math.hypot(S.x - DAM.x, S.y - DAM.y) < DAM.r + 70;
-
-  if (!damBroken && near) {
-    if (!(st.hasEmber && st.ember > 0.02)) {
-      if (actT <= 0) {
-        actT = 1.4;
-        say([['keeper', 'Dry wood, jammed across the throat of the hollow. That is what is holding the water in.'],
-          ['keeper', 'It will not shift for hands, and it will not shift for a broom. Dry wood wants a coal.']], null);
-      }
-      return;
-    }
-    S.act = 1; S.sweep = Math.sin(st.t * 5) * 0.16;
-    damPull += dt;
-    st.ember = Math.max(0, st.ember - dt * 0.08);
-    if (Math.random() < dt * 40) {
-      spark(DAM.x + rand(-54, 54), DAM.y + rand(-64, 64), 1,
-        { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 90, l0: 0.5, l1: 1.4, s0: 3, s1: 7, kind: 'ember', lift: 34 });
-    }
-    crackT -= dt; if (crackT <= 0) { crackT = 0.8 + Math.random() * 0.5; sfx.hiss(); }
-    if (damPull > 2.6) {
-      damBroken = true;
-      drained = true;
-      // The land itself has changed, so it is CLASSIFIED again, not merely
-      // repainted: the basin becomes a marsh and the channel east runs.
-      terrain.invalidate(POND.x - POND.rx - 400, POND.y - POND.ry - 400,
-        OUTFLOW[OUTFLOW.length - 1][0] + 300, POND.y + POND.ry + 400);
-      terrain.warm(camera.x, camera.y, view.w, view.h);
-      sfx.bossDown(); sfx.explode();
-      water.splash(DAM.x, DAM.y, 360, 4.2);
-      spark(DAM.x, DAM.y, 60, { col: ['#ffb35e', '#ff7a2e'], sp0: 60, sp1: 300, l0: 0.7, l1: 1.8, s0: 3, s1: 8, kind: 'ember' });
-      spark(DAM.x, DAM.y, 90, { col: ['#8fbcc8', '#c6e2ea', '#6f9aa8'], sp0: 120, sp1: 460, l0: 0.8, l1: 1.9, s0: 4, s1: 9, kind: 'drop' });
-      rumble(0.7, 0.5, 260);
-    }
-    return;
-  }
-  damPull = 0;
-
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   const here = depAt(S.x, S.y + 6), there = depAt(S.x + fx * 54, S.y + fy * 54 + 6);
   const m = there.d > here.d ? there.m : (here.m || there.m);
@@ -663,35 +684,60 @@ function step(dt) {
   world.runTime = st.t;
   pollPad();
   if (pad.pressed) { begin(); if (st.talking) advance(); }
+  if (pad.jumpPressed) { begin(); if (st.talking) advance(); else jumpWant = true; }
   if (pad.dropPressed) dropBroom();
   if (pad.dashPressed) { begin(); dashWant = true; }
-  holding = keys.has(' ') || keys.has('e') || touch.ring || pad.held;
+  holding = keys.has('e') || touch.ring || pad.held;   // space is the jump now
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
-  // The press that TAKES or READS happens on the way down, before any sweeping.
+  // ONE press, and this is who gets it. The order matters: the broom comes
+  // before the keeper, or Savi cannot sweep the courtyard the keeper is
+  // standing in the middle of - every press there would open her mouth instead.
   if (holding && !wasHolding) {
     tapDone = false;
-    if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
+    const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
+    if (!jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54) {
+      doHaul(); tapDone = true;
+    } else if (broom.held && beginStroke()) {
+      tapDone = true;                           // one press, one sweep
+    } else if (yt) {
+      openReading(yt); tapDone = true;
+    } else if (!broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
       broom.held = true; tapDone = true; sfx.pickup();
-    } else {
-      const yt = YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
-      if (yt) { openReading(yt); tapDone = true; }
-      else if (beginStroke()) tapDone = true;   // one press, one sweep
-    }
+    } else if (!st.talking && !st.reading && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) {
+      // She speaks when she is SPOKEN TO. She used to start talking the moment
+      // Savi came within a hundred units of her, every single time, which is a
+      // person standing in a doorway explaining her own house to you.
+      talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
+      st.metKeeper = true;
+      tapDone = true;
+    } else if (beginStroke()) tapDone = true;
   }
   if (!holding) tapDone = false;
   wasHolding = holding;
   if (holding && !tapDone && !stroke) beginStroke();
   stepStroke(dt);
-  if (holding) actHold(dt); else if (!stroke) { S.act = 0; damPull = 0; }
-
-  // The keeper. Tracked BEFORE the early return below, or the flag never gets
-  // set while she is talking and the conversation reopens the instant it ends.
-  const nearW = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 110;
-  if (nearW && !st.nearWoman && !st.talking && !st.reading) talkTo(keeperStart(st.count, ROOTS.length));
-  st.nearWoman = nearW;
+  if (holding) actHold(dt); else if (!stroke) S.act = 0;
 
   if (st.talking || st.reading) { stepParticles(dt); return; }
+
+  // The leaves first, so a drifting one carries her with it.
+  stepShallows(dt, st.t, drained ? null : onLeaf);
+  if (onLeaf && !drained && S.z <= 0.5) { S.x += onLeaf.dx; S.y += onLeaf.dy; }
+
+  // The jump, and the fall.
+  if (jumpWant) { jumpWant = false; startJump(); }
+  if (S.z > 0 || S.vz !== 0) {
+    S.vz -= GRAV * dt;
+    S.z += S.vz * dt;
+    if (S.z <= 0) {
+      S.z = 0; S.vz = 0;
+      onLeaf = leafAt(S.x, S.y);
+      if (!supported(S.x, S.y)) fallIn();
+      else if (onLeaf) { sfx.thud(); water.splash(S.x, S.y + 6, 90, 1.4); }
+      else sfx.thud();
+    }
+  }
 
   // The dash, and the two charges coming back.
   if (dashWant) { dashWant = false; startDash(); }
@@ -702,8 +748,12 @@ function step(dt) {
 
   const mv = moveVector();
   const under = depAt(S.x, S.y + 6);
-  const drag = under.m ? MATS[under.m].drag * Math.min(1, under.d) : 0;
-  const wet = water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
+  // In the air nothing underfoot slows her - she is not standing in it. Wading
+  // out to the bank and then jumping used to carry her only 65, which is short
+  // of every leaf in the hollow.
+  const air = S.z > 0.5;
+  const drag = air || !under.m ? 0 : MATS[under.m].drag * Math.min(1, under.d);
+  const wet = !air && water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
   const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
   if (dashT > 0) {
@@ -720,6 +770,14 @@ function step(dt) {
   let nx = S.x + S.vx * dt, ny = S.y + S.vy * dt;
   const ah = depAt(nx, ny + 6);
   if (ah.m === MAT.thorn && ah.d > 0.6) { nx = S.x; ny = S.y; }
+  // She will not walk into water that is over her head. In the air she can go
+  // anywhere - that is what the jump is FOR - and one axis at a time, so she
+  // slides along a bank instead of sticking to it.
+  if (S.z <= 0.5 && !supported(nx, ny)) {
+    if (supported(nx, S.y)) ny = S.y;
+    else if (supported(S.x, ny)) nx = S.x;
+    else { nx = S.x; ny = S.y; }
+  }
   // NOTHING stands between her and any root. There was a cold that shoved her
   // back from the four the tree had not named, which is a hard gate with a
   // story pinned to it - it requires, where a soft gate should only encourage.
@@ -730,6 +788,13 @@ function step(dt) {
   // first minute.
   S.x = clamp(nx, 40, V.w - 40);
   S.y = clamp(ny, 40, V.h - 40);
+
+  // What she is standing on now, and the last dry thing she stood on.
+  if (S.z <= 0.5) {
+    onLeaf = drained ? null : leafAt(S.x, S.y);
+    if (onLeaf && onLeaf.sink >= 1) { onLeaf = null; if (!supported(S.x, S.y)) fallIn(); }
+    if (!isDeep(S.x, S.y)) { S.safeX = S.x; S.safeY = S.y; }
+  } else onLeaf = null;
 
   S.speed = Math.hypot(S.vx, S.vy);
   if (S.speed > 14) {
@@ -767,8 +832,12 @@ function step(dt) {
   st.prompt = '';
   const nearBroom = !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
-  if (nearBroom) st.prompt = 'take the broom';
+  const nearJam = !jamClear() && Math.hypot(S.x - JAM.x, S.y - JAM.y) < JAM.r + 54;
+  if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
+  else if (nearJam) st.prompt = 'haul the driftwood out';
+  else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
+  else if (onLeaf) st.prompt = 'jump';
   else if (broom.held) st.prompt = 'hold to sweep · Q to put the broom down';
 
   for (const yt of YOUNG) {
@@ -787,13 +856,13 @@ function step(dt) {
     say([['keeper', 'You lift a coal out of her fire. It sits in your palm and does not burn you.']], null);
   }
 
-  if (damBroken && drain < 1) {
+  if (drained && drain < 1) {
     drain = Math.min(1, drain + dt / 5);
-    // It pours out of the neck and away down the channel for a few seconds.
-    water.splash(NECK.x + rand(-40, 40), NECK.y + rand(-50, 50), 90, 1.6);
+    // It goes down the sluice for a few seconds, and hard.
+    water.splash(JAM.x + rand(-30, 30), JAM.y + rand(-50, 50), 100, 1.8);
     if (Math.random() < dt * 30) {
-      spark(NECK.x + rand(-30, 30), NECK.y + rand(-40, 40), 1,
-        { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], angle: 0.2, arc: 1.2, sp0: 120, sp1: 340, l0: 0.5, l1: 1.2, s0: 3, s1: 7, kind: 'drop' });
+      spark(JAM.x + rand(-20, 20), JAM.y + rand(-40, 40), 1,
+        { col: ['#bfe0e8', '#8fbcc8', '#dff0f4'], angle: 0.1, arc: 1.2, sp0: 120, sp1: 340, l0: 0.5, l1: 1.2, s0: 3, s1: 7, kind: 'drop' });
     }
   }
 
@@ -811,7 +880,7 @@ function step(dt) {
   // Work is never wasted and nothing has to be done in an order.
   for (const r of ROOTS) {
     if (st.woken[r.id]) continue;
-    const done = r.mat === 'water' ? drain >= 1 : fraction(r) > 0.52;
+    const done = r.mat === 'water' ? (drained && drain >= 1) : fraction(r) > 0.52;
     if (done) wake(r);
   }
 
@@ -820,14 +889,6 @@ function step(dt) {
     setAmbientTheme(themeById('durga'));
     say(CLIMAX, () => { st.bloom = 1; }, 'bloom');
   }
-
-  // The old woman speaks when she walks up, and not again until she walks away.
-  const near = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 110;
-  if (near && !st.nearWoman && !st.talking) {
-    talkTo(keeperStart(st.count, ROOTS.length, st.metKeeper));
-    st.metKeeper = true;
-  }
-  st.nearWoman = near;
 
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
   st.warmth = clamp01(0.2 + (st.count / ROOTS.length) * 0.58 + st.bloomK * 0.22);
@@ -906,7 +967,7 @@ function sowScenery() {
   for (const t of AVENUE) SCENERY.push({ x: t.x, y: t.y, rock: false, s: t.s, seed: t.seed, dead: false, avenue: 1 });
   for (let i = 0; i < 760; i++) {
     const x = rand(60, V.w - 60), y = rand(60, V.h - 60);
-    if (pondK(x, y) < 1.15 || roadDist(x, y) < 72) continue;
+    if ((pondK(x, y) < 1.15 && !onIsle(x, y)) || roadDist(x, y) < 72) continue;
     if (Math.hypot(x - TREE.x, y - TREE.y) < 500) continue;
     if (Math.abs(x - 2600) < 230 && y > 2300) continue;      // keep the avenue clear
     let onPatch = false;
@@ -930,34 +991,15 @@ function render() {
   terrain.draw(ctx, camera.x, camera.y, view.w, view.h);
   drawLayer(ctx);
   grass.draw(ctx, st.t, win());
+  drawDeep(ctx, st.t, drained);
   water.draw(ctx);
 
   drawShrine(ctx, SHRINE, st.t, st.swept ? 1 : 0);
   for (const r of ROOTS) drawRoot(ctx, TREE, r, !!st.woken[r.id], st.t, r === current());
 
   drawHollow(ctx);
-  if (!damBroken) {
-    // A raft of dry deadfall wedged in the neck: logs, not a wall.
-    const left = Math.max(0, 1 - damPull / 2.6);
-    ctx.save();
-    ctx.translate(DAM.x, DAM.y);
-    for (let i = 0; i < 11; i++) {
-      if (i / 11 > left) continue;
-      ctx.save();
-      ctx.rotate((i * 0.83) % 1.7 - 0.85);
-      ctx.fillStyle = i % 2 ? '#5a4529' : '#42311f';
-      ctx.beginPath();
-      ctx.ellipse(0, i * 8 - 40, 58 - (i % 3) * 9, 5.5, 0, 0, TAU);
-      ctx.fill();
-      ctx.fillStyle = '#6d5432';
-      ctx.beginPath(); ctx.ellipse(-56 + (i % 3) * 9, i * 8 - 40, 4, 5, 0, 0, TAU); ctx.fill();
-      ctx.restore();
-    }
-    if (damPull > 0.05) {           // and it catches
-      glow(ctx, 0, 0, 140 * Math.min(1, damPull), `rgba(255,150,60,${0.3 * Math.min(1, damPull)})`);
-    }
-    ctx.restore();
-  }
+  drawSluice(ctx, st.t, drained);
+  drawLeaves(ctx, st.t, drained);
 
   S.broom = broom.held;
   if (!broom.held) drawBroom(ctx, broom, st.t);
@@ -1035,7 +1077,7 @@ function drawHollow(ctx) {
   }
   // Lily pads, while there is water to float on.
   if (!drained) {
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 44; i++) {
       const a = vn(i, 1) * TAU, r = Math.sqrt(vn(i, 2)) * 0.74;
       const x = POND.x + Math.cos(a) * POND.rx * r, y = POND.y + Math.sin(a) * POND.ry * r;
       const drift = Math.sin(st.t * 0.4 + i) * 3;
@@ -1048,20 +1090,6 @@ function drawHollow(ctx) {
         ctx.beginPath(); ctx.arc(x + drift + 4, y - 3, 3.4, 0, TAU); ctx.fill();
       }
     }
-  }
-  // The boulders the neck runs between.
-  for (const b of BOULDERS) {
-    ctx.fillStyle = 'rgba(0,0,0,0.26)';
-    ctx.beginPath(); ctx.ellipse(b.x + 7, b.y + 8, b.r * 1.02, b.r * 0.52, 0, 0, TAU); ctx.fill();
-    for (let i = 0; i < 3; i++) {
-      ctx.fillStyle = ['#6f6a62', '#807a70', '#5c5850'][i];
-      ctx.beginPath();
-      ctx.ellipse(b.x + Math.cos(i * 2.2) * b.r * 0.18, b.y - b.r * 0.2 + Math.sin(i * 2.2) * b.r * 0.12,
-        b.r * (1 - i * 0.2), b.r * (0.72 - i * 0.16), i * 0.7, 0, TAU);
-      ctx.fill();
-    }
-    ctx.fillStyle = 'rgba(255,240,210,0.15)';
-    ctx.beginPath(); ctx.ellipse(b.x - b.r * 0.3, b.y - b.r * 0.5, b.r * 0.4, b.r * 0.2, -0.4, 0, TAU); ctx.fill();
   }
 }
 
@@ -1102,7 +1130,7 @@ function drawHud() {
   // Putting it down, for a thumb and for a pad.
   drop.on = broom.held;
   if (drop.on) {
-    drop.x = view.w - 86; drop.y = view.h - 176;
+    drop.x = view.w - 116; drop.y = view.h - 202;
     ctx.beginPath(); ctx.arc(drop.x, drop.y, 28, 0, TAU);
     ctx.fillStyle = 'rgba(200,160,90,0.18)'; ctx.fill();
     ctx.strokeStyle = 'rgba(200,160,90,0.65)'; ctx.lineWidth = 2; ctx.stroke();
@@ -1114,8 +1142,21 @@ function drawHud() {
     ctx.textAlign = 'left';
   }
 
+  // The jump.
+  jumpRing.x = view.w - 116; jumpRing.y = view.h - 44;
+  ctx.beginPath(); ctx.arc(jumpRing.x, jumpRing.y, 32, 0, TAU);
+  ctx.fillStyle = S.z > 0.5 ? 'rgba(198,226,196,0.4)' : 'rgba(198,226,196,0.2)';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(214,238,210,0.7)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.textAlign = 'center';
+  ctx.fillStyle = 'rgba(226,244,222,0.92)';
+  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.fillText('JUMP', jumpRing.x, jumpRing.y + 3);
+  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.textAlign = 'left';
+
   // The dash, and how many she has left.
-  dashRing.x = view.w - 176; dashRing.y = view.h - 62;
+  dashRing.x = view.w - 52; dashRing.y = view.h - 104;
   ctx.beginPath(); ctx.arc(dashRing.x, dashRing.y, 32, 0, TAU);
   ctx.fillStyle = dashStock > 0 ? 'rgba(150,190,225,0.2)' : 'rgba(150,190,225,0.07)';
   ctx.fill();
@@ -1134,8 +1175,8 @@ function drawHud() {
   ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.textAlign = 'left';
 
-  ring.x = view.w - 86; ring.y = view.h - 86;
-  ctx.beginPath(); ctx.arc(ring.x, ring.y, 40, 0, TAU);
+  ring.x = view.w - 180; ring.y = view.h - 104;
+  ctx.beginPath(); ctx.arc(ring.x, ring.y, 38, 0, TAU);
   ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
   ctx.fill();
   ctx.strokeStyle = 'rgba(255,190,120,0.75)'; ctx.lineWidth = 2; ctx.stroke();
@@ -1143,10 +1184,14 @@ function drawHud() {
   ctx.fillStyle = 'rgba(255,224,186,0.95)';
   const label = st.prompt.startsWith('take') ? 'TAKE'
     : st.prompt.startsWith('read') ? 'READ'
-      : st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP';
+      : st.prompt.startsWith('speak') ? 'TALK'
+        : st.prompt.startsWith('haul') || st.prompt.startsWith('it ') ? 'HAUL'
+          : st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP';
+  ctx.font = '600 12px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.fillText(label, ring.x, ring.y + 4);
+  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText(pad.on ? 'left stick to walk · cross to sweep · hold it out at thorn' : 'space or the ring to sweep — hold it out at thorn and ash', view.w / 2, view.h - 22);
+  ctx.fillText(pad.on ? 'cross to jump · circle to dash · square to act' : 'space to jump · shift to dash · E or the ring to act', view.w / 2, view.h - 22);
   ctx.textAlign = 'left';
 }
 
@@ -1351,7 +1396,7 @@ function main() {
 
   buildGround();
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
-  grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => pondK(x, y) < 1.05 });
+  grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => pondK(x, y) < 1.05 && !onIsle(x, y) });
   water = createWildsWater();
   sowScenery();
   resize();
@@ -1368,6 +1413,7 @@ function main() {
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
       if (st.talking) advance();
+      else if (k === ' ') jumpWant = true;
       e.preventDefault();
     }
   });
@@ -1386,6 +1432,7 @@ function main() {
     if (st.talking) { advance(); return; }
     const sc = view.scale || 1;
     if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
+    if (Math.hypot(e.clientX / sc - jumpRing.x, e.clientY / sc - jumpRing.y) < jumpRing.r) { jumpWant = true; return; }
     if (Math.hypot(e.clientX / sc - dashRing.x, e.clientY / sc - dashRing.y) < dashRing.r) { dashWant = true; return; }
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
       touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
@@ -1426,13 +1473,15 @@ function main() {
 
 main();
 window.savi = {
-  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, DAM, NECK, POND, broom, YOUNG, render, resize, begin, say, advance, fraction,
-  get terrain() { return terrain; }, get drained() { return drained; },
+  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, JAM, ISLE, POND, LEAVES, broom, YOUNG, render, resize, begin, say, advance, fraction,
+  jump() { jumpWant = true; step(1 / 60); },
+  isDeep, supported, leafAt, get onLeaf() { return onLeaf; },
+  get terrain() { return terrain; }, get drained() { return drained; }, get drain() { return drain; },
   face: drawPortrait, openReading,
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
   dash() { dashWant = true; step(1 / 60); for (let i = 0; i < 20; i++) step(1 / 60); },
-  hold(sec = 1) { keys.add(' '); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete(' '); step(1 / 60); },
-  sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add(' '); step(1 / 60); keys.delete(' '); for (let j = 0; j < 34; j++) step(1 / 60); } },
+  hold(sec = 1) { keys.add('e'); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete('e'); step(1 / 60); },
+  sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add('e'); step(1 / 60); keys.delete('e'); for (let j = 0; j < 34; j++) step(1 / 60); } },
   talkTo, KEEPER,
 };
