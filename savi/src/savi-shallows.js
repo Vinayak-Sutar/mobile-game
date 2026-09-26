@@ -40,7 +40,7 @@ const TAU = Math.PI * 2;
 export const COURSE = [
   [3000, 2980], [3300, 2900], [3560, 2740], [3720, 2520], [3980, 2440],
   [4260, 2520], [4440, 2330], [4520, 2080], [4680, 1900], [4860, 1760],
-  [4900, 1520],
+  [4900, 1560], [4760, 1380], [4520, 1290],
 ];
 export const WATER_W = 156;      // half-width of the water
 export const WALL_W = 230;       // and the rock either side. Thick, because the
@@ -132,9 +132,16 @@ export const PLATFORMS = [
   P(1452, 68, 52, 'swing', { amp: 80, rate: 0.95, phase: Math.PI }),
 
   // THE EDDY — three leaves turning round the whirl in the wide bowl.
-  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7 }),
-  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7, phase: TAU / 3 }),
-  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7, phase: (TAU * 2) / 3 }),
+  //
+  // They orbit LOCKED TOGETHER at the same rate, so the gap between one and the
+  // next never changes in a way she can wait out: whatever it is, it is what it
+  // is, all the way round. It used to swing between 85 and 133, and 133 is past
+  // a jump - so a third of the way round the whirl the next leaf was simply out
+  // of reach with nothing to do about it but fall in. A tighter orbit and
+  // broader leaves keep every step of it a hop at every phase.
+  P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7 }),
+  P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7, phase: TAU / 3 }),
+  P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7, phase: (TAU * 2) / 3 }),
   P(1830, 0, 80, 'stone'),
 
   // ...and out of the bowl, the one gap that wants the dash.
@@ -144,7 +151,13 @@ export const PLATFORMS = [
   P(2270, 54, 54, 'ferry', { amp: 118, rate: 0.85 }),
   P(2460, -50, 54, 'leaf'),
   P(2630, 48, 54, 'ferry', { amp: 114, rate: 0.85, phase: Math.PI }),
-  P(2810, -32, 58, 'leaf'),
+  P(2810, -40, 56, 'leaf'),
+
+  // THE LAST BEND — the gorge turns back on itself under the pool, and the
+  // water is quick here, so it is one more swing and two hops to the shelf.
+  P(2950, 56, 54, 'swing', { amp: 80, rate: 0.95, phase: 1.1 }),
+  P(3090, -46, 56, 'leaf'),
+  P(3230, 34, 58, 'leaf'),
 ];
 
 /** Every platform's world position, and how far it moved this frame. */
@@ -520,38 +533,113 @@ export function drawSluice(ctx, t, drained) {
     }
   }
 
+  // THE CHAIN FROM THE DRUM TO THE GATE, which is the whole of why this was
+  // dull. You were being asked to walk in a circle here for something that
+  // happens a hundred units away, with nothing at all joining the two - so
+  // there was no reason to think the wheel had anything to do with the water.
+  // Now the chain runs from the drum to the head of the gate in plain sight,
+  // its links crawl along it as she turns, the slack comes out of it, and the
+  // gate rises on the end of it. Nobody has to be told what the wheel is for.
   const C = CAPSTAN;
-  if (!gateOpen()) {
-    ctx.strokeStyle = 'rgba(255,214,150,0.18)';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([9, 11]);
-    ctx.beginPath(); ctx.ellipse(C.x, C.y, C.r, C.r * 0.62, 0, 0, TAU); ctx.stroke();
-    ctx.setLineDash([]);
+  {
+    const gx = GATE.x + GATE.w / 2;
+    const gy = GATE.y - GATE.h / 2 - lift * (GATE.h - 14);
+    const sag = (1 - lift) * 30;
+    const mx = (C.x + gx) / 2, my = (C.y + gy) / 2 + sag;
+    ctx.strokeStyle = '#413b33';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(C.x, C.y - 12);
+    ctx.quadraticCurveTo(mx, my, gx, gy);
+    ctx.stroke();
+    // The links, sliding along as she winds.
+    const n = 16;
+    for (let i = 0; i < n; i++) {
+      const u = ((i + (C.wound * 0.6) % 1) / n);
+      const ax = C.x + (mx - C.x) * u, ay = (C.y - 12) + (my - (C.y - 12)) * u;
+      const bx = mx + (gx - mx) * u, by = my + (gy - my) * u;
+      const x = ax + (bx - ax) * u, y = ay + (by - ay) * u;
+      ctx.fillStyle = i % 2 ? '#9a8e7c' : '#6a6154';
+      ctx.beginPath(); ctx.ellipse(x, y, 4.6, 3.2, 0, 0, TAU); ctx.fill();
+    }
   }
+
+  if (!gateOpen()) {
+    // THE RING SHE WALKS, AND WHICH WAY ROUND. A dashed circle is not an
+    // instruction. An arrow going round one is.
+    const spin = t * 1.1;
+    ctx.strokeStyle = 'rgba(255,214,150,0.2)';
+    ctx.lineWidth = 13;
+    ctx.beginPath(); ctx.ellipse(C.x, C.y, C.r, C.r * 0.62, 0, 0, TAU); ctx.stroke();
+    // Footprints lighting up in order round it, the way she would walk them.
+    for (let i = 0; i < 10; i++) {
+      const a2 = (i / 10) * TAU;
+      const k = (Math.sin(spin - a2) + 1) / 2;
+      ctx.fillStyle = `rgba(255,226,182,${0.1 + k * 0.5})`;
+      ctx.save();
+      ctx.translate(C.x + Math.cos(a2) * C.r, C.y + Math.sin(a2) * C.r * 0.62);
+      ctx.rotate(a2 + Math.PI / 2);
+      ctx.beginPath(); ctx.ellipse(0, 0, 4.4, 7.2, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
+    // And two arrows running the ring, so the direction is unmistakable.
+    for (let h = 0; h < 2; h++) {
+      const a2 = spin + h * Math.PI;
+      ctx.save();
+      ctx.translate(C.x + Math.cos(a2) * C.r, C.y + Math.sin(a2) * C.r * 0.62);
+      ctx.rotate(Math.atan2(Math.cos(a2) * 0.62, -Math.sin(a2)));
+      ctx.fillStyle = 'rgba(255,200,120,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(13, 0); ctx.lineTo(-7, 7); ctx.lineTo(-3, 0); ctx.lineTo(-7, -7);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(50,30,12,0.75)'; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.restore();
+    }
+    // How far round she has got, drawn ON the ring she is walking rather than
+    // on three little pips off to one side of it.
+    ctx.strokeStyle = 'rgba(255,196,120,0.92)';
+    ctx.lineWidth = 7;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.ellipse(C.x, C.y, C.r, C.r * 0.62, 0, -Math.PI / 2, -Math.PI / 2 + TAU * lift);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(C.x + 5, C.y + 8, 30, 16, 0, 0, TAU); ctx.fill();
   ctx.save();
   ctx.translate(C.x, C.y);
+  // A little creak of movement while it waits, so it looks willing rather than
+  // like scenery.
+  const idle = gateOpen() ? 0 : Math.sin(t * 1.5) * 0.035;
   for (const k of [0, 1]) {
-    const b = C.wound + k * Math.PI;
+    const b = C.wound + idle + k * Math.PI;
+    const ex = Math.cos(b) * 48, ey = Math.sin(b) * 29;
     ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(Math.cos(b) * 48, Math.sin(b) * 29 - 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(ex, ey - 6); ctx.stroke();
     ctx.strokeStyle = '#96836a'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(Math.cos(b) * 48, Math.sin(b) * 29 - 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(ex, ey - 8); ctx.stroke();
+    // The grips at the ends, worn pale by however many hands came before hers.
+    ctx.fillStyle = '#b3a189';
+    ctx.beginPath(); ctx.ellipse(ex, ey - 8, 6.5, 5, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#4a4033'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(ex, ey - 8, 6.5, 5, 0, 0, TAU); ctx.stroke();
   }
   ctx.lineCap = 'butt';
   ctx.fillStyle = '#5f5340';
   ctx.beginPath(); ctx.ellipse(0, 0, 17, 13, 0, 0, TAU); ctx.fill();
   ctx.fillStyle = '#7b6a52';
   ctx.beginPath(); ctx.ellipse(0, -7, 17, 13, 0, 0, TAU); ctx.fill();
+  // Rope coiled on the drum, and there is more of it the further she has wound.
+  ctx.strokeStyle = '#8d8272';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3 + Math.round(lift * 5); i++) {
+    ctx.beginPath();
+    ctx.ellipse(0, -7 + i * 1.3, 15 - i * 0.6, 11 - i * 0.45, 0, 0, TAU);
+    ctx.stroke();
+  }
   ctx.strokeStyle = '#4a4033'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.ellipse(0, -7, 17, 13, 0, 0, TAU); ctx.stroke();
   ctx.restore();
-
-  if (!gateOpen()) {
-    for (let i = 0; i < C.need; i++) {
-      const part = Math.max(0, Math.min(1, C.turns - i));
-      ctx.fillStyle = part >= 1 ? 'rgba(255,196,120,0.95)' : `rgba(255,196,120,${0.18 + part * 0.6})`;
-      ctx.beginPath(); ctx.arc(C.x - 18 + i * 18, C.y - 52, 4.6, 0, TAU); ctx.fill();
-      ctx.strokeStyle = 'rgba(40,28,16,0.7)'; ctx.lineWidth = 1.3; ctx.stroke();
-    }
-  }
 }

@@ -29,17 +29,31 @@ const flag = (m) => { console.log('  warn   ' + m); warn++; };
 const still = (p) => { placePlatforms(0); return { x: p.x, y: p.y, r: p.r }; };
 const moves = (p) => p.kind === 'swing' || p.kind === 'ferry' || p.kind === 'eddy';
 
-/** The closest and furthest a moving platform ever gets from a fixed point. */
-function reach(p, from) {
+/**
+ * The closest and furthest two platforms EVER get from each other, sampling the
+ * whole cycle of BOTH of them.
+ *
+ * The version of this that shipped froze the previous platform at t=0 and swung
+ * only the new one against it, which is meaningless when both move - and it hid
+ * a real defect for two builds. The three eddy leaves orbit locked together, so
+ * the gap between them never changed in any way the player could wait out; it
+ * sat between 85 and 133, and 133 is past a jump, so a third of the way round
+ * the whirl the next leaf was unreachable with nothing to be done about it.
+ */
+function span(a, b) {
+  const per = Math.max(TAU / (a.rate || 1), TAU / (b.rate || 1)) * 2;
   let near = 1e9, far = -1e9;
-  const period = TAU / (p.rate || 1);
-  for (let k = 0; k < 96; k++) {
-    placePlatforms((k / 96) * period);
-    const d = Math.hypot(p.x - from.x, p.y - from.y) - p.r - (from.r || 0);
+  for (let k = 0; k < 240; k++) {
+    placePlatforms((k / 240) * per);
+    const d = Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r;
     near = Math.min(near, d); far = Math.max(far, d);
   }
+  placePlatforms(0);
   return { near, far };
 }
+
+/** Two platforms turning at the same rate are welded: there is no waiting them out. */
+const locked = (a, b) => moves(a) && moves(b) && Math.abs((a.rate || 0) - (b.rate || 0)) < 1e-6;
 
 console.log(`the course is ${Math.round(COURSE_LEN)} long in ${COURSE.length - 1} bends,`);
 console.log(`carrying ${PLATFORMS.length} platforms.\n`);
@@ -52,36 +66,42 @@ console.log('the chain, link by link:');
 for (let i = 0; i < PLATFORMS.length; i++) {
   const p = PLATFORMS[i];
   const prev = i === 0 ? null : PLATFORMS[i - 1];
-  const from = prev ? still(prev) : mouth;
   const label = `${String(i + 1).padStart(2)}. ${NAME[p.kind]}`;
-
-  if (moves(p)) {
-    // It has to come within reach of where she is standing, and it has to leave
-    // that reach for part of its cycle or there is no timing in it.
-    const r = reach(p, from);
-    ok(r.near <= COZY, `${label} — comes within ${Math.round(r.near)} of the one before`);
-    ok(r.far > JUMP, `${label} — and swings ${Math.round(r.far)} away, so there is something to wait for`);
+  if (!prev) {
+    const to = still(p);
+    const g = Math.round(Math.hypot(to.x - mouth.x, to.y - mouth.y) - to.r);
+    ok(g <= JUMP - 8, `${label} — ${g} from the mouth: a hop`);
+    seconds += 1.7;
+    continue;
+  }
+  const sp = span(prev, p);
+  const near = Math.round(sp.near), far = Math.round(sp.far);
+  if (locked(prev, p)) {
+    // Welded together, so there is no waiting it out: it has to be a hop at
+    // EVERY phase of the turn, not merely at some of them.
+    ok(far <= JUMP - 8, `${label} — locked to the one before; the gap runs ${near} to ${far}, and must never pass ${JUMP - 8}`);
+    seconds += 1.7;
+  } else if (moves(p)) {
+    // Getting ON to something that moves: it has to come to her, and it has to
+    // leave again, or there is no timing in it.
+    ok(near <= COZY, `${label} — comes within ${near} of the one before`);
+    ok(far > JUMP, `${label} — and goes ${far} away, so there is something to wait for`);
     const period = TAU / p.rate;
     note(`its beat is ${period.toFixed(1)}s — at most ${(period / 2).toFixed(1)}s of waiting`);
     seconds += period / 2 + 1.6;
-  } else if (prev && moves(prev)) {
-    // Stepping off a mover: the mover has to deliver her to it.
-    const to = still(p);
-    const r = reach(prev, to);
-    ok(r.near <= COZY, `${label} — the one before brings her within ${Math.round(r.near)}`);
+  } else if (moves(prev)) {
+    // Stepping OFF one on to solid ground only has to be delivered. Asking
+    // that it also go out of reach is asking the ride not to end.
+    ok(near <= COZY, `${label} — the one before brings her within ${near}`);
     seconds += 1.7;
+  } else if (near >= DASH_MIN && near <= DASH_MAX) {
+    ok(true, `${label} — ${near} away: a dash`);
+    seconds += 2.4;
   } else {
-    const to = still(p);
-    const g = Math.round(Math.hypot(to.x - from.x, to.y - from.y) - to.r - (from.r || 0));
-    if (g >= DASH_MIN && g <= DASH_MAX) {
-      ok(true, `${label} — ${g} away: a dash`);
-      seconds += 2.4;
-    } else {
-      ok(g <= JUMP - 8, `${label} — ${g} away: a hop`);
-      if (g > COZY) flag(`${g} is tight for a cozy hop; ${COZY} or under reads better`);
-      if (g > TAP - 8 && g < DASH_MIN) { ok(false, `${label} — ${g} is past a short press and short of a dash`); }
-      seconds += 1.7;
-    }
+    ok(near <= JUMP - 8, `${label} — ${near} away: a hop`);
+    if (near > COZY) flag(`${near} is tight for a cozy hop; ${COZY} or under reads better`);
+    if (near > TAP - 8 && near < DASH_MIN) ok(false, `${label} — ${near} is past a short press and short of a dash`);
+    seconds += 1.7;
   }
 }
 
