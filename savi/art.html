@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Savi — the art</title>
+<style>
+  :root{
+    --ink:#150f14; --lime:#efe0c0; --geru:#b8402a; --haldi:#e2a129;
+    --patta:#4f8b3f; --paper:#17120f; --line:rgba(240,227,200,.14);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--paper);color:#f0e3c8;
+    font:15px/1.55 "Segoe UI",Roboto,system-ui,sans-serif;-webkit-text-size-adjust:100%}
+  header{position:sticky;top:0;z-index:5;background:rgba(23,18,15,.94);
+    backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:14px 18px}
+  h1{margin:0;font-size:19px;letter-spacing:.3px;font-weight:600}
+  h1 small{display:block;font-size:12px;opacity:.6;font-weight:400;margin-top:3px}
+  .bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:11px;font-size:13px}
+  .bar label{display:flex;gap:6px;align-items:center;opacity:.85}
+  input[type=range]{width:120px;accent-color:var(--haldi)}
+  button{font:inherit;font-size:13px;padding:5px 12px;border-radius:999px;cursor:pointer;
+    color:#f0e3c8;background:rgba(240,227,200,.09);border:1px solid rgba(240,227,200,.26)}
+  button:hover{background:rgba(226,161,41,.2);border-color:rgba(226,161,41,.6)}
+  button.on{background:rgba(226,161,41,.3);border-color:rgba(226,161,41,.8)}
+  main{padding:18px;max-width:1500px;margin:0 auto}
+  section{margin:0 0 34px}
+  h2{font-size:14px;letter-spacing:1.6px;text-transform:uppercase;opacity:.55;
+    font-weight:600;margin:0 0 4px;padding-bottom:7px;border-bottom:1px solid var(--line)}
+  .note{font-size:13px;opacity:.6;margin:9px 0 15px;max-width:66ch}
+  .grid{display:flex;flex-wrap:wrap;gap:16px}
+  .item{background:rgba(240,227,200,.035);border:1px solid var(--line);
+    border-radius:12px;padding:11px;display:flex;flex-direction:column;gap:8px}
+  .item canvas{display:block;border-radius:7px;cursor:pointer;max-width:100%;height:auto}
+  .cap{font-size:12px;opacity:.72;display:flex;justify-content:space-between;gap:10px}
+  .cap b{font-weight:600;opacity:.95}
+  .cap i{font-style:normal;opacity:.5;font-size:11px}
+  .sw{display:flex;flex-wrap:wrap;gap:10px}
+  .chip{width:112px}
+  .chip .box{height:52px;border-radius:7px;border:2px solid var(--ink)}
+  .chip .cap{display:block;margin-top:5px}
+  .dark canvas{background:#17120f}
+  .lime canvas{background:#efe0c0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Savi — the art
+    <small>Everything is drawn by code. Nothing is an image file. Click any panel to make it speak.</small></h1>
+  <div class="bar">
+    <label>size <input id="size" type="range" min="60" max="220" value="100"></label>
+    <button id="play" class="on">pause</button>
+    <button id="bg">panel: dark</button>
+    <span id="fps" style="opacity:.45;font-variant-numeric:tabular-nums"></span>
+  </div>
+</header>
+<main>
+  <section>
+    <h2>Pigments</h2>
+    <p class="note">The old Gond colours, by their own names: geru is the red ochre dug out
+      of a riverbank, haldi is turmeric, patta is crushed leaf, chuna is limestone or rice
+      paste, soot is wood-fire soot, and neel — indigo — was always rare.</p>
+    <div class="sw" id="pigments"></div>
+  </section>
+
+  <section>
+    <h2>Infills</h2>
+    <p class="note">The signature of the whole tradition: every flat field is combed with a
+      repeated micro-motif. Dot rows were Jangarh Singh Shyam's own and came out of Gond
+      tattooing; the water droplets are Durga Bai Vyam's; the young shoots are the kind that
+      come up in a flooded paddy field. An established artist's infill identifies them the
+      way a signature does.</p>
+    <div class="sw" id="motifs"></div>
+  </section>
+
+  <section>
+    <h2>The speakers</h2>
+    <p class="note">Gond has no portraiture and no interest in likeness, so these are
+      assemblies of flat patterned parts told apart by attribute — what they carry, what
+      animal stands with them, what grows out of them. They breathe, they blink on a clock,
+      and they lean into a new line. Click one to give it a line to lean into.</p>
+    <div class="grid" id="faces"></div>
+  </section>
+
+  <section>
+    <h2>The murals</h2>
+    <p class="note">One for each beat of the legend, cut into the young banyan that rises
+      when a root is freed. Limed ground, a border of crescents the way a digna floor is
+      edged before it is filled, figures on one line, read across.</p>
+    <div class="grid" id="murals"></div>
+  </section>
+
+  <section>
+    <h2>The valley</h2>
+    <p class="note">The rest of what gets drawn, at the size it is drawn in the game.</p>
+    <div class="grid" id="world"></div>
+  </section>
+</main>
+
+<script type="module">
+import { G, field, blob, limb, motif } from './src/savi-gond.js';
+import { drawPortrait } from './src/savi-faces.js';
+import {
+  drawMural, drawSavi, drawWoman, drawFire, drawTree, drawRock, drawBroom,
+  drawYoungTree, drawShrine, drawGate, drawBanyan,
+} from './src/savi-art.js';
+
+const TAU = Math.PI * 2;
+const panels = [];
+let scale = 1, playing = true, lime = false, t0 = performance.now() / 1000;
+
+/** One framed canvas with a caption, and a draw function called every frame. */
+function panel(host, w, h, name, note, draw, opts = {}) {
+  const el = document.createElement('div');
+  el.className = 'item';
+  const cv = document.createElement('canvas');
+  const cap = document.createElement('div');
+  cap.className = 'cap';
+  cap.innerHTML = `<b>${name}</b><i>${note || ''}</i>`;
+  el.append(cv, cap);
+  host.append(el);
+  const p = { cv, ctx: cv.getContext('2d'), w, h, draw, speak: -9, opts };
+  cv.addEventListener('pointerdown', () => { p.speak = now(); });
+  panels.push(p);
+  return p;
+}
+
+const now = () => performance.now() / 1000 - t0;
+
+function sizeAll() {
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  for (const p of panels) {
+    const s = p.opts.fixed ? 1 : scale;
+    p.cv.width = Math.round(p.w * s * dpr);
+    p.cv.height = Math.round(p.h * s * dpr);
+    p.cv.style.width = Math.round(p.w * s) + 'px';
+    p.cv.style.height = Math.round(p.h * s) + 'px';
+    p.dpr = dpr * s;
+  }
+}
+
+// --- pigments ---------------------------------------------------------------
+const PIG = [
+  ['soot', G.soot, 'wood-fire soot'], ['geru', G.geru, 'red ochre'],
+  ['haldi', G.haldi, 'turmeric'], ['patta', G.patta, 'crushed leaf'],
+  ['neel', G.neel, 'indigo'], ['chuna', G.chuna, 'limestone'],
+  ['mitti', G.mitti, 'earth'], ['skin', G.skin, ''],
+];
+for (const [name, col, src] of PIG) {
+  const el = document.createElement('div');
+  el.className = 'item chip';
+  el.innerHTML = `<div class="box" style="background:${col}"></div>
+    <div class="cap"><b>${name}</b> <i>${src}</i></div>`;
+  document.getElementById('pigments').append(el);
+}
+
+// --- infills ----------------------------------------------------------------
+const MOTIFS = [
+  ['dots', 9], ['dotLines', 10], ['comb', 6], ['dashes', 9], ['scales', 11],
+  ['crescents', 12], ['seeds', 11], ['waves', 9], ['hatch', 7], ['shoots', 13],
+];
+for (const [name, pitch] of MOTIFS) {
+  const p = panel(document.getElementById('motifs'), 112, 74, name, '', (c, w, h) => {
+    field(c, (g) => g.roundRect ? g.roundRect(3, 3, w - 6, h - 6, 6) : g.rect(3, 3, w - 6, h - 6), {
+      fill: G.geru, motif: name, on: 'rgba(245,225,190,0.85)', pitch,
+      box: { x: 0, y: 0, w, h }, lw: 2.4,
+    });
+  }, { fixed: true, plain: true });
+  p.cv.parentElement.classList.add('chip');
+}
+
+// --- the speakers -----------------------------------------------------------
+const WHO = [
+  ['savitri', 'geru · dot-lines · the sun'],
+  ['satyavan', 'patta · shoots · the axe'],
+  ['yama', 'neel · fish scales · the horns'],
+  ['narada', 'haldi · seeds · the veena'],
+  ['keeper', 'mitti · comb-lines · the stick'],
+];
+for (const [who, note] of WHO) {
+  panel(document.getElementById('faces'), 220, 300, who, note, (c, w, h, T, p) => {
+    const since = T - p.speak;
+    // A line every three seconds, so the lean is visible without clicking.
+    const beat = p.speak < 0 ? (T % 3.4) : since;
+    const emph = Math.max(0, 1 - beat / 0.42);
+    drawPortrait(c, who, 0, 0, w, T, 1, emph);
+  });
+}
+
+// --- the murals -------------------------------------------------------------
+const MURALS = [
+  ['choice', 'she chooses him, and is told he has a year'],
+  ['fall', 'the year is up'],
+  ['pursuit', 'she will not stop walking'],
+  ['steps', 'seven steps, and you are friends'],
+  ['boon', 'ask for anything but his life'],
+  ['bloom', 'the tree remembers all of it'],
+];
+for (const [id, note] of MURALS) {
+  panel(document.getElementById('murals'), 460, 250, id, note, (c, w, h, T) => {
+    drawMural(c, id, w, h, T);
+  });
+}
+
+// --- the valley ---------------------------------------------------------------
+const S = { x: 0, y: 0, r: 12, face: 0, phase: 0, speed: 0, act: 0, sweep: 0, z: 0, broom: false };
+const W2 = document.getElementById('world');
+
+panel(W2, 150, 190, 'Savi', 'walking', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.72);
+  c.scale(2.4, 2.4);
+  S.phase = T * 7; S.speed = 60; S.face = Math.sin(T * 0.6) * 1.4;
+  drawSavi(c, S, T);
+});
+panel(W2, 150, 190, 'Savi', 'still, facing you', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.72);
+  c.scale(2.4, 2.4);
+  const s2 = { ...S, phase: 0, speed: 0, face: Math.PI / 2 };
+  drawSavi(c, s2, T);
+});
+panel(W2, 150, 190, 'the keeper', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.72); c.scale(2.2, 2.2);
+  drawWoman(c, { x: 0, y: 0 }, T);
+});
+panel(W2, 150, 190, 'her fire', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.7); c.scale(2.2, 2.2);
+  drawFire(c, { x: 0, y: 0 }, T, 1);
+});
+panel(W2, 150, 190, 'the broom', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.7); c.scale(2.2, 2.2);
+  drawBroom(c, { x: 0, y: 0 }, T);
+});
+panel(W2, 260, 260, 'a young banyan', 'grown, with its mural', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.86);
+  drawYoungTree(c, { x: 0, y: 0, grow: 1, mural: 'choice', name: 'The Choice' }, T);
+});
+panel(W2, 260, 260, 'a tree', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.8);
+  drawTree(c, { x: 0, y: 0, s: 1.5, seed: 3, dead: false }, T, 0.6);
+});
+panel(W2, 260, 260, 'a tree', 'dead', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.8);
+  drawTree(c, { x: 0, y: 0, s: 1.5, seed: 8, dead: true }, T, 0.2);
+});
+panel(W2, 200, 200, 'a rock', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.7);
+  drawRock(c, { x: 0, y: 0, s: 1.6, seed: 2 }, T, 0.5);
+});
+panel(W2, 440, 300, 'the shrine', '', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.62); c.scale(0.62, 0.62);
+  drawShrine(c, { x: 0, y: 0, r: 300 }, T, 1);
+});
+panel(W2, 400, 260, 'the torana', 'the way in', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.88); c.scale(1.1, 1.1);
+  drawGate(c, { x: 0, y: 0 }, T, 0.7);
+});
+panel(W2, 520, 420, 'the Banyan', 'bare, then in bloom', (c, w, h, T) => {
+  c.translate(w / 2, h * 0.92); c.scale(0.4, 0.4);
+  drawBanyan(c, { x: 0, y: 0 }, (Math.sin(T * 0.25) * 0.5 + 0.5), T);
+});
+
+// --- the loop -----------------------------------------------------------------
+let frames = 0, fpsT = 0;
+function tick() {
+  requestAnimationFrame(tick);
+  if (!playing) return;
+  const T = now();
+  for (const p of panels) {
+    const c = p.ctx;
+    c.setTransform(p.dpr, 0, 0, p.dpr, 0, 0);
+    c.clearRect(0, 0, p.w, p.h);
+    if (!p.opts.plain) {
+      c.fillStyle = lime ? '#efe0c0' : '#17120f';
+      c.fillRect(0, 0, p.w, p.h);
+    }
+    c.save();
+    p.draw(c, p.w, p.h, T, p);
+    c.restore();
+  }
+  frames++;
+  if (T - fpsT > 0.5) {
+    document.getElementById('fps').textContent = Math.round(frames / (T - fpsT)) + ' fps';
+    frames = 0; fpsT = T;
+  }
+}
+
+document.getElementById('size').addEventListener('input', (e) => {
+  scale = +e.target.value / 100; sizeAll();
+});
+document.getElementById('play').addEventListener('click', (e) => {
+  playing = !playing;
+  e.target.textContent = playing ? 'pause' : 'play';
+  e.target.classList.toggle('on', playing);
+});
+document.getElementById('bg').addEventListener('click', (e) => {
+  lime = !lime;
+  e.target.textContent = 'panel: ' + (lime ? 'limed' : 'dark');
+});
+addEventListener('resize', sizeAll);
+sizeAll();
+tick();
+</script>
+</body>
+</html>
