@@ -13,6 +13,7 @@
 // his buffalo - because in this worldview everything is joined to everything.
 
 import { G, paint, ribbon, rosette, lens, blob, limb, leaf, eye, disc, bird, motif } from './savi-gond.js';
+import { img, cover, DEFAULT_MOOD } from './savi-assets.js';
 
 const TAU = Math.PI * 2;
 const W = 220, H = 300;
@@ -28,7 +29,27 @@ const GROUND = {
   savitri: '#15071c', satyavan: '#07160e', yama: '#16060c', narada: '#1a0f04', keeper: '#120c0a',
 };
 
-export function drawPortrait(ctx, who, x, y, s, t, k = 1, emph = 0) {
+export function drawPortrait(ctx, who, x, y, s, t, k = 1, emph = 0, mood = null) {
+  // THE PAINTED FACE, if there is one for this mood. It gets the same life the
+  // drawn one had - the slide in as she arrives, the breath between lines, the
+  // lean into a new one - because a still picture with a voice is a slideshow.
+  const face = img(`${who}-${mood || DEFAULT_MOOD[who] || 'speaking'}`)
+    || img(`${who}-${DEFAULT_MOOD[who] || 'speaking'}`);
+  if (face) {
+    const h = s * (H / W);
+    const breath = Math.sin(t * 1.3) * 0.004;
+    const lean = emph * emph;
+    ctx.save();
+    ctx.globalAlpha = k;
+    ctx.translate(x + s / 2, y + h);
+    ctx.scale(1 + lean * 0.03 + breath, 1 + lean * 0.045 - breath);
+    ctx.rotate(Math.sin(t * 0.7) * 0.008 + lean * 0.012);
+    ctx.translate(-s / 2, -h + (1 - k) * 30);
+    cover(ctx, face, 0, 0, s, h);
+    ctx.restore();
+    return;
+  }
+
   ctx.save();
   ctx.translate(x, y + (1 - k) * 30);
   ctx.scale(s / W, s / W);

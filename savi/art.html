@@ -75,10 +75,11 @@
 
   <section>
     <h2>The speakers</h2>
-    <p class="note">Gond has no portraiture and no interest in likeness, so these are
-      assemblies of flat patterned parts told apart by attribute — what they carry, what
-      animal stands with them, what grows out of them. They breathe, they blink on a clock,
-      and they lean into a new line. Click one to give it a line to lean into.</p>
+    <p class="note">Every expression in the game, twenty-one of them. Yama's five are the
+      arc of the legend: proud and not looking at her, stern and ordering her home, caught
+      by something she has said, inclining his head to listen, and finally delighted to have
+      been beaten fairly. They breathe and lean into each new line — click one to make it
+      speak. Anything the painted art is missing falls back to the code-drawn version.</p>
     <div class="grid" id="faces"></div>
   </section>
 
@@ -171,20 +172,20 @@ for (const [name, pitch] of MOTIFS) {
 
 // --- the speakers -----------------------------------------------------------
 const WHO = [
-  ['savitri', 'geru · dot-lines · the sun'],
-  ['satyavan', 'patta · shoots · the axe'],
-  ['yama', 'neel · fish scales · the horns'],
-  ['narada', 'haldi · seeds · the veena'],
-  ['keeper', 'mitti · comb-lines · the stick'],
+  ['savitri', ['resolute', 'grieving', 'clever', 'pleading', 'joy']],
+  ['satyavan', ['warm', 'tired', 'gone', 'waking']],
+  ['yama', ['proud', 'stern', 'caught', 'respect', 'approving']],
+  ['narada', ['grave', 'wry']],
+  ['keeper', ['weary', 'speaking', 'hopeful', 'pleased', 'moved']],
 ];
-for (const [who, note] of WHO) {
-  panel(document.getElementById('faces'), 220, 300, who, note, (c, w, h, T, p) => {
-    const since = T - p.speak;
-    // A line every three seconds, so the lean is visible without clicking.
-    const beat = p.speak < 0 ? (T % 3.4) : since;
-    const emph = Math.max(0, 1 - beat / 0.42);
-    drawPortrait(c, who, 0, 0, w, T, 1, emph);
-  });
+for (const [who, moods] of WHO) {
+  for (const mood of moods) {
+    panel(document.getElementById('faces'), 220, 300, `${who} · ${mood}`, '', (c, w, h, T, p) => {
+      const beat = p.speak < 0 ? (T % 3.4) : (T - p.speak);
+      const emph = Math.max(0, 1 - beat / 0.42);
+      drawPortrait(c, who, 0, 0, w, T, 1, emph, mood);
+    });
+  }
 }
 
 // --- the murals -------------------------------------------------------------

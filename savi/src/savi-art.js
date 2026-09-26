@@ -3,6 +3,7 @@ import {
   G, field as gField, blob as gBlob, limb as gLimb, leaf as gLeafShape,
   disc as gDisc, bird as gBird, band as gBand, frame as gFrame, motif as gMotif,
 } from './savi-gond.js';
+import { img as assetImg, cover as assetCover } from './savi-assets.js';
 // Savi — everything that gets drawn.
 //
 // Flat shapes, warm palette, no images: the same way the rest of this repo
@@ -981,6 +982,12 @@ export function glow(ctx, x, y, r, col) {
 // the same language as the game's own opening film.
 
 export function drawMural(ctx, id, W, H, time) {
+  // The painted panel, if it is here. These are bhittichitra proportions with
+  // their own digna border already on them, so they fill the frame edge to edge
+  // and the drawn border below would only fight with it.
+  const painted = assetImg(`mural-${id}`);
+  if (painted) { assetCover(ctx, painted, 0, 0, W, H); return; }
+
   // A GOND PANEL. Flat ground colour, a border band of pattern round the edge
   // the way a digna floor is edged before it is filled, and inside it the beat
   // of the legend told in outlined, infilled shapes. No perspective, no

@@ -32,6 +32,7 @@ import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
+import { preload, PORTRAITS, MURALS, keeperMood } from './savi-assets.js';
 import {
   COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt,
   inWall, inShallow, onSolid, leafAt, stepShallows,
@@ -524,6 +525,7 @@ function pollPad() {
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
+let warmedArt = false;     // the rest of the painted art, asked for once
 let ripT = 0;              // and the water is only allowed a ring so often
 
 // A little run, not a combat roll. Ashfall dashes 156 units in 0.17 s, which
@@ -1001,6 +1003,11 @@ function step(dt) {
 
   if (st.talking || st.reading) { stepParticles(dt); return; }
 
+  if (!warmedArt && st.t > 3) {
+    warmedArt = true;
+    preload(PORTRAITS);
+    preload(MURALS);
+  }
   stepCapstan(dt);
   // The leaves first, so a drifting one carries her with it.
   stepShallows(dt, st.t, drained ? null : onLeaf);
@@ -1727,6 +1734,19 @@ function paintTalk() {
   // leans its portraits into the words and breathes them between the lines.
   const fc = overlay.querySelector('.face');
   t.faceCtx = fc ? fc.getContext('2d') : null;
+  // Which face. A recital line carries its own mood as its third element; the
+  // keeper's own conversation takes hers from how much of the tree has come
+  // back, so she is weary at the start of the game and moved at the end of it.
+  if (t.keeper) {
+    // Her own conversation: her face follows the valley, not the legend.
+    t.mood = keeperMood(st.count, ROOTS.length, st.ended);
+  } else {
+    const line = t.lines[t.i];
+    t.mood = Array.isArray(line) ? line[2] || null : null;
+    // A line of hers that does not ask for a face gets the one the valley has
+    // earned - so she is weary while it is dying and moved once it is not.
+    if (!t.mood && t.face === 'keeper') t.mood = keeperMood(st.count, ROOTS.length, st.ended);
+  }
   t.muralCtx = t.mural ? document.getElementById('mural').getContext('2d') : null;
   if (t.shownAt === undefined) t.shownAt = st.t;
   t.lineAt = st.t;
@@ -1785,7 +1805,7 @@ function paintFace() {
   const k = clamp01((st.t - (t.shownAt || st.t)) / 0.3);
   const emph = clamp01(1 - (st.t - (t.lineAt || st.t)) / 0.42);
   t.faceCtx.clearRect(0, 0, 220, 300);
-  drawPortrait(t.faceCtx, t.face, 0, 0, 220, st.t, k, emph);
+  drawPortrait(t.faceCtx, t.face, 0, 0, 220, st.t, k, emph, t.mood);
   if (t.muralCtx) drawMural(t.muralCtx, t.mural, 460, 250, st.t);
 }
 
@@ -1926,6 +1946,12 @@ function main() {
 
   buildGround();
   initLitter(V.w, V.h);
+  // The painted art is twenty-three megabytes, so it is asked for in stages.
+  // The keeper is the first face anyone sees, so she comes at boot; the rest
+  // follow a few seconds in, once the valley is up and the frames are cheap.
+  // Every draw falls back to the drawn art until a file lands, so nothing ever
+  // waits on this and nothing is ever blank.
+  preload(PORTRAITS.filter((n) => n.startsWith('keeper-')));
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
   grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => nearRiver(x, y, 30) });
   water = createWildsWater();
