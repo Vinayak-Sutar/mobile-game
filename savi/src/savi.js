@@ -33,9 +33,10 @@ import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import {
-  POOL, SHELF, ISLES, SLUICE, LEAVES, FERRY, CAPSTAN, onIsle, leafAt,
-  GATE as SLUICE_GATE, stepShallows, windCapstan, gateOpen, gateLift,
-  drawDeep, drawIsles, drawSluice, drawLeaves,
+  COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt,
+  inWall, inShallow, onSolid, leafAt, stepShallows,
+  GATE as SLUICE_GATE, windCapstan, gateOpen, gateLift,
+  drawCurrent, drawRootBed, drawPlatforms, drawSluice,
 } from './savi-shallows.js';
 import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
@@ -74,7 +75,7 @@ const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26,
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
   choice: { at: { x: 1160, y: 2340 }, patch: { x: 880, y: 2060, w: 620, h: 540 }, mat: 'leaves' },
-  fall: { at: { x: 4500, y: 2212 }, patch: { x: 2900, y: 1420, w: 2300, h: 1560 }, mat: 'water' },
+  fall: { at: { x: ROOT_AT[0], y: ROOT_AT[1] }, patch: { x: 2800, y: 1300, w: 2400, h: 1900 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
   boon: { at: { x: 2600, y: 420 }, patch: { x: 2250, y: 220, w: 700, h: 440 }, mat: 'ash' },
@@ -88,7 +89,13 @@ ROOTS.forEach((r, i) => Object.assign(r, PLACES[r.id], { seed: i * 5 + 3, order:
 // The coal has no business here. Dry wood wanted fire; a jam of wet driftwood
 // in a sluice gate wants two hands and four good hauls, which is a thing a
 // child can plainly do, and it is the same ACTION button she uses everywhere.
-const POND = POOL;
+/**
+ * The river, for everything outside savi-shallows.js that needs to know where
+ * the water is. It replaced a lake, twice, because a lake has a rim you can
+ * walk round and is crossed in three jumps.
+ */
+const inRiver = (x, y) => { const r = riverAt(x, y); return r.d < widthAt(r.s); };
+const nearRiver = (x, y, pad) => { const r = riverAt(x, y); return r.d < widthAt(r.s) + pad; };
 const INFLOW = [[4640, 1180], [4560, 1430], [4470, 1620], [4400, 1740]];
 let drained = false;                                        // the hollow has let go
 
@@ -166,13 +173,6 @@ function fbm(x, y) {
   return v;
 }
 
-/** The pond's edge, wandering: nothing in a valley is a rectangle. */
-function pondK(x, y) {
-  const a = Math.atan2(y - POND.y, x - POND.x);
-  const wob = 1 + (fbm(Math.cos(a) * 1.7 + 11, Math.sin(a) * 1.7 + 7) - 0.5) * 0.55;
-  return Math.hypot((x - POND.x) / (POND.rx * wob), (y - POND.y) / (POND.ry * wob));
-}
-
 function inSoft(x, y, r, soft) {
   const e = Math.min(Math.min(x - r.x, r.x + r.w - x), Math.min(y - r.y, r.y + r.h - y));
   return e >= 0 ? 1 : Math.max(0, 1 + e / soft);
@@ -186,13 +186,17 @@ function classify(x, y) {
   if (inD < 46) return TT.SHALLOW;
   // The bowl. The near shore and the two sandbars are wadeable; the rest of it
   // is over her head. Once it has let go the whole bowl is a marsh.
-  const k = pondK(x, y);
-  if (k < 1.0) {
-    const isle = onIsle(x, y);
-    if (isle) return isle.kind === 'stone' ? TT.ROCK : TT.SAND;
-    if (drained) return k < 0.55 ? TT.SHALLOW : TT.MUD;
-    return k < SHELF ? TT.WATER : TT.SHALLOW;
+  // THE RIVER: water in the channel, rock walls either side of it. The walls
+  // are what make it a river and not a lake - there is one way in and one way
+  // up, and you cannot walk round the outside of it.
+  if (onSolid(x, y)) return TT.ROCK;
+  const rv = riverAt(x, y);
+  const rw = widthAt(rv.s);
+  if (rv.d < rw) {
+    if (drained) return rv.d < rw * 0.55 ? TT.MUD : TT.SHALLOW;
+    return inShallow(x, y) ? TT.SHALLOW : TT.WATER;
   }
+  if (inWall(x, y)) return TT.ROCK;
   const n = fbm(x * 0.0016, y * 0.0016);
   if (roadDist(x, y) < 46) return TT.DIRT;
   if (inSoft(x, y, PLACES.boon.patch, 280) > 0.34 + n * 0.3) return TT.ASH;
@@ -245,7 +249,7 @@ function buildGround() {
         if (k <= 0) continue;
         k *= 0.68 + 0.32 * fbm(x * 0.006, y * 0.006);
         const q = j * G.w + i, d = amt * clamp01(k);
-        if (d <= G.base[q] || pondK(x, y) < 1.02) continue;
+        if (d <= G.base[q] || nearRiver(x, y, 40)) continue;
         G.base[q] = d; G.dep[q] = d; G.orig[q] = d; G.mat[q] = m;
       }
     }
@@ -578,7 +582,7 @@ function startJump() {
 // The shelf is a wadeable rim all the way round the lake, so she can paddle its
 // edge; the deep is a lens lying in the middle of it, and the only way over
 // that is the leaves. savi/tools/check-level.mjs proves there is no way round.
-const isDeep = (x, y) => !drained && pondK(x, y) < SHELF && !onIsle(x, y);
+const isDeep = (x, y) => !drained && inRiver(x, y) && !inShallow(x, y) && !onSolid(x, y);
 const supported = (x, y) => !isDeep(x, y) || !!leafAt(x, y);
 
 /** In she goes - which costs her a moment and nothing else. */
@@ -623,8 +627,7 @@ function stepCapstan(dt) {
   // Open. The hollow empties down it, and the land itself changes.
   sfx.bossDown();
   drained = true;
-  terrain.invalidate(POND.x - POND.rx - 300, POND.y - POND.ry - 300,
-    POND.x + POND.rx + 300, POND.y + POND.ry + 300);
+  terrain.invalidate(2700, 1200, 5200, 3200);
   terrain.warm(camera.x, camera.y, view.w, view.h);
   water.splash(SLUICE_GATE.x, SLUICE_GATE.y, 420, 4.4);
   spark(SLUICE_GATE.x, SLUICE_GATE.y, 110, { col: ['#bfe0e8', '#c6e2ea', '#8fbcc8'], sp0: 120, sp1: 460, l0: 0.9, l1: 2.1, s0: 4, s1: 10, kind: 'drop' });
@@ -1024,8 +1027,8 @@ function step(dt) {
         // Landing snap: a hand's breadth short of a leaf is on it, not in the
         // water. Every platformer does this and nobody notices it but the
         // player who would otherwise have fallen.
-        for (const L of LEAVES) {
-          if (L.sink >= 1) continue;
+        for (const L of PLATFORMS) {
+          if (L.solid || L.sink >= 1) continue;
           const d = Math.hypot(S.x - L.x, S.y - (L.y + L.dip));
           if (d < L.r * 0.96 + 30) {
             const k = (L.r * 0.9) / d;
@@ -1086,6 +1089,14 @@ function step(dt) {
   let nx = S.x + S.vx * dt, ny = S.y + S.vy * dt;
   const ah = depAt(nx, ny + 6);
   if (ah.m === MAT.thorn && ah.d > 0.6) { nx = S.x; ny = S.y; }
+  // The gorge wall. This is the whole reason the river is a river: without it
+  // she walks up the bank and the leaves are decoration. One axis at a time so
+  // she slides along it rather than sticking to it.
+  if (inWall(nx, ny)) {
+    if (!inWall(nx, S.y)) ny = S.y;
+    else if (!inWall(S.x, ny)) nx = S.x;
+    else { nx = S.x; ny = S.y; }
+  }
   // She will not walk into water that is over her head. In the air she can go
   // anywhere - that is what the jump is FOR - and one axis at a time, so she
   // slides along a bank instead of sticking to it.
@@ -1112,8 +1123,7 @@ function step(dt) {
     if (onLeaf) footing = onLeaf;
     if (!isDeep(S.x, S.y)) {
       S.safeX = S.x; S.safeY = S.y;
-      const isle = onIsle(S.x, S.y);
-      footing = isle ? { x: S.x, y: S.y } : null;
+      footing = onSolid(S.x, S.y) ? { x: S.x, y: S.y } : null;
     }
   } else onLeaf = null;
 
@@ -1381,7 +1391,7 @@ function sowScenery() {
   for (const t of AVENUE) SCENERY.push({ x: t.x, y: t.y, rock: false, s: t.s, seed: t.seed, dead: false, avenue: 1 });
   for (let i = 0; i < 760; i++) {
     const x = rand(60, V.w - 60), y = rand(60, V.h - 60);
-    if ((pondK(x, y) < 1.15 && !onIsle(x, y)) || roadDist(x, y) < 72) continue;
+    if (nearRiver(x, y, 90) || roadDist(x, y) < 72) continue;
     if (Math.hypot(x - TREE.x, y - TREE.y) < 500) continue;
     if (Math.abs(x - 2600) < 230 && y > 2300) continue;      // keep the avenue clear
     let onPatch = false;
@@ -1405,7 +1415,7 @@ function render() {
   terrain.draw(ctx, camera.x, camera.y, view.w, view.h);
   drawLayer(ctx);
   grass.draw(ctx, st.t, win());
-  drawDeep(ctx, st.t, drained);
+  drawRootBed(ctx, st.t, drained);
   water.draw(ctx);
 
   drawShrine(ctx, SHRINE, st.t, st.swept ? 1 : 0);
@@ -1413,9 +1423,9 @@ function render() {
   drawRootProgress(ctx);
 
   drawHollow(ctx);
-  drawIsles(ctx, st.t);
+  drawCurrent(ctx, st.t, drained, camera, view);
   drawSluice(ctx, st.t, drained);
-  drawLeaves(ctx, st.t, drained);
+  drawPlatforms(ctx, st.t, drained);
 
   S.broom = broom.held;
   if (!broom.held) drawBroom(ctx, broom, st.t);
@@ -1460,9 +1470,9 @@ function render() {
 function drawHollow(ctx) {
   // Reeds, standing where the water is shallow.
   for (let i = 0; i < 90; i++) {
-    const a = (i / 90) * TAU;
-    const wob = 0.93 + vn(i * 3.1, 7) * 0.17;
-    const x = POND.x + Math.cos(a) * POND.rx * wob, y = POND.y + Math.sin(a) * POND.ry * wob;
+    const side = i & 1 ? 1 : -1;
+    const sAt = (i / 90) * COURSE_LEN;
+    const [x, y] = atRiver(sAt, side * (widthAt(sAt) - 8 - (i % 5) * 4));
     if (x < camera.x - 60 || x > camera.x + view.w + 60 || y < camera.y - 90 || y > camera.y + view.h + 60) continue;
     const n = 3 + ((i * 7) % 4);
     for (let k = 0; k < n; k++) {
@@ -1484,12 +1494,11 @@ function drawHollow(ctx) {
   // Lily pads, while there is water to float on.
   if (!drained) {
     for (let i = 0; i < 44; i++) {
-      const a = vn(i, 1) * TAU, r = Math.sqrt(vn(i, 2)) * 0.74;
-      const x = POND.x + Math.cos(a) * POND.rx * r, y = POND.y + Math.sin(a) * POND.ry * r;
+      const [x, y] = atRiver((i / 44) * COURSE_LEN, (((i * 37) % 120) - 60));
       const drift = Math.sin(st.t * 0.4 + i) * 3;
       ctx.fillStyle = i % 4 ? '#3d6b46' : '#4b7a4e';
       ctx.beginPath();
-      ctx.ellipse(x + drift, y, 16 + vn(i, 5) * 10, 12 + vn(i, 7) * 7, a, 0.5, TAU);
+      ctx.ellipse(x + drift, y, 16 + vn(i, 5) * 10, 12 + vn(i, 7) * 7, i * 0.7, 0.5, TAU);
       ctx.fill();
       if (i % 6 === 0) {
         ctx.fillStyle = '#e8d8e4';
@@ -1918,7 +1927,7 @@ function main() {
   buildGround();
   initLitter(V.w, V.h);
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
-  grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => pondK(x, y) < 1.05 && !onIsle(x, y) });
+  grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => nearRiver(x, y, 30) });
   water = createWildsWater();
   water.setCalm(2.6);          // a lake this wide has too much shore to lap at
   sowScenery();
@@ -2001,7 +2010,7 @@ function main() {
 
 main();
 window.savi = {
-  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, SLUICE, ISLES, POND, LEAVES, FERRY, broom, YOUNG,
+  st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
   isDeep, supported, leafAt, get onLeaf() { return onLeaf; },

@@ -1,181 +1,161 @@
-// Does the level work? Answered without opening a browser.
+// Does the course work? Answered in a second, without opening a browser.
 //
-// Three roots in a row shipped unfinishable, each for a different reason, and
-// every time the answer was found by driving the running game for twenty
-// minutes. This runs in about a second and it runs in the commit hook.
-//
-// It asserts the things that have actually gone wrong:
-//   - a gap sized so that a jump only just makes it, which fails one try in
-//     four and the player blames themselves
-//   - a gap nothing can make
-//   - a target island you can walk round to, so the crossing is decoration
-//   - a platform sitting on land, or in the shallows, where it does nothing
+// Every complaint made about this level is now an assertion:
+//   - a platform that leads nowhere
+//   - a route you can walk round instead of jumping
+//   - gaps that only just work, or do not work at all
+//   - a crossing that is over in three jumps
 //
 // Run:  node savi/tools/check-level.mjs
 
 import {
-  POOL, SHELF, ISLES, SLUICE, LEAVES, FERRY, CAPSTAN, onIsle,
+  COURSE, COURSE_LEN, WALL_W, PLATFORMS, CAPSTAN, GATE,
+  atRiver, riverAt, widthAt, inWall, inShallow, placePlatforms, onSolid,
 } from '../src/savi-shallows.js';
 
-// --- the reach, measured in the running game from a standing start -------------
-const JUMP = 116;          // what a jump actually carries her
-const DASH = 181;          // a jump with a dash out of it
-const HOP_MAX = 95;        // so no gap meant as a hop may exceed this
-const DASH_MIN = 130;      // and no gap meant as a dash may be under this
-const DASH_MAX = 150;
-
-// pondK, copied from savi.js so this needs no browser and no game state.
-const vn = (x, y) => { const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return s - Math.floor(s); };
-function smoothN(x, y) {
-  const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
-  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-  const a = vn(xi, yi), b = vn(xi + 1, yi), c = vn(xi, yi + 1), d = vn(xi + 1, yi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-function fbm(x, y) { let v = 0, a = 0.5, f = 1; for (let i = 0; i < 3; i++) { v += smoothN(x * f, y * f) * a; a *= 0.5; f *= 2.07; } return v; }
-function pondK(x, y) {
-  const a = Math.atan2(y - POOL.y, x - POOL.x);
-  const wob = 1 + (fbm(Math.cos(a) * 1.7 + 11, Math.sin(a) * 1.7 + 7) - 0.5) * 0.55;
-  return Math.hypot((x - POOL.x) / (POOL.rx * wob), (y - POOL.y) / (POOL.ry * wob));
-}
-
-/** Deep water: in the bowl, inside the shelf, and not on an island. */
-const isDeep = (x, y) => pondK(x, y) < SHELF && !onIsle(x, y);
-/** Can she put a foot here at all? Leaves are taken at rest unless told. */
-function standable(x, y, leaves = LEAVES) {
-  if (!isDeep(x, y)) return true;
-  for (const L of leaves) if (Math.hypot(x - L.x, y - L.y) < L.r * 0.9) return true;
-  return false;
-}
+// Measured in the running game from a standing start.
+const JUMP = 117;          // a full press
+const TAP = 100;           // a short one, which must also be enough
+const DASH = 180;          // a jump with a dash out of it
+const COZY = 75;           // what is pleasant to clear without thinking about it
+const DASH_MIN = 130, DASH_MAX = 150;
+const TAU = Math.PI * 2;
 
 let bad = 0, warn = 0;
 const ok = (c, m) => { console.log((c ? '  ok   ' : '  FAIL ') + m); if (!c) bad++; };
-const note = (m) => console.log('         ' + m);
+const note = (m) => { console.log('         ' + m); };
+const flag = (m) => { console.log('  warn   ' + m); warn++; };
 
-// --- the route, as the player walks it -------------------------------------------
-//
-// Each hop is from the edge of one thing to the edge of the next, measured along
-// the line between their centres, which is the shortest way anyone will try it.
+const still = (p) => { placePlatforms(0); return { x: p.x, y: p.y, r: p.r }; };
+const moves = (p) => p.kind === 'swing' || p.kind === 'ferry' || p.kind === 'eddy';
 
-// Where the shelf actually ends along the first leg - derived, not guessed,
-// because the bowl's edge wobbles and eyeballing it was wrong by forty units.
-function shoreFor(first) {
-  // The NEAREST place she can stand, in any direction - not a point along one
-  // chosen ray. She will jump from wherever the water is closest, so that is
-  // the gap that has to be in range.
-  let best = null, bd = 1e9;
-  for (let k = 0; k < 360; k++) {
-    const a2 = (k / 360) * Math.PI * 2;
-    for (let out = first.r; out < 700; out += 2) {
-      const x = first.x + Math.cos(a2) * out, y = first.y + Math.sin(a2) * out;
-      if (!isDeep(x, y)) {
-        if (out < bd) { bd = out; best = { x, y, r: 0, name: 'the shore' }; }
-        break;
-      }
-    }
+/** The closest and furthest a moving platform ever gets from a fixed point. */
+function reach(p, from) {
+  let near = 1e9, far = -1e9;
+  const period = TAU / (p.rate || 1);
+  for (let k = 0; k < 96; k++) {
+    placePlatforms((k / 96) * period);
+    const d = Math.hypot(p.x - from.x, p.y - from.y) - p.r - (from.r || 0);
+    near = Math.min(near, d); far = Math.max(far, d);
   }
-  return best || { x: first.x, y: first.y, r: 0, name: 'the shore (not found)' };
-}
-const SHORE = shoreFor(LEAVES[0]);
-const named = (o, name, r) => ({ x: o.x, y: o.y, r: r !== undefined ? r : (o.rx || o.r), name });
-
-const ROUTE = [
-  SHORE,
-  named(LEAVES[0], 'leaf one'), named(LEAVES[1], 'leaf two'),
-  named(ISLES[0], 'the first sandbar'),
-  named(LEAVES[2], 'leaf three'), named(LEAVES[3], 'leaf four'),
-  named(ISLES[1], 'the second sandbar'),
-];
-
-/** Edge-to-edge distance between two discs along the line of centres. */
-function gapBetween(a, b) {
-  return Math.hypot(b.x - a.x, b.y - a.y) - a.r - b.r;
+  return { near, far };
 }
 
-console.log('the route, hop by hop:');
-const INTENT = [null, 'hop', 'hop', 'hop', 'dash', 'hop', 'hop'];
-for (let i = 1; i < ROUTE.length; i++) {
-  const g = Math.round(gapBetween(ROUTE[i - 1], ROUTE[i]));
-  const want = INTENT[i];
-  const label = `${ROUTE[i - 1].name} -> ${ROUTE[i].name} = ${g}`;
-  if (want === 'dash') {
-    ok(g >= DASH_MIN && g <= DASH_MAX, `${label} (a dash; wants ${DASH_MIN}-${DASH_MAX})`);
-  } else if (want === 'hop') {
-    ok(g <= HOP_MAX, `${label} (a hop; wants under ${HOP_MAX})`);
-    // 95 is what she CAN clear. 75 is what is pleasant to clear without
-    // thinking about it, and this is a cozy game, so anything above that is
-    // worth knowing about even though it passes.
-    if (g > 75) { console.log(`         tight for a cozy hop — 75 or under reads better`); warn++; }
+console.log(`the course is ${Math.round(COURSE_LEN)} long in ${COURSE.length - 1} bends,`);
+console.log(`carrying ${PLATFORMS.length} platforms.\n`);
+
+const NAME = { leaf: 'a leaf', swing: 'a swinging leaf', ferry: 'a ferry', eddy: 'an eddy leaf', stone: 'a stone' };
+const mouth = { x: atRiver(120, 0)[0], y: atRiver(120, 0)[1], r: 0 };
+let seconds = 0;
+
+console.log('the chain, link by link:');
+for (let i = 0; i < PLATFORMS.length; i++) {
+  const p = PLATFORMS[i];
+  const prev = i === 0 ? null : PLATFORMS[i - 1];
+  const from = prev ? still(prev) : mouth;
+  const label = `${String(i + 1).padStart(2)}. ${NAME[p.kind]}`;
+
+  if (moves(p)) {
+    // It has to come within reach of where she is standing, and it has to leave
+    // that reach for part of its cycle or there is no timing in it.
+    const r = reach(p, from);
+    ok(r.near <= COZY, `${label} — comes within ${Math.round(r.near)} of the one before`);
+    ok(r.far > JUMP, `${label} — and swings ${Math.round(r.far)} away, so there is something to wait for`);
+    const period = TAU / p.rate;
+    note(`its beat is ${period.toFixed(1)}s — at most ${(period / 2).toFixed(1)}s of waiting`);
+    seconds += period / 2 + 1.6;
+  } else if (prev && moves(prev)) {
+    // Stepping off a mover: the mover has to deliver her to it.
+    const to = still(p);
+    const r = reach(prev, to);
+    ok(r.near <= COZY, `${label} — the one before brings her within ${Math.round(r.near)}`);
+    seconds += 1.7;
   } else {
-    ok(g <= 60, `${label} (a step off; wants under 60)`);
-  }
-  if (g > HOP_MAX && g < DASH_MIN) {
-    console.log(`  FAIL ${label} sits in the dead band ${HOP_MAX}-${DASH_MIN}: it only just works`);
-    bad++;
-  }
-}
-
-// --- the ferry ---------------------------------------------------------------------
-console.log('\nthe ferry:');
-{
-  const near = { x: FERRY.x0 - FERRY.ax, y: FERRY.y0 - FERRY.ay, r: FERRY.r };
-  const far = { x: FERRY.x0 + FERRY.ax, y: FERRY.y0 + FERRY.ay, r: FERRY.r };
-  const bar = named(ISLES[1], 'sandbar', ISLES[1].rx);
-  const isle = named(SLUICE, 'hummock', SLUICE.rx);
-  const onAtNear = Math.round(gapBetween(bar, near));
-  const offAtFar = Math.round(gapBetween(far, isle));
-  const offAtNear = Math.round(gapBetween(near, isle));
-  const onAtFar = Math.round(gapBetween(bar, far));
-  ok(onAtNear <= 40, `at its near end it is ${onAtNear} from the sandbar — she steps on`);
-  ok(offAtFar <= 40, `at its far end it is ${offAtFar} from the hummock — she steps off`);
-  ok(offAtNear > DASH, `at its near end the hummock is ${offAtNear} away — she cannot skip the ride`);
-  ok(onAtFar > DASH, `at its far end the sandbar is ${onAtFar} away — she has to wait for it`);
-  const period = (Math.PI * 2) / FERRY.rate;
-  ok(period >= 5 && period <= 9, `its breath is ${period.toFixed(1)}s, so the wait is at most ${(period / 2).toFixed(1)}s`);
-  const travel = Math.round(Math.hypot(FERRY.ax, FERRY.ay) * 2);
-  const peak = Math.round(Math.hypot(FERRY.ax, FERRY.ay) * FERRY.rate);
-  ok(peak < 190, `it travels ${travel} and its fastest is ${peak}/s, slower than she walks`);
-}
-
-// --- no back door onto the hummock ---------------------------------------------------
-console.log('\nthe hummock:');
-{
-  let worst = 1e9, worstA = 0;
-  for (let k = 0; k < 720; k++) {
-    const a = (k / 720) * Math.PI * 2;
-    let d = 0;
-    for (d = 0; d < 1600; d += 2) {
-      const x = SLUICE.x + Math.cos(a) * (SLUICE.rx + 3 + d);
-      const y = SLUICE.y + Math.sin(a) * (SLUICE.ry + 3 + d);
-      if (!isDeep(x, y)) break;                    // leaves ignored on purpose
+    const to = still(p);
+    const g = Math.round(Math.hypot(to.x - from.x, to.y - from.y) - to.r - (from.r || 0));
+    if (g >= DASH_MIN && g <= DASH_MAX) {
+      ok(true, `${label} — ${g} away: a dash`);
+      seconds += 2.4;
+    } else {
+      ok(g <= JUMP - 8, `${label} — ${g} away: a hop`);
+      if (g > COZY) flag(`${g} is tight for a cozy hop; ${COZY} or under reads better`);
+      if (g > TAP - 8 && g < DASH_MIN) { ok(false, `${label} — ${g} is past a short press and short of a dash`); }
+      seconds += 1.7;
     }
-    if (d < worst) { worst = d; worstA = a; }
   }
-  ok(worst > DASH, `the narrowest water round it, ignoring the ferry, is ${worst} (needs over ${DASH}) at ${(worstA * 57.3).toFixed(0)}deg`);
-  ok(!!onIsle(CAPSTAN.x, CAPSTAN.y), 'the capstan is on the hummock');
-  const ringOn = [0, 1.57, 3.14, 4.71].every((a) => !!onIsle(CAPSTAN.x + Math.cos(a) * CAPSTAN.r, CAPSTAN.y + Math.sin(a) * CAPSTAN.r * 0.62));
-  ok(ringOn, 'the whole ring she walks round it is on the hummock');
 }
 
-// --- the platforms are where they should be -------------------------------------------
-console.log('\nevery platform is somewhere it does something:');
-for (const [i, L] of LEAVES.entries()) {
-  const deepAtRest = isDeep(L.x, L.y);
-  ok(deepAtRest, `leaf ${i + 1} at (${Math.round(L.x)},${Math.round(L.y)}) floats on deep water`);
-}
-for (const [i, I] of ISLES.entries()) {
-  const ringDeep = [0, 1.57, 3.14, 4.71].every((a) => isDeep(I.x + Math.cos(a) * (I.rx + 30), I.y + Math.sin(a) * (I.ry + 30)));
-  ok(ringDeep, `island ${i + 1} at (${I.x},${I.y}) has deep water all round it — it is an island`);
-}
+console.log(`\nabout ${Math.round(seconds)}s of platforming, before a single miss.`);
+ok(seconds >= 55, 'which is long enough to be worth doing');
 
-// --- and the shore she starts from is actually wadeable --------------------------------
-console.log('\nthe way in:');
-ok(standable(SHORE.x - 20, SHORE.y), `she can wade to (${Math.round(SHORE.x)},${Math.round(SHORE.y)}), where the route begins`);
+console.log('\nno platform leads nowhere:');
 {
-  const dx = LEAVES[0].x - SHORE.x, dy = LEAVES[0].y - SHORE.y, d = Math.hypot(dx, dy);
-  ok(isDeep(SHORE.x + (dx / d) * 12, SHORE.y + (dy / d) * 12), 'and it is over her head one step further on');
+  let orphans = 0;
+  for (let i = 0; i < PLATFORMS.length; i++) {
+    let best = 1e9;
+    for (let j = 0; j < PLATFORMS.length; j++) {
+      if (i === j) continue;
+      const a = still(PLATFORMS[i]), b = still(PLATFORMS[j]);
+      best = Math.min(best, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r);
+    }
+    if (best > DASH) { ok(false, `platform ${i + 1} is ${Math.round(best)} from anything else`); orphans++; }
+  }
+  ok(orphans === 0, 'every platform has a neighbour within reach of it');
 }
 
-console.log(bad ? `\n${bad} FAILURES` : '\nthe level holds together');
+console.log('');
+console.log('the banks — can she just walk up to the sluice?');
+{
+  // A band test lies at a bend: on the inside of a curve a point offset from
+  // the centreline is legitimately in the water, so it reports a hole that is
+  // not there. The question that actually matters is CONNECTIVITY, so flood
+  // fill the valley on foot and see whether the capstan can be reached without
+  // touching a single platform.
+  const CELL = 20, W = Math.ceil(5200 / CELL), H = Math.ceil(3400 / CELL);
+  const walkable = (x, y) => {
+    if (inWall(x, y)) return false;
+    const r = riverAt(x, y);
+    if (r.d < widthAt(r.s) && !inShallow(x, y)) return false;
+    return true;
+  };
+  const seen = new Uint8Array(W * H);
+  const si = Math.round(2600 / CELL), sj = Math.round(1710 / CELL);
+  const q = [sj * W + si];
+  seen[q[0]] = 1;
+  let n = 0;
+  while (q.length) {
+    const k = q.pop(); n++;
+    const i = k % W, j = (k / W) | 0;
+    for (const d of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const i2 = i + d[0], j2 = j + d[1];
+      if (i2 < 1 || j2 < 1 || i2 >= W - 1 || j2 >= H - 1) continue;
+      const k2 = j2 * W + i2;
+      if (seen[k2] || !walkable(i2 * CELL + 10, j2 * CELL + 10)) continue;
+      seen[k2] = 1; q.push(k2);
+    }
+  }
+  const at = (x, y) => !!seen[Math.round(y / CELL) * W + Math.round(x / CELL)];
+  const mouthPt = atRiver(60, 0);
+  const midPt = atRiver(COURSE_LEN * 0.5, 0);
+  ok(at(mouthPt[0], mouthPt[1]), 'she can walk to the mouth of the river');
+  ok(!at(CAPSTAN.x, CAPSTAN.y), 'and cannot walk to the capstan — the river is the only way');
+  ok(!at(midPt[0], midPt[1]), 'nor wade up the middle of it');
+  note(n + ' cells of valley are walkable on foot');
+}
+
+console.log('\nthe head of the river:');
+{
+  ok(!!onSolid(CAPSTAN.x, CAPSTAN.y), 'the capstan stands on solid ground');
+  const ringOn = [0, 1.57, 3.14, 4.71].every((a) =>
+    !!onSolid(CAPSTAN.x + Math.cos(a) * CAPSTAN.r, CAPSTAN.y + Math.sin(a) * CAPSTAN.r * 0.62));
+  ok(ringOn, 'and so does the whole ring she walks round it');
+  const last = still(PLATFORMS[PLATFORMS.length - 1]);
+  const d = Math.round(Math.hypot(CAPSTAN.x - last.x, CAPSTAN.y - last.y) - last.r - 110);
+  ok(d <= COZY, `the last platform leaves her ${d} from the capstan's shelf`);
+  ok(Math.hypot(GATE.x - CAPSTAN.x, GATE.y - CAPSTAN.y) < 420, 'and the gate is in sight of it');
+}
+
+placePlatforms(0);
+console.log(bad ? `\n${bad} FAILURES` : '\nthe course holds together');
 if (warn) console.log(`${warn} warnings`);
 process.exit(bad ? 1 : 0);

@@ -1,149 +1,214 @@
-// THE DROWNED HOLLOW — a crossing in three acts.
+// THE DROWNED COURSE — a river, and a long way up it.
 //
-// The old one was a striped rectangle. The basin was cut into vertical bands,
-// alternating wadeable and deep, which meant you could walk north or south
-// along a stripe for ever and the "islands" were not islands at all. It had no
-// shape, so it had no route, so nothing about crossing it read as a journey.
+// Two versions of this have been a LAKE, and a lake is the wrong shape. A lake
+// has a rim, and a rim can be walked round, so the crossing is optional; and a
+// lake is crossed in a straight line, so it is over in three jumps. Both of
+// those complaints were made and both were right.
 //
-// This is a place. A flooded bowl two thousand units across, with a wadeable
-// shelf all the way round its rim and deep water lying in the middle of it, and
-// standing out of the deep: two sandbars and a stone hummock, in a line that
-// BENDS. The route runs from the south-west shore north-east to the first
-// sandbar, south-east to the second, then north-east again to the hummock. It
-// bends because a straight line across a lake is a corridor, and because
-// bending it means you can stand on a sandbar and look back over the water you
-// have already crossed.
+// This is a river. Two and a half thousand units from its mouth in the
+// south-west up to the sluice pool in the north-east, walled the whole way by
+// rock she cannot climb. One way in, one way on. You do not cross this, you go
+// UP it, and going up it is a minute of jumping.
 //
-// Three acts, each asking for one thing:
+// The old one also drew the Great Root as a fat brown line lying across the
+// water, which reads as a walkway and is not one - you could stand on the bank
+// and see a road that went nowhere. It is sunk deep and blurred now, and it
+// does not come up until the water goes.
 //
-//   ONE   two still leaves, three hops of about ninety. Jump, nothing else.
-//   TWO   a gap of a hundred and forty, which a jump cannot make and a jump
-//         with a dash out of it can. You find that out standing safely on a
-//         sandbar, which is the right place to find it out.
-//   THREE the ferry. One great leaf on the current, travelling three hundred
-//         and fifty units on a seven-and-a-half second breath. At its near end
-//         it touches the sandbar and you step on; at its far end it touches the
-//         hummock and you step off. In between it is out of jumping reach of
-//         both, so riding it is the way over and waiting for it is the beat.
+// FIVE REACHES:
 //
-// And on the hummock, THE CAPSTAN. The hollow is held in by a sluice gate, and
-// the gate comes up by walking the capstan bar round three times. Not a button
-// pressed four times: a circle walked, with the gate climbing the whole way and
-// the water finding its way under it as soon as there is any gap at all.
+//   THE MOUTH    wade in off the valley floor. Four broad leaves, short hops,
+//                up the middle. The jump, and nothing else.
+//   THE NARROWS  the walls close and the leaves go to alternate sides, so she
+//                zigzags. Two of them SWING across the current on a slow beat
+//                and she waits for them to come to her side.
+//   THE EDDY     the river opens into a bowl and three leaves turn round the
+//                whirl. Step on, ride round, step off at the top. Then one gap
+//                of a hundred and forty, which wants the dash.
+//   THE RACE     narrow and quick. Two ferries running with the current: catch
+//                one, ride it up, step across to the next.
+//   THE POOL     the sluice, and the capstan that raises it.
 //
-// THE NUMBERS ARE NOT NEGOTIABLE. Measured in the running game from a standing
-// start: a jump carries her 116, and a jump with a dash out of it 181. So every
-// gap here is either UNDER 95 - a jump, with twenty per cent in hand - or
-// BETWEEN 130 AND 150 - a dash, with thirty in hand. Nothing is allowed to sit
-// between those two bands, because a gap that only just works is worse than one
-// that plainly does not: it fails about one try in four and the player blames
-// themselves for it. savi/tools/check-level.mjs asserts every one of these
-// without opening a browser, and it runs in the commit hook.
+// Platforms are authored in RIVER COORDINATES - s along the course, v across it
+// - so they cannot land on the bank by accident and the whole chain moves when
+// the river does. savi/tools/check-level.mjs walks it in world space and
+// asserts every gap, every wait, and that the walls leave no way round.
 
 const TAU = Math.PI * 2;
 
-/** The bowl. Its wandering edge is pondK() in savi.js; this is the ellipse. */
-export const POOL = { x: 4050, y: 2200, rx: 1150, ry: 780 };
-
-/**
- * Where the shelf ends and it is over her head. Anything in the bowl further
- * out than this is wadeable, so there is a shallow rim right round the lake she
- * can paddle along, and the deep is a lens lying in the middle of it.
- */
-export const SHELF = 0.78;
-
-/** Ground standing out of the deep. She can walk on these. */
-export const ISLES = [
-  { x: 3700, y: 2150, rx: 100, ry: 78, kind: 'sand' },    // act one's landfall
-  { x: 4120, y: 2620, rx: 90, ry: 70, kind: 'sand' },     // act two's landfall
-  { x: 4555, y: 2180, rx: 135, ry: 135, kind: 'stone' },  // the sluice hummock
+/** The course, from the mouth up to the pool. */
+export const COURSE = [
+  [3000, 2980], [3300, 2900], [3560, 2740], [3720, 2520], [3980, 2440],
+  [4260, 2520], [4440, 2330], [4520, 2080], [4680, 1900], [4860, 1760],
+  [4900, 1520],
 ];
-export const SLUICE = ISLES[2];
+export const WATER_W = 156;      // half-width of the water
+export const WALL_W = 230;       // and the rock either side. Thick, because the
+                                 // outside of a bend stretches and a thin band leaks.
+const MOUTH = 150;               // wadeable this far in, so she can get wet first
 
-/** The capstan on the hummock, and the gate it raises. */
-export const CAPSTAN = { x: 4551, y: 2176, r: 52, turns: 0, need: 3, wound: 0 };
-export const GATE = { x: 4676, y: 2180, w: 26, h: 96 };
+// --- river coordinates ----------------------------------------------------------
 
-/** Where the Great Root lies, under all of it. */
-export const ROOT_LINE = [[2980, 2540], [3500, 2430], [4050, 2330], [4460, 2230]];
+const SEG = [];
+let LEN = 0;
+for (let i = 1; i < COURSE.length; i++) {
+  const a = COURSE[i - 1], b = COURSE[i];
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+  SEG.push({ a, dx: dx / len, dy: dy / len, len, s0: LEN });
+  LEN += len;
+}
+export const COURSE_LEN = LEN;
 
-/** A floating leaf. `ax`/`ay` is how far the current carries it, and which way. */
-function leaf(x, y, r, o) {
-  o = o || {};
+/** A point `s` along the course, `v` across it. */
+export function atRiver(s, v = 0) {
+  s = Math.max(0, Math.min(LEN, s));
+  let g = SEG[SEG.length - 1];
+  for (const q of SEG) if (s <= q.s0 + q.len) { g = q; break; }
+  const k = s - g.s0;
+  return [g.a[0] + g.dx * k - g.dy * v, g.a[1] + g.dy * k + g.dx * v];
+}
+
+/** Where a world point sits on the river: how far along, how far off centre. */
+export function riverAt(x, y) {
+  let bs = 0, bd = 1e9;
+  for (const g of SEG) {
+    const k = Math.max(0, Math.min(g.len, (x - g.a[0]) * g.dx + (y - g.a[1]) * g.dy));
+    const d = Math.hypot(x - (g.a[0] + g.dx * k), y - (g.a[1] + g.dy * k));
+    if (d < bd) { bd = d; bs = g.s0 + k; }
+  }
+  return { s: bs, d: bd };
+}
+
+/** How wide the water is along the course: the eddy and the pool bulge out. */
+export function widthAt(s) {
+  let w = WATER_W;
+  w += Math.max(0, 1 - Math.abs(s - 1590) / 280) * 152;     // the eddy
+  w += Math.max(0, 1 - Math.abs(s - LEN) / 340) * 140;      // the pool at the head
+  w -= Math.max(0, 1 - Math.abs(s - 2300) / 210) * 44;      // the race narrows
+  return w;
+}
+
+export const inWater = (x, y) => { const r = riverAt(x, y); return r.d < widthAt(r.s); };
+/** Rock she cannot walk through. This is what makes it a river and not a lake. */
+export function inWall(x, y) {
+  const r = riverAt(x, y);
+  const w = widthAt(r.s);
+  return r.d >= w && r.d < w + WALL_W && r.s > 30 && r.s < LEN - 30;
+}
+/** Wadeable: the mouth, and a hand's width along each bank. */
+export function inShallow(x, y) {
+  const r = riverAt(x, y);
+  return r.s < MOUTH || r.d > widthAt(r.s) - 28;
+}
+
+// --- the platforms ----------------------------------------------------------------
+//
+//   leaf   broad and still
+//   swing  swings across the current, so she waits for her own side
+//   ferry  runs along the current, so she rides it up the river
+//   eddy   turns slowly round the whirl in the wide bowl
+//   stone  solid rock, somewhere to stand and think
+
+function P(s, v, r, kind, o = {}) {
   return {
-    x, y, x0: x, y0: y, r,
-    ax: o.ax || 0, ay: o.ay || 0, rate: o.rate || 0.3, phase: o.phase || 0,
-    ferry: !!o.ferry, sink: 0, dip: 0, dx: 0, dy: 0,
+    s0: s, v0: v, s, v, r, kind,
+    amp: o.amp || 0, rate: o.rate || 0.5, phase: o.phase || 0,
+    x: 0, y: 0, dx: 0, dy: 0, sink: 0, dip: 0, solid: kind === 'stone',
   };
 }
 
-// THE LEAVES ARE BROAD AND THE GAPS ARE SHORT, and both of those are on
-// purpose. A jump carries 117 at full press and 75 at a tap, so a gap of 87 -
-// which is what these were - meant a short press fell in the water. That is a
-// precision game's arithmetic and this is not a precision game. Sixty-six
-// across, onto a target a hundred and twenty wide, is a hop you can take
-// while thinking about something else.
-export const LEAVES = [
-  // ONE — north-east off the shore. Three hops of 66 onto lily-broad leaves.
-  leaf(3354, 2373, 60), leaf(3510, 2272, 60),
-  // TWO — south-east off the sandbar. The first gap wants the dash; then a step.
-  leaf(3896, 2369, 54), leaf(3996, 2481, 54),
-  // THREE — the ferry, north-east to the hummock. 346 of travel, 7.5s a breath,
-  // so the wait is never more than about four seconds and the ride is the same.
-  leaf(4343, 2415, 66, { ax: 127.5, ay: -117, rate: TAU / 7.5, ferry: true }),
+export const PLATFORMS = [
+  // THE MOUTH — four broad leaves up the middle, short hops.
+  P(250, 0, 58, 'leaf'),
+  P(408, -48, 58, 'leaf'),
+  P(566, 42, 58, 'leaf'),
+  P(724, -30, 58, 'leaf'),
+  P(880, 0, 76, 'stone'),
+
+  // THE NARROWS — alternate banks, and two that swing across to meet her.
+  P(1036, -76, 52, 'leaf'),
+  P(1180, 72, 52, 'swing', { amp: 80, rate: 0.95 }),
+  P(1318, -72, 52, 'leaf'),
+  P(1452, 68, 52, 'swing', { amp: 80, rate: 0.95, phase: Math.PI }),
+
+  // THE EDDY — three leaves turning round the whirl in the wide bowl.
+  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7 }),
+  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7, phase: TAU / 3 }),
+  P(1590, 0, 56, 'eddy', { amp: 132, rate: 0.7, phase: (TAU * 2) / 3 }),
+  P(1830, 0, 80, 'stone'),
+
+  // ...and out of the bowl, the one gap that wants the dash.
+  P(2090, -44, 50, 'leaf'),
+
+  // THE RACE — narrow and quick, two ferries running the current.
+  P(2270, 54, 54, 'ferry', { amp: 118, rate: 0.85 }),
+  P(2460, -50, 54, 'leaf'),
+  P(2630, 48, 54, 'ferry', { amp: 114, rate: 0.85, phase: Math.PI }),
+  P(2810, -32, 58, 'leaf'),
 ];
-export const FERRY = LEAVES[LEAVES.length - 1];
 
-// --- what you can stand on ----------------------------------------------------
-
-export function onIsle(x, y) {
-  for (const i of ISLES) {
-    const dx = (x - i.x) / i.rx, dy = (y - i.y) / i.ry;
-    if (dx * dx + dy * dy < 1) return i;
+/** Every platform's world position, and how far it moved this frame. */
+export function placePlatforms(t) {
+  for (const p of PLATFORMS) {
+    const k = Math.sin(t * p.rate + p.phase);
+    if (p.kind === 'swing') p.v = p.v0 + p.amp * k;
+    else if (p.kind === 'ferry') p.s = p.s0 + p.amp * k;
+    else if (p.kind === 'eddy') {
+      const a = t * p.rate + p.phase;
+      p.s = p.s0 + Math.cos(a) * p.amp;
+      p.v = Math.sin(a) * p.amp * 0.86;
+    }
+    const [x, y] = atRiver(p.s, p.v);
+    p.dx = p.x ? x - p.x : 0;
+    p.dy = p.y ? y - p.y : 0;
+    p.x = x; p.y = y;
   }
+}
+placePlatforms(0);
+for (const p of PLATFORMS) { p.dx = 0; p.dy = 0; }
+
+/** Where the root comes up when the water goes. */
+export const ROOT_AT = atRiver(COURSE_LEN - 170, 0);
+
+/** The capstan on the shelf at the head, and the gate it lifts. */
+const capAt = atRiver(COURSE_LEN - 40, 196);
+export const CAPSTAN = { x: capAt[0], y: capAt[1], r: 54, turns: 0, need: 3, wound: 0 };
+const gateAt = atRiver(COURSE_LEN, 0);
+export const GATE = { x: gateAt[0], y: gateAt[1] - 30, w: 28, h: 100 };
+
+/** Solid ground in the river: the stones, and the capstan's shelf. */
+export function onSolid(x, y) {
+  for (const p of PLATFORMS) {
+    if (p.solid && Math.hypot(x - p.x, y - p.y) < p.r) return p;
+  }
+  if (Math.hypot(x - CAPSTAN.x, y - CAPSTAN.y) < 118) return CAPSTAN;
   return null;
 }
 
 /** The leaf she is over, allowing for how far it is riding down. */
 export function leafAt(x, y) {
-  for (const L of LEAVES) {
-    if (L.sink >= 1) continue;
-    if (Math.hypot(x - L.x, y - (L.y + L.dip)) < L.r * 0.96) return L;
+  for (const p of PLATFORMS) {
+    if (p.solid || p.sink >= 1) continue;
+    if (Math.hypot(x - p.x, y - (p.y + p.dip)) < p.r * 0.96) return p;
   }
   return null;
 }
 
-/**
- * The leaves, every frame. `standing` is the one she is on, or null. Each keeps
- * how far it moved this frame, so she rides the ones that move.
- */
 export function stepShallows(dt, t, standing) {
-  for (const L of LEAVES) {
-    if (L.ax || L.ay) {
-      const k = Math.sin(t * L.rate + L.phase);
-      const nx = L.x0 + L.ax * k, ny = L.y0 + L.ay * k;
-      L.dx = nx - L.x; L.dy = ny - L.y;
-      L.x = nx; L.y = ny;
-    } else { L.dx = 0; L.dy = 0; }
-    // Her weight rides it down, and it comes back up the moment she steps off.
-    // The ferry barely sinks at all: it has to carry her for four seconds.
-    if (L === standing) L.sink = Math.min(1, L.sink + dt * (L.ferry ? 0.05 : 0.15));
-    else L.sink = Math.max(0, L.sink - dt * 0.8);
-    L.dip = L.sink * 6 + Math.sin(t * 1.2 + L.phase) * 0.9;
+  placePlatforms(t);
+  for (const p of PLATFORMS) {
+    if (p.solid) continue;
+    // The ferries and the eddy leaves barely sink — they have to carry her.
+    const rate = p.kind === 'leaf' || p.kind === 'swing' ? 0.13 : 0.04;
+    if (p === standing) p.sink = Math.min(1, p.sink + dt * rate);
+    else p.sink = Math.max(0, p.sink - dt * 0.8);
+    p.dip = p.sink * 6 + Math.sin(t * 1.2 + p.phase) * 0.9;
   }
 }
 
-// --- the capstan ------------------------------------------------------------------
-//
-// She opens the gate by pushing the bar round, which is something a child can
-// plainly do and which gives back something the whole way: the bar turns under
-// her hands, the gate climbs, the water starts to find its way beneath it.
-// Three turns. It holds wherever she leaves it, so stopping costs nothing, and
-// walking round the other way unwinds it, because that is what a capstan does.
+// --- the capstan -------------------------------------------------------------------
 
 let lastAngle = null;
-
-/** Call every frame with where she is. True on the turn that opens the gate. */
 export function windCapstan(x, y, moving) {
   const d = Math.hypot(x - CAPSTAN.x, y - CAPSTAN.y);
   if (d > CAPSTAN.r + 34 || d < 12 || !moving) { lastAngle = null; return false; }
@@ -153,7 +218,7 @@ export function windCapstan(x, y, moving) {
   while (da > Math.PI) da -= TAU;
   while (da < -Math.PI) da += TAU;
   lastAngle = a;
-  if (Math.abs(da) > 0.6) return false;             // she jumped across, not pushed
+  if (Math.abs(da) > 0.6) return false;
   const full = CAPSTAN.need * TAU;
   const before = CAPSTAN.wound;
   CAPSTAN.wound = Math.max(0, Math.min(full, CAPSTAN.wound + da));
@@ -161,87 +226,148 @@ export function windCapstan(x, y, moving) {
   return before < full && CAPSTAN.wound >= full;
 }
 export const gateOpen = () => CAPSTAN.wound >= CAPSTAN.need * TAU;
-/** 0..1, how far up the gate has come. */
 export const gateLift = () => CAPSTAN.wound / (CAPSTAN.need * TAU);
 
-// --- drawing ---------------------------------------------------------------------
+// --- drawing -------------------------------------------------------------------------
 
-/** Under the water: the deep lens reads darker, and the root lies along it. */
-export function drawDeep(ctx, t, drained) {
-  if (!drained) {
-    const g = ctx.createRadialGradient(POOL.x, POOL.y, POOL.rx * 0.2, POOL.x, POOL.y, POOL.rx * SHELF);
-    g.addColorStop(0, 'rgba(6,20,34,0.5)');
-    g.addColorStop(0.74, 'rgba(8,24,38,0.38)');
-    g.addColorStop(1, 'rgba(10,28,42,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(POOL.x, POOL.y, POOL.rx * SHELF, POOL.ry * SHELF, 0, 0, TAU);
-    ctx.fill();
-  }
-  // The Great Root, the whole length of the hollow. It is under every jump she
-  // makes, and when the water goes it is the thing that comes up out of it.
+/** The current, as streaks running up the channel, so the river is going somewhere. */
+export function drawCurrent(ctx, t, drained, cam, view) {
+  if (drained) return;
   ctx.save();
-  ctx.globalAlpha = drained ? 0.95 : 0.3;
-  ctx.strokeStyle = drained ? '#7a5533' : '#2b3838';
-  ctx.lineWidth = drained ? 44 : 36;
+  ctx.strokeStyle = 'rgba(180,214,228,0.15)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 110; i++) {
+    const s = (i * 149 + t * 44) % COURSE_LEN;
+    const w = widthAt(s);
+    const v = (((i * 61) % 200) - 100) * (w / WATER_W) * 0.86;
+    const [x, y] = atRiver(s, v);
+    if (x < cam.x - 40 || x > cam.x + view.w + 40 || y < cam.y - 40 || y > cam.y + view.h + 40) continue;
+    const [x2, y2] = atRiver(s + 26, v);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** The Great Root, sunk deep. Dim and edgeless until the water goes. */
+export function drawRootBed(ctx, t, drained) {
+  ctx.save();
+  if (!drained) {
+    // It must NOT look like something she can walk on. It used to be a fat
+    // brown line on the water, which reads as a road, and she would walk to the
+    // bank, see it, and find it went nowhere.
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#1e2a2c';
+    ctx.lineWidth = 56;
+    ctx.filter = 'blur(7px)';
+  } else {
+    ctx.globalAlpha = 0.95;
+    ctx.strokeStyle = '#7a5533';
+    ctx.lineWidth = 46;
+  }
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
-  ctx.moveTo(ROOT_LINE[0][0], ROOT_LINE[0][1]);
-  for (let i = 1; i < ROOT_LINE.length; i++) {
-    const p = ROOT_LINE[i - 1], q = ROOT_LINE[i];
-    ctx.quadraticCurveTo(p[0] + (q[0] - p[0]) * 0.5, p[1] + (q[1] - p[1]) * 0.5 + 26, q[0], q[1]);
+  for (let s = 40; s <= COURSE_LEN - 40; s += 60) {
+    const [x, y] = atRiver(s, Math.sin(s * 0.004) * 42);
+    if (s === 40) ctx.moveTo(x, y); else ctx.lineTo(x, y);
   }
   ctx.stroke();
+  ctx.filter = 'none';
   if (drained) {
-    ctx.strokeStyle = 'rgba(255,196,130,0.45)';
-    ctx.lineWidth = 5;
+    ctx.globalAlpha = 0.5;
+    ctx.strokeStyle = 'rgba(255,196,130,0.6)';
+    ctx.lineWidth = 6;
     ctx.stroke();
   }
   ctx.restore();
 }
 
-/** The sandbars and the hummock. */
-export function drawIsles(ctx, t) {
-  for (const i of ISLES) {
-    ctx.fillStyle = 'rgba(0,0,0,0.26)';
-    ctx.beginPath(); ctx.ellipse(i.x + 7, i.y + 10, i.rx * 1.02, i.ry * 0.86, 0, 0, TAU); ctx.fill();
-    if (i.kind === 'stone') {
+function leafFace(ctx, p, t, drained) {
+  const y = p.y + p.dip;
+  ctx.fillStyle = `rgba(8,22,34,${0.26 + p.sink * 0.24})`;
+  ctx.beginPath(); ctx.ellipse(p.x + 3, y + 6, p.r * 0.98, p.r * 0.5, 0, 0, TAU); ctx.fill();
+  ctx.save();
+  ctx.translate(p.x, y);
+  ctx.rotate(Math.sin(t * 0.8 + p.phase) * 0.06);
+  const g = ctx.createLinearGradient(-p.r, 0, p.r, 0);
+  g.addColorStop(0, p.sink > 0.5 ? '#4a5c33' : '#a8761f');
+  g.addColorStop(0.5, p.sink > 0.5 ? '#5d7340' : '#c9903a');
+  g.addColorStop(1, '#8a5f22');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * 0.62, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(58,40,16,0.6)';
+  ctx.lineWidth = p.kind === 'leaf' ? 1.8 : 2.6;
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(86,60,22,0.5)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.moveTo(-p.r * 0.82, 0); ctx.lineTo(p.r * 0.82, 0); ctx.stroke();
+  ctx.lineWidth = 1.1;
+  for (let i = -3; i <= 3; i++) {
+    if (!i) continue;
+    const vx = i * p.r * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(vx, 0); ctx.lineTo(vx + p.r * 0.12, -p.r * 0.46);
+    ctx.moveTo(vx, 0); ctx.lineTo(vx + p.r * 0.12, p.r * 0.46);
+    ctx.stroke();
+  }
+  ctx.fillStyle = drained ? 'rgba(60,52,36,0.5)' : 'rgba(10,24,38,0.5)';
+  ctx.beginPath();
+  ctx.moveTo(-p.r, 0); ctx.lineTo(-p.r * 0.5, -p.r * 0.15); ctx.lineTo(-p.r * 0.5, p.r * 0.15);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+/** Every platform. Anything that moves is marked, so she knows before she waits. */
+export function drawPlatforms(ctx, t, drained) {
+  for (const p of PLATFORMS) {
+    if (p.solid) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.x + 6, p.y + 9, p.r * 1.02, p.r * 0.6, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#6a6358';
-      ctx.beginPath(); ctx.ellipse(i.x, i.y, i.rx, i.ry * 0.9, 0, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.78, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#7b7365';
-      ctx.beginPath(); ctx.ellipse(i.x - 14, i.y - 18, i.rx * 0.82, i.ry * 0.68, 0, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(p.x - 8, p.y - 10, p.r * 0.8, p.r * 0.58, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#55604a';
-      ctx.beginPath(); ctx.ellipse(i.x - 30, i.y - 34, i.rx * 0.5, i.ry * 0.36, 0.3, 0, TAU); ctx.fill();
-    } else {
-      ctx.fillStyle = '#9c8a63';
-      ctx.beginPath(); ctx.ellipse(i.x, i.y, i.rx, i.ry, 0, 0, TAU); ctx.fill();
-      ctx.fillStyle = '#b09b70';
-      ctx.beginPath(); ctx.ellipse(i.x - 10, i.y - 12, i.rx * 0.78, i.ry * 0.7, 0, 0, TAU); ctx.fill();
-      // Reeds round the edge, so a sandbar is somewhere to stand and not a disc.
-      ctx.strokeStyle = '#5f6b3e'; ctx.lineWidth = 1.8;
-      for (let k = 0; k < 26; k++) {
-        const a = (k / 26) * TAU;
-        const rx = i.x + Math.cos(a) * i.rx * 0.94, ry = i.y + Math.sin(a) * i.ry * 0.94;
-        const h = 16 + ((k * 7) % 5) * 7;
-        const lean = Math.sin(t * 0.9 + k) * 4;
+      ctx.beginPath(); ctx.ellipse(p.x - 18, p.y - 20, p.r * 0.44, p.r * 0.3, 0.3, 0, TAU); ctx.fill();
+      continue;
+    }
+    if (!drained && p.kind !== 'leaf') {
+      ctx.strokeStyle = p.kind === 'ferry' ? 'rgba(190,224,232,0.42)' : 'rgba(228,198,150,0.38)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) {
+        const r = p.r * (1.2 + i * 0.2), ph = t * 0.7 + i * 1.1;
         ctx.beginPath();
-        ctx.moveTo(rx, ry);
-        ctx.quadraticCurveTo(rx + lean * 0.5, ry - h * 0.6, rx + lean, ry - h);
+        ctx.ellipse(p.x, p.y + p.dip, r, r * 0.5, 0, ph, ph + 1.8);
         ctx.stroke();
       }
+    }
+    leafFace(ctx, p, t, drained);
+    if (p.sink > 0.45) {
+      ctx.strokeStyle = `rgba(190,224,232,${(p.sink - 0.45) * 0.8})`;
+      ctx.lineWidth = 2;
+      const k = 1 + (p.sink - 0.45) * 0.5;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y + p.dip, p.r * k, p.r * 0.52 * k, 0, 0, TAU);
+      ctx.stroke();
     }
   }
 }
 
-/** The sluice: two cut stones, the gate between them, and the capstan beside it. */
+/** The sluice at the head, and the capstan that lifts it. */
 export function drawSluice(ctx, t, drained) {
   const lift = gateLift();
-  for (const s of [-1, 1]) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(CAPSTAN.x + 7, CAPSTAN.y + 10, 126, 82, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#6a6358';
+  ctx.beginPath(); ctx.ellipse(CAPSTAN.x, CAPSTAN.y, 120, 78, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#7b7365';
+  ctx.beginPath(); ctx.ellipse(CAPSTAN.x - 12, CAPSTAN.y - 14, 98, 60, 0, 0, TAU); ctx.fill();
+
+  for (const sgn of [-1, 1]) {
     ctx.fillStyle = '#8a8172';
-    ctx.fillRect(GATE.x - 10, GATE.y + s * 62 - 18, 56, 36);
+    ctx.fillRect(GATE.x - 12, GATE.y + sgn * 64 - 18, 60, 36);
     ctx.fillStyle = '#6d6558';
-    ctx.fillRect(GATE.x - 10, GATE.y + s * 62 + 10, 56, 8);
+    ctx.fillRect(GATE.x - 12, GATE.y + sgn * 64 + 10, 60, 8);
   }
   const up = lift * (GATE.h - 14);
   ctx.fillStyle = '#3c3a32';
@@ -251,35 +377,21 @@ export function drawSluice(ctx, t, drained) {
     const yy = GATE.y - GATE.h / 2 - up + 14 + i * 22;
     ctx.beginPath(); ctx.moveTo(GATE.x - 4, yy); ctx.lineTo(GATE.x + GATE.w - 4, yy); ctx.stroke();
   }
-  // Water finding its way under it the moment there is any gap at all.
-  if (lift > 0.02 && !drained) {
+  if (lift > 0.02) {
     ctx.strokeStyle = `rgba(178,214,226,${0.2 + lift * 0.5})`;
-    ctx.lineWidth = 2.4;
-    for (let i = 0; i < 4; i++) {
-      const yy = GATE.y + 26 - i * 15;
+    ctx.lineWidth = 2.6;
+    for (let i = 0; i < 5; i++) {
+      const yy = GATE.y + 28 - i * 14;
       ctx.beginPath();
       ctx.moveTo(GATE.x + GATE.w - 4, yy);
-      ctx.quadraticCurveTo(GATE.x + 34, yy + Math.sin(t * 4 + i) * 4, GATE.x + 62 + lift * 30, yy + 10);
-      ctx.stroke();
-    }
-  }
-  if (drained) {
-    ctx.strokeStyle = 'rgba(178,214,226,0.65)'; ctx.lineWidth = 3.4;
-    for (let i = 0; i < 6; i++) {
-      const yy = GATE.y - 34 + i * 14;
-      ctx.beginPath();
-      ctx.moveTo(GATE.x + 8, yy);
-      ctx.quadraticCurveTo(GATE.x + 44, yy + Math.sin(t * 3 + i) * 6, GATE.x + 90, yy + 8);
+      ctx.quadraticCurveTo(GATE.x + 36, yy + Math.sin(t * 4 + i) * 4, GATE.x + 70 + lift * 30, yy + 10);
       ctx.stroke();
     }
   }
 
-  // THE CAPSTAN: a drum with a bar across it, and the bar turns as she pushes.
   const C = CAPSTAN;
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.beginPath(); ctx.ellipse(C.x + 5, C.y + 8, 30, 16, 0, 0, TAU); ctx.fill();
-  if (!gateOpen()) {                          // the ring she walks
-    ctx.strokeStyle = 'rgba(255,214,150,0.17)';
+  if (!gateOpen()) {
+    ctx.strokeStyle = 'rgba(255,214,150,0.18)';
     ctx.lineWidth = 3;
     ctx.setLineDash([9, 11]);
     ctx.beginPath(); ctx.ellipse(C.x, C.y, C.r, C.r * 0.62, 0, 0, TAU); ctx.stroke();
@@ -290,13 +402,9 @@ export function drawSluice(ctx, t, drained) {
   for (const k of [0, 1]) {
     const b = C.wound + k * Math.PI;
     ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(0, -6); ctx.lineTo(Math.cos(b) * 46, Math.sin(b) * 28 - 6);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(Math.cos(b) * 48, Math.sin(b) * 29 - 6); ctx.stroke();
     ctx.strokeStyle = '#96836a'; ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(0, -8); ctx.lineTo(Math.cos(b) * 46, Math.sin(b) * 28 - 8);
-    ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(Math.cos(b) * 48, Math.sin(b) * 29 - 8); ctx.stroke();
   }
   ctx.lineCap = 'butt';
   ctx.fillStyle = '#5f5340';
@@ -307,77 +415,12 @@ export function drawSluice(ctx, t, drained) {
   ctx.beginPath(); ctx.ellipse(0, -7, 17, 13, 0, 0, TAU); ctx.stroke();
   ctx.restore();
 
-  if (!gateOpen()) {                          // how far round she has got
+  if (!gateOpen()) {
     for (let i = 0; i < C.need; i++) {
       const part = Math.max(0, Math.min(1, C.turns - i));
       ctx.fillStyle = part >= 1 ? 'rgba(255,196,120,0.95)' : `rgba(255,196,120,${0.18 + part * 0.6})`;
-      ctx.beginPath(); ctx.arc(C.x - 18 + i * 18, C.y - 44, 4.6, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(C.x - 18 + i * 18, C.y - 52, 4.6, 0, TAU); ctx.fill();
       ctx.strokeStyle = 'rgba(40,28,16,0.7)'; ctx.lineWidth = 1.3; ctx.stroke();
-    }
-  }
-}
-
-/** The floating leaves, over the water and under her. */
-export function drawLeaves(ctx, t, drained) {
-  for (const L of LEAVES) {
-    const y = L.y + L.dip;
-    ctx.fillStyle = `rgba(8,22,34,${0.28 + L.sink * 0.24})`;
-    ctx.beginPath();
-    ctx.ellipse(L.x + 3, y + 6, L.r * 0.98, L.r * 0.5, 0, 0, TAU);
-    ctx.fill();
-    const tilt = Math.sin(t * 0.8 + L.phase) * 0.06 + (L.ax ? 0.08 : 0);
-    ctx.save();
-    ctx.translate(L.x, y);
-    ctx.rotate(tilt);
-    const g = ctx.createLinearGradient(-L.r, 0, L.r, 0);
-    g.addColorStop(0, L.sink > 0.5 ? '#4a5c33' : '#a8761f');
-    g.addColorStop(0.5, L.sink > 0.5 ? '#5d7340' : '#c9903a');
-    g.addColorStop(1, '#8a5f22');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.ellipse(0, 0, L.r, L.r * 0.62, 0, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(58,40,16,0.6)';
-    ctx.lineWidth = L.ferry ? 2.6 : 1.6;
-    ctx.stroke();
-    ctx.strokeStyle = 'rgba(86,60,22,0.5)';
-    ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.moveTo(-L.r * 0.82, 0); ctx.lineTo(L.r * 0.82, 0); ctx.stroke();
-    ctx.lineWidth = 1.1;
-    for (let i = -3; i <= 3; i++) {
-      if (!i) continue;
-      const vx = i * L.r * 0.22;
-      ctx.beginPath();
-      ctx.moveTo(vx, 0); ctx.lineTo(vx + L.r * 0.12, -L.r * 0.46);
-      ctx.moveTo(vx, 0); ctx.lineTo(vx + L.r * 0.12, L.r * 0.46);
-      ctx.stroke();
-    }
-    ctx.fillStyle = drained ? 'rgba(60,52,36,0.5)' : 'rgba(10,24,38,0.5)';
-    ctx.beginPath();
-    ctx.moveTo(-L.r, 0);
-    ctx.lineTo(-L.r * 0.5, -L.r * 0.15);
-    ctx.lineTo(-L.r * 0.5, L.r * 0.15);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    // The ferry is marked with a curl of current, so it reads as the thing that
-    // moves before she has stood and watched it move.
-    if (L.ferry && !drained) {
-      ctx.strokeStyle = 'rgba(190,224,232,0.38)';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 3; i++) {
-        const r = L.r * (1.25 + i * 0.22), ph = t * 0.6 + i * 1.1;
-        ctx.beginPath();
-        ctx.ellipse(L.x, y, r, r * 0.5, 0, ph, ph + 1.9);
-        ctx.stroke();
-      }
-    }
-    if (L.sink > 0.45) {
-      ctx.strokeStyle = `rgba(190,224,232,${(L.sink - 0.45) * 0.8})`;
-      ctx.lineWidth = 2;
-      const k = 1 + (L.sink - 0.45) * 0.5;
-      ctx.beginPath();
-      ctx.ellipse(L.x, y, L.r * k, L.r * 0.52 * k, 0, 0, TAU);
-      ctx.stroke();
     }
   }
 }
