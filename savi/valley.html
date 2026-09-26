@@ -1,0 +1,124 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Savi — the lamp, the keeper, the green, the animals</title>
+<style>
+ html,body{margin:0;background:#171310;color:#e8dcc8;font:14px/1.6 system-ui;-webkit-text-size-adjust:100%}
+ h1{font-size:19px;letter-spacing:.2em;margin:18px 16px 4px;color:#ffb35e}
+ p.lead{margin:0 16px 14px;max-width:780px;color:#a89880;font-size:13px}
+ section{border-top:1px solid rgba(255,255,255,.08);padding:14px 16px}
+ section h2{font-size:15px;margin:0 0 2px;color:#ffc98a;letter-spacing:.08em}
+ section p{margin:0 0 9px;color:#a89880;font-size:12.5px;max-width:740px}
+ canvas{display:block;width:100%;max-width:780px;height:auto}
+</style></head><body>
+<h1>THE LAMP, THE KEEPER, THE GREEN, THE ANIMALS</h1>
+<p class="lead">Everything on this page is drawn by the game's own code at the size it is drawn in play, and again
+larger so it can be judged. Nothing here is a mock-up.</p>
+<div id="out"></div>
+<script type="module">
+import { drawSavi, drawBreath, drawWoman, drawTree, drawYoungTree } from './src/savi-art.js';
+import { FIGURE } from './src/savi-fauna.js';
+
+const out = document.getElementById('out');
+const DPR = Math.min(2, devicePixelRatio || 1);
+function panel(title, note, h, paint) {
+  const s = document.createElement('section');
+  s.innerHTML = `<h2>${title}</h2><p>${note}</p>`;
+  const cv = document.createElement('canvas');
+  const W = 780;
+  cv.width = W * DPR; cv.height = h * DPR; cv.style.maxWidth = W + 'px';
+  const c = cv.getContext('2d');
+  c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  c.fillStyle = '#2c2a20'; c.fillRect(0, 0, W, h);
+  s.appendChild(cv); out.appendChild(s);
+  const go = (t) => { c.fillStyle = '#2c2a20'; c.fillRect(0, 0, W, h); paint(c, t, W, h); };
+  let t0 = 0;
+  const loop = (ms) => { if (!t0) t0 = ms; go((ms - t0) / 1000); requestAnimationFrame(loop); };
+  requestAnimationFrame(loop);
+}
+const label = (c, x, y, s) => { c.fillStyle = '#8d7f6c'; c.font = '600 10px system-ui'; c.textAlign = 'center'; c.fillText(s.toUpperCase(), x, y); };
+
+// ---------------------------------------------------------------- the lamp
+panel('The lamp, and the coal burning down in it',
+  'Carried, and held out. Left to right: a full coal, half, nearly gone, and out. She is drawn at play size on the top row and at 2.6x below it.',
+  300, (c, t, W) => {
+  const EM = [1, 0.55, 0.14, 0];
+  const FACE = [Math.PI / 2, Math.PI / 2, 0, Math.PI];
+  for (let i = 0; i < 4; i++) {
+    const x = 98 + i * 190;
+    label(c, x, 22, ['full — walking', 'half — walking', 'nearly out', 'gone out'][i]);
+    const p = { x: 0, y: 0, face: FACE[i], phase: t * 6, speed: 80, act: 0, sweep: 0, broom: false, lamp: true, ember: EM[i], z: 0 };
+    c.save(); c.translate(x, 74); drawSavi(c, p, t); c.restore();
+    c.save(); c.translate(x, 268); c.scale(2.6, 2.6); drawSavi(c, p, t); c.restore();
+  }
+});
+
+panel('The lamp held out — the breath of it',
+  'Thorn (a narrow corridor), snow (a broad plume of steam), dead ground (broad and steady). The wedge is drawn at exactly the reach the fire actually clears, so nothing just outside the glow can refuse to move.',
+  260, (c, t, W) => {
+  const O = [
+    ['thorn', { reach: 68, arc: 1.0, steam: false }],
+    ['snow', { reach: 104, arc: 1.45, steam: true }],
+    ['dead ground', { reach: 124, arc: 1.0, steam: false }],
+  ];
+  for (let i = 0; i < 3; i++) {
+    const x = 130 + i * 260;
+    label(c, x, 22, O[i][0] + ' — ' + O[i][1].reach);
+    // Facing away she stands in front of her own fire, the same as in play.
+    const p = { x, y: 190, face: -Math.PI / 2, phase: 0, speed: 0, act: 1, sweep: 0, broom: false, lamp: true, ember: 0.8, z: 0 };
+    drawBreath(c, p, O[i][1], t);
+    drawSavi(c, p, t);
+  }
+});
+
+// ---------------------------------------------------------------- the keeper
+panel('The keeper',
+  'The woman in the interaction box, at the size she sits by her fire. She looks toward whoever is coming.',
+  250, (c, t, W) => {
+  for (let i = 0; i < 3; i++) {
+    const x = 120 + i * 120;
+    label(c, x, 22, ['looking left', 'straight ahead', 'looking right'][i]);
+    drawWoman(c, { x, y: 90, look: i - 1 }, t);
+  }
+  c.save(); c.translate(560, 200); c.scale(3.4, 3.4);
+  drawWoman(c, { x: 0, y: 0, look: Math.sin(t * 0.6) }, t);
+  c.restore();
+  label(c, 560, 22, 'and at 3.4x, turning');
+});
+
+// ---------------------------------------------------------------- the green
+panel('The valley at the end',
+  'A living tree and a dead one, at no bloom, half, and full. The dead ones are the trees standing over the ash and the snow — they have been sticks the whole game.',
+  260, (c, t, W) => {
+  const B = [0, 0.5, 1];
+  for (let i = 0; i < 3; i++) {
+    const x = 90 + i * 128;
+    label(c, x, 20, 'bloom ' + B[i]);
+    drawTree(c, { x, y: 150, s: 1.15, seed: 3, dead: false }, t, 1, B[i]);
+    drawTree(c, { x, y: 248, s: 1.05, seed: 7, dead: true }, t, 1, B[i]);
+  }
+  for (let i = 0; i < 3; i++) {
+    const x = 540 + i * 100;
+    label(c, x, 20, 'sapling ' + B[i]);
+    drawYoungTree(c, { x, y: 226, grow: 1 }, t, B[i]);
+  }
+});
+
+// ---------------------------------------------------------------- the animals
+panel('What else lives here',
+  'Grazing (head down), and alert (head up, about to go). The peacock fans when nothing is frightening it.',
+  260, (c, t, W) => {
+  const WHO = ['deer', 'fawn', 'peacock', 'hare', 'crane'];
+  for (let i = 0; i < 5; i++) {
+    const x = 84 + i * 145;
+    label(c, x, 22, WHO[i]);
+    for (let m = 0; m < 2; m++) {
+      const a = {
+        k: WHO[i], mode: m ? 'graze' : 'walk', head: m ? 0 : 1, sp: m ? 0 : 40,
+        ph: t * 5, seed: 12 + i * 31, buck: i === 0, dir: 1,
+      };
+      c.save(); c.translate(x - 32 + m * 64, 108); FIGURE[WHO[i]](c, a, t); c.restore();
+      c.save(); c.translate(x - 34 + m * 68, 244); c.scale(2, 2); FIGURE[WHO[i]](c, a, t); c.restore();
+    }
+  }
+});
+</script></body></html>

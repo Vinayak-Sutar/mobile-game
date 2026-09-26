@@ -46,11 +46,12 @@ import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
 } from './savi-litter.js';
 import {
-  drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
+  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
   mixHex,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
+import { initFauna, stepFauna, drawFauna, drawSkyFauna } from './savi-fauna.js';
 
 // --- the valley ---------------------------------------------------------------------------
 
@@ -233,8 +234,27 @@ const LITTER = 0.16;
  */
 const CLEAR = 0.3;
 const MAT = { none: 0, leaves: 1, snow: 2, thorn: 3, ash: 4 };
+/**
+ * THE THREE THINGS THE LAMP IS FOR, and how far each of them gives way, in ONE
+ * table - because the fire is DRAWN now as well as carved, and a cone drawn
+ * wider than the cone that clears would promise reach she does not have. The
+ * first thorn just inside the glow that refused to move would read as a bug.
+ * Both the carve and the drawing take the same object out of here.
+ *
+ *   THORN  draws back ahead of her: a narrow reach, worked slowly, so what
+ *          opens is a corridor she has to follow in
+ *   SNOW   melts: a broad round pool opening out from where she stands, and it
+ *          costs more heat, because melting a thing is not the same as
+ *          frightening it
+ *   ASH    has to be burned off, which is broad and steady
+ */
+const BURN = {
+  2: { reach: 104, arc: 1.45, rate: 3.4, drain: 0.13, steam: true },    // snow
+  3: { reach: 68, arc: 1.0, rate: 2.4, drain: 0.085, steam: false },    // thorn
+  4: { reach: 124, arc: 1.0, rate: 3.0, drain: 0.085, steam: false },   // ash
+};
 /** The three the lamp is for. The broom will not claim any of them. */
-const BURNS = { 2: true, 3: true, 4: true };   // snow, thorn, ash
+const BURNS = BURN;
 
 const MATS = [
   null,
@@ -850,16 +870,7 @@ function actHold(dt) {
   // and slowly: a narrow reach, and slower than she walks, so the wall gives
   // way at its own pace and she has to follow it in. Dead ground has to be
   // burned off, which is broader and faster.
-  // THREE THINGS THE LAMP IS FOR, and they do not behave alike.
-  //
-  //   THORN  draws back ahead of her: a narrow reach, worked slowly, so what
-  //          opens is a corridor she has to follow in
-  //   SNOW   melts: a broad round pool opening out from where she stands, and
-  //          it costs more heat, because melting a thing is not the same as
-  //          frightening it
-  //   ASH    has to be burned off, which is broad and steady
-  const thorny = m === MAT.thorn;
-  const snowy = m === MAT.snow;
+  const b = BURN[m];
   // THE CONE STARTS AT HER FEET, and this is the other half of the thorn bug.
   // It used to start 34 in front of her, and a cone opening forward from a
   // point 34 ahead does not contain the ground between her and that point: the
@@ -875,20 +886,22 @@ function actHold(dt) {
   // A short reach for the thorn, so what she opens is a PATH - a corridor about
   // three cells wide that she has to walk down - rather than a clearing that
   // melts away in front of her before she gets to it.
-  const reach = thorny ? 68 : snowy ? 104 : 124;
-  const arc = snowy ? 1.45 : 1.0;
-  const rate = thorny ? 2.4 : snowy ? 3.4 : 3.0;
-  const took = carve(S.x, S.y + 6, a, reach, arc, dt * rate, m);
+  const took = carve(S.x, S.y + 6, a, b.reach, b.arc, dt * b.rate, m);
   // And a coal held out at nothing costs nothing. She used to be able to stand
   // in a corridor she had already cleared and burn a whole coal down to ash
   // against thin air, which is what makes this feel broken rather than slow.
   if (took <= 0.0006) { crackT = 0; S.act = 0; return; }
-  st.ember = Math.max(0, st.ember - dt * (snowy ? 0.13 : 0.085));
-  if (Math.random() < dt * (snowy ? 48 : 34)) {
-    // Steam off the snow, embers off everything else.
-    spark(S.x + fx * 40 + rand(-40, 40), S.y + fy * 40 + rand(-34, 34), 1, snowy
-      ? { col: ['#e8f2f6', '#cfe0e8', '#ffffff'], sp0: 6, sp1: 42, l0: 1.1, l1: 2.4, s0: 7, s1: 15, kind: 'dust', lift: 46 }
-      : { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
+  // The fire is real now, so the frame that draws it is told what it is doing.
+  S.burn = b;
+  st.ember = Math.max(0, st.ember - dt * b.drain);
+  // What comes off it LEAVES THE LAMP and streams down the cone, instead of
+  // appearing anywhere inside a box drawn round her. Steam off the snow,
+  // embers off everything else.
+  if (Math.random() < dt * (b.steam ? 48 : 40)) {
+    const mx = S.x + fx * 16, my = S.y - 11 + fy * 9;
+    spark(mx, my, 1, b.steam
+      ? { col: ['#e8f2f6', '#cfe0e8', '#ffffff'], sp0: 50, sp1: 150, l0: 0.9, l1: 2, s0: 7, s1: 15, kind: 'dust', lift: 44, angle: a, arc: b.arc, drag: 2.6 }
+      : { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 110, sp1: 280, l0: 0.34, l1: 0.8, s0: 3, s1: 6, kind: 'ember', lift: 22, angle: a, arc: b.arc, drag: 3.2 });
   }
   crackT -= dt; if (crackT <= 0) { crackT = 0.9 + Math.random() * 0.6; sfx.hiss(); }
 }
@@ -1036,6 +1049,7 @@ function step(dt) {
   wasHolding = holding;
   if (holding && !tapDone && !stroke) beginStroke();
   stepStroke(dt);
+  S.burn = null;
   if (holding) actHold(dt); else if (!stroke) S.act = 0;
 
   if (st.talking || st.reading) { stepParticles(dt); return; }
@@ -1320,6 +1334,7 @@ function step(dt) {
     say(CLIMAX, () => { st.bloom = 1; }, 'bloom');
   }
 
+  stepFauna(dt, S, st);
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
   st.warmth = clamp01(0.2 + (st.count / ROOTS.length) * 0.58 + st.bloomK * 0.22);
 
@@ -1448,6 +1463,11 @@ function sowScenery() {
     SCENERY.push({ x, y, rock, s: rand(0.7, 1.45), seed: i, dead: t === TT.ASH || t === TT.SNOW });
   }
   SCENERY.sort((a, b) => a.y - b.y);
+  // And the animals. They ask `classify` what each spot is before they stand
+  // on it, so this has to happen after the valley is decided; and they keep
+  // clear of where she wakes up, because a deer two paces from her starting
+  // position is scenery rather than something she came across.
+  initFauna(V, classify, (x, y) => Math.hypot(x - START.x, y - START.y));
 }
 
 function render() {
@@ -1476,8 +1496,12 @@ function render() {
   drawCliffs(ctx, st.t, camera, view);
 
   S.broom = broom.held;
+  // The lamp is hers from the moment the keeper hands it over, and the coal in
+  // it is however much heat is left.
+  S.lamp = has(st, 'lamp');
+  S.ember = st.hasEmber ? st.ember : 0;
   if (!broom.held) drawBroom(ctx, broom, st.t);
-  for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t);
+  for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t, st.bloomK);
 
   drawGate(ctx, GATE, st.t, st.warmth);
   // SEE-THROUGH TREES. A tree whose base is below her feet draws over the top
@@ -1494,18 +1518,31 @@ function render() {
     o.see = (o.see === undefined ? 1 : o.see) + ((under ? 0.34 : 1) - (o.see === undefined ? 1 : o.see)) * Math.min(1, dtSeen * 9);
     (o.y < S.y ? below : above).push(o);
   }
-  for (const o of below) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth);
+  for (const o of below) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth, st.bloomK);
+  drawFauna(ctx, st.t, camera, view, -1e9, S.y, st.bloomK);
 
   drawBanyan(ctx, TREE, st.bloomK, st.t);
   drawFire(ctx, FIRE, st.t, st.hasEmber ? 0.4 : 1);
+  // She looks up at whoever is coming. Beyond about a screen she just sits.
+  WOMAN.look = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 260
+    ? clamp((S.x - WOMAN.x) / 90, -1, 1) : 0;
   drawWoman(ctx, WOMAN, st.t);
   for (const h of SHELTERS) drawFire(ctx, { x: h.x, y: h.y }, st.t + h.x, 0.6);
 
   if (st.hasEmber && st.ember > 0.02) glow(ctx, S.x, S.y - 10, 190 * (0.45 + st.ember * 0.55), `rgba(255,150,60,${0.22 * st.ember + 0.05})`);
+  // WHICH SIDE OF HER THE FIRE IS ON. Facing away from the camera she is
+  // aiming UP the screen, and her own sprite stands in the first thirty
+  // pixels of the cone - drawn over her, the fire rubbed her out. Facing away
+  // it goes down first and she stands in front of it, which is also what is
+  // actually happening.
+  const behind = S.burn && Math.sin(S.face) < -0.25;
+  if (behind) drawBreath(ctx, S, S.burn, st.t);
   drawSavi(ctx, S, st.t);
+  if (S.burn && !behind) drawBreath(ctx, S, S.burn, st.t);
+  drawFauna(ctx, st.t, camera, view, S.y, 1e9, st.bloomK);
   for (const o of above) {
     ctx.globalAlpha = o.see === undefined ? 1 : o.see;
-    (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth);
+    (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth, st.bloomK);
   }
   ctx.globalAlpha = 1;
   grass.drawFront(ctx, st.t, win());
@@ -1515,6 +1552,9 @@ function render() {
   const underTree = Math.hypot(S.x - TREE.x, S.y - (TREE.y - 120)) < 340;
   canopySee += ((underTree ? 0.4 : 1) - canopySee) * Math.min(1, dtSeen * 9);
   drawCanopy(ctx, TREE, st.bloomK, st.t, canopySee);
+  // The birds go over the top of everything, canopy included, with their
+  // shadows down on the ground - which is the only thing that says "high up".
+  drawSkyFauna(ctx, st.t, camera, view, st.bloomK);
 
   // Along the avenue the air is full of them.
   const onAvenue = Math.abs(S.x - 2600) < 420 && S.y > 2250;

@@ -16,6 +16,15 @@ export const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 export const mix = (a, b, k) => a + (b - a) * k;
 const rnd = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
+/**
+ * WHAT THE VALLEY TURNS INTO. The payoff of the whole game used to arrive the
+ * same colour as the problem: every tree still autumn gold, which is the exact
+ * shade the valley is dying of. These are the greens the Banyan's own canopy
+ * blooms in (see drawCanopy), so when the tree comes back the whole valley
+ * comes back WITH it rather than standing around it in gold.
+ */
+export const NEW_LEAF = ['#2f6b2c', '#387a33', '#4d9a3a', '#63b148'];
+
 export const PAL = {
   ink: '#23181b',
   grass: '#6f7a44',
@@ -364,8 +373,9 @@ export function drawCanopy(ctx, T, bloom, time, see = 1) {
  * a first aerial root already reaching down, a small crown - and the beat of
  * the legend carved into its bark, which is why it is there.
  */
-export function drawYoungTree(ctx, o, time) {
+export function drawYoungTree(ctx, o, time, bloom = 0) {
   const g = clamp01(o.grow), x = o.x, y = o.y;
+  const bl = clamp01(bloom);
   if (g <= 0.01) return;
   const h = 128 * g;
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -404,7 +414,8 @@ export function drawYoungTree(ctx, o, time) {
   for (let i = 0; i < 9; i++) {              // its small crown
     const a = (i / 9) * TAU;
     const r = 34 * g;
-    ctx.fillStyle = ['#e0a443', '#c8802f', '#f0bf5c'][i % 3];
+    const gold = ['#e0a443', '#c8802f', '#f0bf5c'][i % 3];
+    ctx.fillStyle = bl < 0.02 ? gold : mixHex(gold, NEW_LEAF[i % NEW_LEAF.length], bl);
     ctx.beginPath();
     ctx.ellipse(x + Math.cos(a) * r + Math.sin(time * 0.7 + i) * 2, y - h - 12 * g + Math.sin(a) * r * 0.6, 26 * g, 20 * g, a, 0, TAU);
     ctx.fill();
@@ -623,7 +634,8 @@ function along(pts, k) {
 // --- the valley's own trees and stones ---------------------------------------------------
 
 /** An autumn tree from above: a trunk and a few overlapping crowns. */
-export function drawTree(ctx, o, time, warmth) {
+export function drawTree(ctx, o, time, warmth, bloom = 0) {
+  const bl = clamp01(bloom);
   const s = o.s, x = o.x, y = o.y;
   const sway = Math.sin(time * 0.6 + o.seed) * 2.4 * s;
   ctx.fillStyle = 'rgba(0,0,0,0.26)';
@@ -639,21 +651,47 @@ export function drawTree(ctx, o, time, warmth) {
   ctx.closePath();
   ctx.fill();
   if (o.dead) {
-    ctx.strokeStyle = '#3d3229';
+    // The bare ones: the trees standing over the ash and over the snow. They
+    // have been sticks for two winters and they stay sticks for the whole
+    // game - and then the Banyan blooms and THEY COME BACK TOO, which is the
+    // one that will actually be noticed, because those two are the ground she
+    // had to burn and thaw to reach.
+    const tip = [];
+    ctx.strokeStyle = mixHex('#3d3229', '#54402c', bl);
     ctx.lineCap = 'round';
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + (i - 2.5) * 0.42;
+      const ex = x + Math.cos(a) * 44 * s + sway, ey = y - 52 * s + Math.sin(a) * 12 * s;
       ctx.lineWidth = 4.5 * s;
       ctx.beginPath();
       ctx.moveTo(x, y - 22 * s);
-      ctx.quadraticCurveTo(x + Math.cos(a) * 24 * s, y - 42 * s, x + Math.cos(a) * 44 * s + sway, y - 52 * s + Math.sin(a) * 12 * s);
+      ctx.quadraticCurveTo(x + Math.cos(a) * 24 * s, y - 42 * s, ex, ey);
       ctx.stroke();
+      tip.push([ex, ey, a]);
+    }
+    if (bl > 0.02) {
+      for (let i = 0; i < tip.length; i++) {
+        const [ex, ey, a] = tip[i];
+        ctx.fillStyle = NEW_LEAF[(o.seed + i) % NEW_LEAF.length];
+        const r = (7 + rnd(o.seed + i) * 7) * s * bl;
+        ctx.beginPath();
+        ctx.ellipse(ex, ey, r * 1.5, r, a, 0, TAU);
+        ctx.fill();
+        // A second clump back along the branch, so it is a tree leafing out
+        // and not six pom-poms on six sticks.
+        ctx.beginPath();
+        ctx.ellipse((x + ex) / 2 + Math.cos(a) * 4 * s, (y - 30 * s + ey) / 2, r * 1.1, r * 0.8, a, 0, TAU);
+        ctx.fill();
+      }
     }
     return;
   }
-  const hues = warmth > 0.55
+  // Autumn until the tree remembers, then new leaf. mixHex per channel rather
+  // than a swap, so the whole valley turns in one movement over the ending.
+  const gold = warmth > 0.55
     ? ['#d98f2f', '#e8b148', '#c46c25', '#f0c65e']
     : ['#8f7a3a', '#a8893c', '#7a6330', '#bd9a45'];
+  const hues = bl < 0.02 ? gold : gold.map((c, i) => mixHex(c, NEW_LEAF[i], bl));
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * TAU + o.seed;
     const r = (26 + rnd(o.seed + i) * 16) * s;
@@ -662,10 +700,21 @@ export function drawTree(ctx, o, time, warmth) {
     ctx.ellipse(x + Math.cos(a) * 17 * s + sway, y - 34 * s + Math.sin(a) * 11 * s, r, r * 0.8, a, 0, TAU);
     ctx.fill();
   }
-  ctx.fillStyle = 'rgba(255,230,180,0.14)';
+  ctx.fillStyle = `rgba(255,${230 + bl * 18},${180 + bl * 40},0.14)`;
   ctx.beginPath();
   ctx.ellipse(x - 12 * s + sway, y - 46 * s, 22 * s, 14 * s, 0, 0, TAU);
   ctx.fill();
+  // And blossom on it at the very end, the same as the Banyan's.
+  if (bl > 0.55) {
+    ctx.fillStyle = `rgba(255,236,242,${(bl - 0.55) * 1.6})`;
+    for (let i = 0; i < 7; i++) {
+      const a = rnd(o.seed * 3 + i) * TAU;
+      const d = (10 + rnd(o.seed + i * 5) * 26) * s;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * d + sway, y - 36 * s + Math.sin(a) * d * 0.7, 1.7 * s, 0, TAU);
+      ctx.fill();
+    }
+  }
 }
 
 /** A stone, and its own small shadow. */
@@ -987,33 +1036,404 @@ export function drawSavi(ctx, p, time) {
     ctx.fillRect(hx + 1.3, -25.2, 1.6, 2);
   }
   if (away) braid();                           // her back is to us: it is in front
+
+  // THE LAMP. She has been carrying it since the second root as a flag on a
+  // state object and nothing else - no lamp, no coal, just a patch of glow on
+  // the ground and some sparks. It is the tool three of the five roots are
+  // cleared with, so it ought to be a thing you can see in her hand.
+  //
+  // It is a small hanging lantern: a brass bowl on a wire hoop with the COAL
+  // sitting in it. The coal is the fuel and it burns down - `p.ember` runs 1
+  // to 0 - so the lamp tells you how much heat is left without the HUD.
+  if (p.lamp) {
+    const em = clamp01(p.ember || 0);
+    const out = (p.act || 0) > 0;
+    // WHICH HAND, ON THE SCREEN. She is a billboard sprite seen from three
+    // quarters, so the hand has to be found in SCREEN space, not by taking the
+    // perpendicular of her facing in the world. The perpendicular is correct
+    // on the ground and useless here: turned to face left or right it points
+    // straight up the screen, and the lamp ends up hanging in the middle of
+    // her ribs. In profile it goes on her leading side; face on or away, it
+    // hangs on her left, and it swings against her stride.
+    const side = Math.abs(fx) > 0.3 ? (fx > 0 ? 1 : -1) : -1;
+    const swg = walking ? Math.sin(ph) * 1.9 : Math.sin(time * 1.1) * 0.7;
+    const hx = out ? fx * 16 : side * 9.5 + fx * 2 + swg;
+    const hy = out ? fy * 9 - 15 : -12.5 + fy * 1.5 + (walking ? Math.abs(Math.sin(ph)) * 1.2 : 0);
+    // Her arm, so the lamp is being held rather than floating beside her.
+    ctx.strokeStyle = '#c08a5a';
+    ctx.lineWidth = 2.8;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(side * 5.5, -16);
+    ctx.quadraticCurveTo((side * 5.5 + hx) / 2 + side * 1.6, (-16 + hy) / 2, hx, hy);
+    ctx.stroke();
+    // The hoop it hangs from. Drawn in soot as well as brass, because at the
+    // size she is on a phone a gold line on a gold skirt is nothing at all -
+    // everything else in this valley is outlined and so is this.
+    ctx.strokeStyle = '#2a2018';
+    ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(hx, hy + 3.6, 5, Math.PI * 1.04, Math.PI * 1.96); ctx.stroke();
+    ctx.strokeStyle = '#9a8656';
+    ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.arc(hx, hy + 3.6, 5, Math.PI * 1.04, Math.PI * 1.96); ctx.stroke();
+    // The bowl: shallow brass, a rim, and the light of the coal caught on it.
+    const lit = 0.25 + em * 0.75;
+    ctx.fillStyle = mixHex('#6b5836', '#d7a24a', lit);
+    ctx.beginPath();
+    ctx.moveTo(hx - 5.6, hy + 3.4);
+    ctx.quadraticCurveTo(hx, hy + 12, hx + 5.6, hy + 3.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#2a2018';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.strokeStyle = mixHex('#4a3c26', '#f0c473', lit);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(hx - 6, hy + 3.4); ctx.lineTo(hx + 6, hy + 3.4); ctx.stroke();
+    // The coal in it. Gold while it is full, a dull red ember near the end,
+    // and a black cinder when it has gone out.
+    if (em > 0.005) {
+      const flick = 0.82 + Math.sin(time * 9.1 + p.x) * 0.12 + Math.sin(time * 4.3) * 0.06;
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      const g = ctx.createRadialGradient(hx, hy + 4, 0, hx, hy + 4, (11 + em * 16) * flick);
+      g.addColorStop(0, `rgba(255,214,150,${0.5 * (0.35 + em * 0.65)})`);
+      g.addColorStop(0.4, `rgba(255,150,60,${0.26 * (0.3 + em * 0.7)})`);
+      g.addColorStop(1, 'rgba(255,120,40,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(hx, hy + 4, (11 + em * 16) * flick, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = mixHex('#7e2410', '#ffd07a', em * flick);
+      ctx.beginPath(); ctx.ellipse(hx, hy + 4.4, 3.4, 2.4, 0, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = '#2a2320';
+      ctx.beginPath(); ctx.ellipse(hx, hy + 4.4, 3.2, 2.2, 0, 0, TAU); ctx.fill();
+    }
+    // The pierced lid over it, so it is a lamp and not a cup of fire.
+    ctx.fillStyle = mixHex('#5d4e33', '#a98a52', lit);
+    ctx.beginPath();
+    ctx.moveTo(hx - 6, hy + 3.4);
+    ctx.quadraticCurveTo(hx, hy - 3.2, hx + 6, hy + 3.4);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#2a2018';
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,190,110,${0.25 + em * 0.6})`;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath(); ctx.arc(hx + i * 2.9, hy + 1.4 - Math.abs(i) * 0.7, 0.85, 0, TAU); ctx.fill();
+    }
+  }
   ctx.restore();
+}
+
+/**
+ * THE BREATH OF THE LAMP - the fire she holds out at the thorn.
+ *
+ * This is Ashfall's Dragon's Breath (see spells.js): a translucent wedge along
+ * the aim with a stream of embers running down it. Two things are different
+ * here. It comes out of a lamp rather than a mouth, so there is a hot flare at
+ * the lamp's lip and the tongues of flame LEAVE from there and lie down onto
+ * the ground. And the wedge is drawn from `o`, which is the SAME object the
+ * carve reads its reach and arc from - so the fire can never be drawn over
+ * ground it does not clear, which would read as a bug the first time a thorn
+ * just inside the glow refused to move.
+ *
+ * Snow gets the same cone in white-blue: a plume of steam, not a plume of fire.
+ */
+export function drawBreath(ctx, p, o, time) {
+  const a = p.face, fx = Math.cos(a), fy = Math.sin(a);
+  const ox = p.x, oy = p.y + 6;              // exactly where carve() starts
+  const half = o.arc / 2;
+  const cold = !!o.steam;
+  const fl = 0.88 + Math.sin(time * 19.7) * 0.09 + Math.sin(time * 33.1) * 0.05;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  // Three wedges stacked: a wide dim breath, an orange body, and a narrow
+  // white core at the mouth. Each breathes on its own clock, which is the
+  // whole difference between fire and a coloured triangle.
+  const LAY = cold
+    ? [[1, 1, 'rgba(140,200,225,'], [0.72, 0.78, 'rgba(200,232,244,'], [0.4, 0.46, 'rgba(255,255,255,']]
+    : [[1, 1, 'rgba(255,104,38,'], [0.7, 0.76, 'rgba(255,164,58,'], [0.38, 0.44, 'rgba(255,240,196,']];
+  const ALPHA = cold ? [0.15, 0.18, 0.22] : [0.16, 0.2, 0.25];
+  for (let i = 0; i < 3; i++) {
+    const r = o.reach * LAY[i][0] * (0.92 + Math.sin(time * (13 + i * 6)) * 0.06) * fl;
+    // EACH WEDGE FADES IN FROM THE ORIGIN rather than being a flat triangle of
+    // colour. Flat, it was brightest right where she is standing and it
+    // swallowed her whole - she disappeared inside her own fire. Fading in
+    // also happens to be the truth of it: the origin is her feet, because that
+    // is where the carve starts, but the fire is coming out of a lamp held at
+    // her chest and only reaches the ground a little way in front of her.
+    // The near stop is a FIXED THIRTY-FOUR PIXELS, not a fraction of the
+    // reach - she is the same height whichever of the three she is burning,
+    // and on the thorn's short reach a fraction put full brightness across
+    // her shoulders.
+    const near = Math.min(0.5, 34 / r);
+    const g = ctx.createRadialGradient(ox, oy, 0, ox, oy, r);
+    g.addColorStop(0, `${LAY[i][2]}0)`);
+    g.addColorStop(near * 0.5, `${LAY[i][2]}${(ALPHA[i] * 0.16).toFixed(3)})`);
+    g.addColorStop(near, `${LAY[i][2]}${(ALPHA[i] * 0.5).toFixed(3)})`);
+    g.addColorStop(0.78, `${LAY[i][2]}${ALPHA[i]})`);
+    g.addColorStop(1, `${LAY[i][2]}${(ALPHA[i] * 0.3).toFixed(3)})`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(ox, oy);
+    ctx.arc(ox, oy, r, a - half * LAY[i][1], a + half * LAY[i][1]);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // The lamp's lip, where it all leaves from.
+  const z = p.z || 0;
+  const mx = p.x + fx * 16, my = p.y - 15 + fy * 9 - z + 4;
+  // Small, and not very strong. A big bright disc here sat exactly on her head
+  // whenever she faced away from the camera and rubbed her out of her own
+  // picture; what is wanted is a lamp that is clearly alight, not a flashbulb.
+  const fr = 15 * fl;
+  const fg = ctx.createRadialGradient(mx, my, 0, mx, my, fr);
+  fg.addColorStop(0, 'rgba(255,248,214,0.52)');
+  fg.addColorStop(0.42, cold ? 'rgba(190,228,246,0.24)' : 'rgba(255,148,52,0.26)');
+  fg.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fg;
+  ctx.beginPath(); ctx.arc(mx, my, fr, 0, TAU); ctx.fill();
+
+  // And the tongues, leaving the lip and lying down along the ground.
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 7; k++) {
+    const ph = k * 1.73 + time * 5.5;
+    const ta = a + Math.sin(ph) * half * 0.82;
+    const len = o.reach * (0.44 + ((Math.sin(ph * 1.7) + 1) / 2) * 0.56);
+    const ex = ox + Math.cos(ta) * len, ey = oy + Math.sin(ta) * len;
+    const bx = (mx + ex) / 2 + Math.sin(ph * 2.3) * 8;
+    const by = (my + ey) / 2 + Math.cos(ph * 2.1) * 8;
+    const j = k % 3;
+    ctx.strokeStyle = cold
+      ? `rgba(${210 + j * 15},${236 + j * 6},250,${0.09 + j * 0.05})`
+      : `rgba(255,${148 + j * 44},${52 + j * 56},${0.12 + j * 0.05})`;
+    ctx.lineWidth = 6.4 - j * 1.9;
+    ctx.beginPath();
+    ctx.moveTo(mx, my);
+    ctx.quadraticCurveTo(bx, by, ex, ey);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // The light it throws on what it is burning.
+  glow(ctx, ox + fx * o.reach * 0.4, oy + fy * o.reach * 0.4, o.reach * 1.5,
+    cold ? 'rgba(170,215,240,0.16)' : 'rgba(255,150,60,0.22)');
 }
 
 // --- the Old Woman and her fire ------------------------------------------------------
 
+/**
+ * THE KEEPER, and she is the woman in the dialogue box.
+ *
+ * She used to be a grey-purple hood on a grey-purple blanket, which is nobody.
+ * The painted portrait the interaction box shows - ASSETS/keeper-speaking.png -
+ * is a specific woman: a BROWN SARI DRAWN OVER HER HEAD, a red pallu with
+ * orange dots and a white edge running down both sides of her face, a cream
+ * blouse stitched in rings, a red waistband, white hair at the crown, and the
+ * heavy brows every Gond face is drawn with.
+ *
+ * So that is what sits by the fire now, in the pigments of savi-gond.js, and
+ * the red of the pallu is what makes her findable from right across the
+ * valley. She sits cross-legged, she breathes, and she turns her face toward
+ * Savi when Savi comes near (`o.look`, -1 to 1).
+ */
 export function drawWoman(ctx, o, time) {
-  const sway = Math.sin(time * 0.9) * 1.1;
-  ctx.fillStyle = 'rgba(0,0,0,0.26)';
-  ctx.beginPath(); ctx.ellipse(o.x + 2, o.y + 5, 15, 6, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#6a5f74';                       // her blanket
+  const x = o.x, y = o.y;
+  const breath = Math.sin(time * 0.9) * 0.8;       // she is alive, barely
+  const look = clamp01((o.look === undefined ? 0 : o.look) * 0.5 + 0.5) * 2 - 1;
+  const lx = look * 2.2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + 5, 19, 7.5, 0, 0, TAU); ctx.fill();
+
+  // --- the sari, worn as one piece from the knees to over the head ---------
+  // Her lap first: sitting cross-legged is a wide low triangle, not a cylinder.
+  ctx.fillStyle = '#8a5426';                        // mitti, in shadow
   ctx.beginPath();
-  ctx.moveTo(o.x - 15, o.y + 3);
-  ctx.quadraticCurveTo(o.x - 17 + sway, o.y - 18, o.x - 8, o.y - 27);
-  ctx.lineTo(o.x + 8, o.y - 27);
-  ctx.quadraticCurveTo(o.x + 17 + sway, o.y - 18, o.x + 15, o.y + 3);
+  ctx.moveTo(x - 19, y + 4);
+  ctx.quadraticCurveTo(x, y - 2, x + 19, y + 4);
+  ctx.quadraticCurveTo(x + 14, y + 8, x, y + 8);
+  ctx.quadraticCurveTo(x - 14, y + 8, x - 19, y + 4);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.16)';
-  ctx.fillRect(o.x + 2, o.y - 26, 13, 29);
-  ctx.fillStyle = '#5b5166';                       // her hood
-  ctx.beginPath(); ctx.arc(o.x, o.y - 31, 9, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#cfa27a';
-  ctx.beginPath(); ctx.ellipse(o.x + 1, o.y - 30, 5, 5.4, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.beginPath(); ctx.ellipse(o.x + 1, o.y - 33.5, 5.4, 3, 0, 0, TAU); ctx.fill();
-  ctx.fillStyle = '#e8e0d6';                       // white hair at the edge
-  ctx.beginPath(); ctx.ellipse(o.x - 7, o.y - 28, 3.4, 5, 0.4, 0, TAU); ctx.fill();
+  // The body of the drape, up to the shoulders.
+  ctx.fillStyle = '#a8652c';                        // mitti
+  ctx.beginPath();
+  ctx.moveTo(x - 18, y + 5);
+  ctx.quadraticCurveTo(x - 15, y - 14, x - 11, y - 24 + breath);
+  ctx.lineTo(x + 11, y - 24 + breath);
+  ctx.quadraticCurveTo(x + 15, y - 14, x + 18, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  // The weave, which is what a Gond panel would fill it with.
+  ctx.strokeStyle = 'rgba(64,34,14,0.3)';
+  ctx.lineWidth = 0.8;
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + i * 4.6, y - 21 + breath);
+    ctx.quadraticCurveTo(x + i * 5.6, y - 8, x + i * 6.4, y + 4);
+    ctx.stroke();
+  }
+
+  // --- the blouse, stitched in rings --------------------------------------
+  ctx.fillStyle = '#fff3dc';                        // chuna
+  ctx.beginPath();
+  ctx.ellipse(x, y - 13 + breath, 9.5, 8.5, 0, 0, TAU);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,108,70,0.34)';
+  ctx.lineWidth = 0.6;
+  for (let i = 1; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.ellipse(x, y - 13 + breath, 2.8 * i, 2.4 * i, 0, 0, TAU);
+    ctx.stroke();
+  }
+  // --- the waistband: red with its row of dots ----------------------------
+  ctx.fillStyle = '#e04a2c';                        // geru
+  ctx.beginPath();
+  ctx.moveTo(x - 10.5, y - 6 + breath);
+  ctx.quadraticCurveTo(x, y - 3.4 + breath, x + 10.5, y - 6 + breath);
+  ctx.lineTo(x + 10.5, y - 2.4 + breath);
+  ctx.quadraticCurveTo(x, y + 0.2 + breath, x - 10.5, y - 2.4 + breath);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#f5c02a';                        // haldi
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath(); ctx.arc(x + i * 2.9, y - 3.6 + breath + Math.abs(i) * 0.22, 0.7, 0, TAU); ctx.fill();
+  }
+
+  // --- her arms, hands folded in her lap ----------------------------------
+  // The sleeves are the DARKER brown. Drawn in the same brown as the drape
+  // they were invisible against it, which is why she had no arms at all.
+  ctx.strokeStyle = '#74441d';
+  ctx.lineWidth = 5.2;
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * 9, y - 17 + breath);
+    ctx.quadraticCurveTo(x + s * 14, y - 10 + breath, x + s * 9.5, y - 4.5 + breath);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#fff3dc';                      // the cuff
+  ctx.lineWidth = 1.6;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * 11.4, y - 6.6 + breath);
+    ctx.lineTo(x + s * 7.8, y - 5 + breath);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#b5763f';                      // skin, the forearms
+  ctx.lineWidth = 3.6;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + s * 9, y - 5 + breath);
+    ctx.quadraticCurveTo(x + s * 6, y - 1 + breath, x + s * 1.6, y - 1.2 + breath);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#c08a52';
+  ctx.beginPath(); ctx.ellipse(x, y - 1 + breath, 3.4, 2.4, 0, 0, TAU); ctx.fill();
+
+  // --- the head, with the sari over it ------------------------------------
+  const hy = y - 30 + breath;
+  ctx.fillStyle = '#8a5426';                        // the drape, behind
+  ctx.beginPath();
+  ctx.moveTo(x - 12, y - 19);
+  ctx.quadraticCurveTo(x - 13.5, hy - 10, x, hy - 11.5);
+  ctx.quadraticCurveTo(x + 13.5, hy - 10, x + 12, y - 19);
+  ctx.closePath();
+  ctx.fill();
+  // The face.
+  ctx.fillStyle = '#c08a52';                        // skin
+  ctx.beginPath(); ctx.ellipse(x + lx, hy, 6.4, 7.4, 0, 0, TAU); ctx.fill();
+  // White hair, parted, showing under the drape across her forehead. It goes
+  // on TOP of the face, not behind it - behind it, nothing of it showed.
+  ctx.fillStyle = '#ece4d8';
+  ctx.beginPath();
+  ctx.moveTo(x + lx - 6.2, hy - 2.6);
+  ctx.quadraticCurveTo(x + lx, hy - 9.4, x + lx + 6.2, hy - 2.6);
+  ctx.quadraticCurveTo(x + lx, hy - 5.4, x + lx - 6.2, hy - 2.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(150,140,126,0.55)';
+  ctx.lineWidth = 0.5;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(x + lx + i * 1.1, hy - 7.4 + Math.abs(i) * 0.9);
+    ctx.lineTo(x + lx + i * 2.3, hy - 3.6 + Math.abs(i) * 0.3);
+    ctx.stroke();
+  }
+  // Brows ABOVE the eyes with daylight between them. They used to sit a
+  // millimetre off the pupils and the two ran together into a pair of goggles.
+  ctx.strokeStyle = '#2a1a10';
+  ctx.lineWidth = 0.95;
+  ctx.lineCap = 'round';
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + lx + s * 0.9, hy - 2.5);
+    ctx.quadraticCurveTo(x + lx + s * 2.6, hy - 3.5, x + lx + s * 4.1, hy - 2.3);
+    ctx.stroke();
+  }
+  // And the eyes the way a Gond face draws them: a white almond with a black
+  // iris sitting in it, not a black dot.
+  for (const s of [-1, 1]) {
+    ctx.fillStyle = '#fff3dc';
+    ctx.beginPath(); ctx.ellipse(x + lx + s * 2.5, hy - 0.2, 2, 1.45, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#120c12';
+    ctx.beginPath(); ctx.arc(x + lx + s * 2.5 + lx * 0.25, hy - 0.2, 1.05, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3b291c';
+    ctx.lineWidth = 0.45;
+    ctx.beginPath(); ctx.ellipse(x + lx + s * 2.5, hy - 0.2, 2, 1.45, 0, 0, TAU); ctx.stroke();
+  }
+  ctx.strokeStyle = '#8a5a34';                      // the lines two winters put there
+  ctx.lineWidth = 0.7;
+  ctx.beginPath(); ctx.moveTo(x + lx - 1.6, hy + 3.2); ctx.quadraticCurveTo(x + lx, hy + 4, x + lx + 1.6, hy + 3.2); ctx.stroke();
+
+  // --- THE PALLU. Red, dotted, white-edged, down both sides of her face ---
+  // This is the detail the portrait is recognisable by, and it is what makes
+  // her findable from across the valley without a marker over her head.
+  for (const s of [-1, 1]) {
+    ctx.strokeStyle = '#fff3dc';                    // the white edge
+    ctx.lineWidth = 5.4;
+    ctx.lineCap = 'butt';
+    ctx.beginPath();
+    ctx.moveTo(x + s * 11.5, y - 18);
+    ctx.quadraticCurveTo(x + s * 11.2, hy - 6, x + s * 3.4, hy - 9.6);
+    ctx.stroke();
+    ctx.strokeStyle = '#e04a2c';                    // geru
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.moveTo(x + s * 11.5, y - 18);
+    ctx.quadraticCurveTo(x + s * 11.2, hy - 6, x + s * 3.4, hy - 9.6);
+    ctx.stroke();
+    ctx.fillStyle = '#f5c02a';                      // haldi, the dots on it
+    for (let i = 0; i <= 5; i++) {
+      const u = i / 5, v = 1 - u;
+      const px = v * v * (x + s * 11.5) + 2 * v * u * (x + s * 11.2) + u * u * (x + s * 3.4);
+      const py = v * v * (y - 18) + 2 * v * u * (hy - 6) + u * u * (hy - 9.6);
+      ctx.beginPath(); ctx.arc(px, py, 0.75, 0, TAU); ctx.fill();
+    }
+  }
+  ctx.lineCap = 'round';
+
+  // The fire is on her east side and always has been, so it is on that side of
+  // her that the light lands.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createLinearGradient(x - 6, 0, x + 20, 0);
+  g.addColorStop(0, 'rgba(255,150,60,0)');
+  g.addColorStop(1, `rgba(255,150,60,${0.1 + Math.sin(time * 7.1) * 0.02})`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(x - 18, y + 5);
+  ctx.quadraticCurveTo(x - 15, y - 16, x, hy - 11);
+  ctx.quadraticCurveTo(x + 15, y - 16, x + 18, y + 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
 }
 
 export function drawFire(ctx, f, time, alive = 1) {
