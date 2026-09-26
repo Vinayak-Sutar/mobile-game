@@ -65,7 +65,7 @@ export const KEEPER = {
 
   brief0: {
     repeat: true,
-    text: 'South-east of the shrine, where the ground dips. Two autumns of leaves have come down in that hollow and nobody swept them, and now the root under them cannot feel the air.',
+    text: 'South-west of the shrine, where the ground dips. Two autumns of leaves have come down in that hollow and nobody swept them, and now the root under them cannot feel the air.',
     choices: [
       { say: 'I will sweep it.', to: 'give0', spine: true },
       { say: 'Why does it matter if leaves lie on it?', to: 'whyleaves' },
@@ -114,17 +114,20 @@ export const KEEPER = {
 
   brief3: {
     repeat: true,
-    text: 'North-east, under the snow that never melts. That one is not choked so much as buried — the cold got into it and it has not come out. Take the broom back; snow does not scatter the way leaves do, so it will be slower work, and you will feel it.',
+    text: 'North-east now, under the snow that never melts. A broom is no good to you there — you cannot brush cold off a thing. That one has to be thawed.',
     choices: [
-      { say: 'I will clear it.', to: 'give3', spine: true },
+      { say: 'Then I take the lamp.', to: 'give3', spine: true },
       { say: 'Why does that snow never go?', to: 'whysnow' },
     ],
   },
   give3: {
     repeat: true,
-    give: 'broom',
-    text: 'Go on, then. Keep your hands moving and do not stand still out there.',
-    choices: [{ say: 'I will.', to: 'leave', spine: true }],
+    give: 'lamp',
+    text: 'Lit and full. Stand close and let it work — the snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.',
+    choices: [
+      { say: 'And if it goes out?', to: 'lampout' },
+      { say: 'I will go.', to: 'leave', spine: true },
+    ],
   },
 
   brief4: {

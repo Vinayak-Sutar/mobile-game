@@ -237,7 +237,24 @@ export function drawBanyan(ctx, T, bloom, time) {
 }
 
 /** The front of the curtain — she walks inside it — and then the leaves. */
-export function drawCanopy(ctx, T, bloom, time) {
+/**
+ * THE CROWN, and when the tree comes back it comes back GREEN.
+ *
+ * The bloom used to arrive in exactly the colours of the problem - the palette
+ * was #7d6b33 through #f2c65e, gold on gold, the same dying autumn the whole
+ * valley is made of - so the payoff of the game looked like more of the thing
+ * it was supposed to be curing. Nothing about it said "alive".
+ *
+ * So: green, in three depths, reading as one lit mass rather than a scatter of
+ * same-coloured blobs. The gold stays, but as LIGHT through the leaves rather
+ * than as the leaves, which is what makes green look sunlit instead of flat.
+ * Blossom through it, new aerial roots coming down - a banyan coming back puts
+ * roots down - and the birds return.
+ *
+ * `see` fades the crown when she is standing under it, since the shrine, the
+ * fire and the keeper are all beneath this thing.
+ */
+export function drawCanopy(ctx, T, bloom, time, see = 1) {
   banyanBones(T);
   const bark = mixHex('#33241b', '#543c2a', bloom * 0.7);
   for (const c of CURTAIN) if (c.front) strand(ctx, c, time, bark);
@@ -258,33 +275,88 @@ export function drawCanopy(ctx, T, bloom, time) {
     return;
   }
 
-  const pal = [['#7d6b33', '#94803a'], ['#c08a34', '#a8702a'], ['#e6ac45', '#c98a33'], ['#f2c65e', '#db9c3c']];
+  // Three depths of green: a dark mass underneath, mid leaf over it, and new
+  // growth catching the light on top. Drawn deepest first so the crown builds
+  // into one body instead of a ring of separate blobs.
+  const LAYERS = [
+    { col: ['#20401f', '#27492a'], dy: 118, spread: 1.0, n: 34, size: 92 },
+    { col: ['#2f6b2c', '#387a33'], dy: 152, spread: 0.88, n: 28, size: 84 },
+    { col: ['#4d9a3a', '#63b148'], dy: 186, spread: 0.7, n: 20, size: 70 },
+  ];
   for (let layer = 0; layer < 3; layer++) {
-    const spread = 1 - layer * 0.2;
-    const n = 30 - layer * 6;
-    for (let i = 0; i < n; i++) {
-      const a0 = (i / n) * TAU + layer * 0.8 + rnd(i + layer * 31) * 0.5;
-      const r = (120 + rnd(i * 3 + layer) * 250) * spread;
+    const L = LAYERS[layer];
+    // Still bare at the start of the bloom, so it fills in as she finishes.
+    const grown = clamp01((bloom - layer * 0.12) / 0.7);
+    if (grown <= 0.01) continue;
+    for (let i = 0; i < L.n; i++) {
+      const a0 = (i / L.n) * TAU + layer * 0.8 + rnd(i + layer * 31) * 0.5;
+      const r = (110 + rnd(i * 3 + layer) * 250) * L.spread;
       const sway = Math.sin(time * 0.55 + i + layer) * (3 + layer);
-      const size = (56 + rnd(i * 5 + layer) * 66) * (0.62 + bloom * 0.38);
-      ctx.fillStyle = pal[Math.min(3, Math.floor(bloom * 3) + (i & 1))][layer % 2];
-      ctx.globalAlpha = 0.88;
+      const size = (L.size * 0.62 + rnd(i * 5 + layer) * L.size * 0.6) * (0.55 + grown * 0.45);
+      ctx.fillStyle = L.col[i & 1];
+      ctx.globalAlpha = 0.92 * see;
       ctx.beginPath();
-      ctx.ellipse(T.x + Math.cos(a0) * r + sway, T.y - 150 - layer * 26 + Math.sin(a0) * r * 0.55, size, size * 0.72, a0, 0, TAU);
+      ctx.ellipse(T.x + Math.cos(a0) * r + sway, T.y - L.dy + Math.sin(a0) * r * 0.55, size, size * 0.72, a0, 0, TAU);
       ctx.fill();
     }
   }
+
+  // Blossom through it, and new figs.
+  ctx.globalAlpha = see;
+  for (let i = 0; i < 46; i++) {
+    const k = clamp01((bloom - 0.25) / 0.6);
+    if (k <= 0.01) break;
+    const a0 = rnd(i * 7) * TAU, r = (90 + rnd(i * 11) * 270);
+    const x = T.x + Math.cos(a0) * r + Math.sin(time * 0.6 + i) * 3;
+    const y = T.y - 150 + Math.sin(a0) * r * 0.55 - rnd(i * 5) * 40;
+    ctx.fillStyle = i % 5 ? '#eef0d8' : '#d9607a';
+    const sz = (2.6 + rnd(i * 3) * 2.6) * k;
+    ctx.beginPath(); ctx.arc(x, y, sz, 0, TAU); ctx.fill();
+  }
+
+  // New aerial roots coming down out of it, because that is what a banyan does
+  // when it is well.
+  if (bloom > 0.3) {
+    ctx.strokeStyle = `rgba(90,66,40,${(bloom - 0.3) * 0.9 * see})`;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 12; i++) {
+      const a0 = rnd(i * 17) * TAU, r = 120 + rnd(i * 23) * 230;
+      const x = T.x + Math.cos(a0) * r, y = T.y - 150 + Math.sin(a0) * r * 0.55;
+      const len = (40 + rnd(i * 31) * 90) * clamp01((bloom - 0.3) / 0.7);
+      ctx.lineWidth = 2 + rnd(i) * 2;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + Math.sin(time * 0.5 + i) * 6, y + len * 0.6, x + Math.sin(time * 0.5 + i) * 9, y + len);
+      ctx.stroke();
+    }
+  }
+
   ctx.globalAlpha = 1;
+  // And the gold, as LIGHT coming through the leaves rather than as the leaves.
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
-  const lg = ctx.createRadialGradient(T.x - 140, T.y - 250, 20, T.x - 140, T.y - 250, 330);
-  lg.addColorStop(0, `rgba(255,214,140,${0.16 * bloom})`);
+  const lg = ctx.createRadialGradient(T.x - 140, T.y - 250, 20, T.x - 140, T.y - 250, 360);
+  lg.addColorStop(0, `rgba(255,228,150,${0.22 * bloom * see})`);
+  lg.addColorStop(0.5, `rgba(190,230,140,${0.1 * bloom * see})`);
   lg.addColorStop(1, 'rgba(255,190,110,0)');
   ctx.fillStyle = lg;
   ctx.beginPath();
-  ctx.arc(T.x - 140, T.y - 250, 330, 0, TAU);
+  ctx.arc(T.x - 140, T.y - 250, 360, 0, TAU);
   ctx.fill();
   ctx.restore();
+
+  // Birds back in it.
+  if (bloom > 0.45) {
+    const n = Math.round((bloom - 0.45) * 16);
+    for (let i = 0; i < n; i++) {
+      const a0 = time * 0.24 + i * 1.7;
+      const r = 200 + (i % 4) * 60;
+      gBird(ctx, T.x + Math.cos(a0) * r, T.y - 300 + Math.sin(a0 * 1.3) * 70 - (i % 3) * 30, 11, {
+        fill: i & 1 ? G.chuna : G.kesar, mark: 'dot', on: 'rgba(60,40,20,0.5)',
+        rows: 1, along: 5, ms: 1.5, lw: 1.6,
+      });
+    }
+  }
 }
 
 /**

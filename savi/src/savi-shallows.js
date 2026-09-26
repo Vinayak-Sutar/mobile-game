@@ -230,6 +230,137 @@ export const gateLift = () => CAPSTAN.wound / (CAPSTAN.need * TAU);
 
 // --- drawing -------------------------------------------------------------------------
 
+/** Where she may walk into the gorge, and where the mark goes until she has. */
+export const MOUTH_AT = atRiver(40, 0);
+export const inGorge = (x, y) => { const r = riverAt(x, y); return r.d < widthAt(r.s) + WALL_W * 0.6; };
+
+/**
+ * THE CLIFFS, which are the whole reason this is a river and not a lake.
+ *
+ * inWall() has always stopped her walking in, but the ground there was painted
+ * as flat rock - so it looked exactly like somewhere you could walk, and being
+ * stopped read as the game being broken rather than as a drop. Nothing about it
+ * said "cliff", so of course she kept trying to get in at the side.
+ *
+ * So the rim is drawn: a lit top edge where it catches the light from the upper
+ * left, a dark face falling away below it, a shadow thrown out over the water,
+ * and scree along the top. And the ONE GAP in it is the mouth, at the bottom,
+ * with a worn path going down - so where to get in is a thing you can see
+ * rather than a thing you have to be told.
+ */
+export function drawCliffs(ctx, t, cam, view) {
+  const S0 = 130;                       // the mouth is left open this far in
+  for (const side of [-1, 1]) {
+    // The lip, as a polyline along the rim.
+    const lip = [];
+    for (let s2 = S0; s2 <= COURSE_LEN - 40; s2 += 30) lip.push(atRiver(s2, side * widthAt(s2)));
+    if (lip.length < 2) continue;
+    const out = [];
+    for (let i = 0; i < lip.length; i++) {
+      const s2 = S0 + i * 30;
+      out.push(atRiver(s2, side * (widthAt(s2) + WALL_W)));
+    }
+    // Is any of it on screen? The whole gorge is long and mostly is not.
+    let seen = false;
+    for (const p of lip) {
+      if (p[0] > cam.x - 240 && p[0] < cam.x + view.w + 240 && p[1] > cam.y - 240 && p[1] < cam.y + view.h + 240) { seen = true; break; }
+    }
+    if (!seen) continue;
+
+    // The shadow the wall throws out over the water.
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(lip[0][0], lip[0][1]);
+    for (const p of lip) ctx.lineTo(p[0], p[1]);
+    ctx.strokeStyle = 'rgba(6,14,22,0.42)';
+    ctx.lineWidth = 34;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.translate(side * -10, -8);
+    ctx.stroke();
+    ctx.restore();
+
+    // The face: from the lip out to the foot of the wall.
+    ctx.beginPath();
+    ctx.moveTo(lip[0][0], lip[0][1]);
+    for (const p of lip) ctx.lineTo(p[0], p[1]);
+    for (let i = out.length - 1; i >= 0; i--) ctx.lineTo(out[i][0], out[i][1]);
+    ctx.closePath();
+    const g = ctx.createLinearGradient(0, -200, 0, 200);
+    g.addColorStop(0, '#3a3630');
+    g.addColorStop(1, '#22201c');
+    ctx.fillStyle = g;
+    ctx.fill();
+    // Its grain: cracks running down the face.
+    ctx.save();
+    ctx.clip();
+    ctx.strokeStyle = 'rgba(12,10,8,0.5)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < lip.length; i += 2) {
+      const a = lip[i], b = out[i];
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(a[0] + (b[0] - a[0]) * (0.5 + ((i * 7) % 5) * 0.09), a[1] + (b[1] - a[1]) * (0.55 + ((i * 3) % 4) * 0.1));
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // The lit top edge, which is what makes it read as a DROP and not a stripe.
+    ctx.beginPath();
+    ctx.moveTo(lip[0][0], lip[0][1]);
+    for (const p of lip) ctx.lineTo(p[0], p[1]);
+    ctx.strokeStyle = '#8b8377';
+    ctx.lineWidth = 7;
+    ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(214,206,186,0.55)';
+    ctx.lineWidth = 2.6;
+    ctx.stroke();
+
+    // Scree and boulders along the top, so the edge is not a drawn line.
+    for (let i = 0; i < lip.length; i += 3) {
+      const s2 = S0 + i * 30;
+      const p = atRiver(s2, side * (widthAt(s2) + 22 + ((i * 11) % 5) * 9));
+      if (p[0] < cam.x - 80 || p[0] > cam.x + view.w + 80) continue;
+      const r = 9 + ((i * 13) % 7) * 3;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p[0] + 4, p[1] + 5, r, r * 0.6, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = i % 3 ? '#6e675c' : '#7d7568';
+      ctx.beginPath(); ctx.ellipse(p[0], p[1], r, r * 0.72, i, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(222,214,196,0.28)';
+      ctx.beginPath(); ctx.ellipse(p[0] - r * 0.3, p[1] - r * 0.3, r * 0.42, r * 0.26, i, 0, TAU); ctx.fill();
+    }
+  }
+
+  // THE MOUTH: the one way in, and it should look like one. A worn path going
+  // down to the water between two posts, in the same grammar as the torana at
+  // the valley gate.
+  const m = atRiver(70, 0);
+  ctx.save();
+  ctx.strokeStyle = 'rgba(150,132,104,0.5)';
+  ctx.lineWidth = 46;
+  ctx.lineCap = 'round';
+  ctx.setLineDash([26, 20]);
+  ctx.beginPath();
+  const back = atRiver(0, 0);
+  ctx.moveTo(back[0] - 120, back[1] + 90);
+  ctx.lineTo(m[0], m[1]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+  for (const side of [-1, 1]) {
+    const p = atRiver(60, side * (widthAt(60) + 30));
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(p[0] + 4, p[1] + 6, 13, 7, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#7b6a52';
+    ctx.fillRect(p[0] - 7, p[1] - 54, 14, 56);
+    ctx.fillStyle = '#96836a';
+    ctx.fillRect(p[0] - 7, p[1] - 54, 5, 56);
+    ctx.fillStyle = '#5f5340';
+    for (let i = 0; i < 3; i++) ctx.fillRect(p[0] - 9, p[1] - 46 + i * 16, 18, 4);
+  }
+}
+
 /** The current, as streaks running up the channel, so the river is going somewhere. */
 export function drawCurrent(ctx, t, drained, cam, view) {
   if (drained) return;

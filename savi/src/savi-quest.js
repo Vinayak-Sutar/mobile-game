@@ -31,7 +31,7 @@ export const CHAIN = [
   {
     root: 'choice',
     tool: 'broom',
-    where: 'south-east of the shrine',
+    where: 'south-west of the shrine',
     task: 'sweep the leaves off the buried root',
     brief: 'brief0',
   },
@@ -51,9 +51,9 @@ export const CHAIN = [
   },
   {
     root: 'steps',
-    tool: 'broom',
+    tool: 'lamp',
     where: 'the snow that never melts, north-east',
-    task: 'clear the snow off the root',
+    task: 'thaw the snow off the root',
     brief: 'brief3',
   },
   {
@@ -82,7 +82,7 @@ export function toolFor(st) {
  * the screen and the arrow at its edge can never disagree with each other.
  * Returns null once there is nothing left to say.
  */
-export function objective(st, ROOTS, WOMAN, TREE) {
+export function objective(st, ROOTS, WOMAN, TREE, here, gorge) {
   if (st.ended) return null;
   const s = stage(st);
   if (!s) {
@@ -95,6 +95,13 @@ export function objective(st, ROOTS, WOMAN, TREE) {
     };
   }
   const r = ROOTS.find((q) => q.id === s.root);
+  // THE RIVER IS ENTERED AT ITS MOUTH AND NOWHERE ELSE, so until she is in the
+  // gorge the mark goes on the mouth. It used to point at the root, which is
+  // up at the head behind two miles of cliff - an arrow aimed through a rock
+  // face is worse than no arrow at all.
+  if (s.root === 'fall' && gorge && here && !gorge.inside(here.x, here.y)) {
+    return { text: `the mouth of the gorge — ${gorge.where}`, x: gorge.mouth[0], y: gorge.mouth[1], kind: 'mouth' };
+  }
   return { text: `${s.task} — ${s.where}`, x: r ? r.at.x : WOMAN.x, y: r ? r.at.y : WOMAN.y, kind: 'root' };
 }
 

@@ -40,13 +40,14 @@ import {
   COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt,
   inWall, inShallow, onSolid, leafAt, stepShallows,
   GATE as SLUICE_GATE, windCapstan, gateOpen, gateLift,
-  drawCurrent, drawRootBed, drawPlatforms, drawSluice,
+  drawCurrent, drawRootBed, drawPlatforms, drawSluice, drawCliffs, inGorge, MOUTH_AT,
 } from './savi-shallows.js';
 import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
 } from './savi-litter.js';
 import {
   drawBanyan, drawCanopy, drawRoot, drawSavi, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
+  mixHex,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
@@ -78,7 +79,7 @@ const DRIFTS = AVENUE.map((t, i) => ({ x: t.x + (i % 2 ? 34 : -34), y: t.y + 26,
 
 // Each root reaches out to its own trouble, and each is a different material.
 const PLACES = {
-  choice: { at: { x: 2980, y: 2320 }, patch: { x: 2700, y: 2040, w: 620, h: 540 }, mat: 'leaves' },
+  choice: { at: { x: 1160, y: 2340 }, patch: { x: 880, y: 2060, w: 620, h: 540 }, mat: 'leaves' },
   fall: { at: { x: ROOT_AT[0], y: ROOT_AT[1] }, patch: { x: 2800, y: 1300, w: 2400, h: 1900 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
@@ -232,6 +233,9 @@ const LITTER = 0.16;
  */
 const CLEAR = 0.3;
 const MAT = { none: 0, leaves: 1, snow: 2, thorn: 3, ash: 4 };
+/** The three the lamp is for. The broom will not claim any of them. */
+const BURNS = { 2: true, 3: true, 4: true };   // snow, thorn, ash
+
 const MATS = [
   null,
   { drag: 0.42, heal: 0.03, col: ['#c9762c', '#e0a13f', '#a5551f', '#d98a30'] },
@@ -533,6 +537,10 @@ function pollPad() {
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
+let canopySee = 1;         // how much of the Banyan's crown is showing
+/** What the quest needs to know about the river: its one way in. */
+const GORGE = { inside: inGorge, mouth: MOUTH_AT, where: 'south-west, at the foot of the water' };
+let dtSeen = 1 / 60;       // the last frame's length, for the fades in render()
 let warmedArt = false;     // the rest of the painted art, asked for once
 let ripT = 0;              // and the water is only allowed a ring so often
 
@@ -749,7 +757,7 @@ function beginStroke() {
   for (let d = 0; d <= 70; d += 14) {
     const c = depAt(S.x + fx * d, S.y + fy * d + 6);
     if (!c.m) continue;
-    if (c.m === MAT.thorn || c.m === MAT.ash) { if (c.d > burny) burny = c.d; continue; }
+    if (BURNS[c.m]) { if (c.d > burny) burny = c.d; continue; }
     if (c.d > deepest) { deepest = c.d; m = c.m; }
   }
   // THE COAL BEATS THE BROOM at thorn and dead ground, and this one line is why
@@ -822,7 +830,7 @@ function actHold(dt) {
   let m = 0, deepest = 0;
   for (let d = 0; d <= 60; d += 12) {
     const c = depAt(S.x + fx * d, S.y + fy * d + 6);
-    if ((c.m === MAT.thorn || c.m === MAT.ash) && c.d > deepest) { deepest = c.d; m = c.m; }
+    if (BURNS[c.m] && c.d > deepest) { deepest = c.d; m = c.m; }
   }
   if (!m || deepest < 0.12) { S.act = 0; return; }
   if (!(st.hasEmber && st.ember > 0.02)) {
@@ -842,7 +850,16 @@ function actHold(dt) {
   // and slowly: a narrow reach, and slower than she walks, so the wall gives
   // way at its own pace and she has to follow it in. Dead ground has to be
   // burned off, which is broader and faster.
+  // THREE THINGS THE LAMP IS FOR, and they do not behave alike.
+  //
+  //   THORN  draws back ahead of her: a narrow reach, worked slowly, so what
+  //          opens is a corridor she has to follow in
+  //   SNOW   melts: a broad round pool opening out from where she stands, and
+  //          it costs more heat, because melting a thing is not the same as
+  //          frightening it
+  //   ASH    has to be burned off, which is broad and steady
   const thorny = m === MAT.thorn;
+  const snowy = m === MAT.snow;
   // THE CONE STARTS AT HER FEET, and this is the other half of the thorn bug.
   // It used to start 34 in front of her, and a cone opening forward from a
   // point 34 ahead does not contain the ground between her and that point: the
@@ -858,15 +875,20 @@ function actHold(dt) {
   // A short reach for the thorn, so what she opens is a PATH - a corridor about
   // three cells wide that she has to walk down - rather than a clearing that
   // melts away in front of her before she gets to it.
-  const took = carve(S.x, S.y + 6, a, thorny ? 68 : 124, 1.0, dt * (thorny ? 2.4 : 3.0), m);
+  const reach = thorny ? 68 : snowy ? 104 : 124;
+  const arc = snowy ? 1.45 : 1.0;
+  const rate = thorny ? 2.4 : snowy ? 3.4 : 3.0;
+  const took = carve(S.x, S.y + 6, a, reach, arc, dt * rate, m);
   // And a coal held out at nothing costs nothing. She used to be able to stand
   // in a corridor she had already cleared and burn a whole coal down to ash
   // against thin air, which is what makes this feel broken rather than slow.
   if (took <= 0.0006) { crackT = 0; S.act = 0; return; }
-  st.ember = Math.max(0, st.ember - dt * 0.085);
-  if (Math.random() < dt * 34) {
-    spark(S.x + fx * 52 + rand(-26, 26), S.y + fy * 52 + rand(-26, 26), 1,
-      { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
+  st.ember = Math.max(0, st.ember - dt * (snowy ? 0.13 : 0.085));
+  if (Math.random() < dt * (snowy ? 48 : 34)) {
+    // Steam off the snow, embers off everything else.
+    spark(S.x + fx * 40 + rand(-40, 40), S.y + fy * 40 + rand(-34, 34), 1, snowy
+      ? { col: ['#e8f2f6', '#cfe0e8', '#ffffff'], sp0: 6, sp1: 42, l0: 1.1, l1: 2.4, s0: 7, s1: 15, kind: 'dust', lift: 46 }
+      : { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 10, sp1: 70, l0: 0.5, l1: 1.3, s0: 3, s1: 6, kind: 'ember', lift: 30 });
   }
   crackT -= dt; if (crackT <= 0) { crackT = 0.9 + Math.random() * 0.6; sfx.hiss(); }
 }
@@ -967,6 +989,7 @@ function moveVector() {
 
 function step(dt) {
   st.t += dt;
+  dtSeen = dt;
   world.runTime = st.t;
   pollPad();
   if (pad.pressed) { begin(); if (st.talking || st.reading) advance(); }
@@ -1450,15 +1473,25 @@ function render() {
   drawCurrent(ctx, st.t, drained, camera, view);
   drawSluice(ctx, st.t, drained);
   drawPlatforms(ctx, st.t, drained);
+  drawCliffs(ctx, st.t, camera, view);
 
   S.broom = broom.held;
   if (!broom.held) drawBroom(ctx, broom, st.t);
   for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t);
 
   drawGate(ctx, GATE, st.t, st.warmth);
+  // SEE-THROUGH TREES. A tree whose base is below her feet draws over the top
+  // of her, trunk and crown and all, so she vanishes under the avenue and under
+  // the Banyan itself. Ashfall solved this by drawing crowns in a pass of their
+  // own and dropping the alpha of any crown the player was standing inside.
+  // Same idea, eased rather than switched: a hard swap strobes when she walks
+  // along a row of trunks, and this valley has an avenue of eighteen of them.
   const below = [], above = [];
   for (const o of SCENERY) {
     if (o.x < camera.x - 160 || o.x > camera.x + view.w + 160 || o.y < camera.y - 240 || o.y > camera.y + view.h + 200) continue;
+    const r = 44 + o.s * 26;
+    const under = !o.rock && o.y >= S.y && Math.hypot(S.x - o.x, S.y - (o.y - 20)) < r;
+    o.see = (o.see === undefined ? 1 : o.see) + ((under ? 0.34 : 1) - (o.see === undefined ? 1 : o.see)) * Math.min(1, dtSeen * 9);
     (o.y < S.y ? below : above).push(o);
   }
   for (const o of below) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth);
@@ -1470,20 +1503,35 @@ function render() {
 
   if (st.hasEmber && st.ember > 0.02) glow(ctx, S.x, S.y - 10, 190 * (0.45 + st.ember * 0.55), `rgba(255,150,60,${0.22 * st.ember + 0.05})`);
   drawSavi(ctx, S, st.t);
-  for (const o of above) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth);
+  for (const o of above) {
+    ctx.globalAlpha = o.see === undefined ? 1 : o.see;
+    (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth);
+  }
+  ctx.globalAlpha = 1;
   grass.drawFront(ctx, st.t, win());
   drawParticles(ctx);
-  drawCanopy(ctx, TREE, st.bloomK, st.t);
+  // The Banyan's crown covers the shrine, the fire and the keeper, so it is
+  // the one that matters most.
+  const underTree = Math.hypot(S.x - TREE.x, S.y - (TREE.y - 120)) < 340;
+  canopySee += ((underTree ? 0.4 : 1) - canopySee) * Math.min(1, dtSeen * 9);
+  drawCanopy(ctx, TREE, st.bloomK, st.t, canopySee);
 
   // Along the avenue the air is full of them.
   const onAvenue = Math.abs(S.x - 2600) < 420 && S.y > 2250;
   const n = (onAvenue ? 74 : 38) + Math.round(st.bloomK * 50);
-  drawFallingLeaves(ctx, st.t, camera, view, n, MATS[1].col);
+  // What is coming down turns with the tree: dead gold at the start, new green
+  // and blossom once it is back.
+  const air = st.bloomK < 0.05 ? MATS[1].col
+    : [mixHex(MATS[1].col[0], '#63b148', st.bloomK), mixHex(MATS[1].col[1], '#eef0d8', st.bloomK),
+      mixHex(MATS[1].col[2], '#4d9a3a', st.bloomK), mixHex(MATS[1].col[3], '#d9607a', st.bloomK * 0.7)];
+  drawFallingLeaves(ctx, st.t, camera, view, n, air);
   ctx.restore();
 
   const vig = ctx.createRadialGradient(view.w / 2, view.h / 2, view.h * 0.32, view.w / 2, view.h / 2, view.w * 0.74);
   vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, `rgba(20,28,48,${0.52 - st.warmth * 0.3})`);
+  // The dark at the edges warms and greens as the valley comes back.
+  const vg = Math.round(28 + st.bloomK * 26), vb = Math.round(48 - st.bloomK * 18);
+  vig.addColorStop(1, `rgba(20,${vg},${vb},${0.52 - st.warmth * 0.3})`);
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, view.w, view.h);
   drawWaypoint(ctx);
@@ -1585,7 +1633,7 @@ function drawRootProgress(ctx) {
  * also show you, or the line at the top is just a reproach.
  */
 function drawWaypoint(ctx) {
-  const job = objective(st, ROOTS, WOMAN, TREE);
+  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE);
   if (!job || st.talking || st.reading) return;
   const sx = job.x - camera.x, sy = job.y - camera.y;
   const m = 54;
@@ -1623,7 +1671,7 @@ function drawHud() {
   ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, 22, 30);
   // WHAT SHE IS DOING, in one line, from one place - so these words and the
   // arrow at the edge of the screen can never disagree with each other.
-  const job = objective(st, ROOTS, WOMAN, TREE);
+  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE);
   if (job) {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
     const cur2 = ROOTS.find((r) => r.id === (stage(st) || {}).root);
