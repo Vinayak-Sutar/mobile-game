@@ -186,6 +186,43 @@ function inSoft(x, y, r, soft) {
   return e >= 0 ? 1 : Math.max(0, 1 + e / soft);
 }
 
+/**
+ * A THICKET, WHICH IS NOT A PLOT OF LAND.
+ *
+ * The thorn was laid down with inSoft, so it was a 620x520 RECTANGLE with its
+ * corners rounded off, and it read as exactly that: somebody had marked out a
+ * field and planted thorn in it. Nothing in a valley has a straight edge.
+ *
+ * This is the same patch as a lumpy near-circle instead. The rim is a circle
+ * with three harmonics of wobble ridden on it - a slow lobe, a medium one and
+ * a fine one - which is enough to stop the eye finding the compass, and a
+ * turn of the valley's own fbm on top of that so the edge is ragged rather
+ * than merely wavy. Then six OUTLIERS: clumps that have seeded themselves
+ * clear of the main mass, because that is what a thicket does at its margin,
+ * and because a few thorns standing on their own out in the grass say "this
+ * is spreading" better than any amount of solid black.
+ */
+const CLUMPS = [
+  [-0.98, -0.52, 0.30], [0.86, -0.74, 0.25], [1.04, 0.40, 0.27],
+  [-0.70, 0.94, 0.23], [0.14, 1.12, 0.26], [-1.16, 0.20, 0.21],
+];
+function thicket(x, y, p) {
+  const rx = p.w / 2, ry = p.h / 2;
+  const dx = (x - (p.x + rx)) / rx, dy = (y - (p.y + ry)) / ry;
+  const n = (fbm(x * 0.0085, y * 0.0085) - 0.5) * 0.46;
+  const a = Math.atan2(dy, dx);
+  const rim = 1
+    + Math.sin(a * 3 + 0.8) * 0.15
+    + Math.sin(a * 5 - 1.9) * 0.09
+    + Math.sin(a * 9 + 2.4) * 0.055;
+  let k = clamp01((rim + n - Math.hypot(dx, dy)) / 0.26);
+  for (const [ox, oy, r] of CLUMPS) {
+    const d = Math.hypot(dx - ox, dy - oy);
+    k = Math.max(k, clamp01((r + n * 0.6 - d) / 0.17) * 0.92);
+  }
+  return k;
+}
+
 /** The valley, classified. terrain.js paints whatever it is told - this is the picture. */
 function classify(x, y) {
   // The stream in, always running.
@@ -284,6 +321,24 @@ function buildGround() {
       }
     }
   };
+  // The thorn is the one that is a shape rather than a rectangle. It is laid
+  // over a box a third again as wide as the patch, because the outlying
+  // clumps sit outside the patch itself.
+  const blob = (rect, m, amt) => {
+    const gx = rect.w * 0.42, gy = rect.h * 0.42;
+    const i0 = Math.max(0, ((rect.x - gx) / CELL) | 0), i1 = Math.min(G.w - 1, ((rect.x + rect.w + gx) / CELL) | 0);
+    const j0 = Math.max(0, ((rect.y - gy) / CELL) | 0), j1 = Math.min(G.h - 1, ((rect.y + rect.h + gy) / CELL) | 0);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const x = i * CELL + 7, y = j * CELL + 7;
+        const k = thicket(x, y, rect);
+        if (k <= 0.02) continue;
+        const q = j * G.w + i, d = amt * (0.62 + 0.38 * k) * clamp01(k * 1.35);
+        if (d <= G.base[q] || nearRiver(x, y, 40)) continue;
+        G.base[q] = d; G.dep[q] = d; G.orig[q] = d; G.mat[q] = m;
+      }
+    }
+  };
   put({ x: -200, y: -200, w: V.w + 400, h: V.h + 400 }, MAT.leaves, LITTER + 0.05, 1);
   // THE WAY IN. It was a rectangle of leaves, which is not a place. Now the
   // avenue up to the shrine is lined with trees, and the leaves lie where
@@ -295,7 +350,11 @@ function buildGround() {
   }
   // The shrine's courtyard, under a season of it. This is the broom's work.
   put(COURT, MAT.leaves, 0.95, 150);
-  for (const r of ROOTS) if (r.mat !== 'water') put(r.patch, MAT[r.mat], 1.0, r.mat === 'thorn' ? 90 : 190);
+  for (const r of ROOTS) {
+    if (r.mat === 'water') continue;
+    if (r.mat === 'thorn') blob(r.patch, MAT.thorn, 1.0);
+    else put(r.patch, MAT[r.mat], 1.0, 190);
+  }
   G.cv = document.createElement('canvas');
   G.cv.width = G.w; G.cv.height = G.h;
   G.cx = G.cv.getContext('2d');
@@ -1319,7 +1378,14 @@ function step(dt) {
     const near = Math.hypot(S.x - r.at.x, S.y - r.at.y) < 78;
     let done;
     if (r.mat === 'water') done = drained && drain >= 1;
-    else if (r.mat === 'thorn') done = near;
+    else if (r.mat === 'thorn') {
+      // ENOUGH, and then it takes by itself. Either she has cut her way in to
+      // the root, or she has burned enough of the thicket off that the rest
+      // of it goes up on its own; the root does not wake until the fire has
+      // run all the way out to the margin.
+      if (!blaze && (near || cleared(r.patch, MAT.thorn) > 0.36)) lightTheThicket(r);
+      done = false;
+    }
     else if (r.mat === 'ash') done = near && st.hasEmber && st.ember > 0.02;
     else done = fraction(r) > 0.8;
     if (done) {
@@ -1334,6 +1400,7 @@ function step(dt) {
     say(CLIMAX, () => { st.bloom = 1; }, 'bloom');
   }
 
+  if (blaze) stepBlaze(dt);
   stepFauna(dt, S, st);
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
   st.warmth = clamp01(0.2 + (st.count / ROOTS.length) * 0.58 + st.bloomK * 0.22);
@@ -1359,6 +1426,144 @@ function wither(p, m) {
       G.dep[q] = 0; G.base[q] = 0;
     }
   }
+}
+
+/**
+ * THE THICKET TAKES.
+ *
+ * Cutting a corridor in to the root used to wake it and the whole mat simply
+ * vanished on the same frame - no moment, no spectacle, and no reason that
+ * burning a path through one side of a thing should make the other side
+ * disappear. It ought to CATCH: she has been holding fire against it for
+ * thirty seconds, and at some point a thicket that dry stops needing her.
+ *
+ * So the fire takes over. A front leaves the heart of it - the root, which is
+ * where she is standing and where it has been burning longest - and runs
+ * outward to the last clump on the margin, eating the thorn as it goes. It
+ * takes about three seconds, and she can stand in it and watch.
+ *
+ * The consuming and the drawing both read this one object, so the ring of
+ * flame on the screen is exactly the ring of thorn that is going.
+ */
+let blaze = null;
+const BAND = 78;              // how wide the burning front is
+
+function lightTheThicket(r) {
+  const p = r.patch;
+  let max = 0;
+  for (const cx of [p.x, p.x + p.w]) {
+    for (const cy of [p.y, p.y + p.h]) max = Math.max(max, Math.hypot(cx - r.at.x, cy - r.at.y));
+  }
+  blaze = { root: r, x: r.at.x, y: r.at.y, r: 0, max: max * 1.34, t: 0, hiss: 0 };
+  toast = { t: 0, text: 'the thicket catches' };
+  sfx.hiss();
+}
+
+function stepBlaze(dt) {
+  const B = blaze;
+  B.t += dt;
+  B.r += dt * (B.max / 2.8);
+
+  const p = B.root.patch, gx = p.w * 0.42, gy = p.h * 0.42;
+  const i0 = Math.max(0, ((p.x - gx) / CELL) | 0), i1 = Math.min(G.w - 1, ((p.x + p.w + gx) / CELL) | 0);
+  const j0 = Math.max(0, ((p.y - gy) / CELL) | 0), j1 = Math.min(G.h - 1, ((p.y + p.h + gy) / CELL) | 0);
+  let live = 0;
+  for (let j = j0; j <= j1; j++) {
+    for (let i = i0; i <= i1; i++) {
+      const q = j * G.w + i;
+      if (G.mat[q] !== MAT.thorn || G.dep[q] <= 0) continue;
+      live++;
+      const k = (B.r - Math.hypot(i * CELL + 7 - B.x, j * CELL + 7 - B.y)) / BAND;
+      if (k <= 0) continue;
+      G.dep[q] = Math.max(0, G.dep[q] - dt * (2.4 + Math.min(1, k) * 6));
+      G.base[q] = 0;            // and it does not come back
+    }
+  }
+
+  // The front itself, thrown up off the ring rather than out of a box.
+  const n = Math.min(26, 4 + Math.round(B.r * 0.05));
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, TAU);
+    const d = B.r - rand(0, BAND * 0.8);
+    if (d < 6) continue;
+    const x = B.x + Math.cos(a) * d, y = B.y + Math.sin(a) * d;
+    if (depAt(x, y).m !== MAT.thorn) continue;
+    spark(x, y, 1, Math.random() < 0.34
+      ? { col: ['#3a3040', '#4c4256', '#2b2233'], sp0: 4, sp1: 40, l0: 1.4, l1: 3, s0: 9, s1: 20, kind: 'dust', lift: 58 }
+      : { col: ['#ffb35e', '#ff7a2e', '#ffd9a0', '#ff5e3d'], sp0: 20, sp1: 130, l0: 0.5, l1: 1.5, s0: 3, s1: 8, kind: 'ember', lift: 46 });
+  }
+  B.hiss -= dt;
+  if (B.hiss <= 0) { B.hiss = 0.22 + Math.random() * 0.2; sfx.hiss(); }
+
+  // It is over when there is nothing left standing, NOT when the radius runs
+  // out. The margin is ragged, so the last clump goes a good half second
+  // before a circle drawn round the whole patch would have finished - and
+  // that half second was an empty ring of fire sitting on bare ground.
+  if (!live || B.r > B.max + BAND * 2) {
+    const r = B.root;
+    blaze = null;
+    wake(r);                    // and the root, out in the open at last
+  }
+}
+
+/**
+ * THE RING OF FIRE, on the ground, under everything that stands on it.
+ *
+ * Drawn as a ring of separate fires rather than as one stroked ellipse, and
+ * only where there is still thorn underneath to be burning. An ellipse kept
+ * its perfect shape long after the thicket under it had run out, so for the
+ * last second of it there was a neat orange oval sitting on bare ground. Now
+ * the front takes the shape of whatever is left, which on a ragged thicket
+ * with clumps off on their own means the fire breaks up and runs out along
+ * the spurs - which is exactly what it should look like.
+ */
+function drawBlaze(c) {
+  const B = blaze;
+  if (!B) return;
+  const fl = 0.9 + Math.sin(st.t * 17) * 0.07 + Math.sin(st.t * 31) * 0.04;
+  const N = 72;
+  const lit = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * TAU;
+    const cs = Math.cos(a), sn = Math.sin(a);
+    // Is anything along this spoke of the front still alight?
+    let x = 0, y = 0, on = false;
+    for (const k of [0.25, 0.55, 0.85]) {
+      const d = B.r - BAND * k;
+      if (d < 4) continue;
+      const px = B.x + cs * d, py = B.y + sn * d;
+      const g = depAt(px, py);
+      if (g.m === MAT.thorn && g.d > 0.03) { x = px; y = py; on = true; break; }
+    }
+    if (on) lit.push([x, y, a, i]);
+  }
+  if (!lit.length) return;
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  for (const [x, y] of lit) {
+    const rr = BAND * 0.62 * fl;
+    const g = c.createRadialGradient(x, y, 0, x, y, rr);
+    g.addColorStop(0, 'rgba(255,238,190,0.3)');
+    g.addColorStop(0.35, 'rgba(255,166,60,0.22)');
+    g.addColorStop(1, 'rgba(255,90,30,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(x, y, rr, 0, TAU); c.fill();
+  }
+  // Tongues standing up off the front, leaning the way the wind is.
+  c.lineCap = 'round';
+  for (const [x, y, , i] of lit) {
+    if (i & 1) continue;
+    const h = 15 + (Math.sin(st.t * 9 + i * 1.7) + 1) * 12;
+    const j = i % 3;
+    c.strokeStyle = `rgba(255,${158 + j * 42},${58 + j * 52},0.42)`;
+    c.lineWidth = 5.5 - j * 1.4;
+    c.beginPath();
+    c.moveTo(x, y + 4);
+    c.quadraticCurveTo(x + Math.sin(st.t * 6 + i) * 6, y - h * 0.6, x + Math.sin(st.t * 4 + i) * 10, y - h);
+    c.stroke();
+  }
+  c.restore();
+  glow(c, B.x, B.y, B.r + BAND, `rgba(255,150,60,${(0.05 + 0.1 * (lit.length / N)) * fl})`);
 }
 
 function wake(r) {
@@ -1481,6 +1686,7 @@ function render() {
 
   terrain.draw(ctx, camera.x, camera.y, view.w, view.h);
   drawLayer(ctx);
+  drawBlaze(ctx);
   grass.draw(ctx, st.t, win());
   drawRootBed(ctx, st.t, drained);
   water.draw(ctx);

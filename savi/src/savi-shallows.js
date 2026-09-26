@@ -142,9 +142,15 @@ export const PLATFORMS = [
   P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7 }),
   P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7, phase: TAU / 3 }),
   P(1590, 0, 60, 'eddy', { amp: 100, rate: 0.7, phase: (TAU * 2) / 3 }),
-  P(1830, 0, 80, 'stone'),
+  // THE BOULDER OUT OF THE BOWL. It used to sit back at 1830, which left 138
+  // of open water between it and the next leaf - the one gap in the whole
+  // course that wanted a dash, and the only place she was ever asked for one.
+  // Standing on it there was simply nothing in front of her that looked
+  // jumpable, so it read as the end of the road rather than as a skill check.
+  // Moved seventy up the river it is 68 off the eddy behind and 72 off the
+  // leaf ahead: two cozy hops, and no dash anywhere in the level.
+  P(1900, 0, 76, 'stone'),
 
-  // ...and out of the bowl, the one gap that wants the dash.
   P(2090, -44, 50, 'leaf'),
 
   // THE RACE — narrow and quick, two ferries running the current.

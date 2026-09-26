@@ -95,7 +95,16 @@ for (let i = 0; i < PLATFORMS.length; i++) {
     ok(near <= COZY, `${label} — the one before brings her within ${near}`);
     seconds += 1.7;
   } else if (near >= DASH_MIN && near <= DASH_MAX) {
-    ok(true, `${label} — ${near} away: a dash`);
+    // NO DASH GAPS. The band is still measured, because knowing a gap has
+    // landed in it is the point - but it is a failure now, not a pass.
+    //
+    // One of these shipped: 138 of water off the second boulder, the only
+    // dash in fifty-eight seconds of hopping. Nothing had taught it, nothing
+    // signalled it, and standing on the rock there was nothing in front of
+    // her that looked like anywhere to go. A cozy game can have a gap that is
+    // plainly too far, or a gap that is plainly a hop. What it cannot have is
+    // one gap, once, that needs a move the rest of the level never asks for.
+    ok(false, `${label} — ${near} away: the level has no business asking for a dash`);
     seconds += 2.4;
   } else {
     ok(near <= JUMP - 8, `${label} — ${near} away: a hop`);
