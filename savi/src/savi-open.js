@@ -1,31 +1,41 @@
-// THE OPENING — who Savi is, and why she has come.
+// THE OPENING — three pictures, and who Savi is.
 //
-// Six shots, about half a minute, skippable. It exists to answer the question
-// the game never answered: why is this child here at all? She is the NEXT
-// KEEPER. Looking after the Banyan's roots is a job, it was the old woman's
-// job and her mother's before her, and Savi has walked here to take it on.
+// It used to be six moving shots: leaves drifting across every one of them,
+// the camera pushing in, a girl walking. It was a film, and it was the wrong
+// thing twice over. A cozy game opens the way a picture book opens - you are
+// shown a thing and given time to look at it - and the third of those shots
+// told you the whole legend before the game started. The one story the game
+// has to tell, given away in the first thirty seconds.
+//
+// So: THREE HELD PICTURES and nothing moving in any of them. Everything is
+// drawn at t = 0, deliberately, so there is no sway and no drift. A shot in
+// cinema.js carries one line, so the third picture is held across two of
+// them - three drawings, four lines.
+//
+//   1  the valley, and the tree at the middle of it
+//   2  the women, and the threads they tie on it
+//   3  the keeper at her fire, the tree going out, and a girl on the road
+//
+// What is NOT said: why the threads work. That is the story, and Savi does
+// not know it either.
 //
 // The projector is cinema.js, which came across with the engine and is
 // self-contained: a shot is { hold, draw(ctx, t, k), say, sayAt, cam, cue,
-// beats }, it letterboxes, cross-fades, wraps the line along the foot and puts
-// PRESS ANYWHERE TO SKIP in the corner. Ashfall's own film is next to it and is
-// no use here - it pulls in the whole player rig and hardcodes its own title -
-// so this is written fresh, in the Gond grammar the rest of the game's art
-// uses now (savi-gond.js): flat colour, soot outline, every surface combed with
-// a repeated mark, and the pattern following the form rather than sitting
-// behind it.
+// beats }, it letterboxes, cross-fades, wraps the line along the foot and
+// puts PRESS ANYWHERE TO SKIP in the corner. Drawn in the Gond grammar the
+// rest of the game's art uses (savi-gond.js): flat colour, soot outline,
+// every surface combed with a repeated mark, the pattern following the form.
 //
 // Nothing here uses Math.random at draw time. A hash of the index gives the
 // same specks in the same places every viewing.
 
 import { FILM } from './cinema.js';
-import { G, paint, ribbon, blob, limb, leaf, disc, bird, motif } from './savi-gond.js';
+import { G, paint, ribbon, blob, limb, leaf, disc, motif } from './savi-gond.js';
 import { sfx, setAmbientTheme, setMusicIntensity } from './audio.js';
 import { themeById } from './music-regions.js';
 
 const TAU = Math.PI * 2;
 const W = FILM.w, H = FILM.h;
-const rnd = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 /** The ground colour of a shot, combed, because nothing is left as nothing. */
 function ground(ctx, top, bottom, mark = 'dot', on = 'rgba(255,243,220,0.07)') {
@@ -92,14 +102,6 @@ function banyan(ctx, x, base, s, leafy, t) {
 }
 
 /** A root running away into the ground, and how choked it is. */
-function rootLine(ctx, x0, y0, x1, y1, lit) {
-  paint(ctx, ribbon([[x0, y0], [(x0 + x1) / 2, (y0 + y1) / 2 + 26], [x1, y1]], 17, 8), {
-    fill: lit ? '#a8702f' : '#4a3a2c',
-    mark: 'dash', on: lit ? 'rgba(255,214,140,0.85)' : 'rgba(180,170,150,0.35)',
-    rows: 2, along: 18, ms: 3, mlw: 1.3, lw: 2.2,
-  });
-}
-
 /** A figure, small, in the Gond manner: she is a shape and an attitude. */
 function figure(ctx, x, base, s, o = {}) {
   ctx.save();
@@ -130,153 +132,111 @@ function figure(ctx, x, base, s, o = {}) {
   ctx.restore();
 }
 
-/** Leaves going over, which is what this valley does instead of weather. */
-function falling(ctx, t, n = 40) {
-  for (let i = 0; i < n; i++) {
-    const sp = 0.4 + rnd(i) * 0.8;
-    const x = ((rnd(i * 3) * (W + 500) + t * 26 * sp) % (W + 500)) - 250;
-    const y = ((rnd(i * 7) * (H + 400) + t * 21 * sp) % (H + 400)) - 200;
-    const k = t * (1.6 + sp) + i;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(Math.sin(k * 0.5) * 0.8);
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = ['#c9903a', '#a8761f', '#d3762e', '#8a5f22'][i & 3];
+/** The threads the women tie: loops of colour round the bole, year on year. */
+function threads(ctx, x, base, s2) {
+  const col = [G.geru, G.haldi, G.gulabi, G.chuna, G.kesar];
+  for (let i = 0; i < 9; i++) {
+    const y = base - (40 + i * 13) * s2;
+    ctx.strokeStyle = col[i % col.length];
+    ctx.lineWidth = 3.4 * s2;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 8, 8 * (0.15 + 0.5 * Math.abs(Math.sin(k))), 0, 0, TAU);
-    ctx.fill();
-    ctx.restore();
+    ctx.ellipse(x, y, (42 - i * 0.9) * s2, 8 * s2, 0, 0, TAU);
+    ctx.stroke();
+    // The two ends left hanging, which is how you can tell it was tied.
+    ctx.lineWidth = 2.2 * s2;
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(x + d * (38 - i * 0.8) * s2, y + 5 * s2);
+      ctx.quadraticCurveTo(x + d * (46 - i * 0.8) * s2, y + 18 * s2, x + d * (36 - i * 0.8) * s2, y + 30 * s2);
+      ctx.stroke();
+    }
   }
-  ctx.globalAlpha = 1;
 }
 
 /** The film. A fresh array every time, so it can be watched twice. */
 export function openingFilm() {
+  // Held. Every draw takes t = 0 so nothing in the picture moves.
   return [
-    // 1 — the valley, and what is wrong with it.
-    {
-      hold: 5.4,
-      say: 'There is a valley where the autumn never ended.',
-      cam: { z0: 1.12, z1: 1.0, y0: -20, y1: 10 },
-      cue: () => { setMusicIntensity(0); setAmbientTheme(themeById('film-road')); },
-      draw: (ctx, t) => {
-        ground(ctx, '#2a1a22', '#4a2a1c');
-        disc(ctx, W * 0.78, 120, 52, {
-          fill: G.haldi, mark: 'dot', on: 'rgba(150,60,20,0.45)', rows: 3, along: 26, ms: 2.4,
-          rays: 20, spin: t * 0.05, rayCol: G.kesar, lw: 1.8,
-        });
-        ridge(ctx, 300, 40, 1.2, '#3a2418');
-        ridge(ctx, 372, 30, 3.7, '#2c1b13');
-        falling(ctx, t, 54);
-      },
-    },
-    // 2 — the tree at the middle of it.
-    {
-      hold: 5.6,
-      say: 'At the middle of it stands a banyan, and the banyan is dying.',
-      sayAt: 1.2,
-      cam: { z0: 1.0, z1: 1.22, y0: 0, y1: 40 },
-      cue: () => sfx.thud(),
-      draw: (ctx, t) => {
-        ground(ctx, '#2a1a22', '#46281a');
-        ridge(ctx, 400, 26, 3.7, '#2c1b13');
-        banyan(ctx, W / 2, 470, 1.0, false, t);
-        falling(ctx, t, 34);
-      },
-    },
-    // 3 — what it is for.
-    {
-      hold: 5.8,
-      say: 'It does not drink water. It drinks memories — and it was planted to hold just one.',
-      sayAt: 0.8,
-      cam: { z0: 1.24, z1: 1.06, x0: -30, x1: 20 },
-      cue: () => sfx.chime(),
-      draw: (ctx, t) => {
-        ground(ctx, '#1c1024', '#3a1c2e', 'crescent', 'rgba(255,243,220,0.06)');
-        // The legend, as three figures in a row: her, him, and Death.
-        figure(ctx, W * 0.3, 380, 1.5, { cloth: G.geru, braid: 1 });
-        figure(ctx, W * 0.5, 380, 1.5, { cloth: G.patta });
-        figure(ctx, W * 0.72, 380, 1.8, { cloth: G.neelDark, hair: '#0d0912' });
-        for (let i = 0; i < 5; i++) {
-          bird(ctx, 180 + i * 160, 130 + Math.sin(t * 0.6 + i) * 14, 16, {
-            fill: G.chuna, mark: 'dot', on: 'rgba(60,40,20,0.5)', rows: 1, along: 5, ms: 1.6, lw: 1.8,
-          });
-        }
-      },
-    },
-    // 4 — the five roots, and the work.
-    {
-      hold: 5.6,
-      say: 'Five Great Roots carry it home to the trunk. Every one of them is choked.',
-      cam: { z0: 1.0, z1: 1.14, y0: 30, y1: -10 },
-      cue: () => sfx.hiss(),
-      draw: (ctx, t) => {
-        ground(ctx, '#241626', '#43271a');
-        banyan(ctx, W / 2, 300, 0.62, false, t);
-        const ends = [[120, 470], [300, 520], [W / 2, 540], [700, 520], [880, 470]];
-        for (let i = 0; i < 5; i++) {
-          rootLine(ctx, W / 2, 300, ends[i][0], ends[i][1], false);
-          // and what is lying on each of them
-          const col = ['#c9903a', '#5a8ba8', '#2b2233', '#e9eff5', '#6d6459'][i];
-          ctx.fillStyle = col;
-          ctx.globalAlpha = 0.85;
-          for (let j = 0; j < 12; j++) {
-            const a = rnd(i * 20 + j) * TAU, r = rnd(i * 31 + j) * 46;
-            ctx.beginPath();
-            ctx.ellipse(ends[i][0] + Math.cos(a) * r, ends[i][1] + Math.sin(a) * r * 0.5, 9, 5, a, 0, TAU);
-            ctx.fill();
-          }
-          ctx.globalAlpha = 1;
-        }
-      },
-    },
-    // 5 — whose job it was.
-    {
-      hold: 5.6,
-      say: 'Someone has always kept them. Her mother did, and hers, and hers.',
-      sayAt: 0.9,
-      cam: { z0: 1.16, z1: 1.0, x0: 30, x1: -20 },
-      cue: () => sfx.bell(),
-      draw: (ctx, t) => {
-        ground(ctx, '#241a16', '#4a3222');
-        ridge(ctx, 400, 22, 3.7, '#2c1f16');
-        banyan(ctx, W * 0.66, 460, 0.7, false, t);
-        figure(ctx, W * 0.36, 460, 2.0, { cloth: G.mitti, hair: '#ded6c6', stick: 1 });
-        // Her fire.
-        const f = 0.7 + 0.3 * Math.sin(t * 7);
-        ctx.fillStyle = `rgba(255,150,60,${0.22 * f})`;
-        ctx.beginPath(); ctx.ellipse(W * 0.46, 452, 70, 30, 0, 0, TAU); ctx.fill();
-        blob(ctx, W * 0.46, 448, 17 * f, 22 * f, 0, { fill: G.kesar, mark: 'dot', on: 'rgba(255,240,180,0.7)', rows: 2, along: 8, ms: 2, lw: 2 });
-        falling(ctx, t, 26);
-      },
-    },
-    // 6 — and now it is hers.
+    // ---- PICTURE ONE: the valley, and the tree at the middle of it --------
     {
       hold: 6.2,
-      say: 'She is the last of them. Savi is the next.',
-      sayAt: 1.4,
-      cam: { z0: 1.0, z1: 1.2, x0: -40, x1: 30 },
-      cue: () => { setMusicIntensity(0.5); sfx.boon(); },
-      beats: [{ at: 3.4, run: () => sfx.chime() }],
-      draw: (ctx, t) => {
+      say: 'There is a valley in the hills, and at the middle of it stands a banyan older than any village under it.',
+      sayAt: 0.9,
+      cue: () => { setMusicIntensity(0); setAmbientTheme(themeById('film-road')); },
+      draw: (ctx) => {
         ground(ctx, '#2a1a22', '#4a2a1c');
-        disc(ctx, W * 0.2, 130, 44, {
-          fill: G.haldi, mark: 'dot', on: 'rgba(150,60,20,0.45)', rows: 2, along: 22, ms: 2.2,
-          rays: 18, spin: -t * 0.05, rayCol: G.kesar, lw: 1.8,
+        disc(ctx, W * 0.8, 116, 50, {
+          fill: G.haldi, mark: 'dot', on: 'rgba(150,60,20,0.45)', rows: 3, along: 26, ms: 2.4,
+          rays: 20, spin: 0, rayCol: G.kesar, lw: 1.8,
         });
-        ridge(ctx, 396, 26, 3.7, '#2c1b13');
-        // The torana she comes in under, and the road past it.
-        for (const d of [-1, 1]) {
-          ctx.fillStyle = '#7b6a52';
-          ctx.fillRect(W * 0.62 + d * 120 - 13, 250, 26, 160);
-        }
-        ctx.fillStyle = '#7b6a52';
-        ctx.fillRect(W * 0.62 - 146, 232, 292, 26);
-        banyan(ctx, W * 0.62, 410, 0.42, false, t);
-        // Savi, walking in, small against all of it.
-        figure(ctx, 150 + t * 26, 440, 1.7, { cloth: G.geru, braid: 1, walk: t * 7 });
-        falling(ctx, t, 30);
+        ridge(ctx, 286, 40, 1.2, '#3a2418');
+        ridge(ctx, 356, 30, 3.7, '#2c1b13');
+        ridge(ctx, 424, 18, 6.1, '#241811');
+        banyan(ctx, W / 2, 486, 0.82, true, 0);
       },
     },
+
+    // ---- PICTURE TWO: the women, and the threads --------------------------
+    {
+      hold: 7.0,
+      say: 'Every autumn the women walk up from the villages and tie their threads round it — a ritual for the longevity of their husbands.',
+      sayAt: 0.9,
+      cue: () => sfx.bell(),
+      draw: (ctx) => {
+        ground(ctx, '#241a16', '#4a3222', 'crescent', 'rgba(255,243,220,0.06)');
+        ridge(ctx, 392, 22, 3.7, '#2c1f16');
+        banyan(ctx, W / 2, 452, 0.94, true, 0);
+        threads(ctx, W / 2, 452, 0.94);
+        // Five of them round it, turned in. Nobody is walking anywhere.
+        const at = [[0.17, 1.3, 446], [0.3, 1.45, 452], [0.7, 1.45, 452], [0.83, 1.3, 446], [0.5, 1.2, 472]];
+        const cloth = [G.geru, G.gulabi, G.haldi, G.patta, G.kesar];
+        for (let i = 0; i < at.length; i++) {
+          figure(ctx, W * at[i][0], at[i][2], at[i][1], { cloth: cloth[i], braid: i % 2 });
+        }
+      },
+    },
+
+    // ---- PICTURE THREE: the keeper, the tree going out ---------------------
+    {
+      hold: 6.6,
+      say: 'Someone has always tended it — a keeper, chosen out of the villages, for as long as anyone can say.',
+      sayAt: 0.9,
+      cue: () => sfx.thud(),
+      draw: (ctx) => keeperShot(ctx, false),
+    },
+    // ---- the same picture, and now there is a girl on the road -------------
+    {
+      hold: 7.4,
+      say: 'The one up there now is old, and the tree is going out. So they chose again — the girl on the road is Savi, and she has been sent up to keep it.',
+      sayAt: 0.6,
+      cue: () => { setMusicIntensity(0.5); sfx.boon(); },
+      beats: [{ at: 3.6, run: () => sfx.chime() }],
+      draw: (ctx) => keeperShot(ctx, true),
+    },
   ];
+}
+
+/** The third picture. Twice: without the girl on the road, and with her. */
+function keeperShot(ctx, savi) {
+  ground(ctx, '#2a1a22', '#46281a');
+  ridge(ctx, 300, 34, 1.2, '#382317');
+  ridge(ctx, 388, 24, 3.7, '#2c1b13');
+  // The tree, bare. This is the one picture where it is plainly failing.
+  banyan(ctx, W * 0.64, 440, 0.82, false, 0);
+  threads(ctx, W * 0.64, 440, 0.82);
+  // The keeper at her fire, small under it.
+  ctx.fillStyle = 'rgba(255,150,60,0.2)';
+  ctx.beginPath(); ctx.ellipse(W * 0.44, 432, 74, 30, 0, 0, TAU); ctx.fill();
+  blob(ctx, W * 0.44, 426, 16, 21, 0, {
+    fill: G.kesar, mark: 'dot', on: 'rgba(255,240,180,0.7)', rows: 2, along: 8, ms: 2, lw: 2,
+  });
+  figure(ctx, W * 0.33, 442, 1.8, { cloth: G.mitti, hair: '#ded6c6', stick: 1 });
+  // The road up out of the bottom of the frame, and the torana over it.
+  ctx.fillStyle = 'rgba(150,126,92,0.22)';
+  ctx.beginPath();
+  ctx.moveTo(W * 0.02, 520); ctx.lineTo(W * 0.22, 520);
+  ctx.lineTo(W * 0.17, 404); ctx.lineTo(W * 0.12, 404);
+  ctx.closePath();
+  ctx.fill();
+  if (savi) figure(ctx, W * 0.135, 486, 1.45, { cloth: G.geru, braid: 1 });
 }

@@ -12,6 +12,19 @@
 // Every Great Root the player frees gives the tree back one beat, and a young
 // banyan rises on that root with the beat carved into it, to be walked up to
 // and read again whenever.
+//
+// Two more fields carry the beat outward from the panel it was told in:
+//
+//   savi    what SHE thinks of what she has just heard, in a bubble over her
+//           head as she walks away. She is eleven and it is the first time
+//           anyone has told her any of this, so she is not reverent about it
+//           - she is working out whether Savitri was brave or just stubborn.
+//           Without this the legend is a thing that happens AT the player;
+//           with it, the girl they are walking around is listening too.
+//
+//   keeper  what the old woman adds about that beat when Savi comes back to
+//           her. Not a summary - the bit she has been carrying about it for
+//           forty years and has never had anyone to say it to.
 
 export const ROOTS = [
   {
@@ -19,6 +32,8 @@ export const ROOTS = [
     name: 'The Choice',
     mural: 'choice',
     hint: 'Southwest, where the leaves lie deepest.',
+    savi: 'A whole year. Somebody told her the day he would die, and she went and married him anyway. I cannot tell yet if that is brave or just stubborn.',
+    keeper: 'That is the part everyone leaves out, child. Narada named the day. She heard him name it, and she married the boy regardless. Her father put a hundred better matches in front of her and she would not look at one of them.',
     lines: [
       ['keeper', 'Ah... I remember her fire. Savitri, a princess so bright that grown men stepped out of her way.', 'speaking'],
       ['savitri', 'I have chosen. He is the one.', 'resolute'],
@@ -34,6 +49,8 @@ export const ROOTS = [
     name: 'The Fall',
     mural: 'fall',
     hint: 'East, in the hollow the water has taken.',
+    savi: 'She counted every one of those days by herself and never said a word about it. I would have told somebody. I would have told everybody.',
+    keeper: 'A year of counting, and she took the last three of it without food or sleep. Then she got up on the morning she knew about, and walked out into the wood beside him, and talked about the weather.',
     lines: [
       ['keeper', 'She did not run from it. She put off her gold, wore bark, and counted the days without telling a soul.', 'speaking'],
       ['savitri', 'Three days without food or sleep. Let the fast hold what my hands cannot.', 'resolute'],
@@ -49,6 +66,8 @@ export const ROOTS = [
     name: 'The Pursuit',
     mural: 'pursuit',
     hint: 'West, where the black thorn has closed over.',
+    savi: 'She went after him. After DEATH. I have been afraid of the road home in the dark, and that was only a road.',
+    keeper: 'There is no law saying the living may walk that road. There is none saying they may not, either - nobody had ever wanted to badly enough to find out. She found out.',
     lines: [
       ['keeper', 'He drew the soul out of the boy, small and bright as a lamp, and turned south for the dark country.', 'speaking'],
       ['yama', 'Mortal. Turn back. The living do not walk this road.', 'proud'],
@@ -62,6 +81,8 @@ export const ROOTS = [
     name: 'The Seven Steps',
     mural: 'steps',
     hint: 'Northeast, under the snow that never melts.',
+    savi: 'She did not fight him. She argued with him. I did not know anyone was allowed to argue with Death.',
+    keeper: 'Seven steps make a friendship. That is a real saying, child, older than these hills, and he could not deny it without denying himself. She did not out-magic him. She out-remembered him.',
     lines: [
       ['keeper', 'He did not strike her. She fought him with the law, not with magic.', 'speaking'],
       ['savitri', 'Lord Yama. It is said that if two walk seven steps together, they are friends.', 'clever'],
@@ -74,7 +95,9 @@ export const ROOTS = [
     id: 'boon',
     name: 'The Boon',
     mural: 'boon',
-    hint: 'North, on the dead ground. Nothing grows there. Take my fire.',
+    hint: 'North, where half the hillside came down on it.',
+    savi: 'She was kind to him. To Death. And he is the one who had to stop walking.',
+    keeper: 'Everyone he had ever come for wept, or bargained, or cursed him. She praised him. He had been Lord of Justice since before the hills and nobody had ever once thanked him for it.',
     lines: [
       ['keeper', 'His patience was thin. But before he could turn on her, she spoke again — and she praised him.', 'speaking'],
       ['savitri', 'Fools fear you, Dharmaraja. They weep because they cannot see what you carry.', 'pleading'],
@@ -99,3 +122,6 @@ export const CLIMAX = [
   ['yama', 'You have won. Take him.', 'approving'],
   ['keeper', 'He let the noose go. She won him back with words — and the forest bloomed.', 'moved'],
 ];
+
+/** And what Savi thinks, standing under a tree that has just come back. */
+export const CLIMAX_SAVI = 'She never once asked for him back. She asked for sons, and then she made him see what that meant. She won with a sentence. I would like to be like that.';

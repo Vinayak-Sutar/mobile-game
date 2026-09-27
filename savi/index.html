@@ -54,6 +54,15 @@
   }
   #overlay .choice::before{content:'“';opacity:.45;margin-right:4px}
   #overlay .choice::after{content:'”';opacity:.45;margin-left:3px}
+  /* THE ONE THAT GETS ON WITH IT. Warmer, a thicker bar, and an arrow after
+     it, so which of the three moves the story is answered by looking rather
+     than by reading all of them. */
+  #overlay .choice.spine{
+    color:#ffe8c8;background:rgba(58,36,18,.66);
+    border-left:3px solid rgba(255,179,94,.9);
+  }
+  #overlay .choice.spine::after{content:'”  ›';opacity:.7;margin-left:5px;letter-spacing:.1em}
+  #overlay .choice.spine:hover,#overlay .choice.spine:active{background:rgba(96,58,28,.9)}
   #overlay .more{margin-top:10px;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);opacity:.75}
   /* Back and forth through a reading. Big enough for a thumb on a phone. */
   #overlay .readnav{display:flex;align-items:center;gap:14px;margin-top:10px}
@@ -64,6 +73,29 @@
     min-width:86px;touch-action:manipulation;transition:background .12s,opacity .12s}
   #overlay .navb:hover{background:rgba(74,54,36,.85)}
   #overlay .navb:disabled{opacity:.3;cursor:default}
+
+  /* THE TITLES, over a valley that is still there underneath them. Not a
+     scene change - the game goes on running behind it, because what happens
+     after the credits is that she gets to walk around in what she fixed. */
+  #overlay .credits{pointer-events:auto;position:absolute;inset:0;overflow:hidden;
+    background:linear-gradient(to bottom,rgba(10,7,5,.86),rgba(10,7,5,.72) 30%,rgba(10,7,5,.86));
+    animation:credfade 1.6s ease both}
+  @keyframes credfade{from{opacity:0}to{opacity:1}}
+  #overlay .credroll{position:absolute;left:0;right:0;top:0;text-align:center;
+    will-change:transform;animation:credroll 38s linear forwards}
+  @keyframes credroll{from{transform:translateY(100vh)}to{transform:translateY(-100%)}}
+  #overlay .credroll h1{font-size:clamp(30px,6vw,56px);letter-spacing:.3em;color:#ffb35e;
+    margin:0 0 6px;font-weight:700}
+  #overlay .credroll .sub{font-size:clamp(11px,1.7vw,14px);letter-spacing:.24em;
+    text-transform:uppercase;color:var(--dim);margin-bottom:54px}
+  #overlay .credroll .role{font-size:clamp(9px,1.4vw,11px);letter-spacing:.3em;
+    text-transform:uppercase;color:var(--dim);opacity:.8;margin:34px 0 5px}
+  #overlay .credroll .name{font-size:clamp(15px,2.4vw,21px);color:#f0e2cc;margin:0}
+  #overlay .credroll .note{font-size:clamp(11px,1.7vw,14px);color:#bfae97;
+    max-width:30em;margin:12px auto 0;line-height:1.7}
+  #overlay .credskip{position:absolute;left:0;right:0;bottom:0;padding:16px 0 22px;text-align:center;
+    font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);opacity:.8;
+    background:linear-gradient(to top,rgba(10,7,5,.95),rgba(10,7,5,0))}
 
   /* A phone held upright: the fallback where the orientation lock is refused. */
   #rotate{

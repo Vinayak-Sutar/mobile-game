@@ -11,8 +11,15 @@
 //
 //     the keeper teaches, and hands over a tool
 //       -> you go and do the work
-//         -> the tree gives back a piece of the legend
-//           -> you come back, and she teaches the next thing
+//         -> a young banyan rises off the freed root with a PANEL on it
+//           -> she stands in front of it and the keeper remembers that piece
+//             -> you come back, and she says what she makes of it, and
+//                teaches the next thing
+//
+// The tree is not a memory store and it does not drink anything but water. It
+// is a sacred banyan that is dying because its roots are choked. What is
+// FORGOTTEN is the keeper's - she has been alone with it for two winters and
+// most of the legend has gone out of her. The panels bring it back.
 //
 // Two fields hold all of it, on `st`:
 //
@@ -82,11 +89,31 @@ export function toolFor(st) {
  * the screen and the arrow at its edge can never disagree with each other.
  * Returns null once there is nothing left to say.
  */
-export function objective(st, ROOTS, WOMAN, TREE, here, gorge) {
-  if (st.ended) return null;
+export function objective(st, ROOTS, WOMAN, TREE, here, gorge, unread) {
+  // The valley is hers to walk in now and nothing is asked of her.
+  if (st.after) return null;
+  // A PANEL HAS COME UP AND NOBODY HAS READ IT. The beat used to play by
+  // itself wherever she happened to be standing, which is the story
+  // happening AT the player. Now it waits on the tree and this is what sends
+  // her to it - before the keeper, because she has nothing to say about a
+  // piece she has not been reminded of yet.
+  if (unread) {
+    return { text: 'a panel has come up on the new tree — go and read it', x: unread.x, y: unread.y, kind: 'mural' };
+  }
   const s = stage(st);
   if (!s) {
-    return { text: 'the tree is remembering — go to it', x: TREE.x, y: TREE.y, kind: 'tree' };
+    // THE END, IN THREE BEATS. It used to be one: stand near the tree with
+    // five roots done and the whole climax fired at once.
+    if (!st.sent) {
+      return { text: 'all five are awake — go back to the keeper', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };
+    }
+    if (!(st.bloom >= 1)) {
+      return { text: 'the last panel is on the Banyan itself', x: TREE.x, y: TREE.y + 40, kind: 'mural' };
+    }
+    if (!st.blessed) {
+      return { text: 'go and tell her what it says', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };
+    }
+    return null;
   }
   if (!st.briefed) {
     return {

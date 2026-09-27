@@ -30,7 +30,7 @@ import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
-import { ROOTS, CLIMAX } from './savi-story.js';
+import { ROOTS, CLIMAX, CLIMAX_SAVI } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import { stage, has, objective, brief, rootDone } from './savi-quest.js';
 import { startCinema, updateCinema, drawCinema, skipCinema, cinemaOn } from './cinema.js';
@@ -46,7 +46,8 @@ import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
 } from './savi-litter.js';
 import {
-  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawStone, drawToolIcon, drawVeil,
+  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawMuralPanel,
+  drawTree, drawRock, drawStone, drawToolIcon, drawVeil,
   mixHex,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
@@ -546,6 +547,11 @@ const st = {
   // The apprenticeship: how many roots are awake, and whether she has been
   // told about the next one and handed the tool for it. See savi-quest.js.
   done: 0, briefed: false, tools: {}, sawOpening: false,
+  lastRoot: '', think: null,
+  // The end, in three beats: she is sent, she reads the sixth panel and the
+  // tree blooms, she comes back and is told what she has become. Then the
+  // titles, and then the valley is hers to walk in.
+  sent: false, blessed: false, after: false, credits: false,
   // WHAT IS IN HER HANDS, and the belt she changes it from. `tools` is what
   // she has been GIVEN and never loses; `equip` is the one thing she is
   // actually holding, which used to be "all of them at once, for ever".
@@ -1138,6 +1144,25 @@ function beltMove(d) {
   sfx.tick();
 }
 
+// --- THE SIXTH PANEL ------------------------------------------------------------
+//
+// Five come up on the saplings. The last one is on the Great Banyan itself,
+// low on the braid of the trunk, and it is the end of the story - so the
+// ending stops being one sudden beat under a tree and becomes three: she is
+// sent, she reads it and the tree blooms, she comes back and is told what
+// she has become.
+
+const FINAL = { x: TREE.x - 6, y: TREE.y + 8, mural: 'bloom', name: 'The Boon Granted' };
+const finalRead = () => ({ mural: FINAL.mural, name: FINAL.name, lines: CLIMAX, savi: CLIMAX_SAVI });
+/** Lit only once the five are awake and she has been sent to look for it. */
+const finalUp = () => st.count >= ROOTS.length && st.sent && !(st.bloom >= 1);
+
+/** The sapling whose panel nobody has read yet, if there is one. */
+function unreadMural() {
+  for (const yt of YOUNG) if (yt.pending && yt.grow >= 1) return yt;
+  return null;
+}
+
 /** Which way the nearest fire is, in words a child would use. */
 function towardFire() {
   let best = FIRE, bd = Math.hypot(S.x - FIRE.x, S.y - FIRE.y);
@@ -1261,11 +1286,13 @@ function step(dt) {
     if (pad.upPressed) moveSel(-1);
     if (pad.downPressed) moveSel(1);
     if (pad.pressed || pad.jumpPressed) pickSel();
+    if (pad.dashPressed) closeTalk();          // circle backs out
     return;
   }
   // THE BELT STOPS THE WORLD. Everything below this - the press dispatch, the
   // walking, the stones, the fire - is skipped while it is open, so a button
   // held down to choose a tool cannot also swing a broom on the way out.
+  if (st.credits && (pad.pressed || pad.jumpPressed || pad.dashPressed) && creditsEnd) creditsEnd();
   if (pad.beltPressed) { begin(); if (st.wheel) closeBelt(false); else openBelt(); }
   if (st.wheel) {
     st.wheel.t += dt;
@@ -1296,8 +1323,19 @@ function step(dt) {
     // swings, a player carrying the broom could never read one.
     const busy = st.talking || st.reading || st.watching;
     const yt = !busy && YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
+    const fin = !busy && !yt && finalUp() && Math.hypot(S.x - FINAL.x, S.y - FINAL.y) < 150;
     const atKeeper = !busy && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
-    if (yt) {
+    if (fin) {
+      // The end of it, off the trunk of the tree it happened under.
+      openReading(finalRead(), () => {
+        st.ended = true;
+        st.bloom = 1;
+        setAmbientTheme(themeById('durga'));
+        sfx.boon();
+        spark(TREE.x, TREE.y - 40, 120, { col: ['#ffb35e', '#ffd9a0', '#eef0d8'], sp0: 40, sp1: 340, l0: 1.2, l1: 2.8, s0: 3, s1: 9, kind: 'ember' });
+      });
+      tapDone = true;
+    } else if (yt) {
       openReading(yt); tapDone = true;
     } else if (!busy && has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
       broom.held = true; st.equip = 'broom'; tapDone = true; sfx.pickup();
@@ -1320,7 +1358,7 @@ function step(dt) {
   S.burn = null;
   if (holding) actHold(dt); else if (!stroke) S.act = 0;
 
-  if (st.talking || st.reading) { stepParticles(dt); return; }
+  if (st.talking || st.reading || st.credits) { stepParticles(dt); return; }
 
   if (!warmedArt && st.t > 3) {
     warmedArt = true;
@@ -1526,6 +1564,7 @@ function step(dt) {
   st.prompt = '';
   const nearBroom = has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
+  const nearFinal = finalUp() && Math.hypot(S.x - FINAL.x, S.y - FINAL.y) < 150;
   const atCapstan = !drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40;
   const boon = ROOTS.find((r) => r.mat === 'ash');
   const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 320;
@@ -1542,6 +1581,7 @@ function step(dt) {
   }
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
+  else if (nearFinal) st.prompt = 'read the last of it';
   else if (onLeaf) st.prompt = 'jump';
   else if (st.equip === 'broom') st.prompt = 'hold to sweep';
   else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
@@ -1550,12 +1590,15 @@ function step(dt) {
 
   for (const yt of YOUNG) {
     if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
-    // Grown, and the carving lit: NOW it tells what it remembers.
-    else if (yt.pending && !st.talking && !st.reading) {
-      yt.pending = false;
-      st.watching = false;                  // the tree has something to say: she is free
+    // GROWN, AND THE PANEL LIT — and then it WAITS. The beat used to play by
+    // itself, wherever she happened to be standing, which is the story
+    // happening at the player rather than something she goes and finds. She
+    // walks up to it and presses, and the keeper remembers that piece.
+    else if (yt.pending && !yt.rung) {
+      yt.rung = true;
+      st.watching = false;                  // there is something to go and see
       sfx.chime();
-      say(yt.lines, null, yt.mural);
+      toast = { t: 0, text: 'a panel has come up on the new tree' };
     }
   }
 
@@ -1631,11 +1674,9 @@ function step(dt) {
     if (done) wake(r);
   }
 
-  if (st.count >= ROOTS.length && !st.ended && Math.hypot(S.x - TREE.x, S.y - TREE.y) < 340) {
-    st.ended = true;
-    setAmbientTheme(themeById('durga'));
-    say(CLIMAX, () => { st.bloom = 1; }, 'bloom');
-  }
+  // The ending used to fire HERE: walk within 340 of the tree with five roots
+  // done and the whole climax played at you on the spot. It is read off the
+  // sixth panel now, in its own time. See FINAL.
 
   stepStones(dt);
   if (blaze) stepBlaze(dt);
@@ -1846,7 +1887,11 @@ function wake(r) {
   const beat = ROOTS[st.told] || ROOTS[ROOTS.length - 1];
   st.told++;
   // An aerial root comes down where the burden was, takes hold, and is a tree.
-  YOUNG.push({ x: r.at.x + 86, y: r.at.y + 34, grow: 0, mural: beat.mural, name: beat.name, lines: beat.lines, pending: true });
+  YOUNG.push({
+    x: r.at.x + 86, y: r.at.y + 34, grow: 0, pending: true,
+    mural: beat.mural, name: beat.name, lines: beat.lines, savi: beat.savi,
+  });
+  st.lastRoot = beat.id;
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
   st.lastBeat = beat.lines[beat.lines.length - 1][1];
@@ -2196,6 +2241,7 @@ function render() {
   drawStones(ctx, -1e9, S.y);
 
   drawBanyan(ctx, TREE, st.bloomK, st.t);
+  if (finalUp()) drawMuralPanel(ctx, FINAL.x - 46, FINAL.y - 16, 92, FINAL.mural, 1);
   drawFire(ctx, FIRE, st.t, st.hasEmber ? 0.4 : 1);
   // She looks up at whoever is coming. Beyond about a screen she just sits.
   WOMAN.look = Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 260
@@ -2250,6 +2296,7 @@ function render() {
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, view.w, view.h);
   drawWaypoint(ctx);
+  drawThought(ctx);
   drawHud();
   drawBelt(ctx);
   if (st.talking) paintFace();
@@ -2349,8 +2396,8 @@ function drawRootProgress(ctx) {
  * also show you, or the line at the top is just a reproach.
  */
 function drawWaypoint(ctx) {
-  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE);
-  if (!job || st.talking || st.reading) return;
+  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE, unreadMural());
+  if (!job || st.talking || st.reading || st.credits) return;
   const sx = job.x - camera.x, sy = job.y - camera.y;
   const m = 54;
   if (sx > m && sx < view.w - m && sy > m && sy < view.h - m) return;   // she can see it
@@ -2395,7 +2442,7 @@ function drawHud() {
   ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, L, 30 * F);
   // WHAT SHE IS DOING, in one line, from one place - so these words and the
   // arrow at the edge of the screen can never disagree with each other.
-  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE);
+  const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE, unreadMural());
   if (job) {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
     const cur2 = ROOTS.find((r) => r.id === (stage(st) || {}).root);
@@ -2595,13 +2642,87 @@ function drawBelt(ctx) {
 // the keeper's and two or three things a child might say back, which is what
 // makes her someone rather than a sign.
 
-function say(lines, onDone, mural) {
-  st.talking = { lines: lines.slice(), i: 0, onDone, mural };
+function say(lines, onDone, mural, thought) {
+  st.talking = { lines: lines.slice(), i: 0, onDone, mural, thought };
   paintTalk();
 }
 
+/**
+ * WHAT SAVI MAKES OF IT — a bubble over her head as she walks away.
+ *
+ * The legend used to be a thing that happened AT the player: a panel opens,
+ * five people who are not in this valley say their lines, the panel shuts,
+ * and the girl you are walking around has no opinion about any of it. She is
+ * eleven and it is the first time anybody has told her this story. She ought
+ * to have an opinion.
+ *
+ * Drawn in SCREEN space at her screen position rather than in the world, so
+ * the words can be the size of words on a phone - in world units they would
+ * be seven real pixels across.
+ */
+function think(text) {
+  if (text) st.think = { text, t: 0 };
+}
+const THINK_FOR = 7.5;
+
+function drawThought(c) {
+  if (!st.think) return;
+  st.think.t += dtSeen;
+  if (st.think.t > THINK_FOR) { st.think = null; return; }
+  const F = isTouch() ? clamp(view.h / 400, 1, 1.55) : 1;
+  const k = Math.min(1, st.think.t * 5) * clamp01((THINK_FOR - st.think.t) * 1.4);
+  const size = Math.round(13 * F);
+  c.font = `600 ${size}px "Segoe UI", Roboto, system-ui, sans-serif`;
+  // Wrapped to something you can read in one sweep of the eye.
+  const maxw = Math.min(view.w * 0.62, 360 * F);
+  const words = st.think.text.split(' ');
+  const rows = [];
+  let line = '';
+  for (const w of words) {
+    const t2 = line ? `${line} ${w}` : w;
+    if (c.measureText(t2).width > maxw && line) { rows.push(line); line = w; } else line = t2;
+  }
+  if (line) rows.push(line);
+  const lh = size * 1.32;
+  const pad = 11 * F;
+  const bw = Math.max(...rows.map((r) => c.measureText(r).width)) + pad * 2;
+  const bh = rows.length * lh + pad * 1.7;
+  // Over her head, and shoved back on screen if she is stood at an edge.
+  const bx = clamp(S.x - camera.x - bw / 2, 12, view.w - bw - 12);
+  const by = clamp(S.y - camera.y - 52 * F - bh, 10, view.h - bh - 10);
+  const tipx = clamp(S.x - camera.x, bx + 16, bx + bw - 16);
+  c.save();
+  c.globalAlpha = k;
+  c.beginPath();
+  roundRectPath(c, bx, by, bw, bh, 10 * F);
+  c.moveTo(tipx - 7 * F, by + bh - 1);
+  c.lineTo(tipx, by + bh + 11 * F);
+  c.lineTo(tipx + 7 * F, by + bh - 1);
+  c.closePath();
+  c.fillStyle = 'rgba(24,18,14,0.86)';
+  c.fill();
+  c.strokeStyle = 'rgba(255,196,130,0.5)';
+  c.lineWidth = 1.5;
+  c.stroke();
+  c.fillStyle = 'rgba(244,232,214,0.95)';
+  c.textAlign = 'left';
+  rows.forEach((r, i) => c.fillText(r, bx + pad, by + pad + lh * (i + 0.78)));
+  c.restore();
+}
+
+function roundRectPath(c, x, y, w, h, r) {
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+}
+
 function talkTo(node) {
-  keeperFill(st, ROOTS.length, st.lastBeat, stage(st));
+  // What she has to add about the beat just told, which is the bit she has
+  // been carrying about it for forty years with nobody to say it to.
+  const last = ROOTS.find((r) => r.id === st.lastRoot);
+  keeperFill(st, ROOTS.length, st.lastBeat, stage(st), last && last.keeper);
   st.talking = { keeper: node, who: 'The Keeper' };
   paintTalk();
 }
@@ -2613,17 +2734,31 @@ function paintTalk() {
   if (t.keeper) {
     const n = KEEPER[t.keeper];
     st.asked[t.keeper] = true;
+    // Some of her lines ARE the event: being sent to the tree, being told
+    // she is the keeper now. One field on the node, set as she says it.
+    if (n.mark) st[n.mark] = true;
     // She puts it in Savi's hands as she says the line. The tool arriving IS
     // the moment the task begins, which is the whole of "deliberate".
-    if (n.give && !has(st, n.give)) {
+    // THE BRIEFING HAPPENS WHETHER OR NOT SHE NEEDS THE TOOL.
+    //
+    // This used to be `if (n.give && !has(st, n.give))`, and `brief(st)` -
+    // the ONE call that sets `st.briefed` - lived inside it. Five stages want
+    // five tools, but only three of them are new: the snow wants the lantern
+    // she already has and the stone fall wants the broom she has had since
+    // the first minute. So on the last two roots the whole block was skipped,
+    // `st.briefed` stayed false, and `objective()` went on saying "go back to
+    // the keeper" with the arrow pointing at her, for ever. She could be sent
+    // to three roots and no further.
+    if (n.give) {
+      const fresh = !has(st, n.give);
       const s2 = brief(st);
       if (n.give === 'broom') broom.held = true;
       if (n.give === 'lamp') { st.hasEmber = true; st.ember = 1; }
       // Handed a thing, she is holding it. Nobody is sent to a belt on the
       // frame they are given their first tool.
-      st.equip = n.give === 'crank' ? st.equip : n.give;
+      if (n.give !== 'crank') st.equip = n.give;
       sfx.pickup();
-      toast = { t: 0, text: `she gives you ${TOOLNAME[n.give] || n.give}` };
+      toast = { t: 0, text: fresh ? `she gives you ${TOOLNAME[n.give] || n.give}` : `${TOOLNAME[n.give] || n.give}, again` };
       if (s2) st.prompt = '';
     }
     // A question asked is a question answered: it does not come round again,
@@ -2635,12 +2770,25 @@ function paintTalk() {
     // first could eat "What is wrong with the tree?" for the rest of the game.
     const open = n.choices.filter((c) => c.spine || c.to === 'leave'
       || (KEEPER[c.to] && KEEPER[c.to].repeat) || !st.asked[c.to]);
-    // And there is always a way out. Without this you can walk in a circle
-    // round her answers and never find the door.
-    const list = open.some((c) => c.to === 'leave')
-      ? open : [...open, { say: 'I should go.', to: 'leave' }];
+    // ONE CHOICE MOVES, THE REST ONLY ASK. Five things to pick from is a
+    // menu, and a menu is a thing you audit rather than a person you talk
+    // to. So: at most two questions, then the line that gets on with it,
+    // then the door - and the one that gets on with it LOOKS different, so
+    // you never have to read all four to find out which is which.
+    // THE WITCHER'S RULE, which is a good one and which I had backwards.
+    // The line that moves the story is gold and it is FIRST; under it, at
+    // most two questions, which only tell you more and retire once asked.
+    //
+    // AND NO DOOR. There is one person in this valley - a row saying "I
+    // should go" on every panel is furniture. Following the spine IS the way
+    // out: it ends at the line where she hands over the tool and Savi says
+    // she will go. Escape and circle still shut the panel, so a mis-wired
+    // chain can never trap anyone, but they are not rows on it.
+    const spine = open.find((c) => c.spine) || open.find((c) => c.to === 'leave') || open[0];
+    const asks = open.filter((c) => c !== spine && c.to !== 'leave').slice(0, 2);
+    const list = [spine, ...asks].filter(Boolean);
     t.list = list;
-    const cs = list.map((c, i) => `<button class="choice" data-i="${i}">${c.say}</button>`).join('');
+    const cs = list.map((c, i) => `<button class="choice${c === spine ? ' spine' : ''}" data-i="${i}">${c.say}</button>`).join('');
     body = `<div class="saybar"><canvas class="face" width="220" height="300"></canvas>
       <div class="readtext"><div class="who">${t.who}</div><p>${n.text}</p>
       <div class="choices">${cs}</div></div></div>`;
@@ -2753,8 +2901,58 @@ function closeTalk() {
   st.talking = null;
   overlay.classList.remove('on');
   overlay.innerHTML = '';
+  if (t && t.thought) think(t.thought);
   if (t && t.onDone) t.onDone();
+  // She has been told she is the keeper. That is the end of the story, and
+  // the titles go over the top of a valley that is still running underneath.
+  if (st.blessed && !st.after && !st.credits) rollCredits();
 }
+
+/**
+ * THE TITLES — and then the valley stays open.
+ *
+ * Not a scene change and not a screen you are returned from. The game keeps
+ * running behind them, she stands still while they go past, and when they
+ * are done she is left standing in the place she fixed with nothing asked of
+ * her. That last part is the actual reward; the titles are just what plays
+ * over it.
+ */
+function rollCredits() {
+  st.credits = true;
+  overlay.innerHTML = `<div class="credits"><div class="credroll">
+      <h1>SAVI</h1>
+      <div class="sub">The Keeper of the Banyan</div>
+      <div class="role">Made by</div><p class="name">Vinayak Sutar</p>
+      <div class="role">Written, drawn, and set to music by</div><p class="name">the same</p>
+      <div class="role">The legend</div><p class="name">Sāvitrī and Satyavān</p>
+      <p class="note">From the Vana Parva of the Mahābhārata. A princess who
+        chose a man she was told would die within the year, followed Death
+        down the road when he came for him, and argued him out of it.</p>
+      <div class="role">Painted in the manner of</div><p class="name">Gond — Jangarh Kalam</p>
+      <p class="note">With thanks to the Pardhan Gond artists of Patangarh,
+        whose work this only bows toward.</p>
+      <div class="role">Music</div><p class="name">Raag Bhupali · Raag Durga</p>
+      <div class="role">Made for</div><p class="name">the Cozy Fall Game Jam, 2026</p>
+      <p class="note">Thank you for keeping it.</p>
+      <div class="role">&nbsp;</div>
+    </div><div class="credskip">tap, or press any key, to go back to the valley</div></div>`;
+  overlay.classList.add('on', 'full');
+  sfx.chime();
+  const end = () => {
+    if (!st.credits) return;
+    st.credits = false;
+    st.after = true;
+    overlay.classList.remove('on', 'full');
+    overlay.innerHTML = '';
+    toast = { t: 0, text: 'the valley is yours to walk in' };
+  };
+  creditsEnd = end;
+  const box = overlay.querySelector('.credits');
+  if (box) box.addEventListener('pointerdown', (e) => { e.stopPropagation(); end(); });
+  const roll = overlay.querySelector('.credroll');
+  if (roll) roll.addEventListener('animationend', end);
+}
+let creditsEnd = null;
 
 /** A tap anywhere: only a recital advances that way. A conversation waits. */
 function advance() {
@@ -2782,8 +2980,9 @@ function stepTalk(d) {
 let toast = null;
 
 /** Standing at a young banyan and reading what is cut into it, full screen. */
-function openReading(yt) {
-  st.reading = { yt, i: 0 };
+function openReading(yt, onDone) {
+  st.reading = { yt, i: 0, onDone };
+  yt.pending = false;                       // read: it stops being an errand
   sfx.chime();
   paintReading();
 }
@@ -2833,9 +3032,11 @@ function stepReading(d = 1) {
   }
   r.i++;
   if (r.i < r.yt.lines.length) { paintReading(); sfx.ui(); return; }
+  think(r.yt.savi);
   st.reading = null;
   overlay.classList.remove('on', 'full');
   overlay.innerHTML = '';
+  if (r.onDone) r.onDone();
 }
 
 const WHO = { keeper: 'The Keeper', savitri: 'Savitri', satyavan: 'Satyavan', yama: 'Yama, Lord of Death', narada: 'Narada' };
@@ -2965,6 +3166,7 @@ function main() {
     if (cinemaOn()) { skipCinema(); e.preventDefault(); return; }
     // TAB IS THE BELT. It has to preventDefault whether the belt opens or not,
     // or the browser walks focus off the canvas and the next key goes nowhere.
+    if (st.credits) { if (creditsEnd) creditsEnd(); e.preventDefault(); return; }
     if (k === 'tab') {
       begin();
       if (st.wheel) closeBelt(false); else openBelt();
@@ -2979,6 +3181,7 @@ function main() {
       if (k === 'arrowleft' || k === 'a') { stepTalk(-1); e.preventDefault(); return; }
       if (k === 'arrowright' || k === 'd') { stepTalk(1); e.preventDefault(); return; }
     }
+    if (st.talking && st.talking.keeper && k === 'escape') { closeTalk(); e.preventDefault(); return; }
     if (st.wheel) {
       if (k === 'a' || k === 'arrowleft') beltMove(-1);
       else if (k === 'd' || k === 'arrowright') beltMove(1);

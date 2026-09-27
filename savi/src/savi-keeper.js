@@ -40,20 +40,20 @@ export const KEEPER = {
   },
   water: {
     repeat: true,
-    text: 'Water. Hah. No, child. This tree does not drink water — it drinks memories. It was planted to hold one story and never let it go, and it has been forgetting it, one piece at a time.',
+    text: 'Water. It has all the water in these hills, child — it is not thirsty. It is CHOKED. A tree drinks through its roots, and every root it has is buried, or drowned, or bound, or frozen, or under half a hillside.',
     choices: [
-      { say: 'How does a tree forget?', to: 'roots', spine: true },
-      { say: 'What story?', to: 'story' },
-      { say: 'Trees do not remember anything.', to: 'remember' },
+      { say: 'Then the roots are the work.', to: 'roots', spine: true },
+      { say: 'Why does this one tree matter so much?', to: 'story' },
+      { say: 'Can a tree not grow new roots?', to: 'remember' },
     ],
   },
   roots: {
     repeat: true,
-    text: 'Through its roots. It has five Great Roots and every one of them is choked — buried, drowned, bound, frozen, starved. A root that cannot breathe carries nothing home. Free them and it remembers.',
+    text: 'Five Great Roots, and a root that cannot breathe carries nothing home. Clear one and a young banyan comes up out of it within the hour — they always have — and there will be a PANEL on it. Painted. Nobody living knows by whose hand.',
     choices: [
       { say: 'Then that is my work. Where do I start?', to: 'brief0', spine: true },
       { say: 'Why can you not do it?', to: 'frail' },
-      { say: 'Who did this before me?', to: 'before' },
+      { say: 'What is on the panels?', to: 'before' },
     ],
   },
 
@@ -156,6 +156,8 @@ export const KEEPER = {
   },
   back: {
     repeat: true,
+    // Filled in by keeperFill with what she has to say about the beat that
+    // just came back. This is only the fallback.
     text: 'I felt that one come home. The trunk went warm under my hand — the first warm thing in this valley for two winters.',
     choices: [
       { say: 'What is next?', to: 'brief0', spine: true },   // retargeted in keeperFill
@@ -170,7 +172,7 @@ export const KEEPER = {
   // is ever a dead end and the spine is always still there underneath.
 
   who: {
-    text: 'Nobody, now. I kept this tree — swept round the trunk, kept the lamp in it lit, the way my mother did, and hers. The keeper. There is not much keeping left in me.',
+    text: 'The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nineteen when they sent me. There is not much keeping left in me now.',
     choices: [{ say: 'And now?', to: 'welcome' }],
   },
   valley: {
@@ -182,11 +184,11 @@ export const KEEPER = {
     choices: [{ say: 'Go on.', to: 'tree' }],
   },
   story: {
-    text: 'A girl who followed Death down the road and argued him out of it. But I cannot tell it to you, not properly — the tree has the telling of it, and the tree has gone quiet.',
-    choices: [{ say: 'Then I will wake it.', to: 'water' }],
+    text: 'Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it once, word for word — I have told it a hundred times — and two winters alone with a dying tree have taken most of it out of my head.',
+    choices: [{ say: 'Then let us get it back.', to: 'water' }],
   },
   remember: {
-    text: 'This one does. Why do you think anyone planted a banyan here, where nothing else will take? It was put here to hold that story. That is its whole purpose, and it is failing at it.',
+    text: 'Not at its age, and not in this cold. What it can do is send one up off a root you have cleared. That is the whole of the bargain, child: you give it back its roots and it gives us back the story.',
     choices: [{ say: 'All right.', to: 'water' }],
   },
   frail: {
@@ -194,7 +196,7 @@ export const KEEPER = {
     choices: [{ say: 'Then I will go.', to: 'roots' }],
   },
   before: {
-    text: 'Keepers, all the way back. My mother. Her mother. A line of women with sore backs and clean courtyards. You are the next one, and I am glad of it, and I am sorry for it.',
+    text: 'The story, in pieces. One panel to a root. Every keeper before me learned it off them the same way you are about to — go and stand in front of one and it will come back to me, and I will tell you what I see.',
     choices: [{ say: 'I understand.', to: 'roots' }],
   },
   whyleaves: {
@@ -232,13 +234,56 @@ export const KEEPER = {
   retell: { repeat: true, text: '', choices: [{ say: '…', to: 'back' }] },
   howmuch: { repeat: true, text: '', choices: [{ say: 'I will go on.', to: 'back' }] },
 
-  // --- all five awake ----------------------------------------------------------------
-  done: {
+  // --- all five awake, and the end of it in three beats ---------------------------
+  //
+  // It used to be one: stand near the tree with five roots done and the whole
+  // climax fired at you on the spot. Now she is sent, she reads it herself,
+  // and she comes back and is told what she has become.
+
+  sendoff: {
     repeat: true,
-    text: 'All five. Look at it, child — look up. It is remembering. Go and stand under it and let it finish.',
-    choices: [{ say: 'Come with me.', to: 'leave', spine: true }],
+    mark: 'sent',
+    text: 'All five. I felt the last one go. Now — there is a sixth panel, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
+    choices: [{ say: 'I will go and look.', to: 'leave', spine: true }],
   },
+  farewell: {
+    repeat: true,
+    mark: 'blessed',
+    text: 'So she won him with a sentence. I had forgotten that. Forty years I have sat under this tree and I had forgotten the best part of it.',
+    choices: [
+      { say: 'It is all back now.', to: 'blessing', spine: true },
+      { say: 'How could you forget it?', to: 'howforget' },
+    ],
+  },
+  howforget: {
+    text: 'You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell — the village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.',
+    choices: [{ say: 'Somebody heard it today.', to: 'blessing', spine: true }],
+  },
+  blessing: {
+    repeat: true,
+    mark: 'blessed',
+    text: 'Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child — you are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.',
+    choices: [{ say: 'I will be here.', to: 'leave', spine: true }],
+  },
+  /** After the credits: whatever is on her mind, and nothing is asked of anyone. */
+  idle: { repeat: true, text: '', choices: [{ say: '…', to: 'leave', spine: true }] },
 };
+
+/**
+ * WHAT SHE SAYS WHEN THERE IS NOTHING LEFT TO DO. Small, ordinary, and about
+ * the valley rather than the quest - an old woman with her feet warm, saying
+ * what she notices. Picked at random each time she is spoken to.
+ */
+export const IDLE = [
+  'Listen to that. Birds. I had got so used to the quiet I thought that was the sound a valley made.',
+  'The gold is coming down at last. Two autumns it hung up there refusing to fall, and now look at it.',
+  'Sit a while if you like. I am not going anywhere and neither, apparently, is the tree.',
+  'There were deer in the lower field this morning. I have not seen a deer since before you were born.',
+  'They will start coming up again, you know. The women, with their threads. You will have to learn all their names.',
+  'I was your age once and I thought this job was sweeping. It is not sweeping.',
+  'Do not let them tell you the tree did it by itself. I saw who did it.',
+  'It is warm. Feel the trunk. It has not been warm in two winters and it is warm.',
+];
 
 /**
  * Which hub she opens on. From the quest state, not from guessing: whether she
@@ -246,7 +291,11 @@ export const KEEPER = {
  * from finishing one.
  */
 export function keeperStart(st, total) {
-  if (st.done >= total) return 'done';
+  // The end, backwards: after the credits she is only company; before them
+  // she has a blessing to give; before that she is sending Savi to the tree.
+  if (st.after) return 'idle';
+  if (st.bloom >= 1) return st.blessed ? 'idle' : 'farewell';
+  if (st.done >= total) return 'sendoff';
   if (st.briefed) return 'remind';
   // She resumes where the STORY got to, not where the player got to. Walking
   // off in the middle of the first conversation used to skip her straight to
@@ -256,7 +305,7 @@ export function keeperStart(st, total) {
 }
 
 /** The lines the game fills in with what is actually true right now. */
-export function keeperFill(st, total, lastBeat, stageNow) {
+export function keeperFill(st, total, lastBeat, stageNow, onLast) {
   const left = total - st.done;
   KEEPER.howmuch.text = st.done === 0
     ? 'Not one of them yet. Do not let that sit on you — five is only five.'
@@ -264,12 +313,17 @@ export function keeperFill(st, total, lastBeat, stageNow) {
       ? 'One. One root, and then we are done, and I can put this blanket down.'
       : `${st.done} awake, ${left} still cold. You are further than I got in two winters.`;
   KEEPER.retell.text = lastBeat || 'Nothing yet, child. Wake a root and there will be something to tell.';
+  KEEPER.idle.text = IDLE[(Math.random() * IDLE.length) | 0];
+  // SHE HAS SOMETHING TO ADD. She used to greet every root with the same
+  // sentence about the trunk going warm, five times, which made her a door
+  // you walk through rather than the only other person in the valley.
+  if (onLast) KEEPER.back.text = `I felt that one come home. ${onLast}`;
   KEEPER.remind.text = stageNow
     ? `You have what you need, child. ${cap(stageNow.task)} — ${stageNow.where}.`
     : 'Off you go.';
   // Her "what is next?" points at the job in hand, so the spine is never a hop
   // through an empty node.
-  KEEPER.back.choices[0].to = stageNow ? stageNow.brief : 'done';
+  KEEPER.back.choices[0].to = stageNow ? stageNow.brief : 'sendoff';
 }
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);

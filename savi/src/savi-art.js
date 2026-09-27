@@ -476,50 +476,58 @@ export function drawYoungTree(ctx, o, time, bloom = 0) {
     }
   }
 
-  // THE PANEL, cut into the south face. Sixteen by nine, the mural's own
-  // shape, so the small one on the tree and the big one she reads are the
-  // same picture and not two different things.
+  // THE PANEL, cut into the south face.
   if (g > 0.7) {
-    const k = clamp01((g - 0.7) / 0.3);
-    const pw = 40 * g, pht = pw * 0.56;
-    const px = x - pw / 2, py = y - h * 0.62;
-    ctx.save();
-    ctx.globalAlpha = k;
-    glow(ctx, x, py + pht / 2, 96, 'rgba(255,170,80,0.26)');
-    // The recess it is cut into: a lip of raw wood round a sunk panel.
-    ctx.fillStyle = '#3a2718';
-    roundRect(ctx, px - 3, py - 3, pw + 6, pht + 6, 4);
-    ctx.fill();
-    ctx.fillStyle = '#17100b';
-    roundRect(ctx, px, py, pw, pht, 3);
-    ctx.fill();
-    // The picture. When the painted panel has not arrived - or was never
-    // there - the recess carries the carved bands it always did, so the tree
-    // is never showing a hole.
-    const painted = assetImg(`mural-${o.mural}`);
-    if (painted) {
-      ctx.save();
-      roundRect(ctx, px, py, pw, pht, 3);
-      ctx.clip();
-      assetCover(ctx, painted, px, py, pw, pht);
-      ctx.restore();
-      // Lamplight on it, so it is lit rather than pasted.
-      const lg = ctx.createLinearGradient(px, py, px, py + pht);
-      lg.addColorStop(0, 'rgba(255,196,120,0.22)');
-      lg.addColorStop(1, 'rgba(60,30,10,0.26)');
-      ctx.fillStyle = lg;
-      roundRect(ctx, px, py, pw, pht, 3);
-      ctx.fill();
-    } else {
-      ctx.fillStyle = 'rgba(255,190,120,0.7)';
-      for (let i = 0; i < 3; i++) ctx.fillRect(px + pw * 0.14, py + pht * (0.22 + i * 0.26), pw * 0.72, 1.8 * g);
-    }
-    ctx.strokeStyle = 'rgba(255,196,130,0.9)';
-    ctx.lineWidth = 1.4;
-    roundRect(ctx, px, py, pw, pht, 3);
-    ctx.stroke();
-    ctx.restore();
+    const pw = 40 * g;
+    drawMuralPanel(ctx, x - pw / 2, y - h * 0.62, pw, o.mural, clamp01((g - 0.7) / 0.3));
   }
+}
+
+/**
+ * A MURAL PANEL SET INTO A TRUNK. Sixteen by nine, the mural's own shape, so
+ * the small one on the tree and the big one she reads are the same picture
+ * and not two different things.
+ *
+ * Its own function because there are two of them now: one on every sapling
+ * that comes up off a freed root, and the sixth on the Great Banyan itself,
+ * which is four times the size and carries the end of the story.
+ */
+export function drawMuralPanel(ctx, px, py, pw, mural, k = 1) {
+  const pht = pw * 0.56;
+  ctx.save();
+  ctx.globalAlpha = k;
+  glow(ctx, px + pw / 2, py + pht / 2, pw * 2.4, 'rgba(255,170,80,0.26)');
+  // The recess it is cut into: a lip of raw wood round a sunk panel.
+  ctx.fillStyle = '#3a2718';
+  roundRect(ctx, px - pw * 0.075, py - pw * 0.075, pw * 1.15, pht + pw * 0.15, pw * 0.1);
+  ctx.fill();
+  ctx.fillStyle = '#17100b';
+  roundRect(ctx, px, py, pw, pht, pw * 0.075);
+  ctx.fill();
+  // The picture. When the painted panel has not arrived - or was never there
+  // - the recess carries carved bands instead, so it is never a hole.
+  const painted = assetImg(`mural-${mural}`);
+  if (painted) {
+    ctx.save();
+    roundRect(ctx, px, py, pw, pht, pw * 0.075);
+    ctx.clip();
+    assetCover(ctx, painted, px, py, pw, pht);
+    ctx.restore();
+    const lg = ctx.createLinearGradient(px, py, px, py + pht);
+    lg.addColorStop(0, 'rgba(255,196,120,0.22)');
+    lg.addColorStop(1, 'rgba(60,30,10,0.26)');
+    ctx.fillStyle = lg;
+    roundRect(ctx, px, py, pw, pht, pw * 0.075);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = 'rgba(255,190,120,0.7)';
+    for (let i = 0; i < 3; i++) ctx.fillRect(px + pw * 0.14, py + pht * (0.22 + i * 0.26), pw * 0.72, pw * 0.045);
+  }
+  ctx.strokeStyle = 'rgba(255,196,130,0.9)';
+  ctx.lineWidth = Math.max(1.3, pw * 0.035);
+  roundRect(ctx, px, py, pw, pht, pw * 0.075);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function roundRect(ctx, x, y, w, h, r) {
