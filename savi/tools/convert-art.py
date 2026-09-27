@@ -14,9 +14,9 @@ And the art is the entire payload - the code is 400 KB and the pictures were
 24 MB. WebP at 82 is the same picture at a quarter of the size, which matters
 on itch and matters more on the owner's phone over Pages.
 
-WHAT IS NOT REPLACED. The murals: the owner is redoing those separately, so
-the existing ones are kept and only re-encoded. And savitri-pleading, which is
-the one portrait still to come - the old one stands in until it does.
+ANYTHING THE HAND-DRAWN FOLDER HAS, WINS. Whatever is not in there yet keeps
+the picture that is already in ASSETS, untouched - not re-encoded, because
+re-encoding a WebP from a WebP loses a little more every time it happens.
 
 Run:  python savi/tools/convert-art.py
 """
@@ -112,30 +112,25 @@ def main():
                  if os.path.isfile(os.path.join(ART, f)))
     done, kept = [], []
 
-    for n in portraits:
+    for n, cap in [(q, CAP_PORTRAIT) for q in portraits] + [(q, CAP_MURAL) for q in murals]:
         out = os.path.join(ART, n + '.webp')
         if n in hand:
             src = os.path.join(HAND, canon(hand[n]) + os.path.splitext(hand[n])[1].lower())
             if not os.path.exists(src):
                 src = os.path.join(HAND, hand[n])
-            save(Image.open(src), out, CAP_PORTRAIT)
+            save(Image.open(src), out, cap)
             done.append(n)
+        elif os.path.exists(out):
+            # nothing new for it: leave what is there alone rather than put a
+            # WebP through WebP again for nothing
+            kept.append(n)
         else:
-            # no hand-drawn one yet: the old art stands in so nothing 404s
             old = os.path.join(ART, n + '.png')
             if not os.path.exists(old):
                 print('NOTHING AT ALL for %s - it will 404' % n)
                 sys.exit(1)
-            save(Image.open(old), out, CAP_PORTRAIT)
+            save(Image.open(old), out, cap)
             kept.append(n)
-
-    for n in murals:
-        old = os.path.join(ART, n + '.png')
-        if not os.path.exists(old):
-            print('NOTHING AT ALL for %s - it will 404' % n)
-            sys.exit(1)
-        save(Image.open(old), os.path.join(ART, n + '.webp'), CAP_MURAL)
-        kept.append(n)
 
     # --- the old PNGs go ------------------------------------------------------------
     gone = 0
@@ -149,7 +144,7 @@ def main():
                 if os.path.isfile(os.path.join(ART, f)))
 
     print('hand-drawn, now in place  %2d  %s' % (len(done), ', '.join(done)))
-    print('kept as they were         %2d  %s' % (len(kept), ', '.join(kept)))
+    print('left as they were         %2d  %s' % (len(kept), ', '.join(kept) or '-'))
     if missing:
         print('STILL TO COME             %2d  %s  (the old art is standing in)'
               % (len(missing), ', '.join(missing)))

@@ -2,5 +2,5 @@
 // (the git pre-commit hook) on every commit that touches savi/ - do not edit by
 // hand. The title screen compares it with the copy on the server, so the phone
 // can say whether it is running what was just pushed.
-export const BUILD = 59;
-export const BUILT = '2026-09-28 00:59';
+export const BUILD = 60;
+export const BUILT = '2026-09-28 01:12';
