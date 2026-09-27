@@ -411,14 +411,40 @@ export function drawYoungTree(ctx, o, time, bloom = 0) {
   ctx.quadraticCurveTo(x + 34 * g + Math.sin(time) * 3, y - h * 0.4, x + 30 * g, y - h * 0.06);
   ctx.stroke();
 
-  for (let i = 0; i < 9; i++) {              // its small crown
+  // ITS CROWN IS GREEN FROM THE MOMENT IT SHOWS.
+  //
+  // It used to come up autumn gold and only turn green at the very end with
+  // everything else, because it was lerped on `bloom` like the valley's old
+  // trees. That is exactly backwards. This is not an old tree remembering how
+  // to be alive - it is an aerial root that has just taken hold on ground she
+  // freed an hour ago, and it is the ONE thing on screen that says the work
+  // is doing something. A brand new shoot coming up the colour of the
+  // problem said nothing at all.
+  //
+  // Bloom still does something here: at the end the greens lift toward new
+  // growth and the blossom comes out, the same as on the Banyan.
+  for (let i = 0; i < 9; i++) {
     const a = (i / 9) * TAU;
     const r = 34 * g;
-    const gold = ['#e0a443', '#c8802f', '#f0bf5c'][i % 3];
-    ctx.fillStyle = bl < 0.02 ? gold : mixHex(gold, NEW_LEAF[i % NEW_LEAF.length], bl);
+    const leaf = NEW_LEAF[(i + 1) % NEW_LEAF.length];
+    ctx.fillStyle = bl < 0.02 ? leaf : mixHex(leaf, '#7cc255', bl * 0.6);
     ctx.beginPath();
     ctx.ellipse(x + Math.cos(a) * r + Math.sin(time * 0.7 + i) * 2, y - h - 12 * g + Math.sin(a) * r * 0.6, 26 * g, 20 * g, a, 0, TAU);
     ctx.fill();
+  }
+  // The light catching the top of it, so it is a mass and not a rosette.
+  ctx.fillStyle = 'rgba(214,240,180,0.16)';
+  ctx.beginPath();
+  ctx.ellipse(x - 10 * g, y - h - 26 * g, 26 * g, 13 * g, -0.2, 0, TAU);
+  ctx.fill();
+  if (bl > 0.55) {                           // and blossom, with the Banyan's
+    ctx.fillStyle = `rgba(255,236,242,${(bl - 0.55) * 1.6})`;
+    for (let i = 0; i < 5; i++) {
+      const a = rnd(i * 3 + 1) * TAU, d = (8 + rnd(i * 7) * 24) * g;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * d, y - h - 12 * g + Math.sin(a) * d * 0.62, 1.8 * g, 0, TAU);
+      ctx.fill();
+    }
   }
 
   // The carving, lit, on the south face of the stem.
