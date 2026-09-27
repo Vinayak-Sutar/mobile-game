@@ -3383,7 +3383,18 @@ function main() {
   // Which build this phone is running, and whether it is the one on the server.
   // Pages caches every file for ten minutes, so "my change isn't there" is a
   // real thing and this is how you tell.
-  const ver = document.getElementById('ver');
+  //
+  // AND ONLY WHERE IT MEANS ANYTHING. It exists so the owner can tell whether
+  // the phone in his hand has the push he just made, so it belongs on the dev
+  // server and nowhere else. On itch it is noise with a REFETCH button under
+  // it, and from a file:// URL `latestBuild()` cannot fetch anything anyway.
+  const dev = /^https?:$/.test(location.protocol)
+    && /^(localhost|127\.0\.0\.1|\[::1\]|[^.]*\.github\.io)$/.test(location.hostname);
+  const ver = dev ? document.getElementById('ver') : null;
+  if (!dev) {
+    const v = document.getElementById('ver');
+    if (v) v.style.display = 'none';
+  }
   if (ver) {
     ver.innerHTML = `build ${BUILD} &middot; ${BUILT}`;
     latestBuild().then((n) => {

@@ -148,6 +148,29 @@
     <div class="go">tap, press space, or any controller button</div>
     <div id="ver" class="ver"></div>
   </div>
-  <script type="module" src="./src/savi.js"></script>
+  <script>
+    /* HOW THE GAME IS LOADED, and why it is two ways.
+     *
+     * Served over http the modules are loaded as modules, which is what makes
+     * editing a file and hitting reload work. Opened straight off the disk
+     * they cannot be: a module is FETCHED, and a fetch from file:// is refused
+     * by every browser as a cross-origin read. That is why double-clicking
+     * index.html used to do nothing at all.
+     *
+     * So from a file:// URL it loads the prebuilt single-file bundle instead,
+     * which is a plain script and needs no fetching. Same game, one file.
+     * Rebuild it with: python savi/tools/pack-itch.py
+     */
+    (function () {
+      var s = document.createElement('script');
+      if (location.protocol === 'file:') {
+        s.src = './savi.bundle.js';
+      } else {
+        s.type = 'module';
+        s.src = './src/savi.js';
+      }
+      document.body.appendChild(s);
+    }());
+  </script>
 </body>
 </html>
