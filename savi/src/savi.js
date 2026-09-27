@@ -30,7 +30,7 @@ import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
-import { ROOTS, CLIMAX, CLIMAX_SAVI } from './savi-story.js';
+import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import { stage, has, objective, brief, rootDone } from './savi-quest.js';
 import { startCinema, updateCinema, drawCinema, pressCinema, cinemaOn } from './cinema.js';
@@ -1166,7 +1166,7 @@ function beltMove(d) {
 // she has become.
 
 const FINAL = { x: TREE.x - 6, y: TREE.y + 8, mural: 'bloom', name: 'The Boon Granted' };
-const finalRead = () => ({ mural: FINAL.mural, name: FINAL.name, lines: CLIMAX, savi: CLIMAX_SAVI });
+const finalRead = () => ({ mural: FINAL.mural, name: FINAL.name, lines: CLIMAX });
 /** Lit only once the five are awake and she has been sent to look for it. */
 const finalUp = () => st.count >= ROOTS.length && st.sent && !(st.bloom >= 1);
 

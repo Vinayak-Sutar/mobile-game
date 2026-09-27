@@ -1076,7 +1076,7 @@ All five freed. She sends Savi to the Banyan for the last mural.
 #### KEEP-sendoff
 *What she says.*
 
-> All five. I felt the last one go. Now, there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.
+> You have cleared all the roots. You will find the sixth mural on the Great Banyan itself. Go and take a look at it.
 
 **Remark:**
 
@@ -1094,39 +1094,14 @@ Savi has read the last mural and the tree has bloomed.
 #### KEEP-farewell
 *What she says.*
 
-> So she won him with a sentence. I had forgotten that. Forty years I have sat under this tree and I had forgotten the best part of it.
+> Savitri was a devoted wife. She went after the Lord of Death himself, and by her own determination she brought her husband back from death. That is why the women come up and tie their threads on this tree, for the long life of their husbands.
 
 **Remark:**
 
 #### KEEP-farewell-c1
 *What Savi can say back — **the gold one**, it moves the story on.*
 
-> It is all back now.
-
-**Remark:**
-
-#### KEEP-farewell-c2
-*What Savi can say back.*
-
-> How could you forget it?
-
-**Remark:**
-
-### howforget
-
-Aside: "How could you forget it?"
-
-#### KEEP-howforget
-*What she says.*
-
-> You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell. The village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.
-
-**Remark:**
-
-#### KEEP-howforget-c1
-*What Savi can say back — **the gold one**, it moves the story on.*
-
-> Somebody heard it today.
+> So that is why they come.
 
 **Remark:**
 
@@ -1137,14 +1112,14 @@ The last thing she says before the credits roll.
 #### KEEP-blessing
 *What she says.*
 
-> Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child. You are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.
+> Look at you. You are fit to keep this tree, child, and I am the old woman who sits by the fire. Let me have that for whatever days are left. From now on, you are the keeper of the Great Banyan.
 
 **Remark:**
 
 #### KEEP-blessing-c1
 *What Savi can say back — **the gold one**, it moves the story on.*
 
-> I will be here.
+> It will be my honour.
 
 **Remark:**
 
@@ -1460,7 +1435,7 @@ The end of the story. Reading it is what makes the tree bloom.
 #### CLIMAX-5
 *Savitri speaks. Line 5 of 11.*
 
-> Wait. I am a woman of one husband, and I can bear children by no other.
+> Wait. I am a <i>pativrata</i> (a wife completely devoted to her husband), and I can bear children by no other.
 
 **Remark:**
 
@@ -1502,7 +1477,7 @@ The end of the story. Reading it is what makes the tree bloom.
 #### CLIMAX-11
 *The Old Keeper speaks. Line 11 of 11.*
 
-> He let the noose go. She won him back with words, and the forest bloomed.
+> He let Satyavan go back to life. She won him back with her courage, her wits, her love, and her devotion to her husband.
 
 **Remark:**
 
@@ -1551,7 +1526,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-climax
 *After the last mural, under a tree that has just come back.*
 
-> She never once asked for him back. She asked for sons, and then she made him see what that meant. She won with a sentence. I would like to be like that.
+> undefined
 
 **Remark:**
 
@@ -1744,5 +1719,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*216 pieces of text. Generated from the code, so every line above is
+*213 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*

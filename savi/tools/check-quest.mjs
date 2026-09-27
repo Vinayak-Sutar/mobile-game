@@ -16,7 +16,7 @@
 
 import { CHAIN, stage, has, brief, objective, rootDone } from '../src/savi-quest.js';
 import { KEEPER, keeperStart, keeperFill } from '../src/savi-keeper.js';
-import { ROOTS, CLIMAX, CLIMAX_SAVI } from '../src/savi-story.js';
+import { ROOTS, CLIMAX } from '../src/savi-story.js';
 
 // Where the five roots are, as savi.js places them.
 const AT = {
@@ -155,7 +155,7 @@ console.log('\nwhat Savi makes of it:');
     if (!r.keeper) { ok(false, `${r.id} gives the keeper nothing to add`); missing++; }
   }
   ok(missing === 0, 'every root has a thought of hers and a word from the keeper');
-  ok(!!CLIMAX_SAVI && CLIMAX.length > 0, 'and so does the ending');
+  ok(CLIMAX.length > 0, `the ending has its ${CLIMAX.length} lines, and no thought after it`);
 }
 
 // --- 4. and the line the bug actually lived on ------------------------------------

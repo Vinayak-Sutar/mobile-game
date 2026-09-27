@@ -112,14 +112,17 @@ export const CLIMAX = [
   ['savitri', 'Then grant me this, <i>Dharmaraja</i>: let me be the mother of a hundred strong sons.', 'clever'],
   ['yama', '<i>Tathastu</i>. So be it.', 'respect'],
   ['keeper', 'And he turned to go, glad to be done with her.', 'speaking'],
-  ['savitri', 'Wait. I am a woman of one husband, and I can bear children by no other.', 'clever'],
+  ['savitri', 'Wait. I am a <i>pativrata</i> (a wife completely devoted to her husband), and I can bear children by no other.', 'clever'],
   ['savitri', 'You are the God of Truth. You cannot lie. How am I to have sons, if you take him?', 'clever'],
   ['keeper', 'Yama stopped. He saw what she had done...', 'pleased'],
   ['yama', 'HA! Ha ha. Oh, well argued, little one. Well argued.', 'approving'],
   ['keeper', 'Death threw back his head and laughed, a warm, booming laugh that shook the forest.', 'pleased'],
   ['yama', 'You have won. Take him.', 'approving'],
-  ['keeper', 'He let the noose go. She won him back with words, and the forest bloomed.', 'moved'],
+  ['keeper', 'He let Satyavan go back to life. She won him back with her courage, her wits, her love, and her devotion to her husband.', 'moved'],
 ];
 
-/** And what Savi thinks, standing under a tree that has just come back. */
-export const CLIMAX_SAVI = 'She never once asked for him back. She asked for sons, and then she made him see what that meant. She won with a sentence. I would like to be like that.';
+// NOTHING OVER HER HEAD AFTER THE LAST ONE. She has a thought about every
+// other beat because she is hearing them for the first time. This one ends
+// with the tree coming back into bloom around her, and a bubble of her
+// working out how she feels about it is a caption on a thing that does not
+// need one.

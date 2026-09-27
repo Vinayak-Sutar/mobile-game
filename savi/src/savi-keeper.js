@@ -222,27 +222,21 @@ export const KEEPER = {
   sendoff: {
     repeat: true,
     mark: 'sent',
-    text: 'All five. I felt the last one go. Now, there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
+    text: 'You have cleared all the roots. You will find the sixth mural on the Great Banyan itself. Go and take a look at it.',
     choices: [{ say: 'I will go and look.', to: 'leave', spine: true }],
   },
   farewell: {
     repeat: true,
-    mark: 'blessed',
-    text: 'So she won him with a sentence. I had forgotten that. Forty years I have sat under this tree and I had forgotten the best part of it.',
+    text: 'Savitri was a devoted wife. She went after the Lord of Death himself, and by her own determination she brought her husband back from death. That is why the women come up and tie their threads on this tree, for the long life of their husbands.',
     choices: [
-      { say: 'It is all back now.', to: 'blessing', spine: true },
-      { say: 'How could you forget it?', to: 'howforget' },
+      { say: 'So that is why they come.', to: 'blessing', spine: true },
     ],
-  },
-  howforget: {
-    text: 'You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell. The village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.',
-    choices: [{ say: 'Somebody heard it today.', to: 'blessing', spine: true }],
   },
   blessing: {
     repeat: true,
     mark: 'blessed',
-    text: 'Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child. You are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.',
-    choices: [{ say: 'I will be here.', to: 'leave', spine: true }],
+    text: 'Look at you. You are fit to keep this tree, child, and I am the old woman who sits by the fire. Let me have that for whatever days are left. From now on, you are the keeper of the Great Banyan.',
+    choices: [{ say: 'It will be my honour.', to: 'leave', spine: true }],
   },
   /** After the credits: whatever is on her mind, and nothing is asked of anyone. */
   idle: { repeat: true, text: '', choices: [{ say: '…', to: 'leave', spine: true }] },
