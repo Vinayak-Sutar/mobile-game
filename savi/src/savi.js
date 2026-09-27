@@ -30,7 +30,10 @@ import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
-import { keys, kdown, actionFor, keyLabel, loadKeys } from './savi-keys.js';
+import { keys, kdown, actionFor, keyLabel, keyLabels, loadKeys } from './savi-keys.js';
+import {
+  initMenu, openMenu, closeMenu, menuOn, menuKey, menuPad, menuPointer, stepMenu, drawMenu, loadSound,
+} from './savi-menu.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import { stage, has, objective, brief, rootDone } from './savi-quest.js';
@@ -629,6 +632,9 @@ const pad = {
   held: false, pressed: false,           // square / R2: the action
   upHeld: false, upPressed: false,       // and the stick, for choosing a reply
   downHeld: false, downPressed: false,
+  leftHeld: false, leftPressed: false,   // and across, for a volume in the menu
+  rightHeld: false, rightPressed: false,
+  menuHeld: false, menuPressed: false,   // options / start: the pause screen
   jumpHeld: false, jumpPressed: false,   // cross
   dashHeld: false, dashPressed: false,   // circle
   beltHeld: false, beltPressed: false,   // L1: the belt
@@ -649,6 +655,8 @@ function pollPad() {
     pad.dashHeld = pad.dashPressed = false;
     pad.beltHeld = pad.beltPressed = false;
     pad.upHeld = pad.upPressed = pad.downHeld = pad.downPressed = false;
+    pad.leftHeld = pad.leftPressed = pad.rightHeld = pad.rightPressed = false;
+    pad.menuHeld = pad.menuPressed = false;
     return;
   }
   const dead = (v) => (Math.abs(v) < 0.24 ? 0 : (v - Math.sign(v) * 0.24) / 0.76);
@@ -667,6 +675,13 @@ function pollPad() {
   const up = my < -0.55, dn = my > 0.55;
   pad.upPressed = up && !pad.upHeld; pad.upHeld = up;
   pad.downPressed = dn && !pad.downHeld; pad.downHeld = dn;
+  const lf = mx < -0.55, rt = mx > 0.55;
+  pad.leftPressed = lf && !pad.leftHeld; pad.leftHeld = lf;
+  pad.rightPressed = rt && !pad.rightHeld; pad.rightHeld = rt;
+  // OPTIONS on a DualSense, START on an Xbox pad: the ninth button, and it was
+  // the only one on a standard pad the game was not already listening to.
+  pad.menuPressed = down(9) && !pad.menuHeld;
+  pad.menuHeld = down(9);
   pad.jumpPressed = jump && !pad.jumpHeld;
   pad.jumpHeld = jump;
   pad.dashPressed = dash && !pad.dashHeld;
@@ -851,6 +866,9 @@ const BTN = {
   jump: { r: 0, x: 0, y: 0, id: -1, on: false },
   dash: { r: 0, x: 0, y: 0, id: -1, on: false },
   belt: { r: 0, x: 0, y: 0, id: -1, on: false, off: true },
+  // The pause button, top right, and only on a phone: a keyboard has escape
+  // and a pad has start, and neither wants a target drawn over the valley.
+  menu: { r: 0, x: 0, y: 0, id: -1, on: false, off: true },
 };
 function layoutButtons() {
   const t = isTouch();
@@ -876,6 +894,10 @@ function layoutButtons() {
   BTN.belt.x = m + BTN.belt.r;
   BTN.belt.y = bottom - BTN.belt.r;
   BTN.belt.off = belt().length < 2;
+  BTN.menu.r = 24 * s;
+  BTN.menu.x = right - BTN.menu.r;
+  BTN.menu.y = m + BTN.menu.r;
+  BTN.menu.off = !t;
 }
 /** Which button a finger landed on, if any. The nearest hit wins. */
 function hitButton(px, py) {
@@ -1281,6 +1303,23 @@ function step(dt) {
   dtSeen = dt;
   world.runTime = st.t;
   pollPad();
+  // THE PAUSE SCREEN STOPS EVERYTHING, the way the belt does - and for the
+  // same reason: a button held down to pick a row must not also swing a broom
+  // on the way out. It cannot be opened over a dialogue, because a dialogue
+  // already has its own way out and its panel is HTML sitting above this
+  // canvas, so the menu would be drawn underneath it.
+  if (pad.menuPressed) {
+    begin();
+    if (menuOn()) closeMenu();
+    else if (!st.talking && !st.reading && !st.wheel && !st.credits) openMenu();
+  }
+  if (menuOn()) {
+    menuPad(pad);
+    stepMenu(dt);
+    stepParticles(dt);
+    holding = false; wasHolding = true; tapDone = true;
+    return;
+  }
   if (pad.pressed) { begin(); if (st.talking || st.reading) advance(); }
   // LEFT AND RIGHT THROUGH A READING, on the d-pad or the stick. The stick
   // has to come back to the middle between pages or one flick runs the whole
@@ -2353,6 +2392,7 @@ function render() {
   drawThought(ctx);
   drawHud();
   drawBelt(ctx);
+  drawMenu(ctx);
   if (st.talking) paintFace();
 }
 
@@ -2588,6 +2628,14 @@ function drawHud() {
       }
     });
 
+  // PAUSE, on a phone only. Two bars, because that is what the symbol is.
+  button(BTN.menu, null, (a) => `rgba(28,22,18,${0.42 + a * 0.2})`, 'rgba(240,226,203,0.5)', 0, (b) => {
+    ctx.fillStyle = 'rgba(240,226,203,0.9)';
+    const w = b.r * 0.17, h = b.r * 0.62;
+    ctx.fillRect(b.x - w * 2.1, b.y - h / 2, w, h);
+    ctx.fillRect(b.x + w * 1.1, b.y - h / 2, w, h);
+  });
+
   // HER BELT, showing whatever is in her hands right now.
   button(BTN.belt, null, (a) => `rgba(28,22,18,${0.42 + a * 0.2})`, 'rgba(255,190,120,0.6)', 0, (b) => {
     drawToolIcon(ctx, st.equip, b.x, b.y + b.r * 0.07, b.r * 1.1, st.equip === 'lamp' ? st.ember : 1);
@@ -2684,7 +2732,8 @@ function drawBelt(ctx) {
   ctx.fillStyle = 'rgba(240,226,203,0.36)';
   ctx.fillText(pad.on
     ? 'stick to choose · square to take it · L1 to close'
-    : 'tap one, or A and D · E to take it · TAB to close', view.w / 2, y + R + 76);
+    : `tap one, or ${keyLabels('left')} and ${keyLabels('right')} · ${keyLabel('interact')} to take it`
+      + ` · ${keyLabel('belt')} to close`, view.w / 2, y + R + 76);
   ctx.textAlign = 'left';
 }
 
@@ -3175,6 +3224,7 @@ function begin() {
   checkOrientation();
   try {
     initAudio(); unlockAudio();
+    loadSound();
     setMusicEnabled(true); setMusicActive(true); setMusicIntensity(0);
     setAmbientTheme(themeById('bhupali'));
   } catch (e) { /* silence is survivable */ }
@@ -3182,6 +3232,7 @@ function begin() {
 
 function main() {
   loadKeys();                 // whatever this player bound last time
+  initMenu({ isTouch, padOn: () => pad.on });
   cv = document.getElementById('game');
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
@@ -3254,6 +3305,11 @@ function main() {
     // table and never will be: they are how a player gets out of a thing.
     const a = actionFor(k);
     const ok = k === 'enter' || a === 'interact' || a === 'jump';   // "yes, that one"
+    // THE MENU TAKES EVERY KEY while it is open. One that fell through would
+    // walk her about behind a screen the player thinks has stopped the world -
+    // and while a key is being REBOUND it has to take them before anything
+    // else, or binding `jump` to the space bar would confirm the row instead.
+    if (menuOn()) { menuKey(k, a); e.preventDefault(); return; }
     if (a === 'belt') {
       // It has to preventDefault whether the belt opens or not, or the browser
       // walks focus off the canvas with Tab and the next key goes nowhere.
@@ -3276,6 +3332,13 @@ function main() {
       else if (a === 'right') beltMove(1);
       else if (k === 'escape' || k === 'q') closeBelt(false);
       else if (ok) closeBelt(true);
+      e.preventDefault();
+      return;
+    }
+    // ESCAPE IS THE PAUSE, and it is not in the key table: it is how a player
+    // gets out of a thing, including out of a menu they have broken.
+    if (k === 'escape') {
+      if (!st.talking && !st.reading && !st.watching) { begin(); openMenu(); }
       e.preventDefault();
       return;
     }
@@ -3306,6 +3369,7 @@ function main() {
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
     const px = e.clientX / sc(), py = e.clientY / sc();
+    if (menuOn()) { menuPointer(px, py); return; }
 
     // The belt, open, owns the whole screen.
     if (st.wheel) {
@@ -3326,6 +3390,7 @@ function main() {
       if (hit === 'jump') jumpWant = BUFFER;
       else if (hit === 'dash') dashWant = true;
       else if (hit === 'belt') openBelt();
+      else if (hit === 'menu') { b.on = false; b.id = -1; openMenu(); }
       return;                                   // 'act' is a HOLD; `holding` reads it
     }
 
@@ -3433,4 +3498,5 @@ window.savi = {
   hold(sec = 1) { keys.add('mouse1'); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete('mouse1'); step(1 / 60); },
   sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add('mouse1'); step(1 / 60); keys.delete('mouse1'); for (let j = 0; j < 34; j++) step(1 / 60); } },
   talkTo, KEEPER,
+  openMenu, closeMenu, menuOn, menuKey, menuPointer, drawMenu,
 };

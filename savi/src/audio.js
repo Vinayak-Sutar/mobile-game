@@ -216,6 +216,15 @@ export const sfx = {
   ui() {
     tone({ freq: 620, type: 'triangle', dur: 0.05, vol: 0.11 });
   },
+  // ONE ROW UP OR DOWN. Quieter and shorter than `ui`, because a list you are
+  // walking with a stick makes this sound a dozen times in a row. savi.js has
+  // called sfx.tick() from the belt since the belt went in and there was no
+  // such function, so moving the selection with a key or a stick threw inside
+  // the keydown handler - a phone never found it, because a thumb taps the
+  // tool it wants directly.
+  tick() {
+    tone({ freq: 1180, type: 'triangle', dur: 0.022, vol: 0.055 });
+  },
   block() {
     tone({ freq: 1400, freq2: 700, type: 'square', dur: 0.08, vol: 0.16 });
     noise({ dur: 0.12, vol: 0.24, freq: 5000, freq2: 1500, type: 'bandpass', q: 2.5 });
