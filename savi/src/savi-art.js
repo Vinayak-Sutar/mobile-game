@@ -1176,6 +1176,34 @@ export function drawSavi(ctx, p, time) {
   ctx.restore();
   }
 
+  // BOTH HANDS ON THE CAPSTAN BAR, and leaning her weight into it.
+  //
+  // `p.crank` is where the grip is, relative to her — so the arms go to the
+  // actual bar rather than to a guess, and as the bar swings round with her
+  // the reach swings with it. A capstan is pushed with the arms out and the
+  // body low behind them; she is eleven, so most of what moves it is her
+  // leaning on it and refusing to stop.
+  if (p.crank) {
+    const gx = p.crank.dx, gy = p.crank.dy;
+    const px2 = -Math.sin(Math.atan2(gy, gx)), py2 = Math.cos(Math.atan2(gy, gx));
+    ctx.strokeStyle = '#c08a5a';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (const d of [-1, 1]) {
+      const sx = px2 * d * 5.5, sy = -15 + py2 * d * 2.5;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo((sx + gx) / 2 + px2 * d * 2, (sy + gy) / 2, gx + px2 * d * 3.4, gy + py2 * d * 1.6);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#c08a5a';                   // her fists on the grip
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(gx + px2 * d * 3.4, gy + py2 * d * 1.6, 2.9, 2.4, 0, 0, TAU);
+      ctx.fill();
+    }
+  }
+
   // Her braid hangs BEHIND her, and which side of the head that is depends on
   // which way she is facing. Coming toward the camera it is on the far side, so
   // it has to be drawn before the head - drawn after, it lay across her face,

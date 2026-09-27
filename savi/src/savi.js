@@ -37,7 +37,7 @@ import { startCinema, updateCinema, drawCinema, pressCinema, cinemaOn } from './
 import { openingFilm } from './savi-open.js';
 import { preload, PORTRAITS, MURALS, keeperMood } from './savi-assets.js';
 import {
-  COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt,
+  COURSE_LEN, PLATFORMS, CAPSTAN, ROOT_AT, atRiver, riverAt, widthAt, capstanGrip, easeCapstan,
   inWall, inShallow, onSolid, leafAt, stepShallows,
   GATE as SLUICE_GATE, windCapstan, gateOpen, gateLift,
   drawCurrent, drawRootBed, drawPlatforms, drawSluice, drawCliffs, inGorge, MOUTH_AT,
@@ -767,7 +767,8 @@ function fallIn() {
  */
 let lastTurn = 0;
 function stepCapstan(dt) {
-  if (drained) return;
+  if (drained) { S.crank = null; return; }
+  easeCapstan(dt);
   // No handle, no capstan. The bar was taken off so the hill folk could not
   // flood the road with it, and the keeper has it.
   if (!has(st, 'crank')) {
@@ -778,6 +779,14 @@ function stepCapstan(dt) {
   }
   const moving = S.speed > 30 && S.z <= 0.5;
   const opened = windCapstan(S.x, S.y, moving);
+  // BOTH HANDS ON THE BAR. She used to walk round the capstan with her arms
+  // by her sides and the thing turned by itself behind her, which read as a
+  // girl jogging in a circle near some machinery. Now the grip is under her
+  // hands and she is drawn leaning into it.
+  if (CAPSTAN.gripping) {
+    const g = capstanGrip(S.x, S.y);
+    S.crank = { dx: g[0] - S.x, dy: g[1] - S.y };
+  } else S.crank = null;
   // A creak of rope for every eighth of a turn, so it sounds like work.
   if (CAPSTAN.turns > lastTurn + 0.125) {
     lastTurn = CAPSTAN.turns;

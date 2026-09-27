@@ -191,7 +191,41 @@ export const ROOT_AT = atRiver(COURSE_LEN - 170, 0);
 
 /** The capstan on the shelf at the head, and the gate it lifts. */
 const capAt = atRiver(COURSE_LEN - 40, 196);
-export const CAPSTAN = { x: capAt[0], y: capAt[1], r: 54, turns: 0, need: 3, wound: 0 };
+export const CAPSTAN = {
+  x: capAt[0], y: capAt[1], r: 54, turns: 0, need: 3, wound: 0,
+  // WHERE THE BAR IS, as against how far it has been WOUND.
+  //
+  // `wound` is the work done and it drives the gate; it cannot be touched to
+  // make a picture look right. But she takes hold of the bar wherever she
+  // happens to be standing, and the bar was pointing somewhere else - so the
+  // drawn arm carries an offset that puts a grip under her hands the moment
+  // she starts pushing, eased in so it does not snap a half-turn.
+  lag: 0, lagTo: 0, gripping: false,
+};
+
+/** The arm ends, in world coordinates, as they are DRAWN. */
+export function capstanArms() {
+  const b = CAPSTAN.wound + CAPSTAN.lag;
+  return [0, Math.PI].map((k) => [
+    CAPSTAN.x + Math.cos(b + k) * 48,
+    CAPSTAN.y + Math.sin(b + k) * 29 - 20,
+  ]);
+}
+
+/** The one nearest a point — which is the one she has hold of. */
+export function capstanGrip(x, y) {
+  const arms = capstanArms();
+  return Math.hypot(x - arms[0][0], y - arms[0][1]) <= Math.hypot(x - arms[1][0], y - arms[1][1])
+    ? arms[0] : arms[1];
+}
+
+/** The lag eases toward wherever she took hold. Called once a frame. */
+export function easeCapstan(dt) {
+  let d = CAPSTAN.lagTo - CAPSTAN.lag;
+  while (d > Math.PI) d -= TAU;
+  while (d < -Math.PI) d += TAU;
+  CAPSTAN.lag += d * Math.min(1, dt * 9);
+}
 const gateAt = atRiver(COURSE_LEN, 0);
 export const GATE = { x: gateAt[0], y: gateAt[1] - 30, w: 28, h: 100 };
 
@@ -230,14 +264,26 @@ export function stepShallows(dt, t, standing) {
 let lastAngle = null;
 export function windCapstan(x, y, moving) {
   const d = Math.hypot(x - CAPSTAN.x, y - CAPSTAN.y);
-  if (d > CAPSTAN.r + 34 || d < 12 || !moving) { lastAngle = null; return false; }
+  if (d > CAPSTAN.r + 34 || d < 12 || !moving) { lastAngle = null; CAPSTAN.gripping = false; return false; }
   const a = Math.atan2(y - CAPSTAN.y, x - CAPSTAN.x);
-  if (lastAngle === null) { lastAngle = a; return false; }
+  if (lastAngle === null) {
+    lastAngle = a;
+    // She has just taken hold. Swing the nearer of the two arms round to her
+    // - the nearer, or the bar makes a half-turn it was never pushed through.
+    let g = a - CAPSTAN.wound;
+    while (g > Math.PI) g -= TAU;
+    while (g < -Math.PI) g += TAU;
+    if (g > Math.PI / 2) g -= Math.PI;
+    if (g < -Math.PI / 2) g += Math.PI;
+    CAPSTAN.lagTo = g;
+    return false;
+  }
   let da = a - lastAngle;
   while (da > Math.PI) da -= TAU;
   while (da < -Math.PI) da += TAU;
   lastAngle = a;
-  if (Math.abs(da) > 0.6) return false;
+  if (Math.abs(da) > 0.6) { CAPSTAN.gripping = false; return false; }
+  CAPSTAN.gripping = true;
   const full = CAPSTAN.need * TAU;
   const before = CAPSTAN.wound;
   CAPSTAN.wound = Math.max(0, Math.min(full, CAPSTAN.wound + da));
@@ -619,18 +665,24 @@ export function drawSluice(ctx, t, drained) {
   // A little creak of movement while it waits, so it looks willing rather than
   // like scenery.
   const idle = gateOpen() ? 0 : Math.sin(t * 1.5) * 0.035;
+  // The post the bar turns on. The bar used to lie eight units off the
+  // ground, which is a thing you trip over rather than a thing you lean on.
+  ctx.strokeStyle = '#5f5340'; ctx.lineWidth = 11; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(0, -20); ctx.stroke();
+  ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(-1, -7); ctx.lineTo(-1, -20); ctx.stroke();
   for (const k of [0, 1]) {
-    const b = C.wound + idle + k * Math.PI;
+    const b = C.wound + C.lag + idle + k * Math.PI;
     const ex = Math.cos(b) * 48, ey = Math.sin(b) * 29;
     ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -6); ctx.lineTo(ex, ey - 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(ex, ey - 18); ctx.stroke();
     ctx.strokeStyle = '#96836a'; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(ex, ey - 8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(ex, ey - 20); ctx.stroke();
     // The grips at the ends, worn pale by however many hands came before hers.
     ctx.fillStyle = '#b3a189';
-    ctx.beginPath(); ctx.ellipse(ex, ey - 8, 6.5, 5, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(ex, ey - 20, 6.5, 5, 0, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#4a4033'; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.ellipse(ex, ey - 8, 6.5, 5, 0, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(ex, ey - 20, 6.5, 5, 0, 0, TAU); ctx.stroke();
   }
   ctx.lineCap = 'butt';
   ctx.fillStyle = '#5f5340';

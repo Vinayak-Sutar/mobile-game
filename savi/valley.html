@@ -144,4 +144,39 @@ panel('The stone fall',
     c.save(); c.translate(x, 240); c.scale(2.4, 2.4); drawSavi(c, p, t); c.restore();
   }
 });
+
+// ---------------------------------------------------------------- the capstan
+panel('Winding the capstan',
+  'Both hands on the bar, walking it round. The grip is where the bar actually is, so the reach swings with it as the capstan turns. She is at 2.1x here.',
+  300, (c, t, W) => {
+  const cy = 122;
+  for (let i = 0; i < 4; i++) {
+    const ox = 96 + i * 168;
+    label(c, ox, 22, ['coming round', 'far side', 'left', 'right'][i]);
+    const a = t * 1.1 + i * (Math.PI / 2);
+    // the bar, as the game draws it: an ellipse, foreshortened
+    const gx = ox + Math.cos(a) * 46, gy = cy + Math.sin(a) * 28 - 20;
+    const fx2 = ox + Math.cos(a + Math.PI) * 46, fy2 = cy + Math.sin(a + Math.PI) * 28 - 20;
+    c.strokeStyle = 'rgba(255,214,170,0.14)';
+    c.lineWidth = 11;
+    c.beginPath(); c.ellipse(ox, cy, 52, 32, 0, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = '#5f5340';
+    c.beginPath(); c.ellipse(ox, cy, 15, 11, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#5f5340'; c.lineWidth = 10; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(ox, cy - 5); c.lineTo(ox, cy - 20); c.stroke();
+    c.strokeStyle = '#7b6a52'; c.lineWidth = 8;
+    c.beginPath(); c.moveTo(fx2, fy2); c.lineTo(gx, gy); c.stroke();
+    c.fillStyle = '#b3a189';
+    c.beginPath(); c.ellipse(gx, gy, 6, 4.6, 0, 0, Math.PI * 2); c.fill();
+    // and her, out on the ring with her hands on that grip
+    const hx = ox + Math.cos(a) * 54, hy = cy + Math.sin(a) * 34;
+    const p = {
+      x: hx, y: hy, face: a + Math.PI / 2, phase: t * 8, speed: 90, act: 0, sweep: 0,
+      broom: false, z: 0, crank: { dx: gx - hx, dy: gy - hy },
+    };
+    c.save(); c.translate(hx, hy); c.scale(2.1, 2.1); c.translate(-hx, -hy);
+    drawSavi(c, p, t);
+    c.restore();
+  }
+});
 </script></body></html>
