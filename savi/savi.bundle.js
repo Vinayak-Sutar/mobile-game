@@ -2210,8 +2210,8 @@
   }
 
   // savi/src/build.js
-  var BUILD = 57;
-  var BUILT = "2026-09-27 23:50";
+  var BUILD = 58;
+  var BUILT = "2026-09-27 23:56";
 
   // savi/src/update.js
   var import_meta = {};
@@ -4841,7 +4841,7 @@
         e.addEventListener("error", () => {
           e.bad = true;
         });
-        e.src = `${BASE}${name}.png`;
+        e.src = `${BASE}${name}.webp`;
       }
       cache.set(name, e);
     }
@@ -4862,9 +4862,6 @@
     "savitri-pleading",
     "savitri-joy",
     "satyavan-warm",
-    "satyavan-tired",
-    "satyavan-gone",
-    "satyavan-waking",
     "yama-proud",
     "yama-stern",
     "yama-caught",

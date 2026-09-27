@@ -21,7 +21,7 @@ export function img(name) {
       e.decoding = 'async';
       e.addEventListener('load', () => { e.ok = e.naturalWidth > 0; });
       e.addEventListener('error', () => { e.bad = true; });
-      e.src = `${BASE}${name}.png`;
+      e.src = `${BASE}${name}.webp`;
     }
     cache.set(name, e);
   }
@@ -53,7 +53,7 @@ export function cover(ctx, im, x, y, w, h) {
 /** Every file the game will want, so they can all be asked for at boot. */
 export const PORTRAITS = [
   'savitri-resolute', 'savitri-grieving', 'savitri-clever', 'savitri-pleading', 'savitri-joy',
-  'satyavan-warm', 'satyavan-tired', 'satyavan-gone', 'satyavan-waking',
+  'satyavan-warm',
   'yama-proud', 'yama-stern', 'yama-caught', 'yama-respect', 'yama-approving',
   'narada-grave', 'narada-wry',
   'keeper-weary', 'keeper-speaking', 'keeper-hopeful', 'keeper-pleased', 'keeper-moved',

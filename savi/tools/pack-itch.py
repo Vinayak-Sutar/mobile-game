@@ -100,11 +100,11 @@ def main():
 
     missing = []
     for n in names:
-        src = os.path.join(SAVI, 'ASSETS', n + '.png')
+        src = os.path.join(SAVI, 'ASSETS', n + '.webp')
         if not os.path.exists(src):
             missing.append(n)
             continue
-        shutil.copy2(src, os.path.join(OUTD, 'ASSETS', n + '.png'))
+        shutil.copy2(src, os.path.join(OUTD, 'ASSETS', n + '.webp'))
     if missing:
         print('MISSING art the game asks for: %s' % ', '.join(missing))
         sys.exit(1)
