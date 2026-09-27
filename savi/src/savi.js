@@ -572,7 +572,10 @@ let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay =
 // still the shape the window had BEFORE and a prompt raised on them used to
 // stick with nothing able to clear it.
 
-const isTouch = touchLike;
+// `?touch=1` forces the phone's controls on, so the layout can be looked at
+// on a desktop without guessing at it.
+const forceTouch = typeof location !== 'undefined' && /[?&]touch=1/.test(location.search);
+const isTouch = () => forceTouch || touchLike();
 
 function isPortraitTouch() {
   if (!isTouch()) return false;
@@ -588,7 +591,22 @@ function checkOrientation() {
   rotateEl.classList.toggle('on', st.started && isPortraitTouch());
 }
 const keys = new Set();
-const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
+/**
+ * TOUCH, AND WHY IT WAS BROKEN.
+ *
+ * There was ONE pointer id for the whole game - the steering thumb and the
+ * action ring shared it. Press the ring, then put a second thumb down to
+ * walk, and the stick overwrites `touch.id`; lift the ring finger and the
+ * release is ignored because its id no longer matches, so `touch.ring` stays
+ * down FOR EVER. From that moment she sweeps without stopping and is held at
+ * forty-two per cent speed by her own broom. That is the "we are sweeping,
+ * we cannot move" - it was not a feel problem, it was one shared variable.
+ *
+ * Now the stick owns one finger and every button owns its own, and a release
+ * is routed to whichever of them that finger belongs to.
+ */
+const touch = { on: false, id: -1, ox: 0, oy: 0, x: 0, y: 0 };
+const STICK_MAX = 62;              // how far the knob travels before it drags
 
 // A controller, any controller. A DualSense, an Xbox pad and anything else
 // that speaks the standard mapping all arrive here the same way: the left
@@ -610,7 +628,19 @@ function pollPad() {
   let gp = null;
   for (const g of list) if (g && g.connected) { gp = g; break; }
   pad.on = !!gp;
-  if (!gp) { pad.mx = 0; pad.my = 0; pad.held = false; pad.pressed = false; pad.jumpHeld = false; pad.jumpPressed = false; return; }
+  if (!gp) {
+    // EVERY flag, not four of them. A pad that went away mid-press used to
+    // leave dashPressed or beltPressed stuck true, and the game would dash,
+    // or open her belt, on every frame for the rest of the session. That is
+    // the "controller is inconsistent".
+    pad.mx = 0; pad.my = 0;
+    pad.held = pad.pressed = false;
+    pad.jumpHeld = pad.jumpPressed = false;
+    pad.dashHeld = pad.dashPressed = false;
+    pad.beltHeld = pad.beltPressed = false;
+    pad.upHeld = pad.upPressed = pad.downHeld = pad.downPressed = false;
+    return;
+  }
   const dead = (v) => (Math.abs(v) < 0.24 ? 0 : (v - Math.sign(v) * 0.24) / 0.76);
   let mx = dead(gp.axes[0] || 0), my = dead(gp.axes[1] || 0);
   const b = gp.buttons;
@@ -788,12 +818,68 @@ function startDash() {
     if (u.m === MAT.leaves && u.d > 0.2) pushLitter(S.x, S.y + 8, 58, Math.cos(dashDir), Math.sin(dashDir), 9);
   }
 }
-// Three rings in a controller's diamond, bottom right: ACTION on the left where
-// square is, JUMP below where cross is, DASH on the right where circle is.
-const ring = { x: 0, y: 0, r: 42 };
-const jumpRing = { x: 0, y: 0, r: 38 };
-const dashRing = { x: 0, y: 0, r: 38 };
-const beltRing = { x: 0, y: 0, r: 30, on: false };
+/**
+ * THE ON-SCREEN CONTROLS, in a controller's diamond bottom right: ACTION
+ * where square is, JUMP below at cross, DASH above at circle, and her belt
+ * off on the left.
+ *
+ * Laid out from the viewport every frame rather than from four hard-coded
+ * offsets, and BIGGER ON A TOUCH SCREEN - the old ones were thirty-two
+ * pixels across on a phone, which is under half what a thumb needs, and they
+ * sat in fixed pixel positions that crowded the corner on a small screen and
+ * floated in the middle of nowhere on a large one.
+ */
+const BTN = {
+  act: { r: 0, x: 0, y: 0, id: -1, on: false },
+  jump: { r: 0, x: 0, y: 0, id: -1, on: false },
+  dash: { r: 0, x: 0, y: 0, id: -1, on: false },
+  belt: { r: 0, x: 0, y: 0, id: -1, on: false, off: true },
+};
+function layoutButtons() {
+  const t = isTouch();
+  // A thumb is about nine millimetres of certainty. On a phone that is
+  // forty-odd CSS pixels of radius, and it does not get smaller because the
+  // window did - it scales with the short side and stops.
+  const s = t ? clamp(view.h / 400, 1, 1.55) : 1;
+  // A margin that is a fraction of the screen, not a fixed number of view
+  // units: thirty of those is fifteen real pixels on a phone, which is
+  // underneath the notch on half of them.
+  const m = t ? Math.max(34, view.w * 0.04) : 22;
+  BTN.act.r = (t ? 44 : 38) * s;
+  BTN.jump.r = (t ? 35 : 32) * s;
+  BTN.dash.r = (t ? 33 : 32) * s;
+  BTN.belt.r = (t ? 32 : 27) * s;
+  const right = view.w - m, bottom = view.h - m;
+  BTN.jump.x = right - BTN.jump.r;
+  BTN.jump.y = bottom - BTN.jump.r;
+  BTN.act.x = BTN.jump.x - BTN.jump.r - BTN.act.r - 8;
+  BTN.act.y = bottom - BTN.act.r - BTN.jump.r * 0.55;
+  BTN.dash.x = right - BTN.dash.r;
+  BTN.dash.y = BTN.jump.y - BTN.jump.r - BTN.dash.r - 14;
+  BTN.belt.x = m + BTN.belt.r;
+  BTN.belt.y = bottom - BTN.belt.r;
+  BTN.belt.off = belt().length < 2;
+}
+/** Which button a finger landed on, if any. The nearest hit wins. */
+function hitButton(px, py) {
+  let best = null, bd = 1e9;
+  for (const k of Object.keys(BTN)) {
+    const b = BTN[k];
+    if (b.off) continue;
+    const d = Math.hypot(px - b.x, py - b.y);
+    // A generous skirt round each one: a thumb that lands a few pixels wide
+    // of a button meant that button, not a walk.
+    if (d < b.r * 1.22 && d < bd) { bd = d; best = k; }
+  }
+  return best;
+}
+function releaseButton(id) {
+  for (const k of Object.keys(BTN)) {
+    const b = BTN[k];
+    if (b.id === id) { b.id = -1; b.on = false; return k; }
+  }
+  return null;
+}
 let beltSlots = [];
 
 /**
@@ -885,7 +971,7 @@ function stepStroke(dt) {
   const k = stroke.t / total;
   // The broom goes from one side of her to the other over the whole stroke.
   S.sweep = stroke.side * Math.cos(clamp01(k) * Math.PI) * 0.95;
-  S.act = 1;
+  S.act = total - stroke.t + 0.04;
   const biting = stroke.t > STROKE.wind && stroke.t < STROKE.wind + STROKE.work;
   if (biting) {
     const a = S.face + S.sweep * 0.7;
@@ -949,7 +1035,7 @@ function actHold(dt) {
     }
     return;
   }
-  S.act = 1;
+  S.act = 0.14;
   S.sweep = Math.sin(st.t * 3) * 0.12;
   // Thorn DRAWS BACK from warmth - it is not being cut - so it goes faster than
   // dead ground, which has to be burned off.
@@ -1141,8 +1227,13 @@ function moveVector() {
   if (keys.has('a') || keys.has('arrowleft')) mx -= 1;
   if (keys.has('d') || keys.has('arrowright')) mx += 1;
   if (touch.on) {
+    // THE RING YOU SEE IS THE THROTTLE. It used to divide by a flat fifty-four
+    // CLIENT pixels while the ring is drawn at STICK_MAX in VIEW units, so on
+    // a phone the knob sat on the rim - which looks like full tilt - at about
+    // sixty per cent of her speed. Same number, same units, both ends.
     const dx = touch.x - touch.ox, dy = touch.y - touch.oy, d = Math.hypot(dx, dy);
-    if (d > 10) { mx += dx / Math.max(d, 54); my += dy / Math.max(d, 54); }
+    const lim = STICK_MAX * (view.scale || 1);
+    if (d > lim * 0.12) { mx += dx / Math.max(d, lim); my += dy / Math.max(d, lim); }
   }
   mx += pad.mx; my += pad.my;
   const m = Math.hypot(mx, my);
@@ -1192,7 +1283,7 @@ function step(dt) {
   if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) skipCinema();
   held = pad.jumpHeld || keys.has(' ');
   if (pad.dashPressed) { begin(); dashWant = true; }
-  holding = keys.has('e') || touch.ring || pad.held;   // space is the jump now
+  holding = keys.has('e') || BTN.act.on || pad.held;   // space is the jump now
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
   // ONE press, and this is who gets it. The order matters: the broom comes
@@ -1310,7 +1401,12 @@ function step(dt) {
   const air = S.z > 0.5;
   const drag = air || !under.m ? 0 : MATS[under.m].drag * Math.min(1, under.d);
   const wet = !air && water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
-  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1) * (carried ? 0.62 : 1);
+  // SWEEPING SLOWS HER, IT DOES NOT ANCHOR HER. `S.act` used to be set to 1
+  // and counted down at one a second, so a stroke that lasts under four
+  // tenths held her at forty-two per cent for a WHOLE SECOND - and since
+  // holding the button repeats the stroke, that was for ever. It is set to
+  // the length of the thing it is timing now, and the brake is lighter.
+  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.58 : 1) * (carried ? 0.62 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
   if (dashT > 0) {
     dashT -= dt;
@@ -2285,10 +2381,18 @@ function drawWaypoint(ctx) {
 }
 
 function drawHud() {
-  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+  // TEXT THE SIZE OF TEXT. The world is drawn at about 1550 view units wide
+  // whatever the screen is, so on an eight-hundred-pixel phone a thirteen
+  // unit font is under seven real pixels - unreadable, and the reason the
+  // whole thing felt like a desktop game squinted at. Everything written on
+  // the screen scales with the same factor the buttons do.
+  const F = isTouch() ? clamp(view.h / 400, 1, 1.55) : 1;
+  const fnt = (px) => `600 ${Math.round(px * F)}px "Segoe UI", Roboto, system-ui, sans-serif`;
+  const L = Math.round(22 * F);
+  ctx.font = fnt(13);
   ctx.textAlign = 'left';
   ctx.fillStyle = 'rgba(240,226,203,0.8)';
-  ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, 22, 30);
+  ctx.fillText(`${st.count} of ${ROOTS.length} roots awake`, L, 30 * F);
   // WHAT SHE IS DOING, in one line, from one place - so these words and the
   // arrow at the edge of the screen can never disagree with each other.
   const job = objective(st, ROOTS, WOMAN, TREE, S, GORGE);
@@ -2298,19 +2402,19 @@ function drawHud() {
     const near = cur2 && st.briefed && Math.hypot(S.x - cur2.at.x, S.y - cur2.at.y) < 460;
     const pc = near && (cur2.mat === 'leaves' || cur2.mat === 'snow')
       ? ` — ${Math.min(99, Math.round(clamp01(fraction(cur2) / 0.8) * 100))}% uncovered` : '';
-    ctx.fillText(job.text + pc, 22, 50);
+    ctx.fillText(job.text + pc, L, 50 * F);
   }
   // This bar is the COAL burning down, and nothing else. The broom never runs
   // out - it is a broom.
   if (st.hasEmber) {
     ctx.fillStyle = 'rgba(240,226,203,0.55)';
-    ctx.font = '600 10px "Segoe UI", Roboto, system-ui, sans-serif';
-    ctx.fillText('COAL', 22, 66);
-    ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.font = fnt(10);
+    ctx.fillText('COAL', L, 66 * F);
+    ctx.font = fnt(13);
     ctx.fillStyle = 'rgba(255,170,80,0.26)';
-    ctx.fillRect(56, 59, 88, 7);
+    ctx.fillRect(56 * F, 59 * F, 88 * F, 7 * F);
     ctx.fillStyle = `rgba(255,${(150 + st.ember * 70) | 0},${(60 + st.ember * 70) | 0},0.95)`;
-    ctx.fillRect(56, 59, 88 * st.ember, 7);
+    ctx.fillRect(56 * F, 59 * F, 88 * F * st.ember, 7 * F);
   }
 
   if (toast) {
@@ -2320,7 +2424,7 @@ function drawHud() {
       ctx.textAlign = 'center';
       ctx.globalAlpha = Math.min(1, (3.4 - toast.t) * 1.6);
       ctx.fillStyle = 'rgba(240,226,203,0.9)';
-      ctx.fillText(toast.text, view.w / 2, 76);
+      ctx.fillText(toast.text, view.w / 2, 76 * F);
       ctx.globalAlpha = 1;
       ctx.textAlign = 'left';
     }
@@ -2328,71 +2432,41 @@ function drawHud() {
   if (st.prompt) {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,214,170,0.92)';
-    ctx.fillText(st.prompt, view.w / 2, view.h - 54);
+    ctx.font = fnt(isTouch() ? 14 : 13);
+    ctx.fillText(st.prompt, view.w / 2, view.h - (isTouch() ? 132 * F : 54));
+    ctx.font = fnt(13);
     ctx.textAlign = 'left';
   }
-  if (broom.held) {
-    ctx.fillStyle = 'rgba(200,160,90,0.85)';
-    ctx.fillText('broom in hand', 22, st.hasEmber ? 84 : 66);
-  }
 
 
-  // The jump.
-  jumpRing.x = view.w - 116; jumpRing.y = view.h - 44;
-  ctx.beginPath(); ctx.arc(jumpRing.x, jumpRing.y, 32, 0, TAU);
-  ctx.fillStyle = S.z > 0.5 ? 'rgba(198,226,196,0.4)' : 'rgba(198,226,196,0.2)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(214,238,210,0.7)'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(226,244,222,0.92)';
-  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillText('JUMP', jumpRing.x, jumpRing.y + 3);
-  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.textAlign = 'left';
+  layoutButtons();
+  const ttouch = isTouch();
 
-  // The dash, and how many she has left.
-  dashRing.x = view.w - 52; dashRing.y = view.h - 104;
-  ctx.beginPath(); ctx.arc(dashRing.x, dashRing.y, 32, 0, TAU);
-  ctx.fillStyle = dashStock > 0 ? 'rgba(150,190,225,0.2)' : 'rgba(150,190,225,0.07)';
-  ctx.fill();
-  ctx.strokeStyle = dashStock > 0 ? 'rgba(180,215,245,0.7)' : 'rgba(180,215,245,0.25)';
-  ctx.lineWidth = 2; ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(214,236,255,0.9)';
-  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillText('DASH', dashRing.x, dashRing.y + 3);
-  for (let i = 0; i < DASH_MAX; i++) {
-    ctx.beginPath();
-    ctx.arc(dashRing.x - 8 + i * 16, dashRing.y + 18, 3.2, 0, TAU);
-    ctx.fillStyle = i < dashStock ? 'rgba(190,225,255,0.95)' : 'rgba(190,225,255,0.22)';
+  /** One control: a ring, a label, and whatever it wants drawn inside it. */
+  const button = (b, label, fill, edge, lit, inner) => {
+    if (b.off) return;
+    const k = b.on ? 1 : 0;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU);
+    ctx.fillStyle = 'rgba(16,12,9,0.34)';
     ctx.fill();
-  }
-  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.textAlign = 'left';
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU);
+    ctx.fillStyle = fill(lit + k * 0.28);
+    ctx.fill();
+    ctx.strokeStyle = edge;
+    ctx.lineWidth = 2 + k * 1.4;
+    ctx.stroke();
+    if (inner) inner(b);
+    if (label) {
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(255,240,222,0.95)';
+      ctx.font = `600 ${Math.round(b.r * 0.3)}px "Segoe UI", Roboto, system-ui, sans-serif`;
+      ctx.fillText(label, b.x, b.y + b.r * 0.11);
+      ctx.textAlign = 'left';
+    }
+  };
 
-  // THE BELT RING, over on the left where a thumb that is steering can still
-  // reach it, showing whatever is in her hands right now.
-  beltRing.on = belt().length > 1;
-  if (beltRing.on) {
-    beltRing.x = 56; beltRing.y = view.h - 56;
-    ctx.beginPath(); ctx.arc(beltRing.x, beltRing.y, 27, 0, TAU);
-    ctx.fillStyle = 'rgba(28,22,18,0.5)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,190,120,0.6)'; ctx.lineWidth = 2; ctx.stroke();
-    drawToolIcon(ctx, st.equip, beltRing.x, beltRing.y + 2, 30, st.equip === 'lamp' ? st.ember : 1);
-    ctx.textAlign = 'center';
-    ctx.font = '600 9px "Segoe UI", Roboto, system-ui, sans-serif';
-    ctx.fillStyle = 'rgba(240,226,203,0.6)';
-    ctx.fillText(pad.on ? 'L1' : 'TAB', beltRing.x, beltRing.y + 40);
-    ctx.textAlign = 'left';
-  }
-
-  ring.x = view.w - 180; ring.y = view.h - 104;
-  ctx.beginPath(); ctx.arc(ring.x, ring.y, 38, 0, TAU);
-  ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,190,120,0.75)'; ctx.lineWidth = 2; ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,224,186,0.95)';
+  // ACTION. Its label says what the press would actually DO, which on a
+  // phone is the only instruction there is room for.
   const label = st.prompt.startsWith('take') ? 'TAKE'
     : st.prompt.startsWith('read') ? 'READ'
       : st.prompt.startsWith('speak') ? 'TALK'
@@ -2401,14 +2475,64 @@ function drawHud() {
             : st.prompt.startsWith('haul') || st.prompt.startsWith('it ') ? 'HAUL'
               : st.equip === 'lamp' ? 'HOLD'
                 : st.equip === 'broom' ? 'SWEEP' : 'ACT';
-  ctx.font = '600 12px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillText(label, ring.x, ring.y + 4);
-  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
-  ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText(pad.on
-    ? 'cross to jump · circle to dash · square to act · L1 for her belt'
-    : 'space to jump · shift to dash · E to act · TAB for her belt', view.w / 2, view.h - 22);
-  ctx.textAlign = 'left';
+  button(BTN.act, label, (a) => `rgba(255,179,94,${0.22 + a * 0.2})`, 'rgba(255,190,120,0.8)', holding ? 0.28 : 0);
+
+  button(BTN.jump, 'JUMP', (a) => `rgba(198,226,196,${0.18 + a * 0.2})`,
+    'rgba(214,238,210,0.72)', S.z > 0.5 ? 0.22 : 0);
+
+  button(BTN.dash, 'DASH', (a) => `rgba(150,190,225,${(dashStock > 0 ? 0.18 : 0.06) + a * 0.18})`,
+    dashStock > 0 ? 'rgba(180,215,245,0.72)' : 'rgba(180,215,245,0.26)', 0, (b) => {
+      for (let i = 0; i < DASH_MAX; i++) {
+        ctx.beginPath();
+        ctx.arc(b.x - b.r * 0.22 + i * b.r * 0.44, b.y + b.r * 0.52, b.r * 0.1, 0, TAU);
+        ctx.fillStyle = i < dashStock ? 'rgba(190,225,255,0.95)' : 'rgba(190,225,255,0.22)';
+        ctx.fill();
+      }
+    });
+
+  // HER BELT, showing whatever is in her hands right now.
+  button(BTN.belt, null, (a) => `rgba(28,22,18,${0.42 + a * 0.2})`, 'rgba(255,190,120,0.6)', 0, (b) => {
+    drawToolIcon(ctx, st.equip, b.x, b.y + b.r * 0.07, b.r * 1.1, st.equip === 'lamp' ? st.ember : 1);
+    if (!ttouch) {
+      ctx.textAlign = 'center';
+      ctx.font = '600 9px "Segoe UI", Roboto, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(240,226,203,0.6)';
+      ctx.fillText(pad.on ? 'L1' : 'TAB', b.x, b.y + b.r + 13);
+      ctx.textAlign = 'left';
+    }
+  });
+
+  // THE THUMBSTICK, WHICH YOU CAN SEE. There was one all along and nothing
+  // was ever drawn for it, so on a phone the left half of the screen was an
+  // invisible control you had to be told about. It appears under the thumb
+  // that made it and follows it if the thumb travels past the rim.
+  if (touch.on) {
+    const dx = touch.x / (view.scale || 1) - touch.ox / (view.scale || 1);
+    const dy = touch.y / (view.scale || 1) - touch.oy / (view.scale || 1);
+    const d = Math.hypot(dx, dy);
+    const k = d > 1 ? Math.min(1, d / STICK_MAX) : 0;
+    const ox = touch.ox / (view.scale || 1), oy = touch.oy / (view.scale || 1);
+    ctx.beginPath(); ctx.arc(ox, oy, STICK_MAX, 0, TAU);
+    ctx.fillStyle = 'rgba(18,13,10,0.24)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,214,170,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+    const nx = d > 0 ? dx / d : 0, ny = d > 0 ? dy / d : 0;
+    ctx.beginPath();
+    ctx.arc(ox + nx * k * STICK_MAX, oy + ny * k * STICK_MAX, STICK_MAX * 0.42, 0, TAU);
+    ctx.fillStyle = 'rgba(255,214,170,0.34)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,230,196,0.7)'; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  // The line of keys, for whoever has a keyboard. A phone has labelled
+  // buttons and does not need to be told what a thumb is for.
+  if (!ttouch) {
+    ctx.textAlign = 'center';
+    ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
+    ctx.fillText(pad.on
+      ? 'cross to jump · circle to dash · square to act · L1 for her belt'
+      : 'space to jump · shift to dash · E to act · TAB for her belt', view.w / 2, view.h - 16);
+    ctx.textAlign = 'left';
+  }
 }
 
 /**
@@ -2882,19 +3006,17 @@ function main() {
   // The stick lives on ONE pointer, and it is let go by the WINDOW - lifting a
   // finger over the HUD, off the edge of the screen, or into a dialogue never
   // reached a listener on the canvas, and she would keep walking on her own.
-  const letGo = (e) => {
-    if (e && e.pointerId !== undefined && touch.id !== -1 && e.pointerId !== touch.id) return;
-    touch.on = false; touch.ring = false; touch.id = -1;
-  };
+  const sc = () => view.scale || 1;
+
+  /** A finger went down. The buttons get first refusal, then the stick. */
   cv.addEventListener('pointerdown', (e) => {
     if (cinemaOn()) { skipCinema(); return; }
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
-    const sc0 = view.scale || 1;
-    // The belt first: while it is open the whole screen belongs to it, and a
-    // tap that misses every slot puts it away without changing anything.
+    const px = e.clientX / sc(), py = e.clientY / sc();
+
+    // The belt, open, owns the whole screen.
     if (st.wheel) {
-      const px = e.clientX / sc0, py = e.clientY / sc0;
       for (const b of beltSlots) {
         if (Math.hypot(px - b.x, py - b.y) < b.r) { equipTool(b.id); st.wheel = null; return; }
       }
@@ -2902,29 +3024,66 @@ function main() {
       return;
     }
     if (st.talking || st.reading) { advance(); return; }
-    const sc = view.scale || 1;
-    if (beltRing.on && Math.hypot(e.clientX / sc - beltRing.x, e.clientY / sc - beltRing.y) < beltRing.r) { openBelt(); return; }
-    if (Math.hypot(e.clientX / sc - jumpRing.x, e.clientY / sc - jumpRing.y) < jumpRing.r) { jumpWant = BUFFER; return; }
-    if (Math.hypot(e.clientX / sc - dashRing.x, e.clientY / sc - dashRing.y) < dashRing.r) { dashWant = true; return; }
-    if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {
-      touch.ring = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
+
+    const hit = hitButton(px, py);
+    if (hit) {
+      const b = BTN[hit];
+      b.id = e.pointerId === undefined ? -2 : e.pointerId;
+      b.on = true;
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
-      return;
+      if (hit === 'jump') jumpWant = BUFFER;
+      else if (hit === 'dash') dashWant = true;
+      else if (hit === 'belt') openBelt();
+      return;                                   // 'act' is a HOLD; `holding` reads it
     }
-    if (touch.on) return;                       // a second finger does not steer
-    touch.on = true; touch.id = e.pointerId === undefined ? -1 : e.pointerId;
+
+    // STEERING IS THE LEFT OF THE SCREEN on a phone. It used to be anywhere
+    // that was not a button, so a thumb reaching for DASH and missing sent
+    // her walking off a leaf.
+    if (isTouch() && px > view.w * 0.62) return;
+    if (touch.on) return;                        // a second finger does not steer
+    touch.on = true; touch.id = e.pointerId === undefined ? -2 : e.pointerId;
     touch.ox = e.clientX; touch.oy = e.clientY; touch.x = e.clientX; touch.y = e.clientY;
     try { cv.setPointerCapture(e.pointerId); } catch (err) { /* not every browser */ }
   });
+
   cv.addEventListener('pointermove', (e) => {
-    if (!touch.on || (touch.id !== -1 && e.pointerId !== touch.id)) return;
-    touch.x = e.clientX; touch.y = e.clientY;
+    const id = e.pointerId === undefined ? -2 : e.pointerId;
+    if (touch.on && id === touch.id) {
+      touch.x = e.clientX; touch.y = e.clientY;
+      // A DRAGGING STICK. Past the rim the origin comes along, so a thumb
+      // that wandered while she walked does not end up pinned at full tilt
+      // with no way back to a gentle push.
+      const dx = touch.x - touch.ox, dy = touch.y - touch.oy;
+      const d = Math.hypot(dx, dy), lim = STICK_MAX * sc();
+      if (d > lim) { touch.ox += (dx / d) * (d - lim); touch.oy += (dy / d) * (d - lim); }
+      return;
+    }
+    // A finger that slides well off its button lets go of it, the way a
+    // button on any other screen does.
+    for (const k of Object.keys(BTN)) {
+      const b = BTN[k];
+      if (b.id !== id) continue;
+      if (Math.hypot(e.clientX / sc() - b.x, e.clientY / sc() - b.y) > b.r * 2) { b.id = -1; b.on = false; }
+      return;
+    }
   });
+
+  /** And up. Whichever thing that finger belonged to, and nothing else. */
+  const letGo = (e) => {
+    const id = e && e.pointerId !== undefined ? e.pointerId : -2;
+    if (touch.on && id === touch.id) { touch.on = false; touch.id = -1; return; }
+    releaseButton(id);
+  };
   addEventListener('pointerup', letGo);
   addEventListener('pointercancel', letGo);
   cv.addEventListener('lostpointercapture', letGo);
   // Tabbing away with a key or a finger down used to leave it down for good.
-  const allOff = () => { keys.clear(); touch.on = false; touch.ring = false; touch.id = -1; };
+  const allOff = () => {
+    keys.clear();
+    touch.on = false; touch.id = -1;
+    for (const k of Object.keys(BTN)) { BTN[k].id = -1; BTN[k].on = false; }
+  };
   addEventListener('blur', allOff);
   document.addEventListener('visibilitychange', () => { if (document.hidden) allOff(); });
   overlay.addEventListener('pointerdown', () => { begin(); advance(); });
@@ -2957,6 +3116,7 @@ main();
 window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
   STONES, inTarn, stonesOn, reachStone, takeStone, hurlStone, get carried() { return carried; },
+  BTN, touch, get holding() { return holding; }, layoutButtons, hitButton,
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
   opening() { playOpening(null); },
