@@ -79,8 +79,8 @@ export const ROOTS = [
     name: 'The Seven Steps',
     mural: 'steps',
     hint: 'Northeast, under the snow that never melts.',
-    savi: 'She did not fight him. She argued with him. I did not know anyone was allowed to argue with Death.',
-    keeper: 'Seven steps make a friendship. That is a real saying, child, older than these hills, and he could not deny it without denying himself. She did not out-magic him. She out-remembered him.',
+    savi: 'Savitri was so courageous. Was she able to bring Satyavan back to life?',
+    keeper: 'Savitri used the law of <i>dharma</i> against <i>Dharmaraj</i> himself. She really was a clever girl.',
     lines: [
       ['keeper', 'Savitri did not fear <i>Yamaraj</i>. She fought him with her wits.', 'speaking'],
       ['savitri', 'Lord Yama, according to our <i>dharma</i>, it is said that if two people walk seven steps together, they are friends.', 'clever'],

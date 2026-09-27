@@ -122,7 +122,7 @@ export const KEEPER = {
 
   brief4: {
     repeat: true,
-    text: 'The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either, not while they are sitting on it.',
+    text: 'The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. You will have to clear those stones.',
     choices: [
       { say: 'Then I will move them.', to: 'give4', spine: true },
       { say: 'Nobody cleared it?', to: 'whyash' },
@@ -131,9 +131,8 @@ export const KEEPER = {
   give4: {
     repeat: true,
     give: 'broom',
-    text: 'One at a time, child, and no cleverness about it. There is a spring up there, the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.',
+    text: 'Clear those stones. Throw them in the spring up there, then sweep the grit they leave behind, and you will find the root under it.',
     choices: [
-      { say: 'Into the water? Will that not spoil it?', to: 'giveaway' },
       { say: 'I will go.', to: 'leave', spine: true },
     ],
   },
@@ -210,12 +209,8 @@ export const KEEPER = {
     choices: [{ say: 'I will remember.', to: 'brief2' }],
   },
   whyash: {
-    text: 'I tried. I was already old when it came down and there is only so much an old woman can lift. I got nine of them off and then I sat down on the tenth, and that was the end of that.',
+    text: 'My old body is too weak for that.',
     choices: [{ say: 'I see.', to: 'brief4' }],
-  },
-  giveaway: {
-    text: 'Spoil it? Stones are what a spring is made of, child. It has been running over them since before the tree. Put them back where they came from and it will not notice.',
-    choices: [{ say: 'Then I will go.', to: 'brief4' }],
   },
 
   // --- all five awake, and the end of it in three beats ---------------------------

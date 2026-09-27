@@ -979,7 +979,7 @@ Briefing for root 5 — the stone fall.
 #### KEEP-brief4
 *What she says.*
 
-> The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either, not while they are sitting on it.
+> The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. You will have to clear those stones.
 
 **Remark:**
 
@@ -1004,7 +1004,7 @@ Aside: "Nobody cleared it?" — she tried, and failed.
 #### KEEP-whyash
 *What she says.*
 
-> I tried. I was already old when it came down and there is only so much an old woman can lift. I got nine of them off and then I sat down on the tenth, and that was the end of that.
+> My old body is too weak for that.
 
 **Remark:**
 
@@ -1022,39 +1022,14 @@ She explains throwing the stones in the spring and sweeping after.
 #### KEEP-give4
 *What she says.*
 
-> One at a time, child, and no cleverness about it. There is a spring up there, the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.
+> Clear those stones. Throw them in the spring up there, then sweep the grit they leave behind, and you will find the root under it.
 
 **Remark:**
 
 #### KEEP-give4-c1
-*What Savi can say back.*
-
-> Into the water? Will that not spoil it?
-
-**Remark:**
-
-#### KEEP-give4-c2
 *What Savi can say back — **the gold one**, it moves the story on.*
 
 > I will go.
-
-**Remark:**
-
-### giveaway
-
-Aside: "Into the water? Will that not spoil it?"
-
-#### KEEP-giveaway
-*What she says.*
-
-> Spoil it? Stones are what a spring is made of, child. It has been running over them since before the tree. Put them back where they came from and it will not notice.
-
-**Remark:**
-
-#### KEEP-giveaway-c1
-*What Savi can say back.*
-
-> Then I will go.
 
 **Remark:**
 
@@ -1562,7 +1537,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-steps
 *After reading The Seven Steps.*
 
-> She did not fight him. She argued with him. I did not know anyone was allowed to argue with Death.
+> Savitri was so courageous. Was she able to bring Satyavan back to life?
 
 **Remark:**
 
@@ -1609,7 +1584,7 @@ her. The bit she has been carrying about that beat for forty years.
 #### KREF-steps
 *Her word on The Seven Steps.*
 
-> Seven steps make a friendship. That is a real saying, child, older than these hills, and he could not deny it without denying himself. She did not out-magic him. She out-remembered him.
+> Savitri used the law of <i>dharma</i> against <i>Dharmaraj</i> himself. She really was a clever girl.
 
 **Remark:**
 
@@ -1769,5 +1744,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*219 pieces of text. Generated from the code, so every line above is
+*216 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*
