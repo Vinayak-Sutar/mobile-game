@@ -55,6 +55,15 @@
   #overlay .choice::before{content:'“';opacity:.45;margin-right:4px}
   #overlay .choice::after{content:'”';opacity:.45;margin-left:3px}
   #overlay .more{margin-top:10px;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:var(--dim);opacity:.75}
+  /* Back and forth through a reading. Big enough for a thumb on a phone. */
+  #overlay .readnav{display:flex;align-items:center;gap:14px;margin-top:10px}
+  #overlay .readnav .more{margin:0;flex:1;text-align:center}
+  #overlay .navb{pointer-events:auto;appearance:none;border:1px solid rgba(255,190,120,.5);
+    background:rgba(52,38,26,.72);color:#ffe0ba;font:600 12px/1 'Segoe UI',Roboto,system-ui,sans-serif;
+    letter-spacing:.14em;text-transform:uppercase;padding:11px 16px;border-radius:9px;cursor:pointer;
+    min-width:86px;touch-action:manipulation;transition:background .12s,opacity .12s}
+  #overlay .navb:hover{background:rgba(74,54,36,.85)}
+  #overlay .navb:disabled{opacity:.3;cursor:default}
 
   /* A phone held upright: the fallback where the orientation lock is refused. */
   #rotate{

@@ -363,10 +363,10 @@ function buildGround() {
   put(COURT, MAT.leaves, 0.95, 150);
   for (const r of ROOTS) {
     if (r.mat === 'water') continue;
-    // The thorn and the grit are both SHAPES rather than plots of land. A
-    // rectangle of anything reads as somewhere a surveyor has been.
-    if (r.mat === 'thorn' || r.mat === 'ash') blob(r.patch, MAT[r.mat], 1.0);
-    else put(r.patch, MAT[r.mat], 1.0, 190);
+    // ALL FOUR ARE SHAPES, not plots of land. A rectangle of anything reads
+    // as somewhere a surveyor has been, and the leaves and the snow were the
+    // last two still square.
+    blob(r.patch, MAT[r.mat], 1.0);
   }
   G.cv = document.createElement('canvas');
   G.cv.width = G.w; G.cv.height = G.h;
@@ -550,6 +550,12 @@ const st = {
   // she has been GIVEN and never loses; `equip` is the one thing she is
   // actually holding, which used to be "all of them at once, for ever".
   equip: null, stowed: null, wheel: null,
+  // SHE STANDS AND WATCHES THE WATER GO. From the moment the gate lifts to
+  // the moment the tree has something to tell her, the valley is doing the
+  // work and she is not: no walking, no jumping, no sweeping. It is the one
+  // thing in the game she has set off and cannot help with, and wandering
+  // away mid-flood threw the whole beat away.
+  watching: false, watchT: 0,
   talking: null, reading: null, metKeeper: false,
   nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
 };
@@ -632,6 +638,7 @@ function pollPad() {
 }
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
 let beltAxis = false;         // the stick has to come back to centre between picks
+let readAxis = false;         // and the same, turning the pages of a reading
 let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
 let canopySee = 1;         // how much of the Banyan's crown is showing
@@ -750,6 +757,7 @@ function stepCapstan(dt) {
   // Open. The hollow empties down it, and the land itself changes.
   sfx.bossDown();
   drained = true;
+  st.watching = true; st.watchT = 0;
   terrain.invalidate(2700, 1200, 5200, 3200);
   terrain.warm(camera.x, camera.y, view.w, view.h);
   water.splash(SLUICE_GATE.x, SLUICE_GATE.y, 420, 4.4);
@@ -758,7 +766,7 @@ function stepCapstan(dt) {
 }
 
 function startDash() {
-  if (dashT > 0 || dashStock <= 0 || st.talking || st.reading || carried) return;
+  if (dashT > 0 || dashStock <= 0 || st.talking || st.reading || carried || st.watching) return;
   const mv = moveVector();
   const m = Math.hypot(mv.x, mv.y);
   dashDir = m > 0.15 ? Math.atan2(mv.y, mv.x) : S.face;
@@ -841,7 +849,7 @@ let strokeN = 0;                                        // so only every other o
  * litter that lies everywhere - only a real DRIFT.
  */
 function beginStroke() {
-  if (stroke || st.talking || st.reading) return false;
+  if (stroke || st.talking || st.reading || st.watching) return false;
   // The jam is hauled, never swept.
   if (!drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) return false;
   // A BROOM IN HER HAND ALWAYS SWEEPS. It used to refuse unless it found
@@ -913,7 +921,7 @@ function stepStroke(dt) {
 
 /** Held down: the coal out at thorn or dead ground. */
 function actHold(dt) {
-  if (st.talking || st.reading || stroke) return;
+  if (st.talking || st.reading || stroke || st.watching) return;
   if (tapDone) return;
   if (st.equip !== 'lamp') return;            // it is on her belt, not in her hand
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
@@ -1009,7 +1017,7 @@ function belt() {
 }
 
 function openBelt() {
-  if (st.talking || st.reading || cinemaOn()) return;
+  if (st.talking || st.reading || st.watching || cinemaOn()) return;
   const b = belt();
   if (b.length < 2) return;                   // nothing to choose between yet
   const i = b.findIndex((t) => t.id === st.equip);
@@ -1126,6 +1134,7 @@ function carve(x, y, a, r, arc, power, m) {
 
 function moveVector() {
   if (forceMove) return forceMove;
+  if (st.watching) return { x: 0, y: 0 };
   let mx = 0, my = 0;
   if (keys.has('w') || keys.has('arrowup')) my -= 1;
   if (keys.has('s') || keys.has('arrowdown')) my += 1;
@@ -1146,6 +1155,15 @@ function step(dt) {
   world.runTime = st.t;
   pollPad();
   if (pad.pressed) { begin(); if (st.talking || st.reading) advance(); }
+  // LEFT AND RIGHT THROUGH A READING, on the d-pad or the stick. The stick
+  // has to come back to the middle between pages or one flick runs the whole
+  // legend past her.
+  const page = st.reading ? stepReading : (st.talking && !st.talking.keeper ? stepTalk : null);
+  if (page) {
+    if (pad.mx < -0.55 && !readAxis) { page(-1); readAxis = true; }
+    else if (pad.mx > 0.55 && !readAxis) { page(1); readAxis = true; }
+    else if (Math.abs(pad.mx) < 0.3) readAxis = false;
+  } else readAxis = false;
   // A CONVERSATION ON A CONTROLLER. The choices were pointer-only, so with a
   // pad in your hands the game simply stopped at the first thing she asks.
   if (st.talking && st.talking.keeper) {
@@ -1185,7 +1203,7 @@ function step(dt) {
     // WHO GETS THE PRESS, and the order is the whole of it. Reading a mural
     // used to sit AFTER the broom stroke, and since a broom in hand always
     // swings, a player carrying the broom could never read one.
-    const busy = st.talking || st.reading;
+    const busy = st.talking || st.reading || st.watching;
     const yt = !busy && YOUNG.find((q) => q.grow >= 1 && Math.hypot(S.x - q.x, S.y - q.y) < 130);
     const atKeeper = !busy && Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 104;
     if (yt) {
@@ -1228,7 +1246,7 @@ function step(dt) {
   coyote = grounded ? COYOTE : Math.max(0, coyote - dt);
   jumpWant = Math.max(0, jumpWant - dt);
   // Both hands are full. A stone is a real thing to be holding.
-  if (carried) jumpWant = 0;
+  if (carried || st.watching) jumpWant = 0;
   if (jumpWant > 0 && (grounded || coyote > 0)) startJump();
   if (S.z > 0 || S.vz !== 0) {
     // Letting go early cuts it short - ONCE, on the frame she lets go. Applied
@@ -1431,12 +1449,15 @@ function step(dt) {
   else if (onLeaf) st.prompt = 'jump';
   else if (st.equip === 'broom') st.prompt = 'hold to sweep';
   else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
+  // And nothing else matters while the river is emptying.
+  if (st.watching) st.prompt = 'the water is going — she watches it go';
 
   for (const yt of YOUNG) {
     if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
     // Grown, and the carving lit: NOW it tells what it remembers.
     else if (yt.pending && !st.talking && !st.reading) {
       yt.pending = false;
+      st.watching = false;                  // the tree has something to say: she is free
       sfx.chime();
       say(yt.lines, null, yt.mural);
     }
@@ -1449,6 +1470,13 @@ function step(dt) {
     toast = { t: 0, text: 'the lamp takes a coal from her fire' };
   }
 
+  // Held still, but never for ever: if anything at all goes wrong upstream
+  // of the mural she gets her legs back after fourteen seconds rather than
+  // standing in a river for the rest of the game.
+  if (st.watching) {
+    st.watchT += dt;
+    if (st.watchT > 14) st.watching = false;
+  }
   if (drained && drain < 1) {
     drain = Math.min(1, drain + dt / 5);
     // It goes down the sluice for a few seconds, and hard.
@@ -1519,25 +1547,54 @@ function step(dt) {
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
   st.warmth = clamp01(0.2 + (st.count / ROOTS.length) * 0.58 + st.bloomK * 0.22);
 
-  const tx = clamp(S.x - view.w / 2, 0, Math.max(0, V.w - view.w));
-  const ty = clamp(S.y - view.h / 2, 0, Math.max(0, V.h - view.h));
+  // While the water goes, the shot leans off her and down the river toward
+  // the root coming up out of it - she is not the thing to be looking at.
+  const look = st.watching ? clamp01(st.watchT / 1.6) * 0.42 : 0;
+  const cx = S.x + (ROOT_AT[0] - S.x) * look;
+  const cy = S.y + (ROOT_AT[1] - S.y) * look;
+  const tx = clamp(cx - view.w / 2, 0, Math.max(0, V.w - view.w));
+  const ty = clamp(cy - view.h / 2, 0, Math.max(0, V.h - view.h));
   const f = 1 - Math.exp(-5 * dt);
   camera.x += (tx - camera.x) * f;
   camera.y += (ty - camera.y) * f;
 }
 
 /** The whole burden lets go at once. Used when she reaches a root under it. */
+/**
+ * THE LAST OF IT COMES OFF THE ROOT — and it comes off in the shape it was
+ * laid in, which is the whole of this.
+ *
+ * It used to walk the patch RECTANGLE and set every cell of it to nothing.
+ * Two things were wrong with that and both of them showed. The patch is laid
+ * down as a lumpy blob with a soft margin, so zeroing the rectangle inside it
+ * cut a PERFECT SQUARE out of a round drift and left the margin standing
+ * round the outside of it like a picture frame. And for the leaves it went
+ * to bare earth, in a valley carpeted everywhere else in a thin litter - so
+ * the square was bare ground as well as square.
+ *
+ * Now it takes the same falloff `blob` used, so the middle goes completely
+ * and the rim feathers away to nothing; and the leaves come off down to the
+ * ordinary litter that lies over the whole valley, not down to the soil.
+ */
 function wither(p, m) {
-  const i0 = Math.max(0, (p.x / CELL) | 0), i1 = Math.min(G.w - 1, ((p.x + p.w) / CELL) | 0);
-  const j0 = Math.max(0, (p.y / CELL) | 0), j1 = Math.min(G.h - 1, ((p.y + p.h) / CELL) | 0);
+  if (!p.w) return;
+  const floor = m === MAT.leaves ? LITTER : 0;
+  const gx = p.w * 0.45, gy = p.h * 0.45;
+  const i0 = Math.max(0, ((p.x - gx) / CELL) | 0), i1 = Math.min(G.w - 1, ((p.x + p.w + gx) / CELL) | 0);
+  const j0 = Math.max(0, ((p.y - gy) / CELL) | 0), j1 = Math.min(G.h - 1, ((p.y + p.h + gy) / CELL) | 0);
   for (let j = j0; j <= j1; j++) {
     for (let i = i0; i <= i1; i++) {
       const q = j * G.w + i;
       if (G.mat[q] !== m) continue;
-      if (G.dep[q] > 0.05 && Math.random() < 0.05) {
+      const k = clamp01(thicket(i * CELL + 7, j * CELL + 7, p) * 1.2);
+      if (k <= 0.02) continue;
+      const want = Math.max(floor, G.dep[q] * (1 - k));
+      if (want >= G.dep[q]) continue;
+      if (G.dep[q] > 0.05 && Math.random() < 0.05 * k) {
         spark(i * CELL, j * CELL, 1, { col: MATS[m].col, sp0: 20, sp1: 90, l0: 0.8, l1: 1.8, s0: 3, s1: 7, lift: 40 });
       }
-      G.dep[q] = 0; G.base[q] = 0;
+      G.dep[q] = want;
+      G.base[q] = Math.min(G.base[q], want);
     }
   }
 }
@@ -1926,6 +1983,13 @@ function sowScenery() {
     if (nearRiver(x, y, 90) || roadDist(x, y) < 72) continue;
     if (Math.hypot(x - TREE.x, y - TREE.y) < 500) continue;
     if (Math.abs(x - 2600) < 230 && y > 2300) continue;      // keep the avenue clear
+    // NOTHING SCATTERED ON THE STONE FALL. The boon patch is TT.GRAVEL now,
+    // and sowScenery turns every gravel tile into a ROCK - so the field she
+    // is meant to clear was salted with two dozen grey lumps that look
+    // exactly like the ones she can pick up and cannot be picked up at all.
+    // Nobody can be expected to tell those apart, and trying to is the worst
+    // kind of busywork.
+    if (inSoft(x, y, PLACES.boon.patch, 90) > 0) continue;
     let onPatch = false;
     for (const r of ROOTS) if (inSoft(x, y, r.patch, 60) > 0) onPatch = true;
     if (onPatch && Math.random() < 0.72) continue;
@@ -2432,7 +2496,11 @@ function paintTalk() {
     const m = t.mural ? '<canvas id="mural" width="460" height="250"></canvas>' : '';
     body = `${m}<div class="saybar"><canvas class="face" width="220" height="300"></canvas>
       <div class="readtext"><div class="who">${WHO[who] || ''}</div><p>${text}</p>
-      <div class="more">tap to go on</div></div></div>`;
+      <div class="readnav">
+        <button class="navb" id="sayback"${t.i === 0 ? ' disabled' : ''}>&lsaquo; back</button>
+        <div class="more">${t.i + 1} / ${t.lines.length}</div>
+        <button class="navb" id="sayfwd">${t.i === t.lines.length - 1 ? 'done' : 'next &rsaquo;'}</button>
+      </div></div></div>`;
     t.face = who;
   }
   overlay.innerHTML = `<div class="panel">${body}</div>`;
@@ -2456,6 +2524,13 @@ function paintTalk() {
     if (!t.mood && t.face === 'keeper') t.mood = keeperMood(st.count, ROOTS.length, st.ended);
   }
   t.muralCtx = t.mural ? document.getElementById('mural').getContext('2d') : null;
+  // The same two buttons the re-read has, swallowing the press so a tap on
+  // BACK is not also the tap that advances.
+  for (const [id, d] of [['sayback', -1], ['sayfwd', 1]]) {
+    const b = document.getElementById(id);
+    if (!b) continue;
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); stepTalk(d); });
+  }
   if (t.shownAt === undefined) t.shownAt = st.t;
   t.lineAt = st.t;
   paintFace();
@@ -2527,9 +2602,18 @@ function closeTalk() {
 
 /** A tap anywhere: only a recital advances that way. A conversation waits. */
 function advance() {
-  if (st.reading) { stepReading(); return; }
+  if (st.reading) { stepReading(1); return; }
+  stepTalk(1);
+}
+
+/** A step through a recital, forwards or back. Back stops at the first line. */
+function stepTalk(d) {
   const t = st.talking;
   if (!t || t.keeper) return;
+  if (d < 0) {
+    if (t.i === 0) { sfx.click(); return; }
+    t.i--; paintTalk(); sfx.ui(); return;
+  }
   t.i++;
   if (t.i < t.lines.length) { paintTalk(); sfx.ui(); return; }
   closeTalk();
@@ -2556,16 +2640,41 @@ function paintReading() {
       <div class="readbar">
         <canvas id="bigface" width="220" height="300"></canvas>
         <div class="readtext"><div class="who">${WHO[who] || ''}</div><p>${text}</p>
-          <div class="more">${r.i + 1} / ${r.yt.lines.length} &nbsp;·&nbsp; tap to go on</div></div>
+          <div class="readnav">
+            <button class="navb" id="readback"${r.i === 0 ? ' disabled' : ''}>&lsaquo; back</button>
+            <div class="more">${r.i + 1} / ${r.yt.lines.length}</div>
+            <button class="navb" id="readfwd">${r.i === r.yt.lines.length - 1 ? 'done' : 'next &rsaquo;'}</button>
+          </div></div>
       </div>
     </div>`;
   overlay.classList.add('on', 'full');
   drawMural(document.getElementById('bigmural').getContext('2d'), r.yt.mural, 880, 470, st.t);
   drawPortrait(document.getElementById('bigface').getContext('2d'), who, 0, 0, 220, st.t, 1);
+  // The two buttons. They have to swallow the press: the overlay itself
+  // advances on any tap, so a tap on BACK would otherwise go back and then
+  // immediately forward again and nothing would ever happen.
+  for (const [id, d] of [['readback', -1], ['readfwd', 1]]) {
+    const b = document.getElementById(id);
+    if (!b) continue;
+    b.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); stepReading(d); });
+  }
 }
-function stepReading() {
+/**
+ * A step through a reading, forwards or BACK.
+ *
+ * It only ever went forwards, one tap at a time, and a line missed was a
+ * line gone - the legend is the whole reason the game exists and you could
+ * lose a beat of it by tapping twice. Back stops at the first line rather
+ * than closing the panel; forward off the end closes it, which is what a tap
+ * has always done.
+ */
+function stepReading(d = 1) {
   const r = st.reading;
   if (!r) return;
+  if (d < 0) {
+    if (r.i === 0) { sfx.click(); return; }
+    r.i--; paintReading(); sfx.ui(); return;
+  }
   r.i++;
   if (r.i < r.yt.lines.length) { paintReading(); sfx.ui(); return; }
   st.reading = null;
@@ -2697,6 +2806,14 @@ function main() {
       if (st.wheel) closeBelt(false); else openBelt();
       e.preventDefault();
       return;
+    }
+    if (st.reading) {
+      if (k === 'arrowleft' || k === 'a') { stepReading(-1); e.preventDefault(); return; }
+      if (k === 'arrowright' || k === 'd') { stepReading(1); e.preventDefault(); return; }
+    }
+    if (st.talking && !st.talking.keeper) {
+      if (k === 'arrowleft' || k === 'a') { stepTalk(-1); e.preventDefault(); return; }
+      if (k === 'arrowright' || k === 'd') { stepTalk(1); e.preventDefault(); return; }
     }
     if (st.wheel) {
       if (k === 'a' || k === 'arrowleft') beltMove(-1);

@@ -86,9 +86,9 @@ panel('The keeper',
 });
 
 // ---------------------------------------------------------------- the green
-panel('The valley at the end',
-  'A living tree and a dead one, at no bloom, half, and full. The dead ones are the trees standing over the ash and the snow — they have been sticks the whole game.',
-  260, (c, t, W) => {
+panel('The valley at the end, and what a young banyan carries',
+  'A living tree and a dead one, at no bloom, half, and full. The dead ones have been sticks the whole game. On the right, the saplings that come up out of a freed root — each with its own panel of the legend cut into the bole.',
+  290, (c, t, W) => {
   const B = [0, 0.5, 1];
   for (let i = 0; i < 3; i++) {
     const x = 90 + i * 128;
@@ -96,10 +96,11 @@ panel('The valley at the end',
     drawTree(c, { x, y: 150, s: 1.15, seed: 3, dead: false }, t, 1, B[i]);
     drawTree(c, { x, y: 248, s: 1.05, seed: 7, dead: true }, t, 1, B[i]);
   }
+  const MU = ['mural-choice', 'mural-fall', 'mural-pursuit'];
   for (let i = 0; i < 3; i++) {
     const x = 540 + i * 100;
     label(c, x, 20, 'sapling ' + B[i]);
-    drawYoungTree(c, { x, y: 226, grow: 1 }, t, B[i]);
+    drawYoungTree(c, { x, y: 240, grow: 1, mural: MU[i].slice(6) }, t, B[i]);
   }
 });
 

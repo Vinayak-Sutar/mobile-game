@@ -373,42 +373,76 @@ export function drawCanopy(ctx, T, bloom, time, see = 1) {
  * a first aerial root already reaching down, a small crown - and the beat of
  * the legend carved into its bark, which is why it is there.
  */
+/**
+ * THE YOUNG BANYAN, and the panel set into it.
+ *
+ * When a root wakes, an aerial root comes down where the burden was, takes
+ * hold, and is a tree. What the tree HOLDS is the beat of the legend the
+ * Banyan had forgotten, and she reads it off the trunk.
+ *
+ * It used to be a narrow stem with a black rounded box on it and four
+ * horizontal bars inside - a placeholder that read as a door, or a barcode.
+ * The painted murals exist now, so the panel shows the actual picture, small.
+ *
+ * Which means the trunk had to change. A mural is landscape and a stem is a
+ * vertical stick; a wide picture pasted on a narrow pole looks like a sign
+ * nailed to a post. So the bole is what a young banyan's bole actually is:
+ * not one stem but SEVERAL PROP ROOTS ALREADY FUSING, a fluted column half as
+ * wide again as it is deep, with a flat south face. The panel is cut into
+ * that face, the size it would really be, and the flutes run past it either
+ * side - so the picture is part of the tree rather than stuck on it.
+ */
 export function drawYoungTree(ctx, o, time, bloom = 0) {
   const g = clamp01(o.grow), x = o.x, y = o.y;
   const bl = clamp01(bloom);
   if (g <= 0.01) return;
   const h = 128 * g;
+  const bw = 27 * g;                         // half the width of the bole at its foot
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
-  ctx.beginPath(); ctx.ellipse(x + 6, y + 6, 46 * g, 20 * g, 0, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 6, 52 * g, 22 * g, 0, 0, TAU); ctx.fill();
 
-  for (let i = 0; i < 5; i++) {              // roots gripping the old one
-    const a = (i / 5) * TAU + 0.4;
+  for (let i = 0; i < 6; i++) {              // buttress roots gripping the old one
+    const a = (i / 6) * TAU + 0.35;
     ctx.strokeStyle = '#4a3323';
     ctx.lineWidth = 7 * g;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(x, y - 6);
-    ctx.quadraticCurveTo(x + Math.cos(a) * 26 * g, y + Math.sin(a) * 14 * g, x + Math.cos(a) * 48 * g, y + 6 + Math.sin(a) * 26 * g);
+    ctx.moveTo(x + Math.cos(a) * bw * 0.4, y - 6);
+    ctx.quadraticCurveTo(x + Math.cos(a) * 30 * g, y + Math.sin(a) * 15 * g, x + Math.cos(a) * 54 * g, y + 7 + Math.sin(a) * 27 * g);
     ctx.stroke();
   }
-  const bg = ctx.createLinearGradient(x - 16, 0, x + 16, 0);
+
+  // THE BOLE: four columns already grown together, widest at the foot.
+  const wAt = (u) => bw * (1 - u * 0.36);    // u 0 at the ground, 1 at the crown
+  const bg = ctx.createLinearGradient(x - bw, 0, x + bw, 0);
   bg.addColorStop(0, '#7b5838');
-  bg.addColorStop(0.5, '#523a26');
+  bg.addColorStop(0.42, '#5a4029');
   bg.addColorStop(1, '#2f2118');
   ctx.fillStyle = bg;
   ctx.beginPath();
-  ctx.moveTo(x - 15 * g, y);
-  ctx.quadraticCurveTo(x - 11 * g, y - h * 0.5, x - 9 * g, y - h);
-  ctx.lineTo(x + 9 * g, y - h);
-  ctx.quadraticCurveTo(x + 11 * g, y - h * 0.5, x + 15 * g, y);
+  ctx.moveTo(x - wAt(0), y);
+  ctx.quadraticCurveTo(x - wAt(0.5) * 1.04, y - h * 0.5, x - wAt(1), y - h);
+  ctx.lineTo(x + wAt(1), y - h);
+  ctx.quadraticCurveTo(x + wAt(0.5) * 1.04, y - h * 0.5, x + wAt(0), y);
   ctx.closePath();
   ctx.fill();
-  // The first aerial root, already on its way down.
+  // The flutes between the fused columns, which is what makes it a banyan
+  // bole and not a post.
+  ctx.strokeStyle = 'rgba(28,18,12,0.5)';
+  ctx.lineCap = 'round';
+  for (const u of [-0.74, -0.3, 0.3, 0.74]) {
+    ctx.lineWidth = (Math.abs(u) > 0.5 ? 2.6 : 1.8) * g;
+    ctx.beginPath();
+    ctx.moveTo(x + u * wAt(0), y - 2);
+    ctx.quadraticCurveTo(x + u * wAt(0.5) * 1.02, y - h * 0.5, x + u * wAt(1), y - h + 4);
+    ctx.stroke();
+  }
+  // The first new aerial root, already on its way back down.
   ctx.strokeStyle = '#4a3323';
   ctx.lineWidth = 3.4 * g;
   ctx.beginPath();
-  ctx.moveTo(x + 22 * g, y - h * 0.86);
-  ctx.quadraticCurveTo(x + 34 * g + Math.sin(time) * 3, y - h * 0.4, x + 30 * g, y - h * 0.06);
+  ctx.moveTo(x + 30 * g, y - h * 0.86);
+  ctx.quadraticCurveTo(x + 42 * g + Math.sin(time) * 3, y - h * 0.4, x + 38 * g, y - h * 0.06);
   ctx.stroke();
 
   // ITS CROWN IS GREEN FROM THE MOMENT IT SHOWS.
@@ -418,21 +452,16 @@ export function drawYoungTree(ctx, o, time, bloom = 0) {
   // trees. That is exactly backwards. This is not an old tree remembering how
   // to be alive - it is an aerial root that has just taken hold on ground she
   // freed an hour ago, and it is the ONE thing on screen that says the work
-  // is doing something. A brand new shoot coming up the colour of the
-  // problem said nothing at all.
-  //
-  // Bloom still does something here: at the end the greens lift toward new
-  // growth and the blossom comes out, the same as on the Banyan.
+  // is doing something.
   for (let i = 0; i < 9; i++) {
     const a = (i / 9) * TAU;
-    const r = 34 * g;
+    const r = 36 * g;
     const leaf = NEW_LEAF[(i + 1) % NEW_LEAF.length];
     ctx.fillStyle = bl < 0.02 ? leaf : mixHex(leaf, '#7cc255', bl * 0.6);
     ctx.beginPath();
-    ctx.ellipse(x + Math.cos(a) * r + Math.sin(time * 0.7 + i) * 2, y - h - 12 * g + Math.sin(a) * r * 0.6, 26 * g, 20 * g, a, 0, TAU);
+    ctx.ellipse(x + Math.cos(a) * r + Math.sin(time * 0.7 + i) * 2, y - h - 12 * g + Math.sin(a) * r * 0.6, 27 * g, 21 * g, a, 0, TAU);
     ctx.fill();
   }
-  // The light catching the top of it, so it is a mass and not a rosette.
   ctx.fillStyle = 'rgba(214,240,180,0.16)';
   ctx.beginPath();
   ctx.ellipse(x - 10 * g, y - h - 26 * g, 26 * g, 13 * g, -0.2, 0, TAU);
@@ -447,20 +476,48 @@ export function drawYoungTree(ctx, o, time, bloom = 0) {
     }
   }
 
-  // The carving, lit, on the south face of the stem.
-  if (g > 0.75) {
-    const k = (g - 0.75) / 0.25;
+  // THE PANEL, cut into the south face. Sixteen by nine, the mural's own
+  // shape, so the small one on the tree and the big one she reads are the
+  // same picture and not two different things.
+  if (g > 0.7) {
+    const k = clamp01((g - 0.7) / 0.3);
+    const pw = 40 * g, pht = pw * 0.56;
+    const px = x - pw / 2, py = y - h * 0.62;
     ctx.save();
     ctx.globalAlpha = k;
-    glow(ctx, x, y - h * 0.55, 92, 'rgba(255,170,80,0.3)');
-    ctx.fillStyle = '#1d140f';
-    roundRect(ctx, x - 13, y - h * 0.72, 26, h * 0.42, 5);
+    glow(ctx, x, py + pht / 2, 96, 'rgba(255,170,80,0.26)');
+    // The recess it is cut into: a lip of raw wood round a sunk panel.
+    ctx.fillStyle = '#3a2718';
+    roundRect(ctx, px - 3, py - 3, pw + 6, pht + 6, 4);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(255,196,130,0.85)';
-    ctx.lineWidth = 1.6;
+    ctx.fillStyle = '#17100b';
+    roundRect(ctx, px, py, pw, pht, 3);
+    ctx.fill();
+    // The picture. When the painted panel has not arrived - or was never
+    // there - the recess carries the carved bands it always did, so the tree
+    // is never showing a hole.
+    const painted = assetImg(`mural-${o.mural}`);
+    if (painted) {
+      ctx.save();
+      roundRect(ctx, px, py, pw, pht, 3);
+      ctx.clip();
+      assetCover(ctx, painted, px, py, pw, pht);
+      ctx.restore();
+      // Lamplight on it, so it is lit rather than pasted.
+      const lg = ctx.createLinearGradient(px, py, px, py + pht);
+      lg.addColorStop(0, 'rgba(255,196,120,0.22)');
+      lg.addColorStop(1, 'rgba(60,30,10,0.26)');
+      ctx.fillStyle = lg;
+      roundRect(ctx, px, py, pw, pht, 3);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = 'rgba(255,190,120,0.7)';
+      for (let i = 0; i < 3; i++) ctx.fillRect(px + pw * 0.14, py + pht * (0.22 + i * 0.26), pw * 0.72, 1.8 * g);
+    }
+    ctx.strokeStyle = 'rgba(255,196,130,0.9)';
+    ctx.lineWidth = 1.4;
+    roundRect(ctx, px, py, pw, pht, 3);
     ctx.stroke();
-    ctx.fillStyle = 'rgba(255,190,120,0.75)';
-    for (let i = 0; i < 4; i++) ctx.fillRect(x - 8, y - h * 0.66 + i * (h * 0.09), 16, 2.4);
     ctx.restore();
   }
 }
@@ -992,6 +1049,50 @@ export function drawSavi(ctx, p, time) {
   ctx.beginPath(); ctx.ellipse(-4.5 + fx * st * 0.5, 1 + st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.ellipse(4.5 - fx * st * 0.5, 1 - st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
 
+  // A STONE, CARRIED. Both hands under it, held against her.
+  //
+  // The one thing that was wrong with this was the back view. Drawn over the
+  // top of her when she is facing away it sat squarely on her spine and read
+  // as a pack she was wearing. Nothing else about it needed changing: she
+  // holds it in front of her in both hands and that is what it looks like
+  // from every other angle.
+  //
+  // So facing away it is drawn BEHIND her instead, which is where it is -
+  // she is between us and it. Her body takes most of it and what shows is
+  // the rim of it round her sides and a curve of it under her hem, with her
+  // two hands round the edges. That is what carrying something in front of
+  // you looks like from behind, and it cannot be mistaken for a rucksack.
+  const carryStone = () => {
+    const cr = p.carry * 0.58;
+    const cy = (away ? -2 : -11) + Math.abs(Math.sin(ph)) * (walking ? 1.4 : 0) + Math.sin(time * 1.3) * 0.4;
+    ctx.save();
+    ctx.translate(fx * 2.5, cy);
+    for (let i = 0; i < 3; i++) {
+      const a2 = 1.3 + i * 2.2;
+      ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a2) * cr * 0.2, Math.sin(a2) * cr * 0.14, cr * (1 - i * 0.16), cr * (0.78 - i * 0.13), a2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(30,26,22,0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, cr * 0.98, cr * 0.78, 0, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,210,0.2)';
+    ctx.beginPath(); ctx.ellipse(-cr * 0.24, -cr * 0.3, cr * 0.44, cr * 0.22, -0.4, 0, TAU); ctx.fill();
+    ctx.restore();
+  };
+  /** Her hands on it, which go over her whichever side of her it is drawn. */
+  const carryHands = () => {
+    const cr = p.carry * 0.58;
+    const cy = (away ? -2 : -11) + Math.abs(Math.sin(ph)) * (walking ? 1.4 : 0) + Math.sin(time * 1.3) * 0.4;
+    ctx.fillStyle = '#c08a5a';
+    ctx.beginPath(); ctx.ellipse(fx * 2.5 - cr * 0.82, cy + cr * 0.34, 2.8, 2.2, -0.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(fx * 2.5 + cr * 0.82, cy + cr * 0.34, 2.8, 2.2, 0.4, 0, TAU); ctx.fill();
+  };
+  // Facing away, whatever she is carrying is BEHIND her sprite: she is
+  // between us and it. Drawn here, before a stitch of her.
+  if (p.carry && away) carryStone();
+
   // Skirt, swaying with the step.
   const sway = walking ? Math.sin(ph) * 2.2 : 0;
   ctx.fillStyle = '#7b4b52';
@@ -1109,67 +1210,8 @@ export function drawSavi(ctx, p, time) {
     ctx.fillRect(hx - 2.9, -25.2, 1.6, 2);
     ctx.fillRect(hx + 1.3, -25.2, 1.6, 2);
   }
-  // A STONE, CARRIED — ON HER HIP, and always on a hip.
-  //
-  // It used to sit dead centre on her chest. Facing the camera that hid most
-  // of her behind her own load; facing AWAY it sat squarely on her spine and
-  // read as a pack she was wearing, which is the one thing it must not look
-  // like. Nobody carries a rock on their back and nobody carries one in the
-  // middle of their ribs either - a child lugging one holds it against the
-  // hip with both arms round it.
-  //
-  // A hip is OUTSIDE her silhouette from every angle, so the stone is fully
-  // visible whichever way she is turned, she is not hidden behind it, and
-  // from behind it is plainly in her arms and not on her back. Her near arm
-  // comes over the top of it and her far hand takes the weight underneath.
-  if (p.carry) {
-    // NOT AT ITS WORLD SIZE. A stone lying on the ground is drawn at the size
-    // it is; held up against a girl thirty pixels tall, that same circle
-    // covers her from chin to knee.
-    const cr = p.carry * 0.58;
-    const side = Math.abs(fx) > 0.3 ? (fx > 0 ? 1 : -1) : 1;
-    const bx = side * (cr + 2.6) + fx * 1.5;
-    const by = -8 + (walking ? Math.abs(Math.sin(ph)) * 1.3 : 0) + Math.sin(time * 1.3) * 0.35;
-
-    // The far arm first, under the stone, taking the weight.
-    ctx.strokeStyle = '#a8724a';
-    ctx.lineWidth = 2.6;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(side * 4, -15);
-    ctx.quadraticCurveTo(side * 6, by + cr * 0.5, bx - side * cr * 0.4, by + cr * 0.62);
-    ctx.stroke();
-
-    ctx.save();
-    ctx.translate(bx, by);
-    ctx.rotate(side * 0.12);
-    for (let i = 0; i < 3; i++) {
-      const a2 = 1.3 + i * 2.2;
-      ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
-      ctx.beginPath();
-      ctx.ellipse(Math.cos(a2) * cr * 0.2, Math.sin(a2) * cr * 0.14, cr * (1 - i * 0.16), cr * (0.78 - i * 0.13), a2, 0, TAU);
-      ctx.fill();
-    }
-    ctx.strokeStyle = 'rgba(30,26,22,0.55)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.ellipse(0, 0, cr * 0.98, cr * 0.78, 0, 0, TAU); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,240,210,0.2)';
-    ctx.beginPath(); ctx.ellipse(-cr * 0.24, -cr * 0.3, cr * 0.44, cr * 0.22, -0.4, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(122,146,86,0.45)';                 // a bit of lichen on it
-    ctx.beginPath(); ctx.ellipse(cr * 0.36, cr * 0.2, cr * 0.2, cr * 0.13, 0.7, 0, TAU); ctx.fill();
-    ctx.restore();
-
-    // The near arm, over the top of it, and the hands on it.
-    ctx.strokeStyle = '#c08a5a';
-    ctx.lineWidth = 2.8;
-    ctx.beginPath();
-    ctx.moveTo(side * 6, -17);
-    ctx.quadraticCurveTo(bx + side * cr * 0.5, by - cr * 1.1, bx + side * cr * 0.55, by + cr * 0.12);
-    ctx.stroke();
-    ctx.fillStyle = '#c08a5a';
-    ctx.beginPath(); ctx.ellipse(bx + side * cr * 0.6, by + cr * 0.2, 2.7, 2.2, side * 0.4, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(bx - side * cr * 0.45, by + cr * 0.66, 2.6, 2.1, -side * 0.4, 0, TAU); ctx.fill();
-  }
+  if (p.carry && !away) { carryStone(); carryHands(); }
+  if (p.carry && away) carryHands();
 
   if (away) braid();                           // her back is to us: it is in front
 
