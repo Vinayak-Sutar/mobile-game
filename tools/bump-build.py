@@ -45,24 +45,26 @@ def bump(folder, label, staged):
 
 
 def check_level(staged):
-    """Refuse a commit that breaks the crossing.
+    """Refuse a commit that breaks a root.
 
     Three roots in a row shipped unfinishable, each for a different reason, and
-    every one was found by driving the running game for twenty minutes. This
-    runs in about a second.
+    every one was found by driving the running game for twenty minutes. The
+    music shipped wrong for four builds and could only be found by listening.
+    These run in about a second between them.
     """
     if not any(p.startswith('savi/') for p in staged):
         return
-    script = os.path.join(ROOT, 'savi', 'tools', 'check-level.mjs')
-    if not os.path.exists(script):
-        return
-    r = subprocess.run(['node', script], cwd=ROOT, capture_output=True, text=True)
-    if r.returncode != 0:
-        sys.stdout.write(r.stdout)
-        sys.stdout.write(r.stderr)
-        print('')
-        print('The level check failed. Fix it, or commit with --no-verify.')
-        sys.exit(1)
+    for name in ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs'):
+        script = os.path.join(ROOT, 'savi', 'tools', name)
+        if not os.path.exists(script):
+            continue
+        r = subprocess.run(['node', script], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode != 0:
+            sys.stdout.write(r.stdout)
+            sys.stdout.write(r.stderr)
+            print('')
+            print('%s failed. Fix it, or commit with --no-verify.' % name)
+            sys.exit(1)
 
 
 def main():

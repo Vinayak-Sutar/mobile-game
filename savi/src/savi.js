@@ -2453,7 +2453,13 @@ function resize() {
  */
 function playOpening(after) {
   startCinema(openingFilm(), () => {
-    setAmbientTheme(themeById('hearthfields'));
+    // BHUPALI, which is what the title screen was already playing. The id is
+    // 'bhupali'; 'Hearthfields' is only the piece's NAME, and themeById looks
+    // up ids - so `themeById('hearthfields')` quietly returned null, and a
+    // null ambient theme makes the scheduler fall through to the inherited
+    // engine's generic track. The raga stopped the moment the opening film
+    // ended and the whole game played on the wrong music.
+    setAmbientTheme(themeById('bhupali'));
     setMusicIntensity(0.4);
     if (after) after();
   });
