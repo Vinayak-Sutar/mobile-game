@@ -46,7 +46,7 @@ import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
 } from './savi-litter.js';
 import {
-  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawStone, drawVeil,
+  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawStone, drawToolIcon, drawVeil,
   mixHex,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
@@ -546,6 +546,10 @@ const st = {
   // The apprenticeship: how many roots are awake, and whether she has been
   // told about the next one and handed the tool for it. See savi-quest.js.
   done: 0, briefed: false, tools: {}, sawOpening: false,
+  // WHAT IS IN HER HANDS, and the belt she changes it from. `tools` is what
+  // she has been GIVEN and never loses; `equip` is the one thing she is
+  // actually holding, which used to be "all of them at once, for ever".
+  equip: null, stowed: null, wheel: null,
   talking: null, reading: null, metKeeper: false,
   nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
 };
@@ -585,7 +589,7 @@ const touch = { on: false, id: -1, ring: false, ox: 0, oy: 0, x: 0, y: 0 };
 // stick or the d-pad walks, and cross / square / either trigger acts.
 // One button, one verb, and they are where a thumb expects them:
 //   CROSS    jump          CIRCLE  dash
-//   SQUARE   action        TRIANGLE  put the broom down
+//   SQUARE   action        L1        her belt
 const pad = {
   on: false, mx: 0, my: 0,
   held: false, pressed: false,           // square / R2: the action
@@ -593,7 +597,7 @@ const pad = {
   downHeld: false, downPressed: false,
   jumpHeld: false, jumpPressed: false,   // cross
   dashHeld: false, dashPressed: false,   // circle
-  dropHeld: false, dropPressed: false,   // triangle
+  beltHeld: false, beltPressed: false,   // L1: the belt
 };
 function pollPad() {
   const list = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -621,12 +625,13 @@ function pollPad() {
   pad.jumpHeld = jump;
   pad.dashPressed = dash && !pad.dashHeld;
   pad.dashHeld = dash;
-  pad.dropPressed = down(3) && !pad.dropHeld;
-  pad.dropHeld = down(3);
+  pad.beltPressed = down(4) && !pad.beltHeld;
+  pad.beltHeld = down(4);
   pad.pressed = act && !pad.held;
   pad.held = act;
 }
 let forceMove = null, holding = false, wasHolding = false, tapDone = false, actT = 0;
+let beltAxis = false;         // the stick has to come back to centre between picks
 let drain = 0;                // the hollow emptying, once the sluice is open
 let crackT = 0;            // the fire crackles on a slow clock, never per frame
 let canopySee = 1;         // how much of the Banyan's crown is showing
@@ -780,7 +785,8 @@ function startDash() {
 const ring = { x: 0, y: 0, r: 42 };
 const jumpRing = { x: 0, y: 0, r: 38 };
 const dashRing = { x: 0, y: 0, r: 38 };
-const drop = { x: 0, y: 0, r: 30, on: false };
+const beltRing = { x: 0, y: 0, r: 30, on: false };
+let beltSlots = [];
 
 /**
  * The root the tree is reaching with. Only ever a suggestion - it is what is
@@ -843,7 +849,7 @@ function beginStroke() {
   // nothing at all - no swing, no sound, no answer of any kind - which is the
   // one thing a button must never do. The stroke always happens; what it finds
   // is a separate question, answered by the carve.
-  if (!broom.held) return false;
+  if (st.equip !== 'broom') return false;
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   let m = 0, deepest = 0, burny = 0;
   for (let d = 0; d <= 70; d += 14) {
@@ -909,6 +915,7 @@ function stepStroke(dt) {
 function actHold(dt) {
   if (st.talking || st.reading || stroke) return;
   if (tapDone) return;
+  if (st.equip !== 'lamp') return;            // it is on her belt, not in her hand
   const a = S.face, fx = Math.cos(a), fy = Math.sin(a);
   // WHAT IS IN FRONT OF HER, sampled the whole way along her reach.
   //
@@ -976,6 +983,65 @@ function actHold(dt) {
       : { col: ['#ffb35e', '#ff7a2e', '#ffd9a0'], sp0: 110, sp1: 280, l0: 0.34, l1: 0.8, s0: 3, s1: 6, kind: 'ember', lift: 22, angle: a, arc: b.arc, drag: 3.2 });
   }
   crackT -= dt; if (crackT <= 0) { crackT = 0.9 + Math.random() * 0.6; sfx.hiss(); }
+}
+
+// --- THE BELT -------------------------------------------------------------------
+//
+// She was handed a broom, and then a lantern, and from that moment she was
+// holding both of them for ever with no way to put either down. The broom had
+// a Q key that stood it back against the shrine steps two thousand units
+// away; the lantern had nothing at all.
+//
+// So: one press opens a belt - TAB, the left bumper, or the ring on the
+// screen - and she picks what is in her hands out of it, empty hands
+// included. The world stops while it is open, which on a phone is the
+// difference between choosing a tool and fumbling one.
+
+const TOOLS = [
+  { id: null, name: 'empty hands', note: 'nothing in them' },
+  { id: 'broom', name: 'the broom', note: 'sweep what is lying on a root' },
+  { id: 'lamp', name: 'the lantern', note: 'hold the fire out at what will not move' },
+];
+
+/** The ones she has, in belt order. Empty hands is always there. */
+function belt() {
+  return TOOLS.filter((t) => t.id === null || (t.id === 'broom' ? broom.held || has(st, 'broom') : has(st, t.id)));
+}
+
+function openBelt() {
+  if (st.talking || st.reading || cinemaOn()) return;
+  const b = belt();
+  if (b.length < 2) return;                   // nothing to choose between yet
+  const i = b.findIndex((t) => t.id === st.equip);
+  st.wheel = { sel: i < 0 ? 0 : i, t: 0 };
+  sfx.ui();
+}
+
+function closeBelt(take) {
+  const w = st.wheel;
+  st.wheel = null;
+  if (!take || !w) return;
+  const b = belt();
+  const pick = b[Math.max(0, Math.min(b.length - 1, w.sel))];
+  equipTool(pick ? pick.id : null);
+}
+
+function equipTool(id) {
+  if (st.equip === id) { sfx.click(); return; }
+  st.equip = id;
+  // Taking the broom out means fetching it off the shrine steps; putting it
+  // away does NOT send it back there - the belt holds it now.
+  if (id === 'broom') broom.held = true;
+  sfx.pickup();
+  const t = TOOLS.find((q) => q.id === id);
+  toast = { t: 0, text: id ? `she takes ${t.name}` : 'her hands are empty' };
+}
+
+/** One press of left or right, from whichever thing pressed it. */
+function beltMove(d) {
+  const b = belt();
+  st.wheel.sel = (st.wheel.sel + d + b.length) % b.length;
+  sfx.tick();
 }
 
 /** Which way the nearest fire is, in words a child would use. */
@@ -1088,10 +1154,25 @@ function step(dt) {
     if (pad.pressed || pad.jumpPressed) pickSel();
     return;
   }
+  // THE BELT STOPS THE WORLD. Everything below this - the press dispatch, the
+  // walking, the stones, the fire - is skipped while it is open, so a button
+  // held down to choose a tool cannot also swing a broom on the way out.
+  if (pad.beltPressed) { begin(); if (st.wheel) closeBelt(false); else openBelt(); }
+  if (st.wheel) {
+    st.wheel.t += dt;
+    const ax = pad.mx;
+    if (ax < -0.55 && !beltAxis) { beltMove(-1); beltAxis = true; }
+    else if (ax > 0.55 && !beltAxis) { beltMove(1); beltAxis = true; }
+    else if (Math.abs(ax) < 0.3) beltAxis = false;
+    if (pad.pressed || pad.jumpPressed) closeBelt(true);
+    holding = false; wasHolding = true; tapDone = true;
+    stepParticles(dt);
+    return;
+  }
+  beltAxis = false;
   if (pad.jumpPressed) { begin(); if (st.talking || st.reading) advance(); else jumpWant = BUFFER; }
   if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) skipCinema();
   held = pad.jumpHeld || keys.has(' ');
-  if (pad.dropPressed) dropBroom();
   if (pad.dashPressed) { begin(); dashWant = true; }
   holding = keys.has('e') || touch.ring || pad.held;   // space is the jump now
   if (actT > 0) actT -= dt;
@@ -1110,7 +1191,7 @@ function step(dt) {
     if (yt) {
       openReading(yt); tapDone = true;
     } else if (!busy && has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74) {
-      broom.held = true; tapDone = true; sfx.pickup();
+      broom.held = true; st.equip = 'broom'; tapDone = true; sfx.pickup();
     } else if (atKeeper) {
       talkTo(keeperStart(st, ROOTS.length));
       st.metKeeper = true;
@@ -1348,7 +1429,8 @@ function step(dt) {
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
   else if (onLeaf) st.prompt = 'jump';
-  else if (broom.held) st.prompt = 'hold to sweep · Q puts the broom back';
+  else if (st.equip === 'broom') st.prompt = 'hold to sweep';
+  else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
 
   for (const yt of YOUNG) {
     if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
@@ -1747,6 +1829,10 @@ function reachStone() {
 function takeStone(s) {
   carried = s;
   s.held = true;
+  // Both hands. Whatever she was holding goes on her belt and comes back off
+  // it the moment the stone leaves her.
+  st.stowed = st.equip;
+  st.equip = null;
   sfx.pickup();
   const g = groundFx(s.x, s.y);
   if (g) spark(s.x, s.y, 7, { col: g.col, sp0: 20, sp1: 90, l0: 0.4, l1: 1, s0: 3, s1: 7, lift: g.lift, kind: g.kind });
@@ -1756,6 +1842,7 @@ function hurlStone() {
   const s = carried;
   carried = null;
   s.held = false;
+  st.equip = st.stowed; st.stowed = null;
   const a = S.face;
   // A big one does not go as far, which is the only reason to look at which
   // one you are picking up.
@@ -1888,11 +1975,11 @@ function render() {
   drawPlatforms(ctx, st.t, drained);
   drawCliffs(ctx, st.t, camera, view);
 
-  S.broom = broom.held;
+  S.broom = st.equip === 'broom';
   // The lamp is hers from the moment the keeper hands it over, and the coal in
   // it is however much heat is left.
   S.carry = carried ? carried.r : 0;
-  S.lamp = has(st, 'lamp');
+  S.lamp = st.equip === 'lamp';
   S.ember = st.hasEmber ? st.ember : 0;
   if (!broom.held) drawBroom(ctx, broom, st.t);
   for (const yt of YOUNG) drawYoungTree(ctx, yt, st.t, st.bloomK);
@@ -1972,6 +2059,7 @@ function render() {
   ctx.fillRect(0, 0, view.w, view.h);
   drawWaypoint(ctx);
   drawHud();
+  drawBelt(ctx);
   if (st.talking) paintFace();
 }
 
@@ -2152,20 +2240,6 @@ function drawHud() {
     ctx.fillText('broom in hand', 22, st.hasEmber ? 84 : 66);
   }
 
-  // Putting it down, for a thumb and for a pad.
-  drop.on = broom.held;
-  if (drop.on) {
-    drop.x = view.w - 116; drop.y = view.h - 202;
-    ctx.beginPath(); ctx.arc(drop.x, drop.y, 28, 0, TAU);
-    ctx.fillStyle = 'rgba(200,160,90,0.18)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(200,160,90,0.65)'; ctx.lineWidth = 2; ctx.stroke();
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(230,205,160,0.9)';
-    ctx.font = '600 10px "Segoe UI", Roboto, system-ui, sans-serif';
-    ctx.fillText('DROP', drop.x, drop.y + 3);
-    ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
-    ctx.textAlign = 'left';
-  }
 
   // The jump.
   jumpRing.x = view.w - 116; jumpRing.y = view.h - 44;
@@ -2200,6 +2274,22 @@ function drawHud() {
   ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.textAlign = 'left';
 
+  // THE BELT RING, over on the left where a thumb that is steering can still
+  // reach it, showing whatever is in her hands right now.
+  beltRing.on = belt().length > 1;
+  if (beltRing.on) {
+    beltRing.x = 56; beltRing.y = view.h - 56;
+    ctx.beginPath(); ctx.arc(beltRing.x, beltRing.y, 27, 0, TAU);
+    ctx.fillStyle = 'rgba(28,22,18,0.5)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,190,120,0.6)'; ctx.lineWidth = 2; ctx.stroke();
+    drawToolIcon(ctx, st.equip, beltRing.x, beltRing.y + 2, 30, st.equip === 'lamp' ? st.ember : 1);
+    ctx.textAlign = 'center';
+    ctx.font = '600 9px "Segoe UI", Roboto, system-ui, sans-serif';
+    ctx.fillStyle = 'rgba(240,226,203,0.6)';
+    ctx.fillText(pad.on ? 'L1' : 'TAB', beltRing.x, beltRing.y + 40);
+    ctx.textAlign = 'left';
+  }
+
   ring.x = view.w - 180; ring.y = view.h - 104;
   ctx.beginPath(); ctx.arc(ring.x, ring.y, 38, 0, TAU);
   ctx.fillStyle = holding ? 'rgba(255,179,94,0.45)' : 'rgba(255,179,94,0.24)';
@@ -2210,13 +2300,71 @@ function drawHud() {
   const label = st.prompt.startsWith('take') ? 'TAKE'
     : st.prompt.startsWith('read') ? 'READ'
       : st.prompt.startsWith('speak') ? 'TALK'
-        : st.prompt.startsWith('haul') || st.prompt.startsWith('it ') ? 'HAUL'
-          : st.hasEmber && st.ember > 0.08 ? 'HOLD' : 'SWEEP';
+        : st.prompt.startsWith('lift') ? 'LIFT'
+          : st.prompt.startsWith('throw') ? 'THROW'
+            : st.prompt.startsWith('haul') || st.prompt.startsWith('it ') ? 'HAUL'
+              : st.equip === 'lamp' ? 'HOLD'
+                : st.equip === 'broom' ? 'SWEEP' : 'ACT';
   ctx.font = '600 12px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.fillText(label, ring.x, ring.y + 4);
   ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
-  ctx.fillText(pad.on ? 'cross to jump · circle to dash · square to act' : 'space to jump · shift to dash · E or the ring to act', view.w / 2, view.h - 22);
+  ctx.fillText(pad.on
+    ? 'cross to jump · circle to dash · square to act · L1 for her belt'
+    : 'space to jump · shift to dash · E to act · TAB for her belt', view.w / 2, view.h - 22);
+  ctx.textAlign = 'left';
+}
+
+/**
+ * HER BELT, OPEN. A row of what she has, the one in her hands lifted and lit,
+ * and a line under it saying what that one is for - because "empty hands" and
+ * "the lantern" need no explaining but which of them clears thorn does.
+ */
+function drawBelt(ctx) {
+  beltSlots = [];
+  if (!st.wheel) return;
+  const b = belt();
+  const k = Math.min(1, st.wheel.t * 7);
+  ctx.fillStyle = `rgba(12,9,7,${0.52 * k})`;
+  ctx.fillRect(0, 0, view.w, view.h);
+
+  const R = 42, gap = 22;
+  const wide = b.length * R * 2 + (b.length - 1) * gap;
+  const y = view.h / 2 + 6;
+  for (let i = 0; i < b.length; i++) {
+    const x = view.w / 2 - wide / 2 + R + i * (R * 2 + gap);
+    const on = i === st.wheel.sel;
+    const r = R * (0.82 + k * 0.18) * (on ? 1.1 : 0.94);
+    beltSlots.push({ x, y, r, id: b[i].id });
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = on ? 'rgba(52,38,26,0.95)' : 'rgba(26,20,16,0.85)';
+    ctx.fill();
+    ctx.strokeStyle = on ? 'rgba(255,196,120,0.95)' : 'rgba(150,126,98,0.5)';
+    ctx.lineWidth = on ? 2.6 : 1.6;
+    ctx.stroke();
+    drawToolIcon(ctx, b[i].id, x, y + 4, r * 1.25, b[i].id === 'lamp' ? Math.max(0.25, st.ember) : 1);
+    if (b[i].id === st.equip) {                 // the one she is already holding
+      ctx.fillStyle = 'rgba(255,196,120,0.9)';
+      ctx.beginPath(); ctx.arc(x, y - r - 9, 3, 0, TAU); ctx.fill();
+    }
+    ctx.globalAlpha = k;
+    ctx.textAlign = 'center';
+    ctx.font = `600 ${on ? 13 : 12}px "Segoe UI", Roboto, system-ui, sans-serif`;
+    ctx.fillStyle = on ? 'rgba(255,224,186,0.95)' : 'rgba(210,192,168,0.5)';
+    ctx.fillText(b[i].name, x, y + r + 22);
+    ctx.globalAlpha = 1;
+  }
+  const sel = b[st.wheel.sel];
+  ctx.globalAlpha = k;
+  ctx.textAlign = 'center';
+  ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(240,226,203,0.62)';
+  ctx.fillText(sel ? sel.note : '', view.w / 2, y + R + 54);
+  ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(240,226,203,0.36)';
+  ctx.fillText(pad.on
+    ? 'stick to choose · square to take it · L1 to close'
+    : 'tap one, or A and D · E to take it · TAB to close', view.w / 2, y + R + 76);
   ctx.textAlign = 'left';
 }
 
@@ -2249,8 +2397,11 @@ function paintTalk() {
     // the moment the task begins, which is the whole of "deliberate".
     if (n.give && !has(st, n.give)) {
       const s2 = brief(st);
-      if (n.give === 'broom') { broom.held = true; }
+      if (n.give === 'broom') broom.held = true;
       if (n.give === 'lamp') { st.hasEmber = true; st.ember = 1; }
+      // Handed a thing, she is holding it. Nobody is sent to a belt on the
+      // frame they are given their first tool.
+      st.equip = n.give === 'crank' ? st.equip : n.give;
       sfx.pickup();
       toast = { t: 0, text: `she gives you ${TOOLNAME[n.give] || n.give}` };
       if (s2) st.prompt = '';
@@ -2384,16 +2535,10 @@ function advance() {
   closeTalk();
 }
 
-/** She puts it down, and it goes back to its place by the old woman. */
-function dropBroom() {
-  if (!broom.held) return;
-  broom.held = false;
-  broom.x = BROOM_HOME.x;
-  broom.y = BROOM_HOME.y;
-  st.prompt = '';
-  toast = { t: 0, text: 'left against the shrine steps, by the old woman' };
-  sfx.ui();
-}
+// DROP IS GONE. There used to be a Q key, a triangle and a DROP ring that
+// stood the broom back against the shrine steps - the only way to have empty
+// hands, and it left the broom two thousand units from wherever she happened
+// to be standing. Her belt does the same job and keeps the broom.
 let toast = null;
 
 /** Standing at a young banyan and reading what is cut into it, full screen. */
@@ -2545,13 +2690,28 @@ function main() {
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
     if (cinemaOn()) { skipCinema(); e.preventDefault(); return; }
+    // TAB IS THE BELT. It has to preventDefault whether the belt opens or not,
+    // or the browser walks focus off the canvas and the next key goes nowhere.
+    if (k === 'tab') {
+      begin();
+      if (st.wheel) closeBelt(false); else openBelt();
+      e.preventDefault();
+      return;
+    }
+    if (st.wheel) {
+      if (k === 'a' || k === 'arrowleft') beltMove(-1);
+      else if (k === 'd' || k === 'arrowright') beltMove(1);
+      else if (k === 'escape' || k === 'q') closeBelt(false);
+      else if (k === ' ' || k === 'enter' || k === 'e') closeBelt(true);
+      e.preventDefault();
+      return;
+    }
     keys.add(k);
     if (st.talking && st.talking.keeper) {
       if (k === 'arrowup' || k === 'w') { moveSel(-1); e.preventDefault(); return; }
       if (k === 'arrowdown' || k === 's') { moveSel(1); e.preventDefault(); return; }
       if (k === 'enter' || k === ' ' || k === 'e') { pickSel(); e.preventDefault(); return; }
     }
-    if (k === 'q') dropBroom();
     if (k === 'shift' || k === 'x') { begin(); dashWant = true; e.preventDefault(); }
     if (k === ' ' || k === 'enter' || k === 'e') {
       begin();
@@ -2573,9 +2733,20 @@ function main() {
     if (cinemaOn()) { skipCinema(); return; }
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
+    const sc0 = view.scale || 1;
+    // The belt first: while it is open the whole screen belongs to it, and a
+    // tap that misses every slot puts it away without changing anything.
+    if (st.wheel) {
+      const px = e.clientX / sc0, py = e.clientY / sc0;
+      for (const b of beltSlots) {
+        if (Math.hypot(px - b.x, py - b.y) < b.r) { equipTool(b.id); st.wheel = null; return; }
+      }
+      closeBelt(false);
+      return;
+    }
     if (st.talking || st.reading) { advance(); return; }
     const sc = view.scale || 1;
-    if (drop.on && Math.hypot(e.clientX / sc - drop.x, e.clientY / sc - drop.y) < drop.r) { dropBroom(); return; }
+    if (beltRing.on && Math.hypot(e.clientX / sc - beltRing.x, e.clientY / sc - beltRing.y) < beltRing.r) { openBelt(); return; }
     if (Math.hypot(e.clientX / sc - jumpRing.x, e.clientY / sc - jumpRing.y) < jumpRing.r) { jumpWant = BUFFER; return; }
     if (Math.hypot(e.clientX / sc - dashRing.x, e.clientY / sc - dashRing.y) < dashRing.r) { dashWant = true; return; }
     if (Math.hypot(e.clientX / sc - ring.x, e.clientY / sc - ring.y) < ring.r) {

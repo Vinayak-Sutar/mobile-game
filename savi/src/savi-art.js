@@ -1159,77 +1159,22 @@ export function drawSavi(ctx, p, time) {
     // quarters, so the hand has to be found in SCREEN space, not by taking the
     // perpendicular of her facing in the world. The perpendicular is correct
     // on the ground and useless here: turned to face left or right it points
-    // straight up the screen, and the lamp ends up hanging in the middle of
+    // straight up the screen, and the lantern ends up hanging in the middle of
     // her ribs. In profile it goes on her leading side; face on or away, it
     // hangs on her left, and it swings against her stride.
     const side = Math.abs(fx) > 0.3 ? (fx > 0 ? 1 : -1) : -1;
     const swg = walking ? Math.sin(ph) * 1.9 : Math.sin(time * 1.1) * 0.7;
-    const hx = out ? fx * 16 : side * 9.5 + fx * 2 + swg;
-    const hy = out ? fy * 9 - 15 : -12.5 + fy * 1.5 + (walking ? Math.abs(Math.sin(ph)) * 1.2 : 0);
-    // Her arm, so the lamp is being held rather than floating beside her.
+    const hx = out ? fx * 16 : side * 10 + fx * 2 + swg;
+    const hy = out ? fy * 9 - 25 : -22 + fy * 1.5 + (walking ? Math.abs(Math.sin(ph)) * 1.2 : 0);
+    // Her arm, so the lantern is being carried rather than floating beside her.
     ctx.strokeStyle = '#c08a5a';
     ctx.lineWidth = 2.8;
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(side * 5.5, -16);
-    ctx.quadraticCurveTo((side * 5.5 + hx) / 2 + side * 1.6, (-16 + hy) / 2, hx, hy);
+    ctx.moveTo(side * 5.5, -17);
+    ctx.quadraticCurveTo((side * 5.5 + hx) / 2 + side * 1.6, (-17 + hy) / 2 + 3, hx, hy + 1);
     ctx.stroke();
-    // The hoop it hangs from. Drawn in soot as well as brass, because at the
-    // size she is on a phone a gold line on a gold skirt is nothing at all -
-    // everything else in this valley is outlined and so is this.
-    ctx.strokeStyle = '#2a2018';
-    ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(hx, hy + 3.6, 5, Math.PI * 1.04, Math.PI * 1.96); ctx.stroke();
-    ctx.strokeStyle = '#9a8656';
-    ctx.lineWidth = 1.1;
-    ctx.beginPath(); ctx.arc(hx, hy + 3.6, 5, Math.PI * 1.04, Math.PI * 1.96); ctx.stroke();
-    // The bowl: shallow brass, a rim, and the light of the coal caught on it.
-    const lit = 0.25 + em * 0.75;
-    ctx.fillStyle = mixHex('#6b5836', '#d7a24a', lit);
-    ctx.beginPath();
-    ctx.moveTo(hx - 5.6, hy + 3.4);
-    ctx.quadraticCurveTo(hx, hy + 12, hx + 5.6, hy + 3.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#2a2018';
-    ctx.lineWidth = 1.1;
-    ctx.stroke();
-    ctx.strokeStyle = mixHex('#4a3c26', '#f0c473', lit);
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.moveTo(hx - 6, hy + 3.4); ctx.lineTo(hx + 6, hy + 3.4); ctx.stroke();
-    // The coal in it. Gold while it is full, a dull red ember near the end,
-    // and a black cinder when it has gone out.
-    if (em > 0.005) {
-      const flick = 0.82 + Math.sin(time * 9.1 + p.x) * 0.12 + Math.sin(time * 4.3) * 0.06;
-      ctx.save();
-      ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(hx, hy + 4, 0, hx, hy + 4, (11 + em * 16) * flick);
-      g.addColorStop(0, `rgba(255,214,150,${0.5 * (0.35 + em * 0.65)})`);
-      g.addColorStop(0.4, `rgba(255,150,60,${0.26 * (0.3 + em * 0.7)})`);
-      g.addColorStop(1, 'rgba(255,120,40,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(hx, hy + 4, (11 + em * 16) * flick, 0, TAU); ctx.fill();
-      ctx.restore();
-      ctx.fillStyle = mixHex('#7e2410', '#ffd07a', em * flick);
-      ctx.beginPath(); ctx.ellipse(hx, hy + 4.4, 3.4, 2.4, 0, 0, TAU); ctx.fill();
-    } else {
-      ctx.fillStyle = '#2a2320';
-      ctx.beginPath(); ctx.ellipse(hx, hy + 4.4, 3.2, 2.2, 0, 0, TAU); ctx.fill();
-    }
-    // The pierced lid over it, so it is a lamp and not a cup of fire.
-    ctx.fillStyle = mixHex('#5d4e33', '#a98a52', lit);
-    ctx.beginPath();
-    ctx.moveTo(hx - 6, hy + 3.4);
-    ctx.quadraticCurveTo(hx, hy - 3.2, hx + 6, hy + 3.4);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#2a2018';
-    ctx.lineWidth = 1.1;
-    ctx.stroke();
-    ctx.fillStyle = `rgba(255,190,110,${0.25 + em * 0.6})`;
-    for (let i = -1; i <= 1; i++) {
-      ctx.beginPath(); ctx.arc(hx + i * 2.9, hy + 1.4 - Math.abs(i) * 0.7, 0.85, 0, TAU); ctx.fill();
-    }
+    drawLantern(ctx, hx, hy, em, time, p.x);
   }
   ctx.restore();
 }
@@ -1294,7 +1239,7 @@ export function drawBreath(ctx, p, o, time) {
 
   // The lamp's lip, where it all leaves from.
   const z = p.z || 0;
-  const mx = p.x + fx * 16, my = p.y - 15 + fy * 9 - z + 4;
+  const mx = p.x + fx * 16, my = p.y - 14 + fy * 9 - z;
   // Small, and not very strong. A big bright disc here sat exactly on her head
   // whenever she faced away from the camera and rubbed her out of her own
   // picture; what is wanted is a lamp that is clearly alight, not a flashbulb.
@@ -1330,6 +1275,146 @@ export function drawBreath(ctx, p, o, time) {
   // The light it throws on what it is burning.
   glow(ctx, ox + fx * o.reach * 0.4, oy + fy * o.reach * 0.4, o.reach * 1.5,
     cold ? 'rgba(170,215,240,0.16)' : 'rgba(255,150,60,0.22)');
+}
+
+/**
+ * A LALTEN — the hurricane lantern that hangs in every verandah in the
+ * country, and which is what she should have been carrying all along.
+ *
+ * The first one was a brass diya-bowl on a hoop, which is a shrine object,
+ * not a thing a child is handed and told to go and work with. This is the
+ * other one: black-painted sheet metal, a bulging glass globe in the middle
+ * with the light inside it, a perforated hood and chimney on top so it does
+ * not blow out, guard rods down either side of the glass, a fuel fount at
+ * the bottom with the wick knob on it, and a wire bail over the top to carry
+ * it by. Hers burns a coal rather than kerosene, which is why it goes out.
+ *
+ * Drawn from the BAIL DOWN: (x, y) is where her hand closes on the handle,
+ * and the lantern hangs off it, eighteen tall and nine across.
+ */
+function drawLantern(ctx, x, y, em, time, seed) {
+  const flick = 0.82 + Math.sin(time * 9.1 + seed) * 0.12 + Math.sin(time * 4.3) * 0.06;
+  const lit = em * flick;
+
+  // The light it throws, first, so everything else sits inside it.
+  if (em > 0.005) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(x, y + 11, 0, x, y + 11, (13 + em * 20) * flick);
+    g.addColorStop(0, `rgba(255,214,150,${0.46 * (0.3 + em * 0.7)})`);
+    g.addColorStop(0.42, `rgba(255,150,60,${0.22 * (0.3 + em * 0.7)})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y + 11, (13 + em * 20) * flick, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
+  const ink = '#161414', iron = '#2d2a29', edge = '#4e4845';
+
+  // The bail, hinged at the shoulders of the hood.
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x - 4.6, y + 5.5);
+  ctx.quadraticCurveTo(x, y - 0.5, x + 4.6, y + 5.5);
+  ctx.stroke();
+
+  // The hood: a chimney nub, a vented cap, and the brim under it.
+  ctx.fillStyle = iron;
+  ctx.fillRect(x - 1.3, y + 2.2, 2.6, 2.4);
+  ctx.beginPath();
+  ctx.moveTo(x - 4.4, y + 7.4);
+  ctx.quadraticCurveTo(x, y + 3, x + 4.4, y + 7.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = ink;
+  ctx.beginPath(); ctx.ellipse(x, y + 7.6, 5.4, 1.5, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = `rgba(255,190,110,${0.25 + lit * 0.5})`;       // the vents, lit from below
+  for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.arc(x + i * 2.4, y + 6.2, 0.6, 0, TAU); ctx.fill(); }
+
+  // THE GLASS. A barrel, widest at the middle, and what is behind it shows
+  // through - that is the whole reason to draw a lantern rather than a lamp.
+  ctx.beginPath();
+  ctx.moveTo(x - 3, y + 8.4);
+  ctx.quadraticCurveTo(x - 5.4, y + 11.4, x - 3, y + 14.4);
+  ctx.lineTo(x + 3, y + 14.4);
+  ctx.quadraticCurveTo(x + 5.4, y + 11.4, x + 3, y + 8.4);
+  ctx.closePath();
+  ctx.fillStyle = em > 0.005
+    ? mixHex('#3a3330', '#ffd489', 0.25 + lit * 0.75)
+    : 'rgba(126,134,138,0.42)';
+  ctx.fill();
+  if (em > 0.005) {                                             // the coal in it
+    ctx.fillStyle = mixHex('#7e2410', '#fff0c4', lit);
+    ctx.beginPath(); ctx.ellipse(x, y + 12.2, 1.9, 2.4 + lit * 1.2, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillStyle = '#211d1b';
+    ctx.beginPath(); ctx.ellipse(x, y + 12.4, 1.8, 1.4, 0, 0, TAU); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,255,255,0.22)';                     // the shine on the glass
+  ctx.beginPath(); ctx.ellipse(x - 2.4, y + 10.6, 0.9, 2.4, -0.2, 0, TAU); ctx.fill();
+
+  // The guard rods down either side of it.
+  ctx.strokeStyle = ink;
+  ctx.lineWidth = 1.4;
+  for (const d of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(x + d * 4.4, y + 8);
+    ctx.quadraticCurveTo(x + d * 6, y + 11.4, x + d * 4.4, y + 14.8);
+    ctx.stroke();
+  }
+
+  // The fount, with the wick knob on the side of it, and the foot.
+  ctx.fillStyle = iron;
+  ctx.beginPath();
+  ctx.moveTo(x - 3.6, y + 14.4);
+  ctx.quadraticCurveTo(x - 4.6, y + 17.6, x - 3.4, y + 18.4);
+  ctx.lineTo(x + 3.4, y + 18.4);
+  ctx.quadraticCurveTo(x + 4.6, y + 17.6, x + 3.6, y + 14.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = edge;                                          // light along its shoulder
+  ctx.fillRect(x - 3.2, y + 14.8, 6.4, 0.8);
+  ctx.fillStyle = '#8a6a3a';                                     // the knob
+  ctx.beginPath(); ctx.arc(x + 4.4, y + 16.2, 1.1, 0, TAU); ctx.fill();
+  ctx.fillStyle = ink;                                           // and the foot
+  ctx.beginPath(); ctx.ellipse(x, y + 18.6, 4.4, 1.3, 0, 0, TAU); ctx.fill();
+}
+
+/**
+ * One tool, drawn in a box, for the belt. `s` is the height to fit it into.
+ * Empty hands are an open palm, because "nothing" needs a picture too or the
+ * first slot reads as a slot that failed to load.
+ */
+export function drawToolIcon(ctx, id, x, y, s, lit = 1) {
+  ctx.save();
+  ctx.translate(x, y);
+  const k = s / 34;
+  ctx.scale(k, k);
+  if (id === 'lamp') {
+    drawLantern(ctx, 0, -11, lit, 0, 0);
+  } else if (id === 'broom') {
+    ctx.rotate(-0.42);
+    ctx.strokeStyle = '#6b4a2c'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -15); ctx.lineTo(0, 7); ctx.stroke();
+    ctx.strokeStyle = '#c8a05a'; ctx.lineWidth = 1.8;
+    for (let i = -4; i <= 4; i++) {
+      ctx.beginPath(); ctx.moveTo(i * 0.6, 5); ctx.lineTo(i * 2.2, 15 - Math.abs(i) * 0.6); ctx.stroke();
+    }
+    ctx.strokeStyle = '#8a5f34'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-3, 4); ctx.lineTo(3, 4); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#c08a5a';                       // an open hand
+    ctx.beginPath(); ctx.ellipse(0, 3, 6, 7, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#c08a5a'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    for (let i = -1; i <= 2; i++) {
+      ctx.beginPath(); ctx.moveTo(i * 3.2, -1); ctx.lineTo(i * 3.6, -9 + Math.abs(i) * 1.6); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(-5, 3); ctx.lineTo(-9, -2); ctx.stroke();
+  }
+  ctx.restore();
 }
 
 // --- the Old Woman and her fire ------------------------------------------------------
