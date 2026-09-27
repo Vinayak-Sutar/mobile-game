@@ -59,10 +59,15 @@ def check_level(staged):
         script = os.path.join(ROOT, 'savi', 'tools', name)
         if not os.path.exists(script):
             continue
-        r = subprocess.run(['node', script], cwd=ROOT, capture_output=True, text=True)
+        # utf-8, explicitly. check-keys prints the arrow keys as arrows, and on a
+        # Windows console the default cp1252 decode threw inside subprocess's reader
+        # thread - which does not fail the run, so a FAILING check would have gone
+        # through with no output and no refusal.
+        r = subprocess.run(['node', script], cwd=ROOT, capture_output=True, text=True,
+                           encoding='utf-8', errors='replace')
         if r.returncode != 0:
-            sys.stdout.write(r.stdout)
-            sys.stdout.write(r.stderr)
+            sys.stdout.write(r.stdout or '')
+            sys.stdout.write(r.stderr or '')
             print('')
             print('%s failed. Fix it, or commit with --no-verify.' % name)
             sys.exit(1)
