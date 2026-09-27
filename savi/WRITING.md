@@ -961,64 +961,14 @@ Briefing for root 4 — the snow that never melts.
 #### KEEP-brief3
 *What she says.*
 
-> North-east now, under the snow that never melts. A broom is no good to you there. You cannot brush cold off a thing. That one has to be thawed.
+> North-east now, under the snow that never melts. You will melt it away with the lamp. Mind the coal, though. Snow drinks it faster than thorn does.
 
 **Remark:**
 
 #### KEEP-brief3-c1
 *What Savi can say back — **the gold one**, it moves the story on.*
 
-> Then I take the lamp.
-
-**Remark:**
-
-#### KEEP-brief3-c2
-*What Savi can say back.*
-
-> Why does that snow never go?
-
-**Remark:**
-
-### whysnow
-
-Aside: "Why does that snow never go?"
-
-#### KEEP-whysnow
-*What she says.*
-
-> Because the tree stopped warming the ground. That is what a banyan does, you know. The whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.
-
-**Remark:**
-
-#### KEEP-whysnow-c1
-*What Savi can say back.*
-
-> Then it will go when the tree comes back.
-
-**Remark:**
-
-### give3  *[repeat]*
-
-She sends her back out with the lantern, for melting rather than burning.
-
-#### KEEP-give3
-*What she says.*
-
-> Lit and full. Stand close and let it work. The snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.
-
-**Remark:**
-
-#### KEEP-give3-c1
-*What Savi can say back.*
-
-> And if it goes out?
-
-**Remark:**
-
-#### KEEP-give3-c2
-*What Savi can say back — **the gold one**, it moves the story on.*
-
-> I will go.
+> Then I take the lamp and go.
 
 **Remark:**
 
@@ -1598,7 +1548,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-pursuit
 *After reading The Pursuit.*
 
-> She went after him. After DEATH. I have been afraid of the road home in the dark, and that was only a road.
+> She went after him. After DEATH. Savitri was really brave.
 
 **Remark:**
 
@@ -1645,7 +1595,7 @@ her. The bit she has been carrying about that beat for forty years.
 #### KREF-pursuit
 *Her word on The Pursuit.*
 
-> There is no law saying the living may walk that road. There is none saying they may not, either - nobody had ever wanted to badly enough to find out. She found out.
+> Savitri was very brave. She was ready to bring Satyavan back from the Lord of Death himself.
 
 **Remark:**
 
@@ -1812,5 +1762,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*224 pieces of text. Generated from the code, so every line above is
+*218 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*

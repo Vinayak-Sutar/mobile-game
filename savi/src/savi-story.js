@@ -63,8 +63,8 @@ export const ROOTS = [
     name: 'The Pursuit',
     mural: 'pursuit',
     hint: 'West, where the black thorn has closed over.',
-    savi: 'She went after him. After DEATH. I have been afraid of the road home in the dark, and that was only a road.',
-    keeper: 'There is no law saying the living may walk that road. There is none saying they may not, either - nobody had ever wanted to badly enough to find out. She found out.',
+    savi: 'She went after him. After DEATH. Savitri was really brave.',
+    keeper: 'Savitri was very brave. She was ready to bring Satyavan back from the Lord of Death himself.',
     lines: [
       ['keeper', 'He drew the soul out of the boy, small and bright as a lamp, and turned south for the dark country.', 'speaking'],
       ['yama', 'Mortal. Turn back. The living do not walk this road.', 'proud'],

@@ -113,19 +113,10 @@ export const KEEPER = {
 
   brief3: {
     repeat: true,
-    text: 'North-east now, under the snow that never melts. A broom is no good to you there. You cannot brush cold off a thing. That one has to be thawed.',
-    choices: [
-      { say: 'Then I take the lamp.', to: 'give3', spine: true },
-      { say: 'Why does that snow never go?', to: 'whysnow' },
-    ],
-  },
-  give3: {
-    repeat: true,
     give: 'lamp',
-    text: 'Lit and full. Stand close and let it work. The snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.',
+    text: 'North-east now, under the snow that never melts. You will melt it away with the lamp. Mind the coal, though. Snow drinks it faster than thorn does.',
     choices: [
-      { say: 'And if it goes out?', to: 'lampout' },
-      { say: 'I will go.', to: 'leave', spine: true },
+      { say: 'Then I take the lamp and go.', to: 'leave', spine: true },
     ],
   },
 
@@ -217,10 +208,6 @@ export const KEEPER = {
   lampout: {
     text: 'Stand at any fire a moment and it fills again.',
     choices: [{ say: 'I will remember.', to: 'brief2' }],
-  },
-  whysnow: {
-    text: 'Because the tree stopped warming the ground. That is what a banyan does, you know. The whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.',
-    choices: [{ say: 'Then it will go when the tree comes back.', to: 'brief3' }],
   },
   whyash: {
     text: 'I tried. I was already old when it came down and there is only so much an old woman can lift. I got nine of them off and then I sat down on the tenth, and that was the end of that.',
