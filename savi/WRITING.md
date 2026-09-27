@@ -1335,37 +1335,44 @@ Savi can page back and forth and re-read any of it any time.
 ### The Pursuit — the mural on the `pursuit` root
 
 #### MURAL-pursuit-1
-*The Old Keeper speaks. Line 1 of 5.*
+*The Old Keeper speaks. Line 1 of 6.*
 
 > He drew the soul out of the boy, small and bright as a lamp, and turned south for the dark country.
 
 **Remark:**
 
 #### MURAL-pursuit-2
-*Yama speaks. Line 2 of 5.*
+*Yama speaks. Line 2 of 6.*
 
 > Mortal. Turn back. The living do not walk this road.
 
 **Remark:**
 
 #### MURAL-pursuit-3
-*Savitri speaks. Line 3 of 5.*
+*Savitri speaks. Line 3 of 6.*
 
 > Where my husband goes, I go. My road is tied to his.
 
 **Remark:**
 
 #### MURAL-pursuit-4
-*The Old Keeper speaks. Line 4 of 5.*
+*The Old Keeper speaks. Line 4 of 6.*
 
 > She did not weep, and she did not kneel. She stood up and walked after Death himself.
 
 **Remark:**
 
 #### MURAL-pursuit-5
-*The Old Keeper speaks. Line 5 of 5.*
+*The Old Keeper speaks. Line 5 of 6.*
 
-> Yama turned on her in anger. He reminded her who she was following, and what he could do to her. He is the Lord of Death himself.
+> Yama turned on her in anger. He reminded her who she was following, and what he could do to her.
+
+**Remark:**
+
+#### MURAL-pursuit-6
+*Yama speaks. Line 6 of 6.*
+
+> I am the Lord of <i>Dharma</i>, girl. I am Justice itself.
 
 **Remark:**
 
@@ -1374,14 +1381,14 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-steps-1
 *The Old Keeper speaks. Line 1 of 5.*
 
-> He did not strike her. She fought him with the law, not with magic.
+> Savitri did not fear <i>Yamaraj</i>. She fought him with her wits.
 
 **Remark:**
 
 #### MURAL-steps-2
 *Savitri speaks. Line 2 of 5.*
 
-> Lord Yama. It is said that if two walk seven steps together, they are friends.
+> Lord Yama, according to our <i>dharma</i>, it is said that if two people walk seven steps together, they are friends.
 
 **Remark:**
 
@@ -1395,14 +1402,14 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-steps-4
 *Yama speaks. Line 4 of 5.*
 
-> You argue like a priest. Very well. Ask me for something, and then go home.
+> You are a clever girl. Are you not afraid that I am the Lord of Death?
 
 **Remark:**
 
 #### MURAL-steps-5
 *The Old Keeper speaks. Line 5 of 5.*
 
-> Bound by his own law, he offered her boons to be rid of her. And still he heard her feet in the snow behind him.
+> Yama was impressed by her wits. He began to offer her boons to be rid of her. Would she be able to bring Satyavan back to life?
 
 **Remark:**
 
@@ -1762,5 +1769,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*218 pieces of text. Generated from the code, so every line above is
+*219 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*

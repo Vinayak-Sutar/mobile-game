@@ -70,7 +70,8 @@ export const ROOTS = [
       ['yama', 'Mortal. Turn back. The living do not walk this road.', 'proud'],
       ['savitri', 'Where my husband goes, I go. My road is tied to his.', 'resolute'],
       ['keeper', 'She did not weep, and she did not kneel. She stood up and walked after Death himself.', 'speaking'],
-      ['keeper', 'Yama turned on her in anger. He reminded her who she was following, and what he could do to her. He is the Lord of Death himself.', 'weary'],
+      ['keeper', 'Yama turned on her in anger. He reminded her who she was following, and what he could do to her.', 'weary'],
+      ['yama', 'I am the Lord of <i>Dharma</i>, girl. I am Justice itself.', 'stern'],
     ],
   },
   {
@@ -81,11 +82,11 @@ export const ROOTS = [
     savi: 'She did not fight him. She argued with him. I did not know anyone was allowed to argue with Death.',
     keeper: 'Seven steps make a friendship. That is a real saying, child, older than these hills, and he could not deny it without denying himself. She did not out-magic him. She out-remembered him.',
     lines: [
-      ['keeper', 'He did not strike her. She fought him with the law, not with magic.', 'speaking'],
-      ['savitri', 'Lord Yama. It is said that if two walk seven steps together, they are friends.', 'clever'],
+      ['keeper', 'Savitri did not fear <i>Yamaraj</i>. She fought him with her wits.', 'speaking'],
+      ['savitri', 'Lord Yama, according to our <i>dharma</i>, it is said that if two people walk seven steps together, they are friends.', 'clever'],
       ['savitri', 'I have walked a great deal further than seven with you. A friend must hear a friend.', 'clever'],
-      ['yama', 'You argue like a priest. Very well. Ask me for something, and then go home.', 'caught'],
-      ['keeper', 'Bound by his own law, he offered her boons to be rid of her. And still he heard her feet in the snow behind him.', 'pleased'],
+      ['yama', 'You are a clever girl. Are you not afraid that I am the Lord of Death?', 'caught'],
+      ['keeper', 'Yama was impressed by her wits. He began to offer her boons to be rid of her. Would she be able to bring Satyavan back to life?', 'pleased'],
     ],
   },
   {

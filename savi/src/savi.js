@@ -125,6 +125,10 @@ const SPURS = [
 const SHELTERS = [
   { x: 2600, y: 1080, r: 110 }, { x: 2600, y: 700, r: 110 },       // the north road
   { x: 1810, y: 1330, r: 110 }, { x: 1250, y: 1200, r: 110 },      // the west road
+  // THE NORTH-EAST ROAD had none, and it is the one road where the coal runs
+  // out fastest: snow drinks it half again as quick as thorn does. Walking
+  // back to the shrine from the drift is the longest walk in the valley.
+  { x: 3220, y: 1210, r: 110 }, { x: 3640, y: 1005, r: 110 },      // out to the snow
 ];
 // The shrine: a low stone platform round the foot of the Banyan, with steps up
 // to it, oil lamps at its corners and a bell hung on a post. Its courtyard is
