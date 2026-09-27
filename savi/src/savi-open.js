@@ -179,7 +179,7 @@ export function openingFilm() {
     // ---- PICTURE TWO: the women, and the threads --------------------------
     {
       hold: 1.6,
-      say: 'Every autumn the women walk up from the villages and tie their threads round it — a ritual for the longevity of their husbands.',
+      say: 'Every autumn the women walk up from the villages and tie their threads round it. It is a ritual for the longevity of their husbands.',
       sayAt: 0.9,
       cue: () => sfx.bell(),
       draw: (ctx) => {
@@ -199,7 +199,7 @@ export function openingFilm() {
     // ---- PICTURE THREE: the keeper, the tree going out ---------------------
     {
       hold: 1.6,
-      say: 'Someone has always tended it — a keeper, chosen out of the villages, for as long as anyone can say.',
+      say: 'Someone has always tended it. A keeper, chosen out of the villages, for as long as anyone can say.',
       sayAt: 0.9,
       cue: () => sfx.thud(),
       draw: (ctx) => keeperShot(ctx, false),
@@ -207,7 +207,7 @@ export function openingFilm() {
     // ---- the same picture, and now there is a girl on the road -------------
     {
       hold: 1.6,
-      say: 'The one up there now is old, and the tree is going out. So they chose again — the girl on the road is Savi, and she has been sent up to keep it.',
+      say: 'The one up there now is old, and the tree is going out. So they chose again. The girl on the road is Savi, and she has been sent up to keep it.',
       sayAt: 0.6,
       cue: () => { setMusicIntensity(0.5); sfx.boon(); },
       beats: [{ at: 3.6, run: () => sfx.chime() }],

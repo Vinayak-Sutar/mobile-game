@@ -23,7 +23,7 @@ export const KEEPER = {
   // --- the first meeting -------------------------------------------------------
   welcome: {
     repeat: true,
-    text: 'So they sent someone after all. Come to the fire, child — you will catch your death standing there.',
+    text: 'So they sent someone after all. Come to the fire, child. You will catch your death standing there.',
     choices: [
       { say: 'What is wrong with the tree?', to: 'tree', spine: true },
       { say: 'Who are you?', to: 'who' },
@@ -40,16 +40,16 @@ export const KEEPER = {
   },
   water: {
     repeat: true,
-    text: 'Water. It has all the water in these hills, child — it is not thirsty. It is CHOKED. A tree drinks through its roots, and every root it has is buried, or drowned, or bound, or frozen, or under half a hillside.',
+    text: 'Water. It has all the water in these hills, child. It is not thirsty. It is CHOKED. A tree drinks through its roots, and every root it has is buried, or drowned, or bound, or frozen, or under half a hillside.',
     choices: [
-      { say: 'Then the roots are the work.', to: 'roots', spine: true },
+      { say: 'Then we need to treat those roots.', to: 'roots', spine: true },
       { say: 'Why does this one tree matter so much?', to: 'story' },
       { say: 'Can a tree not grow new roots?', to: 'remember' },
     ],
   },
   roots: {
     repeat: true,
-    text: 'Five Great Roots, and a root that cannot breathe carries nothing home. Clear one and a young banyan comes up out of it within the hour — they always have — and there will be a MURAL on it. Painted. Nobody living knows by whose hand.',
+    text: 'Five Great Roots it has, and a root that cannot breathe carries nothing home. Free them. You will find murals on them, and those murals carry a great story.',
     choices: [
       { say: 'Then that is my work. Where do I start?', to: 'brief0', spine: true },
       { say: 'Why can you not do it?', to: 'frail' },
@@ -74,13 +74,13 @@ export const KEEPER = {
   give0: {
     repeat: true,
     give: 'broom',
-    text: 'Take my broom, then. Lean into it and keep leaning — you are not strong, you are stubborn, and stubborn is the one that finishes. Come back when it can breathe.',
+    text: 'Take my broom, then. It is a wide drift and it will take you a while. Come back when the root can breathe.',
     choices: [{ say: 'I will.', to: 'leave', spine: true }],
   },
 
   brief1: {
     repeat: true,
-    text: 'East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge — and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.',
+    text: 'East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge, and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.',
     choices: [
       { say: 'Then I open the gate.', to: 'give1', spine: true },
       { say: 'Who built a sluice out there?', to: 'sluicewho' },
@@ -90,13 +90,13 @@ export const KEEPER = {
   give1: {
     repeat: true,
     give: 'crank',
-    text: 'You will need this. The capstan by the gate has no handle — it was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.',
+    text: 'You will need this. The capstan by the gate has no handle. It was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.',
     choices: [{ say: 'And the water itself?', to: 'howcross' }, { say: 'I will go.', to: 'leave', spine: true }],
   },
 
   brief2: {
     repeat: true,
-    text: 'West. There is black thorn over that root, and it did not grow there by accident — thorn comes up where the ground has gone cold and nothing else will hold it. It has been closing for two years.',
+    text: 'West. There is black thorn over that root, and it did not grow there by accident. Thorn comes up where the ground has gone cold and nothing else will hold it. It has been closing for two years.',
     choices: [
       { say: 'How do I get through thorn?', to: 'give2', spine: true },
       { say: 'Is it dangerous?', to: 'thornsafe' },
@@ -105,7 +105,7 @@ export const KEEPER = {
   give2: {
     repeat: true,
     give: 'lamp',
-    text: 'You do not cut it, child, you warm it. Take this lamp — a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.',
+    text: 'You do not cut it, child, you warm it. Take this lamp. There is a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.',
     choices: [
       { say: 'What if it goes out?', to: 'lampout' },
       { say: 'I will go.', to: 'leave', spine: true },
@@ -114,7 +114,7 @@ export const KEEPER = {
 
   brief3: {
     repeat: true,
-    text: 'North-east now, under the snow that never melts. A broom is no good to you there — you cannot brush cold off a thing. That one has to be thawed.',
+    text: 'North-east now, under the snow that never melts. A broom is no good to you there. You cannot brush cold off a thing. That one has to be thawed.',
     choices: [
       { say: 'Then I take the lamp.', to: 'give3', spine: true },
       { say: 'Why does that snow never go?', to: 'whysnow' },
@@ -123,7 +123,7 @@ export const KEEPER = {
   give3: {
     repeat: true,
     give: 'lamp',
-    text: 'Lit and full. Stand close and let it work — the snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.',
+    text: 'Lit and full. Stand close and let it work. The snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.',
     choices: [
       { say: 'And if it goes out?', to: 'lampout' },
       { say: 'I will go.', to: 'leave', spine: true },
@@ -132,7 +132,7 @@ export const KEEPER = {
 
   brief4: {
     repeat: true,
-    text: 'The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either — not while they are sitting on it.',
+    text: 'The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either, not while they are sitting on it.',
     choices: [
       { say: 'Then I will move them.', to: 'give4', spine: true },
       { say: 'Nobody cleared it?', to: 'whyash' },
@@ -141,7 +141,7 @@ export const KEEPER = {
   give4: {
     repeat: true,
     give: 'broom',
-    text: 'One at a time, child, and no cleverness about it. There is a spring up there — the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.',
+    text: 'One at a time, child, and no cleverness about it. There is a spring up there, the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.',
     choices: [
       { say: 'Into the water? Will that not spoil it?', to: 'giveaway' },
       { say: 'I will go.', to: 'leave', spine: true },
@@ -158,7 +158,7 @@ export const KEEPER = {
     repeat: true,
     // Filled in by keeperFill with what she has to say about the beat that
     // just came back. This is only the fallback.
-    text: 'I felt that one come home. The trunk went warm under my hand — the first warm thing in this valley for two winters.',
+    text: 'I felt that one come home. The trunk went warm under my hand, the first warm thing in this valley for two winters.',
     // ONE LINE. "Tell me that piece again" repeated something she had heard
     // a minute earlier, which the panel on the tree does properly whenever
     // she likes, and "How much is left?" read back a number that is already
@@ -176,11 +176,11 @@ export const KEEPER = {
   // is ever a dead end and the spine is always still there underneath.
 
   who: {
-    text: 'The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nineteen when they sent me. There is not much keeping left in me now.',
-    choices: [{ say: 'And now?', to: 'welcome' }],
+    text: 'The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nine when they sent me. There is not much keeping left in me now.',
+    choices: [{ say: 'I see.', to: 'welcome' }],
   },
   valley: {
-    text: 'It was not always. There was a proper autumn here once — a month of gold, then rain, then it turned. Now the gold came and never went, and the cold got in underneath it.',
+    text: 'It was not always cold here. The tree\'s roots have gone untended, and everything under a banyan goes the way the banyan goes.',
     choices: [{ say: 'I see.', to: 'welcome' }],
   },
   howlong: {
@@ -188,23 +188,23 @@ export const KEEPER = {
     choices: [{ say: 'Go on.', to: 'tree' }],
   },
   story: {
-    text: 'Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it once, word for word — I have told it a hundred times — and two winters alone with a dying tree have taken most of it out of my head.',
-    choices: [{ say: 'Then let us get it back.', to: 'water' }],
+    text: 'Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it word for word once. I have told it a hundred times. But I am old and it has gone out of me. Free the roots, and the murals may bring it back.',
+    choices: [{ say: 'I want to hear that story.', to: 'water' }],
   },
   remember: {
-    text: 'Not at its age, and not in this cold. What it can do is send one up off a root you have cleared. That is the whole of the bargain, child: you give it back its roots and it gives us back the story.',
+    text: 'Not at its age, and not in this cold.',
     choices: [{ say: 'All right.', to: 'water' }],
   },
   frail: {
-    text: 'Look at my hands, child. I have not walked past that stone in two winters. But you — you have a warmth to your step. I felt the ground give under you before I saw your face.',
+    text: 'Look at my hands, child. I have not walked past that stone in two winters. But you have a warmth to your step.',
     choices: [{ say: 'Then I will go.', to: 'roots' }],
   },
   before: {
-    text: 'The story, in pieces. One mural to a root. Every keeper before me learned it off them the same way you are about to — go and stand in front of one and it will come back to me, and I will tell you what I see.',
+    text: 'The story. One piece of it to a root. That is the whole reason the murals are there, and the reason nobody has read one in two winters.',
     choices: [{ say: 'I understand.', to: 'roots' }],
   },
   whyleaves: {
-    text: 'A root breathes, the same as you do. Bury it deep enough for long enough and it stops trying. Two autumns is long enough.',
+    text: 'These are not roots under the ground, child. A banyan\'s great roots lie on top of it. You could walk the length of one. Two autumns of wet leaves over that is a blanket that never dries, and nothing under it ever sees the sun.',
     choices: [{ say: 'Then I will start there.', to: 'brief0' }],
   },
   sluicewho: {
@@ -216,7 +216,7 @@ export const KEEPER = {
     choices: [{ say: 'Right.', to: 'brief1' }],
   },
   thornsafe: {
-    text: 'It will not bite you. It will only refuse to let you past, which in its way is worse — it has refused me for two years.',
+    text: 'It will not bite you. It will only refuse to let you past, which in its way is worse. It has refused me for two years.',
     choices: [{ say: 'Not me.', to: 'brief2' }],
   },
   lampout: {
@@ -224,7 +224,7 @@ export const KEEPER = {
     choices: [{ say: 'I will remember.', to: 'brief2' }],
   },
   whysnow: {
-    text: 'Because the tree stopped warming the ground. That is what a banyan does, you know — the whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.',
+    text: 'Because the tree stopped warming the ground. That is what a banyan does, you know. The whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.',
     choices: [{ say: 'Then it will go when the tree comes back.', to: 'brief3' }],
   },
   whyash: {
@@ -245,7 +245,7 @@ export const KEEPER = {
   sendoff: {
     repeat: true,
     mark: 'sent',
-    text: 'All five. I felt the last one go. Now — there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
+    text: 'All five. I felt the last one go. Now, there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
     choices: [{ say: 'I will go and look.', to: 'leave', spine: true }],
   },
   farewell: {
@@ -258,13 +258,13 @@ export const KEEPER = {
     ],
   },
   howforget: {
-    text: 'You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell — the village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.',
+    text: 'You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell. The village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.',
     choices: [{ say: 'Somebody heard it today.', to: 'blessing', spine: true }],
   },
   blessing: {
     repeat: true,
     mark: 'blessed',
-    text: 'Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child — you are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.',
+    text: 'Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child. You are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.',
     choices: [{ say: 'I will be here.', to: 'leave', spine: true }],
   },
   /** After the credits: whatever is on her mind, and nothing is asked of anyone. */

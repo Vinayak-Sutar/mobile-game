@@ -98,14 +98,14 @@ export function objective(st, ROOTS, WOMAN, TREE, here, gorge, unread) {
   // her to it - before the keeper, because she has nothing to say about a
   // piece she has not been reminded of yet.
   if (unread) {
-    return { text: 'a mural has come up on the new tree — go and read it', x: unread.x, y: unread.y, kind: 'mural' };
+    return { text: 'a mural has come up on the new tree. go and read it', x: unread.x, y: unread.y, kind: 'mural' };
   }
   const s = stage(st);
   if (!s) {
     // THE END, IN THREE BEATS. It used to be one: stand near the tree with
     // five roots done and the whole climax fired at once.
     if (!st.sent) {
-      return { text: 'all five are awake — go back to the keeper', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };
+      return { text: 'all five are awake. go back to the keeper', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };
     }
     if (!(st.bloom >= 1)) {
       return { text: 'the last mural is on the Banyan itself', x: TREE.x, y: TREE.y + 40, kind: 'mural' };
@@ -127,9 +127,9 @@ export function objective(st, ROOTS, WOMAN, TREE, here, gorge, unread) {
   // up at the head behind two miles of cliff - an arrow aimed through a rock
   // face is worse than no arrow at all.
   if (s.root === 'fall' && gorge && here && !gorge.inside(here.x, here.y)) {
-    return { text: `the mouth of the gorge — ${gorge.where}`, x: gorge.mouth[0], y: gorge.mouth[1], kind: 'mouth' };
+    return { text: `the mouth of the gorge, ${gorge.where}`, x: gorge.mouth[0], y: gorge.mouth[1], kind: 'mouth' };
   }
-  return { text: `${s.task} — ${s.where}`, x: r ? r.at.x : WOMAN.x, y: r ? r.at.y : WOMAN.y, kind: 'root' };
+  return { text: `${s.task}, ${s.where}`, x: r ? r.at.x : WOMAN.x, y: r ? r.at.y : WOMAN.y, kind: 'root' };
 }
 
 /** She has been told, and handed the thing. Called from the briefing. */

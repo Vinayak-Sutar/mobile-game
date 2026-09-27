@@ -499,7 +499,7 @@ The very first thing she says, the first time Savi walks up to her.
 #### KEEP-welcome
 *What she says.*
 
-> So they sent someone after all. Come to the fire, child — you will catch your death standing there.
+> So they sent someone after all. Come to the fire, child. You will catch your death standing there.
 
 **Remark:**
 
@@ -531,14 +531,14 @@ Aside off the first meeting: "Who are you?"
 #### KEEP-who
 *What she says.*
 
-> The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nineteen when they sent me. There is not much keeping left in me now.
+> The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nine when they sent me. There is not much keeping left in me now.
 
 **Remark:**
 
 #### KEEP-who-c1
 *What Savi can say back.*
 
-> And now?
+> I see.
 
 **Remark:**
 
@@ -549,7 +549,7 @@ Aside off the first meeting: "Is it always this cold here?"
 #### KEEP-valley
 *What she says.*
 
-> It was not always. There was a proper autumn here once — a month of gold, then rain, then it turned. Now the gold came and never went, and the cold got in underneath it.
+> It was not always cold here. The tree's roots have gone untended, and everything under a banyan goes the way the banyan goes.
 
 **Remark:**
 
@@ -610,14 +610,14 @@ Savi has suggested watering it. This is where the game explains why the roots ar
 #### KEEP-water
 *What she says.*
 
-> Water. It has all the water in these hills, child — it is not thirsty. It is CHOKED. A tree drinks through its roots, and every root it has is buried, or drowned, or bound, or frozen, or under half a hillside.
+> Water. It has all the water in these hills, child. It is not thirsty. It is CHOKED. A tree drinks through its roots, and every root it has is buried, or drowned, or bound, or frozen, or under half a hillside.
 
 **Remark:**
 
 #### KEEP-water-c1
 *What Savi can say back — **the gold one**, it moves the story on.*
 
-> Then the roots are the work.
+> Then we need to treat those roots.
 
 **Remark:**
 
@@ -642,14 +642,14 @@ Aside: "Why does this one tree matter so much?" — the first hint of the legend
 #### KEEP-story
 *What she says.*
 
-> Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it once, word for word — I have told it a hundred times — and two winters alone with a dying tree have taken most of it out of my head.
+> Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it word for word once. I have told it a hundred times. But I am old and it has gone out of me. Free the roots, and the murals may bring it back.
 
 **Remark:**
 
 #### KEEP-story-c1
 *What Savi can say back.*
 
-> Then let us get it back.
+> I want to hear that story.
 
 **Remark:**
 
@@ -660,7 +660,7 @@ Aside: "Can a tree not grow new roots?"
 #### KEEP-remember
 *What she says.*
 
-> Not at its age, and not in this cold. What it can do is send one up off a root you have cleared. That is the whole of the bargain, child: you give it back its roots and it gives us back the story.
+> Not at its age, and not in this cold.
 
 **Remark:**
 
@@ -678,7 +678,7 @@ The setup for the whole game: five roots, and a mural comes up on each one she f
 #### KEEP-roots
 *What she says.*
 
-> Five Great Roots, and a root that cannot breathe carries nothing home. Clear one and a young banyan comes up out of it within the hour — they always have — and there will be a MURAL on it. Painted. Nobody living knows by whose hand.
+> Five Great Roots it has, and a root that cannot breathe carries nothing home. Free them. You will find murals on them, and those murals carry a great story.
 
 **Remark:**
 
@@ -710,7 +710,7 @@ Aside: "Why can you not do it?"
 #### KEEP-frail
 *What she says.*
 
-> Look at my hands, child. I have not walked past that stone in two winters. But you — you have a warmth to your step. I felt the ground give under you before I saw your face.
+> Look at my hands, child. I have not walked past that stone in two winters. But you have a warmth to your step.
 
 **Remark:**
 
@@ -728,7 +728,7 @@ Aside: "What is on the murals?"
 #### KEEP-before
 *What she says.*
 
-> The story, in pieces. One mural to a root. Every keeper before me learned it off them the same way you are about to — go and stand in front of one and it will come back to me, and I will tell you what I see.
+> The story. One piece of it to a root. That is the whole reason the murals are there, and the reason nobody has read one in two winters.
 
 **Remark:**
 
@@ -771,7 +771,7 @@ Aside off that briefing: "Why does it matter if leaves lie on it?"
 #### KEEP-whyleaves
 *What she says.*
 
-> A root breathes, the same as you do. Bury it deep enough for long enough and it stops trying. Two autumns is long enough.
+> These are not roots under the ground, child. A banyan's great roots lie on top of it. You could walk the length of one. Two autumns of wet leaves over that is a blanket that never dries, and nothing under it ever sees the sun.
 
 **Remark:**
 
@@ -789,7 +789,7 @@ She hands over the broom. This ends the conversation.
 #### KEEP-give0
 *What she says.*
 
-> Take my broom, then. Lean into it and keep leaning — you are not strong, you are stubborn, and stubborn is the one that finishes. Come back when it can breathe.
+> Take my broom, then. It is a wide drift and it will take you a while. Come back when the root can breathe.
 
 **Remark:**
 
@@ -807,7 +807,7 @@ Briefing for root 2 — the drowned root and the jammed sluice.
 #### KEEP-brief1
 *What she says.*
 
-> East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge — and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.
+> East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge, and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.
 
 **Remark:**
 
@@ -875,7 +875,7 @@ She hands over the crank. Explains the capstan.
 #### KEEP-give1
 *What she says.*
 
-> You will need this. The capstan by the gate has no handle — it was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.
+> You will need this. The capstan by the gate has no handle. It was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.
 
 **Remark:**
 
@@ -900,7 +900,7 @@ Briefing for root 3 — the black thorn.
 #### KEEP-brief2
 *What she says.*
 
-> West. There is black thorn over that root, and it did not grow there by accident — thorn comes up where the ground has gone cold and nothing else will hold it. It has been closing for two years.
+> West. There is black thorn over that root, and it did not grow there by accident. Thorn comes up where the ground has gone cold and nothing else will hold it. It has been closing for two years.
 
 **Remark:**
 
@@ -925,7 +925,7 @@ Aside: "Is it dangerous?"
 #### KEEP-thornsafe
 *What she says.*
 
-> It will not bite you. It will only refuse to let you past, which in its way is worse — it has refused me for two years.
+> It will not bite you. It will only refuse to let you past, which in its way is worse. It has refused me for two years.
 
 **Remark:**
 
@@ -943,7 +943,7 @@ She hands over the lantern, and explains that thorn draws back from warmth.
 #### KEEP-give2
 *What she says.*
 
-> You do not cut it, child, you warm it. Take this lamp — a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.
+> You do not cut it, child, you warm it. Take this lamp. There is a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.
 
 **Remark:**
 
@@ -986,7 +986,7 @@ Briefing for root 4 — the snow that never melts.
 #### KEEP-brief3
 *What she says.*
 
-> North-east now, under the snow that never melts. A broom is no good to you there — you cannot brush cold off a thing. That one has to be thawed.
+> North-east now, under the snow that never melts. A broom is no good to you there. You cannot brush cold off a thing. That one has to be thawed.
 
 **Remark:**
 
@@ -1011,7 +1011,7 @@ Aside: "Why does that snow never go?"
 #### KEEP-whysnow
 *What she says.*
 
-> Because the tree stopped warming the ground. That is what a banyan does, you know — the whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.
+> Because the tree stopped warming the ground. That is what a banyan does, you know. The whole valley sits under it, and when it goes cold, everything under it does too. That snow is a symptom, not a cause.
 
 **Remark:**
 
@@ -1029,7 +1029,7 @@ She sends her back out with the lantern, for melting rather than burning.
 #### KEEP-give3
 *What she says.*
 
-> Lit and full. Stand close and let it work — the snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.
+> Lit and full. Stand close and let it work. The snow will go back from you in a ring and you follow it in. It drinks heat faster than thorn does, mind, so keep an eye on the coal and do not dawdle.
 
 **Remark:**
 
@@ -1054,7 +1054,7 @@ Briefing for root 5 — the stone fall.
 #### KEEP-brief4
 *What she says.*
 
-> The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either — not while they are sitting on it.
+> The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either, not while they are sitting on it.
 
 **Remark:**
 
@@ -1097,7 +1097,7 @@ She explains throwing the stones in the spring and sweeping after.
 #### KEEP-give4
 *What she says.*
 
-> One at a time, child, and no cleverness about it. There is a spring up there — the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.
+> One at a time, child, and no cleverness about it. There is a spring up there, the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.
 
 **Remark:**
 
@@ -1140,7 +1140,7 @@ Her greeting every time Savi comes back from freeing a root. The first sentence 
 #### KEEP-back
 *What she says.*
 
-> I felt that one come home. The trunk went warm under my hand — the first warm thing in this valley for two winters.
+> I felt that one come home. The trunk went warm under my hand, the first warm thing in this valley for two winters.
 
 **Remark:**
 
@@ -1176,7 +1176,7 @@ All five freed. She sends Savi to the Banyan for the last mural.
 #### KEEP-sendoff
 *What she says.*
 
-> All five. I felt the last one go. Now — there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.
+> All five. I felt the last one go. Now, there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.
 
 **Remark:**
 
@@ -1219,7 +1219,7 @@ Aside: "How could you forget it?"
 #### KEEP-howforget
 *What she says.*
 
-> You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell — the village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.
+> You tell a thing to nobody for long enough and it goes. That is all. There was no one to tell. The village stopped coming up when the gold would not fall, and a story with no one to hear it is only weather in your head.
 
 **Remark:**
 
@@ -1237,7 +1237,7 @@ The last thing she says before the credits roll.
 #### KEEP-blessing
 *What she says.*
 
-> Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child — you are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.
+> Look at you. Ash on your hands and the whole of it in your head. You are fit to keep this tree, child. You are the keeper now, and I am the old woman who sits by the fire. Let me have that for whatever days are left. Go on. Go and walk in it.
 
 **Remark:**
 
@@ -1345,7 +1345,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-choice-3
 *The Old Keeper speaks. Line 3 of 7.*
 
-> She chose her own fate, and gave her heart to Satyavan — a banished prince living in the dust of a forest.
+> She chose her own fate, and gave her heart to Satyavan, a banished prince living in the dust of a forest.
 
 **Remark:**
 
@@ -1403,7 +1403,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-fall-4
 *Satyavan speaks. Line 4 of 7.*
 
-> My head — it is only the heat. Let me put it in your lap a moment.
+> My head. It is only the heat. Let me put it in your lap a moment.
 
 **Remark:**
 
@@ -1491,7 +1491,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-steps-4
 *Yama speaks. Line 4 of 5.*
 
-> You argue like a priest. Very well — ask me for something, and then go home.
+> You argue like a priest. Very well. Ask me for something, and then go home.
 
 **Remark:**
 
@@ -1507,7 +1507,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-boon-1
 *The Old Keeper speaks. Line 1 of 5.*
 
-> His patience was thin. But before he could turn on her, she spoke again — and she praised him.
+> His patience was thin. But before he could turn on her, she spoke again, and she praised him.
 
 **Remark:**
 
@@ -1535,7 +1535,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-boon-5
 *Yama speaks. Line 5 of 5.*
 
-> One last boon. Anything — except the life of Satyavan. Then you must go.
+> One last boon. Anything except the life of Satyavan. Then you must go.
 
 **Remark:**
 
@@ -1595,7 +1595,7 @@ The end of the story. Reading it is what makes the tree bloom.
 #### CLIMAX-8
 *Yama speaks. Line 8 of 11.*
 
-> HA! Ha ha — oh, well argued, little one. Well argued.
+> HA! Ha ha. Oh, well argued, little one. Well argued.
 
 **Remark:**
 
@@ -1616,7 +1616,7 @@ The end of the story. Reading it is what makes the tree bloom.
 #### CLIMAX-11
 *The Old Keeper speaks. Line 11 of 11.*
 
-> He let the noose go. She won him back with words — and the forest bloomed.
+> He let the noose go. She won him back with words, and the forest bloomed.
 
 **Remark:**
 

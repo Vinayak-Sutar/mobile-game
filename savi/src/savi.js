@@ -773,7 +773,7 @@ function stepCapstan(dt) {
   // flood the road with it, and the keeper has it.
   if (!has(st, 'crank')) {
     if (Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) {
-      st.prompt = 'the capstan has no handle — the keeper has it';
+      st.prompt = 'the capstan has no handle. the keeper has it';
     }
     return;
   }
@@ -1045,8 +1045,8 @@ function actHold(dt) {
     if (actT <= 0) {
       actT = 1.2;
       say(st.hasEmber
-        ? [['keeper', `Your coal has gone out, child. There is a fire ${towardFire()} — stand at it a moment and it will come back to itself.`]]
-        : [['keeper', 'This will not move for hands. The old woman keeps a fire — take a coal from it and hold it out.']], null);
+        ? [['keeper', `Your coal has gone out, child. There is a fire ${towardFire()}. Stand at it a moment and it will come back to itself.`]]
+        : [['keeper', 'This will not move for hands. The old woman keeps a fire. Take a coal from it and hold it out.']], null);
     }
     return;
   }
@@ -1587,7 +1587,7 @@ function step(dt) {
   const boon = ROOTS.find((r) => r.mat === 'ash');
   const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 320;
   const left = atBoon ? stonesOn(boon.patch) : 0;
-  if (carried) st.prompt = 'throw it in the spring — north';
+  if (carried) st.prompt = 'throw it in the spring, north';
   else if (!carried && reachStone()) st.prompt = 'lift the stone';
   else if (atBoon && left) st.prompt = `${left} stone${left === 1 ? '' : 's'} still on the root`;
   else if (atBoon) st.prompt = 'now sweep the grit off it';
@@ -1595,7 +1595,7 @@ function step(dt) {
   else if (atCapstan) {
     st.prompt = CAPSTAN.turns < 0.08
       ? 'walk round the capstan to raise the gate'
-      : `the gate is coming up — ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
+      : `the gate is coming up. ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
   }
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
@@ -1604,7 +1604,7 @@ function step(dt) {
   else if (st.equip === 'broom') st.prompt = 'hold to sweep';
   else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
   // And nothing else matters while the river is emptying.
-  if (st.watching) st.prompt = 'the water is going — she watches it go';
+  if (st.watching) st.prompt = 'she stands and watches the water go';
 
   for (const yt of YOUNG) {
     if (yt.grow < 1) yt.grow = Math.min(1, yt.grow + dt * 0.42);
@@ -1654,7 +1654,7 @@ function step(dt) {
     spark(SHRINE.x, SHRINE.y - 40, 60, { col: ['#ffb35e', '#ffd9a0'], sp0: 30, sp1: 200, l0: 1, l1: 2.2, s0: 3, s1: 7, kind: 'ember' });
     say([['keeper', 'Look at that. Swept clean, the way it used to be kept.'],
       ['keeper', 'The lamps have taken it for a kindness. That is the first warm thing here in two winters.'],
-      ['keeper', 'Now — the roots, child. Follow the lit one out and do for it what you did for my doorstep.']], null);
+      ['keeper', 'The roots next, child. Follow the lit one out and do for it what you did for my doorstep.']], null);
   }
 
   // Any root she frees wakes, whichever it is and whenever she gets to it.
@@ -2469,7 +2469,7 @@ function drawHud() {
     const cur2 = ROOTS.find((r) => r.id === (stage(st) || {}).root);
     const near = cur2 && st.briefed && Math.hypot(S.x - cur2.at.x, S.y - cur2.at.y) < 460;
     const pc = near && (cur2.mat === 'leaves' || cur2.mat === 'snow')
-      ? ` — ${Math.min(99, Math.round(clamp01(fraction(cur2) / 0.8) * 100))}% uncovered` : '';
+      ? `, ${Math.min(99, Math.round(clamp01(fraction(cur2) / 0.8) * 100))}% uncovered` : '';
     ctx.fillText(job.text + pc, L, 50 * F);
   }
   // This bar is the COAL burning down, and nothing else. The broom never runs
@@ -2949,7 +2949,7 @@ function rollCredits() {
       <p class="note">From the Vana Parva of the Mahābhārata. A princess who
         chose a man she was told would die within the year, followed Death
         down the road when he came for him, and argued him out of it.</p>
-      <div class="role">Painted in the manner of</div><p class="name">Gond — Jangarh Kalam</p>
+      <div class="role">Painted in the manner of</div><p class="name">Gond, in the Jangarh Kalam manner</p>
       <p class="note">With thanks to the Pardhan Gond artists of Patangarh,
         whose work this only bows toward.</p>
       <div class="role">Music</div><p class="name">Raag Bhupali · Raag Durga</p>
