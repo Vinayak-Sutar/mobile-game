@@ -66,7 +66,6 @@ export const KEEPER = {
     text: 'South-west of the shrine, where the ground dips. Two autumns of leaves have come down in that hollow and nobody swept them, and now the root under them cannot feel the air.',
     choices: [
       { say: 'I will sweep it.', to: 'give0', spine: true },
-      { say: 'Why does it matter if leaves lie on it?', to: 'whyleaves' },
     ],
   },
   give0: {
@@ -181,10 +180,6 @@ export const KEEPER = {
   before: {
     text: 'The story. One piece of it to a root. That is the whole reason the murals are there, and the reason nobody has read one in two winters.',
     choices: [{ say: 'I understand.', to: 'roots' }],
-  },
-  whyleaves: {
-    text: 'These are not roots under the ground, child. A banyan\'s great roots lie on top of it. You could walk the length of one. Two autumns of wet leaves over that is a blanket that never dries, and nothing under it ever sees the sun.',
-    choices: [{ say: 'Then I will start there.', to: 'brief0' }],
   },
   howcross: {
     text: 'Leaves, child. Great ones, broad as cartwheels, come down off the banyan and float there. They will hold you if you keep moving. Some drift, so watch them a moment before you trust them.',
