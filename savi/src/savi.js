@@ -2693,20 +2693,38 @@ function drawThought(c) {
   const F = isTouch() ? clamp(view.h / 400, 1, 1.55) : 1;
   const k = Math.min(1, st.think.t * 5) * clamp01((THINK_FOR - st.think.t) * 1.4);
   const size = Math.round(13 * F);
-  c.font = `600 ${size}px "Segoe UI", Roboto, system-ui, sans-serif`;
-  // Wrapped to something you can read in one sweep of the eye.
+  const FNT = (it) => `${it ? 'italic ' : ''}600 ${size}px "Segoe UI", Roboto, system-ui, sans-serif`;
+  c.font = FNT(false);
+  // THE SANSKRIT WORDS ARE ITALIC HERE TOO. The dialogue panels are HTML and
+  // get it for nothing; this is a canvas, so the <i> has to be read off the
+  // string and turned into a font change. Each word carries its own face,
+  // and the wrap measures it with that face - measure a word in the upright
+  // font and draw it in the italic one and the line creeps wider than the
+  // bubble somebody sized for it.
   const maxw = Math.min(view.w * 0.62, 360 * F);
-  const words = st.think.text.split(' ');
-  const rows = [];
-  let line = '';
-  for (const w of words) {
-    const t2 = line ? `${line} ${w}` : w;
-    if (c.measureText(t2).width > maxw && line) { rows.push(line); line = w; } else line = t2;
+  const toks = [];
+  let ital = false;
+  for (const part of st.think.text.split(/(<i>|<\/i>)/)) {
+    if (part === '<i>') { ital = true; continue; }
+    if (part === '</i>') { ital = false; continue; }
+    for (const w of part.split(/\s+/)) if (w) toks.push({ w, i: ital });
   }
-  if (line) rows.push(line);
+  c.font = FNT(false);
+  const sp = c.measureText(' ').width;
+  const rows = [[]];
+  let cur = 0, wide = 0;
+  for (const t of toks) {
+    c.font = FNT(t.i);
+    const ww = c.measureText(t.w).width;
+    const row = rows[rows.length - 1];
+    const adv = row.length ? sp + ww : ww;
+    if (row.length && cur + adv > maxw) { rows.push([t]); cur = ww; }
+    else { row.push(t); cur += adv; }
+    wide = Math.max(wide, cur);
+  }
   const lh = size * 1.32;
   const pad = 11 * F;
-  const bw = Math.max(...rows.map((r) => c.measureText(r).width)) + pad * 2;
+  const bw = wide + pad * 2;
   const bh = rows.length * lh + pad * 1.7;
   // Over her head, and shoved back on screen if she is stood at an edge.
   const bx = clamp(S.x - camera.x - bw / 2, 12, view.w - bw - 12);
@@ -2727,7 +2745,15 @@ function drawThought(c) {
   c.stroke();
   c.fillStyle = 'rgba(244,232,214,0.95)';
   c.textAlign = 'left';
-  rows.forEach((r, i) => c.fillText(r, bx + pad, by + pad + lh * (i + 0.78)));
+  rows.forEach((row, i) => {
+    let x = bx + pad;
+    const y = by + pad + lh * (i + 0.78);
+    for (const t of row) {
+      c.font = FNT(t.i);
+      c.fillText(t.w, x, y);
+      x += c.measureText(t.w).width + sp;
+    }
+  });
   c.restore();
 }
 

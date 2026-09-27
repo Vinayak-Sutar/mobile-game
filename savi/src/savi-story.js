@@ -49,16 +49,13 @@ export const ROOTS = [
     name: 'The Fall',
     mural: 'fall',
     hint: 'East, in the hollow the water has taken.',
-    savi: 'She counted every one of those days by herself and never said a word about it. I would have told somebody. I would have told everybody.',
+    savi: '<i>Yamaraj</i> himself. The god of death came for Satyavan with his own hands. Poor Savitri. I feel so bad for her.',
     keeper: 'A year of counting, and she took the last three of it without food or sleep. Then she got up on the morning she knew about, and walked out into the wood beside him, and talked about the weather.',
     lines: [
-      ['keeper', 'She did not run from it. She put off her gold, wore bark, and counted the days without telling a soul.', 'speaking'],
-      ['savitri', 'Three days without food or sleep. Let the fast hold what my hands cannot.', 'resolute'],
-      ['keeper', 'On the last morning she followed him into the deep woods and would not be left behind.', 'speaking'],
-      ['satyavan', 'My head. It is only the heat. Let me put it in your lap a moment.', 'tired'],
-      ['keeper', 'He struck at a branch, cried out, and fell. The forest went cold. The birds stopped.', 'weary'],
-      ['yama', 'Let him go, daughter. He is mine now.', 'stern'],
-      ['keeper', 'A shadow put out the sun. Yama, the Lord of Death, had come with his noose.', 'weary'],
+      ['keeper', 'They lived together for one year. After that year, Satyavan went into the wood to cut timber, and he fainted, and he fell.', 'speaking'],
+      ['keeper', 'Savitri took his head into her lap, and stayed there.', 'weary'],
+      ['keeper', 'Then a figure came out of the trees. He was the Lord of Death, and the Lord of <i>dharma</i>. He sat on his ride, a great buffalo.', 'weary'],
+      ['yama', 'Let go of him, girl. I am here to collect his soul. Your duty as his wife is over. Go and make ready for his funeral.', 'stern'],
     ],
   },
   {
@@ -100,7 +97,7 @@ export const ROOTS = [
     keeper: 'Everyone he had ever come for wept, or bargained, or cursed him. She praised him. He had been Lord of Justice since before the hills and nobody had ever once thanked him for it.',
     lines: [
       ['keeper', 'His patience was thin. But before he could turn on her, she spoke again, and she praised him.', 'speaking'],
-      ['savitri', 'Fools fear you, Dharmaraja. They weep because they cannot see what you carry.', 'pleading'],
+      ['savitri', 'Fools fear you, <i>Dharmaraja</i>. They weep because they cannot see what you carry.', 'pleading'],
       ['savitri', 'You are the Lord of Justice. The righteous honour the balance you keep.', 'pleading'],
       ['keeper', 'Never had a mortal looked on Death with such kindness. He stopped at the very gate.', 'pleased'],
       ['yama', 'One last boon. Anything except the life of Satyavan. Then you must go.', 'respect'],
@@ -111,8 +108,8 @@ export const ROOTS = [
 /** The climax, once all five are awake and the tree remembers the whole of it. */
 export const CLIMAX = [
   ['keeper', 'She looked at the God of Death. And she smiled.', 'speaking'],
-  ['savitri', 'Then grant me this, Dharmaraja: let me be the mother of a hundred strong sons.', 'clever'],
-  ['yama', 'Tathastu. So be it.', 'respect'],
+  ['savitri', 'Then grant me this, <i>Dharmaraja</i>: let me be the mother of a hundred strong sons.', 'clever'],
+  ['yama', '<i>Tathastu</i>. So be it.', 'respect'],
   ['keeper', 'And he turned to go, glad to be done with her.', 'speaking'],
   ['savitri', 'Wait. I am a woman of one husband, and I can bear children by no other.', 'clever'],
   ['savitri', 'You are the God of Truth. You cannot lie. How am I to have sons, if you take him?', 'clever'],

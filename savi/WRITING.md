@@ -1355,51 +1355,30 @@ Savi can page back and forth and re-read any of it any time.
 ### The Fall — the mural on the `fall` root
 
 #### MURAL-fall-1
-*The Old Keeper speaks. Line 1 of 7.*
+*The Old Keeper speaks. Line 1 of 4.*
 
-> She did not run from it. She put off her gold, wore bark, and counted the days without telling a soul.
+> They lived together for one year. After that year, Satyavan went into the wood to cut timber, and he fainted, and he fell.
 
 **Remark:**
 
 #### MURAL-fall-2
-*Savitri speaks. Line 2 of 7.*
+*The Old Keeper speaks. Line 2 of 4.*
 
-> Three days without food or sleep. Let the fast hold what my hands cannot.
+> Savitri took his head into her lap, and stayed there.
 
 **Remark:**
 
 #### MURAL-fall-3
-*The Old Keeper speaks. Line 3 of 7.*
+*The Old Keeper speaks. Line 3 of 4.*
 
-> On the last morning she followed him into the deep woods and would not be left behind.
+> Then a figure came out of the trees. He was the Lord of Death, and the Lord of <i>dharma</i>. He sat on his ride, a great buffalo.
 
 **Remark:**
 
 #### MURAL-fall-4
-*Satyavan speaks. Line 4 of 7.*
+*Yama speaks. Line 4 of 4.*
 
-> My head. It is only the heat. Let me put it in your lap a moment.
-
-**Remark:**
-
-#### MURAL-fall-5
-*The Old Keeper speaks. Line 5 of 7.*
-
-> He struck at a branch, cried out, and fell. The forest went cold. The birds stopped.
-
-**Remark:**
-
-#### MURAL-fall-6
-*Yama speaks. Line 6 of 7.*
-
-> Let him go, daughter. He is mine now.
-
-**Remark:**
-
-#### MURAL-fall-7
-*The Old Keeper speaks. Line 7 of 7.*
-
-> A shadow put out the sun. Yama, the Lord of Death, had come with his noose.
+> Let go of him, girl. I am here to collect his soul. Your duty as his wife is over. Go and make ready for his funeral.
 
 **Remark:**
 
@@ -1489,7 +1468,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-boon-2
 *Savitri speaks. Line 2 of 5.*
 
-> Fools fear you, Dharmaraja. They weep because they cannot see what you carry.
+> Fools fear you, <i>Dharmaraja</i>. They weep because they cannot see what you carry.
 
 **Remark:**
 
@@ -1528,14 +1507,14 @@ The end of the story. Reading it is what makes the tree bloom.
 #### CLIMAX-2
 *Savitri speaks. Line 2 of 11.*
 
-> Then grant me this, Dharmaraja: let me be the mother of a hundred strong sons.
+> Then grant me this, <i>Dharmaraja</i>: let me be the mother of a hundred strong sons.
 
 **Remark:**
 
 #### CLIMAX-3
 *Yama speaks. Line 3 of 11.*
 
-> Tathastu. So be it.
+> <i>Tathastu</i>. So be it.
 
 **Remark:**
 
@@ -1612,7 +1591,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-fall
 *After reading The Fall.*
 
-> She counted every one of those days by herself and never said a word about it. I would have told somebody. I would have told everybody.
+> <i>Yamaraj</i> himself. The god of death came for Satyavan with his own hands. Poor Savitri. I feel so bad for her.
 
 **Remark:**
 
@@ -1833,5 +1812,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*227 pieces of text. Generated from the code, so every line above is
+*224 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*
