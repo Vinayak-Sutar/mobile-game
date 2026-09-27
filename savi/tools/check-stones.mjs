@@ -116,6 +116,32 @@ console.log('\nwhere they are sown:');
   ok(room >= 18, `the field holds ${room} stones at 76 apart, clear of the water and the root`);
 }
 
+// --- 5. and the screen says how far along she is ----------------------------------
+//
+// It did not. The HUD counts a root down in per cent for leaves and for snow,
+// and the stone fall - the LONGEST of the five, eleven stones carried off and
+// then a floor of grit swept - was simply left out of the list, so there was
+// nothing on the screen between starting it and finishing it.
 console.log('');
-console.log(bad ? `${bad} thing(s) wrong with the stone fall` : 'the stone fall can be cleared');
+console.log('and the line at the top of the screen:');
+{
+  const { readFileSync } = await import('node:fs');
+  const { fileURLToPath } = await import('node:url');
+  const { dirname, join } = await import('node:path');
+  const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'savi.js'), 'utf8');
+
+  ok(/cur2\.mat === 'leaves' \|\| cur2\.mat === 'snow'/.test(src), 'leaves and snow count down');
+  ok(/else if \(near && cur2\.mat === 'ash'\)/.test(src), 'and so does the stone fall now');
+  // Two jobs, counted two ways: stones first, then the grit under them.
+  ok(/const n = stonesOn\(cur2\.patch\);/.test(src), 'it asks how many stones are still on the root');
+  ok(/n \? `, \$\{n\} stone\$\{n === 1 \? '' : 's'\} to shift` : `, \$\{done\(cur2\)\}% swept`/.test(src),
+    'the stones while there are stones, then the sweeping');
+  // The grit under a stone cannot be carved, so a percentage shown while the
+  // stones are still there would sit stuck and look broken.
+  ok(src.indexOf('stone${n === 1') < src.indexOf('}% swept`'),
+    'and the per cent only appears once the stones are gone');
+}
+
+console.log('');
+console.log(bad ? `${bad} thing(s) wrong with the stone fall` : 'the stone fall can be cleared, and it says how far in she is');
 process.exit(bad ? 1 : 0);

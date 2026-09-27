@@ -2599,8 +2599,25 @@ function drawHud() {
     ctx.fillStyle = 'rgba(255,179,94,0.92)';
     const cur2 = ROOTS.find((r) => r.id === (stage(st) || {}).root);
     const near = cur2 && st.briefed && Math.hypot(S.x - cur2.at.x, S.y - cur2.at.y) < 460;
-    const pc = near && (cur2.mat === 'leaves' || cur2.mat === 'snow')
-      ? `, ${Math.min(99, Math.round(clamp01(fraction(cur2) / 0.8) * 100))}% uncovered` : '';
+    // HOW FAR ALONG SHE IS, for every root that is a job of work.
+    //
+    // The stone fall was left out of this and it is the LONGEST of the five:
+    // eleven stones to carry off and then a whole floor of grit to sweep,
+    // with nothing on the screen saying whether she was a tenth of the way in
+    // or nearly done. It is two jobs, so it counts two ways - the stones
+    // while there are stones, because a number of stones is better than a
+    // percentage of them, and then the sweeping.
+    //
+    // Not the water, which the capstan's own line already counts in turns,
+    // and not the thorn, which does not end by degrees: she cuts her way in
+    // and the rest of the thicket goes up at once.
+    const done = (r) => Math.min(99, Math.round(clamp01(fraction(r) / 0.8) * 100));
+    let pc = '';
+    if (near && (cur2.mat === 'leaves' || cur2.mat === 'snow')) pc = `, ${done(cur2)}% uncovered`;
+    else if (near && cur2.mat === 'ash') {
+      const n = stonesOn(cur2.patch);
+      pc = n ? `, ${n} stone${n === 1 ? '' : 's'} to shift` : `, ${done(cur2)}% swept`;
+    }
     ctx.fillText(job.text + pc, L, 50 * F);
   }
   // This bar is the COAL burning down, and nothing else. The broom never runs
