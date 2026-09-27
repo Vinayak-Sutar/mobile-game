@@ -1555,8 +1555,14 @@ function step(dt) {
   if (st.hasEmber) {
     const warmHere = SHELTERS.some((h) => Math.hypot(S.x - h.x, S.y - h.y) < h.r) || Math.hypot(S.x - FIRE.x, S.y - FIRE.y) < 170;
     st.ember = clamp(st.ember + (warmHere ? dt * 0.4 : -dt * 0.021), 0, 1);
-    if (st.ember > 0.05 && Math.random() < 0.4) {
-      spark(S.x + rand(-6, 6), S.y - 18, 1, { col: ['#ffb35e', '#ff8a3c'], sp0: 4, sp1: 20, l0: 0.6, l1: 1.4, s0: 2, s1: 4, kind: 'ember', lift: 28 });
+    // THE EMBERS COME OFF THE LANTERN, so they only exist when the lantern
+    // does. They used to rise off her chest whenever she owned a lit coal -
+    // which since the belt went in means for most of the game, with the
+    // thing stowed and both hands empty. A girl walking about on fire.
+    if (st.equip === 'lamp' && st.ember > 0.05 && Math.random() < 0.4) {
+      const side = Math.abs(Math.cos(S.face)) > 0.3 ? Math.sign(Math.cos(S.face)) : -1;
+      spark(S.x + side * 10 + rand(-3, 3), S.y - 12, 1,
+        { col: ['#ffb35e', '#ff8a3c'], sp0: 4, sp1: 20, l0: 0.6, l1: 1.4, s0: 2, s1: 4, kind: 'ember', lift: 28 });
     }
   }
 
@@ -2248,7 +2254,11 @@ function render() {
   drawWoman(ctx, WOMAN, st.t);
   for (const h of SHELTERS) drawFire(ctx, { x: h.x, y: h.y }, st.t + h.x, 0.6);
 
-  if (st.hasEmber && st.ember > 0.02) glow(ctx, S.x, S.y - 10, 190 * (0.45 + st.ember * 0.55), `rgba(255,150,60,${0.22 * st.ember + 0.05})`);
+  // And the light on the ground is the LANTERN'S light. Same bug, same fix:
+  // a coal she owns but is not carrying does not light the valley.
+  if (st.equip === 'lamp' && st.ember > 0.02) {
+    glow(ctx, S.x, S.y - 10, 190 * (0.45 + st.ember * 0.55), `rgba(255,150,60,${0.22 * st.ember + 0.05})`);
+  }
   // WHICH SIDE OF HER THE FIRE IS ON. Facing away from the camera she is
   // aiming UP the screen, and her own sprite stands in the first thirty
   // pixels of the cone - drawn over her, the fire rubbed her out. Facing away
