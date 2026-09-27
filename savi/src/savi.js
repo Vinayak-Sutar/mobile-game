@@ -3201,19 +3201,9 @@ function rollCredits() {
   st.credits = true;
   overlay.innerHTML = `<div class="credits"><div class="credroll">
       <h1>SAVI</h1>
-      <div class="sub">The Keeper of the Banyan</div>
-      <div class="role">Made by</div><p class="name">Vinayak Sutar</p>
-      <div class="role">Written, drawn, and set to music by</div><p class="name">the same</p>
-      <div class="role">The legend</div><p class="name">Sāvitrī and Satyavān</p>
-      <p class="note">From the Vana Parva of the Mahābhārata. A princess who
-        chose a man she was told would die within the year, followed Death
-        down the road when he came for him, and argued him out of it.</p>
-      <div class="role">Painted in the manner of</div><p class="name">Gond, in the Jangarh Kalam manner</p>
-      <p class="note">With thanks to the Pardhan Gond artists of Patangarh,
-        whose work this only bows toward.</p>
-      <div class="role">Music</div><p class="name">Raag Bhupali · Raag Durga</p>
+      <div class="sub">The Keeper of the Banyan Tree</div>
+      <div class="role">Made by</div><p class="name">Vinayak and Surya</p>
       <div class="role">Made for</div><p class="name">the Cozy Fall Game Jam, 2026</p>
-      <p class="note">Thank you for keeping it.</p>
       <div class="role">&nbsp;</div>
     </div><div class="credskip">tap, or press any key, to go back to the valley</div></div>`;
   overlay.classList.add('on', 'full');
