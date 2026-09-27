@@ -54,7 +54,8 @@ def check_level(staged):
     """
     if not any(p.startswith('savi/') for p in staged):
         return
-    for name in ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs', 'check-quest.mjs'):
+    for name in ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs', 'check-quest.mjs',
+                 'check-keys.mjs'):
         script = os.path.join(ROOT, 'savi', 'tools', name)
         if not os.path.exists(script):
             continue

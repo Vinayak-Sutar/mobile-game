@@ -30,6 +30,7 @@ import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
+import { keys, kdown, actionFor, keyLabel, loadKeys } from './savi-keys.js';
 import { ROOTS, CLIMAX } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import { stage, has, objective, brief, rootDone } from './savi-quest.js';
@@ -567,7 +568,7 @@ const st = {
   // away mid-flood threw the whole beat away.
   watching: false, watchT: 0,
   talking: null, reading: null, metKeeper: false,
-  nearWoman: false, asked: {}, told: 0, prompt: '', swept: false,
+  nearWoman: false, asked: {}, told: 0, prompt: '', cue: '', swept: false,
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -600,7 +601,6 @@ function checkOrientation() {
   if (!rotateEl) return;
   rotateEl.classList.toggle('on', st.started && isPortraitTouch());
 }
-const keys = new Set();
 /**
  * TOUCH, AND WHY IT WAS BROKEN.
  *
@@ -774,13 +774,11 @@ function stepCapstan(dt) {
   if (drained) { S.crank = null; return; }
   easeCapstan(dt);
   // No handle, no capstan. The bar was taken off so the hill folk could not
-  // flood the road with it, and the keeper has it.
-  if (!has(st, 'crank')) {
-    if (Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) {
-      st.prompt = 'the wheel has no handle. the keeper has it';
-    }
-    return;
-  }
+  // flood the road with it, and the keeper has it. What she is told about that
+  // is set with every other prompt, further down - said here it was wiped a
+  // few hundred lines later by the line that clears the prompt each frame,
+  // which is why nobody ever saw it.
+  if (!has(st, 'crank')) return;
   const moving = S.speed > 30 && S.z <= 0.5;
   const opened = windCapstan(S.x, S.y, moving);
   // BOTH HANDS ON THE BAR. She used to walk round the capstan with her arms
@@ -1260,10 +1258,10 @@ function moveVector() {
   if (forceMove) return forceMove;
   if (st.watching) return { x: 0, y: 0 };
   let mx = 0, my = 0;
-  if (keys.has('w') || keys.has('arrowup')) my -= 1;
-  if (keys.has('s') || keys.has('arrowdown')) my += 1;
-  if (keys.has('a') || keys.has('arrowleft')) mx -= 1;
-  if (keys.has('d') || keys.has('arrowright')) mx += 1;
+  if (kdown('up')) my -= 1;
+  if (kdown('down')) my += 1;
+  if (kdown('left')) mx -= 1;
+  if (kdown('right')) mx += 1;
   if (touch.on) {
     // THE RING YOU SEE IS THE THROTTLE. It used to divide by a flat fifty-four
     // CLIENT pixels while the ring is drawn at STICK_MAX in VIEW units, so on
@@ -1321,15 +1319,32 @@ function step(dt) {
   beltAxis = false;
   if (pad.jumpPressed) { begin(); if (st.talking || st.reading) advance(); else jumpWant = BUFFER; }
   if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) pressCinema();
-  held = pad.jumpHeld || keys.has(' ');
+  held = pad.jumpHeld || kdown('jump');
   if (pad.dashPressed) { begin(); dashWant = true; }
-  holding = keys.has('e') || BTN.act.on || pad.held;   // space is the jump now
+  // TWO ACTIONS, NOT ONE.
+  //
+  // One button used to do a verb and a noun at the same time: E swept, held
+  // the lantern out, talked to the keeper, read a mural, picked the broom up,
+  // lifted a stone and threw it. On a phone that is unavoidable and right -
+  // there is room for one ring, a tap means "the thing in front of me" and a
+  // hold means "the thing in my hand". On a keyboard there is no reason for
+  // it, and it is why holding the broom made the keeper unreachable until the
+  // order of the dispatch was fussed over.
+  //
+  //   INTERACT  a PRESS: talk, read, take, lift, throw          E
+  //   USE       a HOLD: sweep, raise the lantern                left click
+  //
+  // The ACT ring and the pad's square are both, exactly as before, because a
+  // thumb has one button and it is the tap-or-hold that says which one is
+  // meant.
+  holding = kdown('use') || BTN.act.on || pad.held;
+  const acting = kdown('interact') || BTN.act.on || pad.held;
   if (actT > 0) actT -= dt;
   if (S.act > 0) S.act -= dt;
   // ONE press, and this is who gets it. The order matters: the broom comes
   // before the keeper, or Savi cannot sweep the courtyard the keeper is
   // standing in the middle of - every press there would open her mouth instead.
-  if (holding && !wasHolding) {
+  if (acting && !wasHolding) {
     tapDone = false;
     // WHO GETS THE PRESS, and the order is the whole of it. Reading a mural
     // used to sit AFTER the broom stroke, and since a broom in hand always
@@ -1360,12 +1375,13 @@ function step(dt) {
       hurlStone(); tapDone = true;
     } else if (!busy && !carried && reachStone()) {
       takeStone(reachStone()); tapDone = true;
-    } else if (!busy && beginStroke()) {
-      tapDone = true;                           // one press, one sweep
     }
   }
-  if (!holding) tapDone = false;
-  wasHolding = holding;
+  // `tapDone` is the press saying "that one was mine". It is what stops a tap
+  // of the ring beside a stone from ALSO starting a broom stroke, and it lasts
+  // as long as the finger does.
+  if (!acting) tapDone = false;
+  wasHolding = acting;
   if (holding && !tapDone && !stroke) beginStroke();
   stepStroke(dt);
   S.burn = null;
@@ -1582,8 +1598,19 @@ function step(dt) {
     }
   }
 
-  // What she can reach, and what the button would do about it.
+  // What she can reach, what the button would do about it, AND WHICH BUTTON.
+  //
+  // The prompt used to say only the what: "take the broom". A player who has
+  // not been told which key that is has to try them. So it names the button in
+  // the language of the device in hand, and it asks the key table for the
+  // name, which means a player who rebinds it is taught the key they chose.
+  // A phone says nothing: its ring carries the word already.
   st.prompt = '';
+  st.cue = '';
+  const ih = isTouch() ? '' : (pad.on ? 'square' : keyLabel('interact'));
+  const uh = isTouch() ? '' : (pad.on ? 'square' : keyLabel('use'));
+  const press = (v) => (ih ? `${ih} to ${v}` : v);
+  const hold = (v) => (uh ? `hold ${uh} to ${v}` : `hold to ${v}`);
   const nearBroom = has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
   const nearFinal = finalUp() && Math.hypot(S.x - FINAL.x, S.y - FINAL.y) < 150;
@@ -1591,22 +1618,24 @@ function step(dt) {
   const boon = ROOTS.find((r) => r.mat === 'ash');
   const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 320;
   const left = atBoon ? stonesOn(boon.patch) : 0;
-  if (carried) st.prompt = 'throw it in the spring, north';
-  else if (!carried && reachStone()) st.prompt = 'lift the stone';
+  if (carried) { st.cue = 'throw'; st.prompt = press('throw it in the spring, north'); }
+  else if (reachStone()) { st.cue = 'lift'; st.prompt = press('lift the stone'); }
   else if (atBoon && left) st.prompt = `${left} stone${left === 1 ? '' : 's'} still on the root`;
-  else if (atBoon) st.prompt = 'now sweep the grit off it';
-  else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
+  else if (atBoon) { st.cue = 'sweep'; st.prompt = hold('sweep the grit off it'); }
+  else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) { st.cue = 'speak'; st.prompt = press('speak to her'); }
   else if (atCapstan) {
-    st.prompt = CAPSTAN.turns < 0.08
-      ? 'walk round the wheel to raise the gate'
-      : `the gate is coming up. ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
+    st.cue = 'haul';
+    st.prompt = !has(st, 'crank')
+      ? 'the wheel has no handle. the keeper has it'
+      : CAPSTAN.turns < 0.08
+        ? 'walk round the wheel to raise the gate'
+        : `the gate is coming up. ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
   }
-  else if (nearBroom) st.prompt = 'take the broom';
-  else if (nearYoung) st.prompt = 'read the mural';
-  else if (nearFinal) st.prompt = 'read the mural';
+  else if (nearBroom) { st.cue = 'take'; st.prompt = press('take the broom'); }
+  else if (nearYoung || nearFinal) { st.cue = 'read'; st.prompt = press('read the mural'); }
   else if (onLeaf) st.prompt = 'jump';
-  else if (st.equip === 'broom') st.prompt = 'hold to sweep';
-  else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
+  else if (st.equip === 'broom') { st.cue = 'sweep'; st.prompt = hold('sweep'); }
+  else if (st.equip === 'lamp') { st.cue = 'hold'; st.prompt = hold('raise the lantern at thorn or snow'); }
   // And nothing else matters while the river is emptying.
   if (st.watching) st.prompt = 'she stands and watches the water go';
 
@@ -2539,14 +2568,11 @@ function drawHud() {
 
   // ACTION. Its label says what the press would actually DO, which on a
   // phone is the only instruction there is room for.
-  const label = st.prompt.startsWith('take') ? 'TAKE'
-    : st.prompt.startsWith('read') ? 'READ'
-      : st.prompt.startsWith('speak') ? 'TALK'
-        : st.prompt.startsWith('lift') ? 'LIFT'
-          : st.prompt.startsWith('throw') ? 'THROW'
-            : st.prompt.startsWith('haul') || st.prompt.startsWith('it ') ? 'HAUL'
-              : st.equip === 'lamp' ? 'HOLD'
-                : st.equip === 'broom' ? 'SWEEP' : 'ACT';
+  // It reads `st.cue`, not the words of the prompt: the prompt now begins
+  // with the name of a key, so matching on its first word would label every
+  // ring in the game E.
+  const CUE = { take: 'TAKE', read: 'READ', speak: 'TALK', lift: 'LIFT', throw: 'THROW', haul: 'HAUL', sweep: 'SWEEP', hold: 'HOLD' };
+  const label = CUE[st.cue] || (st.equip === 'lamp' ? 'HOLD' : st.equip === 'broom' ? 'SWEEP' : 'ACT');
   button(BTN.act, label, (a) => `rgba(255,179,94,${0.22 + a * 0.2})`, 'rgba(255,190,120,0.8)', holding ? 0.28 : 0);
 
   button(BTN.jump, 'JUMP', (a) => `rgba(198,226,196,${0.18 + a * 0.2})`,
@@ -2601,8 +2627,10 @@ function drawHud() {
     ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
     ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
     ctx.fillText(pad.on
-      ? 'cross to jump · circle to dash · square to act · L1 for her belt'
-      : 'space to jump · shift to dash · E to act · TAB for her belt', view.w / 2, view.h - 16);
+      ? 'cross to jump · circle to dash · square to act · L1 for her belt · start to pause'
+      : `${keyLabel('jump')} to jump · ${keyLabel('dash')} to dash · ${keyLabel('interact')} to interact`
+        + ` · ${keyLabel('use')} to use · ${keyLabel('belt')} for her belt · escape to pause`,
+    view.w / 2, view.h - 16);
     ctx.textAlign = 'left';
   }
 }
@@ -3153,6 +3181,7 @@ function begin() {
 }
 
 function main() {
+  loadKeys();                 // whatever this player bound last time
   cv = document.getElementById('game');
   ctx = cv.getContext('2d');
   overlay = document.getElementById('overlay');
@@ -3221,40 +3250,46 @@ function main() {
     // TAB IS THE BELT. It has to preventDefault whether the belt opens or not,
     // or the browser walks focus off the canvas and the next key goes nowhere.
     if (st.credits) { if (creditsEnd) creditsEnd(); e.preventDefault(); return; }
-    if (k === 'tab') {
+    // WHICH ACTION THAT KEY IS, asked once. Escape and Enter are not in the
+    // table and never will be: they are how a player gets out of a thing.
+    const a = actionFor(k);
+    const ok = k === 'enter' || a === 'interact' || a === 'jump';   // "yes, that one"
+    if (a === 'belt') {
+      // It has to preventDefault whether the belt opens or not, or the browser
+      // walks focus off the canvas with Tab and the next key goes nowhere.
       begin();
       if (st.wheel) closeBelt(false); else openBelt();
       e.preventDefault();
       return;
     }
     if (st.reading) {
-      if (k === 'arrowleft' || k === 'a') { stepReading(-1); e.preventDefault(); return; }
-      if (k === 'arrowright' || k === 'd') { stepReading(1); e.preventDefault(); return; }
+      if (a === 'left') { stepReading(-1); e.preventDefault(); return; }
+      if (a === 'right') { stepReading(1); e.preventDefault(); return; }
     }
     if (st.talking && !st.talking.keeper) {
-      if (k === 'arrowleft' || k === 'a') { stepTalk(-1); e.preventDefault(); return; }
-      if (k === 'arrowright' || k === 'd') { stepTalk(1); e.preventDefault(); return; }
+      if (a === 'left') { stepTalk(-1); e.preventDefault(); return; }
+      if (a === 'right') { stepTalk(1); e.preventDefault(); return; }
     }
     if (st.talking && st.talking.keeper && k === 'escape') { closeTalk(); e.preventDefault(); return; }
     if (st.wheel) {
-      if (k === 'a' || k === 'arrowleft') beltMove(-1);
-      else if (k === 'd' || k === 'arrowright') beltMove(1);
+      if (a === 'left') beltMove(-1);
+      else if (a === 'right') beltMove(1);
       else if (k === 'escape' || k === 'q') closeBelt(false);
-      else if (k === ' ' || k === 'enter' || k === 'e') closeBelt(true);
+      else if (ok) closeBelt(true);
       e.preventDefault();
       return;
     }
     keys.add(k);
     if (st.talking && st.talking.keeper) {
-      if (k === 'arrowup' || k === 'w') { moveSel(-1); e.preventDefault(); return; }
-      if (k === 'arrowdown' || k === 's') { moveSel(1); e.preventDefault(); return; }
-      if (k === 'enter' || k === ' ' || k === 'e') { pickSel(); e.preventDefault(); return; }
+      if (a === 'up') { moveSel(-1); e.preventDefault(); return; }
+      if (a === 'down') { moveSel(1); e.preventDefault(); return; }
+      if (ok) { pickSel(); e.preventDefault(); return; }
     }
-    if (k === 'shift' || k === 'x') { begin(); dashWant = true; e.preventDefault(); }
-    if (k === ' ' || k === 'enter' || k === 'e') {
+    if (a === 'dash') { begin(); dashWant = true; e.preventDefault(); }
+    if (ok) {
       begin();
       if (st.talking || st.reading) advance();
-      else if (k === ' ') jumpWant = BUFFER;
+      else if (a === 'jump') jumpWant = BUFFER;
       e.preventDefault();
     }
   });
@@ -3294,10 +3329,20 @@ function main() {
       return;                                   // 'act' is a HOLD; `holding` reads it
     }
 
+    // A LEFT CLICK IS "USE THE THING IN YOUR HAND", and nothing else. It used
+    // to start the movement stick, so a desktop player could drag her about by
+    // the canvas - a leftover from the phone controls that nobody used, and
+    // one that cannot survive the button meaning `use`. It goes in the held
+    // set as a key like any other, because as far as the table is concerned
+    // that is what it is.
+    if (!isTouch()) {
+      if (e.button === 0 || e.button === undefined) keys.add('mouse1');
+      return;
+    }
     // STEERING IS THE LEFT OF THE SCREEN on a phone. It used to be anywhere
     // that was not a button, so a thumb reaching for DASH and missing sent
     // her walking off a leaf.
-    if (isTouch() && px > view.w * 0.62) return;
+    if (px > view.w * 0.62) return;
     if (touch.on) return;                        // a second finger does not steer
     touch.on = true; touch.id = e.pointerId === undefined ? -2 : e.pointerId;
     touch.ox = e.clientX; touch.oy = e.clientY; touch.x = e.clientX; touch.y = e.clientY;
@@ -3329,6 +3374,7 @@ function main() {
   /** And up. Whichever thing that finger belonged to, and nothing else. */
   const letGo = (e) => {
     const id = e && e.pointerId !== undefined ? e.pointerId : -2;
+    if (!e || e.button === 0 || e.button === undefined) keys.delete('mouse1');
     if (touch.on && id === touch.id) { touch.on = false; touch.id = -1; return; }
     releaseButton(id);
   };
@@ -3373,7 +3419,7 @@ main();
 window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
   STONES, inTarn, stonesOn, reachStone, takeStone, hurlStone, get carried() { return carried; },
-  BTN, touch, get holding() { return holding; }, layoutButtons, hitButton,
+  BTN, touch, keys, get holding() { return holding; }, layoutButtons, hitButton,
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
   opening() { playOpening(null); },
@@ -3384,7 +3430,7 @@ window.savi = {
   run(n = 60) { for (let i = 0; i < n; i++) step(1 / 60); },
   walk(x, y, n = 60) { forceMove = { x, y }; for (let i = 0; i < n; i++) step(1 / 60); forceMove = null; },
   dash() { dashWant = true; step(1 / 60); for (let i = 0; i < 20; i++) step(1 / 60); },
-  hold(sec = 1) { keys.add('e'); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete('e'); step(1 / 60); },
-  sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add('e'); step(1 / 60); keys.delete('e'); for (let j = 0; j < 34; j++) step(1 / 60); } },
+  hold(sec = 1) { keys.add('mouse1'); for (let i = 0; i < sec * 60; i++) step(1 / 60); keys.delete('mouse1'); step(1 / 60); },
+  sweep(n = 1) { for (let i = 0; i < n; i++) { keys.add('mouse1'); step(1 / 60); keys.delete('mouse1'); for (let j = 0; j < 34; j++) step(1 / 60); } },
   talkTo, KEEPER,
 };
