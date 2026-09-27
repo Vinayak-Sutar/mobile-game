@@ -86,7 +86,7 @@ export const ROOTS = [
       ['savitri', 'Lord Yama, according to our <i>dharma</i>, it is said that if two people walk seven steps together, they are friends.', 'clever'],
       ['savitri', 'I have walked a great deal further than seven with you. A friend must hear a friend.', 'clever'],
       ['yama', 'You are a clever girl. Are you not afraid that I am the Lord of Death?', 'caught'],
-      ['keeper', 'Yama was impressed by her wits. He began to offer her boons to be rid of her. Would she be able to bring Satyavan back to life?', 'pleased'],
+      ['keeper', 'Yama was impressed by her wits. He began to offer her a boon to be rid of her. Would she be able to bring Satyavan back to life?', 'pleased'],
     ],
   },
   {
@@ -94,14 +94,14 @@ export const ROOTS = [
     name: 'The Boon',
     mural: 'boon',
     hint: 'North, where half the hillside came down on it.',
-    savi: 'She was kind to him. To Death. And he is the one who had to stop walking.',
+    savi: 'Savitri got a boon from Yama. Anything at all, except the life of Satyavan. I wonder what she will do.',
     keeper: 'Everyone he had ever come for wept, or bargained, or cursed him. She praised him. He had been Lord of Justice since before the hills and nobody had ever once thanked him for it.',
     lines: [
-      ['keeper', 'His patience was thin. But before he could turn on her, she spoke again, and she praised him.', 'speaking'],
+      ['keeper', 'Yama thought Savitri would be afraid, after he had threatened her like that. But instead, she praised him.', 'speaking'],
       ['savitri', 'Fools fear you, <i>Dharmaraja</i>. They weep because they cannot see what you carry.', 'pleading'],
       ['savitri', 'You are the Lord of Justice. The righteous honour the balance you keep.', 'pleading'],
       ['keeper', 'Never had a mortal looked on Death with such kindness. He stopped at the very gate.', 'pleased'],
-      ['yama', 'One last boon. Anything except the life of Satyavan. Then you must go.', 'respect'],
+      ['yama', 'You are a very clever girl, full of wits. I am impressed by you. I will give you one boon. Ask me for anything, except the life of Satyavan.', 'respect'],
     ],
   },
 ];

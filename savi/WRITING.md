@@ -1384,7 +1384,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-steps-5
 *The Old Keeper speaks. Line 5 of 5.*
 
-> Yama was impressed by her wits. He began to offer her boons to be rid of her. Would she be able to bring Satyavan back to life?
+> Yama was impressed by her wits. He began to offer her a boon to be rid of her. Would she be able to bring Satyavan back to life?
 
 **Remark:**
 
@@ -1393,7 +1393,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-boon-1
 *The Old Keeper speaks. Line 1 of 5.*
 
-> His patience was thin. But before he could turn on her, she spoke again, and she praised him.
+> Yama thought Savitri would be afraid, after he had threatened her like that. But instead, she praised him.
 
 **Remark:**
 
@@ -1421,7 +1421,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-boon-5
 *Yama speaks. Line 5 of 5.*
 
-> One last boon. Anything except the life of Satyavan. Then you must go.
+> You are a very clever girl, full of wits. I am impressed by you. I will give you one boon. Ask me for anything, except the life of Satyavan.
 
 **Remark:**
 
@@ -1544,7 +1544,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-boon
 *After reading The Boon.*
 
-> She was kind to him. To Death. And he is the one who had to stop walking.
+> Savitri got a boon from Yama. Anything at all, except the life of Satyavan. I wonder what she will do.
 
 **Remark:**
 
