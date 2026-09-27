@@ -773,7 +773,7 @@ function stepCapstan(dt) {
   // flood the road with it, and the keeper has it.
   if (!has(st, 'crank')) {
     if (Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40) {
-      st.prompt = 'the capstan has no handle. the keeper has it';
+      st.prompt = 'the wheel has no handle. the keeper has it';
     }
     return;
   }
@@ -1594,7 +1594,7 @@ function step(dt) {
   else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
   else if (atCapstan) {
     st.prompt = CAPSTAN.turns < 0.08
-      ? 'walk round the capstan to raise the gate'
+      ? 'walk round the wheel to raise the gate'
       : `the gate is coming up. ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
   }
   else if (nearBroom) st.prompt = 'take the broom';

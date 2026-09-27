@@ -33,7 +33,7 @@ export const ROOTS = [
     mural: 'choice',
     hint: 'Southwest, where the leaves lie deepest.',
     savi: 'She knew he had one year. She married him anyway. I wonder what happened after that.',
-    keeper: 'That is the part everyone leaves out, child. Narada named the day. She heard him name it, and she married the boy regardless. Her father put a hundred better matches in front of her and she would not look at one of them.',
+    keeper: 'Savitri was a great lady. Even though she knew he was going to die, she married him regardless.',
     lines: [
       ['keeper', 'Ah, I remember her fire. Savitri was a strong, elegant princess. Not one prince came to ask for her hand, for she was better than all of them at everything, and they knew it.', 'speaking'],
       ['savitri', 'I have chosen. He is the one.', 'resolute'],

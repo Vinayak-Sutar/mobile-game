@@ -807,7 +807,7 @@ Briefing for root 2 — the drowned root and the jammed sluice.
 #### KEEP-brief1
 *What she says.*
 
-> East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge, and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.
+> East, now. There is a gate out there that lets the water out of the valley. It jammed shut two winters ago. The water rose, and one of the Great Roots has been under it ever since.
 
 **Remark:**
 
@@ -821,32 +821,7 @@ Briefing for root 2 — the drowned root and the jammed sluice.
 #### KEEP-brief1-c2
 *What Savi can say back.*
 
-> Who built a sluice out there?
-
-**Remark:**
-
-#### KEEP-brief1-c3
-*What Savi can say back.*
-
 > How do I get across water?
-
-**Remark:**
-
-### sluicewho
-
-Aside: "Who built a sluice out there?"
-
-#### KEEP-sluicewho
-*What she says.*
-
-> The old people, before any of us. They cut the channel and hung a gate on it so the valley would not drown every spring. It worked for three hundred years, which is longer than most things.
-
-**Remark:**
-
-#### KEEP-sluicewho-c1
-*What Savi can say back.*
-
-> And now it is stuck.
 
 **Remark:**
 
@@ -875,7 +850,7 @@ She hands over the crank. Explains the capstan.
 #### KEEP-give1
 *What she says.*
 
-> You will need this. The capstan by the gate has no handle. It was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.
+> You will need this. There is a wheel by the gate that lifts it, and the handle was taken off it years ago so nobody could flood the road for a joke. Fit this crank on, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.
 
 **Remark:**
 
@@ -1140,7 +1115,7 @@ Her greeting every time Savi comes back from freeing a root. The first sentence 
 #### KEEP-back
 *What she says.*
 
-> I felt that one come home. The trunk went warm under my hand, the first warm thing in this valley for two winters.
+> You have treated that root. The trunk went warm under my hand as it took.
 
 **Remark:**
 
@@ -1677,7 +1652,7 @@ her. The bit she has been carrying about that beat for forty years.
 #### KREF-choice
 *Her word on The Choice.*
 
-> That is the part everyone leaves out, child. Narada named the day. She heard him name it, and she married the boy regardless. Her father put a hundred better matches in front of her and she would not look at one of them.
+> Savitri was a great lady. Even though she knew he was going to die, she married him regardless.
 
 **Remark:**
 
@@ -1858,5 +1833,5 @@ they are done the game is still there to walk around in.
 
 ---
 
-*230 pieces of text. Generated from the code, so every line above is
+*227 pieces of text. Generated from the code, so every line above is
 exactly what is on the screen.*

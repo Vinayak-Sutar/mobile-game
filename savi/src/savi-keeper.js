@@ -80,17 +80,16 @@ export const KEEPER = {
 
   brief1: {
     repeat: true,
-    text: 'East, now. The stream that fed this valley used to run out through a stone sluice at the head of its gorge, and two winters ago the gate jammed shut. The water had nowhere to go, so it climbed its own banks, and a Great Root has been under it ever since.',
+    text: 'East, now. There is a gate out there that lets the water out of the valley. It jammed shut two winters ago. The water rose, and one of the Great Roots has been under it ever since.',
     choices: [
       { say: 'Then I open the gate.', to: 'give1', spine: true },
-      { say: 'Who built a sluice out there?', to: 'sluicewho' },
       { say: 'How do I get across water?', to: 'howcross' },
     ],
   },
   give1: {
     repeat: true,
     give: 'crank',
-    text: 'You will need this. The capstan by the gate has no handle. It was taken off so the hill folk could not flood the road with it. Fit the crank, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.',
+    text: 'You will need this. There is a wheel by the gate that lifts it, and the handle was taken off it years ago so nobody could flood the road for a joke. Fit this crank on, put your shoulder to the bar, and walk it round three times. The gate comes up as you go.',
     choices: [{ say: 'And the water itself?', to: 'howcross' }, { say: 'I will go.', to: 'leave', spine: true }],
   },
 
@@ -158,7 +157,7 @@ export const KEEPER = {
     repeat: true,
     // Filled in by keeperFill with what she has to say about the beat that
     // just came back. This is only the fallback.
-    text: 'I felt that one come home. The trunk went warm under my hand, the first warm thing in this valley for two winters.',
+    text: 'You have treated that root. The trunk went warm under my hand as it took.',
     // ONE LINE. "Tell me that piece again" repeated something she had heard
     // a minute earlier, which the panel on the tree does properly whenever
     // she likes, and "How much is left?" read back a number that is already
@@ -206,10 +205,6 @@ export const KEEPER = {
   whyleaves: {
     text: 'These are not roots under the ground, child. A banyan\'s great roots lie on top of it. You could walk the length of one. Two autumns of wet leaves over that is a blanket that never dries, and nothing under it ever sees the sun.',
     choices: [{ say: 'Then I will start there.', to: 'brief0' }],
-  },
-  sluicewho: {
-    text: 'The old people, before any of us. They cut the channel and hung a gate on it so the valley would not drown every spring. It worked for three hundred years, which is longer than most things.',
-    choices: [{ say: 'And now it is stuck.', to: 'brief1' }],
   },
   howcross: {
     text: 'Leaves, child. Great ones, broad as cartwheels, come down off the banyan and float there. They will hold you if you keep moving. Some drift, so watch them a moment before you trust them.',
@@ -312,7 +307,7 @@ export function keeperFill(st, stageNow, onLast) {
   // SHE HAS SOMETHING TO ADD. She used to greet every root with the same
   // sentence about the trunk going warm, five times, which made her a door
   // you walk through rather than the only other person in the valley.
-  if (onLast) KEEPER.back.text = `I felt that one come home. ${onLast}`;
+  if (onLast) KEEPER.back.text = `You have treated that root. ${onLast}`;
   KEEPER.remind.text = stageNow
     ? `You have what you need, child. ${cap(stageNow.task)} — ${stageNow.where}.`
     : 'Off you go.';
