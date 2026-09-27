@@ -29,7 +29,7 @@ import {
   audio, setMusicEnabled, setMusicVolume, setVolume, previewMusic, sfx,
 } from './audio.js';
 import { toggleFullscreen, isFullscreen, fullscreenSupported } from './fullscreen.js';
-import { ACTIONS, keyLabels, rebindKey, defaultKeys, prettyKey } from './savi-keys.js';
+import { ACTIONS, keyLabels, rebindKey, defaultKeys, prettyKey, padName } from './savi-keys.js';
 import { BUILD } from './update.js';
 
 /**
@@ -188,22 +188,32 @@ function pageRows() {
   return [{ label: 'Back', act: () => go('root') }];
 }
 
-/** What a pad and a thumb do, which nothing can change and nothing should. */
-const FIXED_KEYS = [
-  'a controller: stick or d-pad to walk · cross to jump · circle to dash',
-  'square to interact and to use · L1 for her belt · start to pause',
+/**
+ * What a pad and a thumb do, which nothing can change and nothing should.
+ *
+ * The pad's two lines are built rather than written out, because the button
+ * a player has under their thumb is called cross on one pad and A on another
+ * and the game used to say cross to everybody.
+ */
+const padLines = () => [
+  `a controller: ${padName('move')} or the d-pad to walk · ${padName('jump')} to jump`
+    + ` · ${padName('dash')} to dash`,
+  `${padName('act')} to interact and to use · ${padName('belt')} for her belt`
+    + ` · ${padName('menu')} to pause`,
+];
+const FIXED_KEYS = () => [
+  ...padLines(),
   '',
   'a phone: the left of the screen steers · the ring taps to interact and holds to use',
 ];
-const TOUCH_KEYS = [
+const TOUCH_KEYS = () => [
   'The left of the screen steers her.',
   'The ring, bottom right: TAP it for what is in front of her,',
   'HOLD it for what is in her hand.',
   '',
   'The tool in the corner opens her belt. ❚❚ at the top pauses.',
   '',
-  'a controller: stick or d-pad to walk · cross to jump · circle to dash',
-  'square to interact and to use · L1 for her belt · start to pause',
+  ...padLines(),
 ];
 
 /** How to play, in a few lines and not forty. */
@@ -403,7 +413,7 @@ export function drawMenu(ctx) {
     ctx.font = FONT(13 * Ft);
     ctx.fillStyle = `rgba(240,226,203,${0.5 * k})`;
     let y = touch ? top + Math.round(10 * Ft) : top + rows.length * rh + Math.round(26 * Ft);
-    for (const line of touch ? TOUCH_KEYS : FIXED_KEYS) {
+    for (const line of (touch ? TOUCH_KEYS : FIXED_KEYS)()) {
       if (!line) { y += Math.round(10 * Ft); continue; }
       ctx.fillText(line, view.w / 2, y);
       y += Math.round(21 * Ft);
@@ -433,7 +443,7 @@ export function drawMenu(ctx) {
   ctx.font = FONT(12 * F);
   ctx.fillStyle = `rgba(240,226,203,${0.38 * k})`;
   ctx.fillText(touch ? 'tap a line · tap the dark to go back'
-    : pad ? 'stick to choose · cross to pick · circle to go back'
+    : pad ? `stick to choose · ${padName('jump')} to pick · ${padName('dash')} to go back`
       : 'arrows to choose · enter to pick · escape to go back',
   view.w / 2, view.h - 36 * F);
 
@@ -451,8 +461,8 @@ function deviceLines(pad, touch) {
       'The ring: a tap for what is in front of her, a hold for what is in her hand.'];
   }
   if (pad) {
-    return ['Stick or d-pad to walk, cross to jump, circle to dash.',
-      'Square: a tap for what is in front of her, a hold for what is in her hand.'];
+    return [`${padName('move')} or the d-pad to walk, ${padName('jump')} to jump, ${padName('dash')} to dash.`,
+      `${padName('act')}: a tap for what is in front of her, a hold for what is in her hand.`];
   }
   return [`${keyLabels('up')} and ${keyLabels('left')} to walk · ${keyLabels('jump')} to jump · ${keyLabels('dash')} to dash`,
     `${keyLabels('interact')} for what is in front of her · ${keyLabels('use')} for what is in her hand`];

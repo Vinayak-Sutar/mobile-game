@@ -36,6 +36,42 @@ export const ACTIONS = [
   { id: 'belt', name: 'Her belt', keys: ['tab'], pad: 'L1', what: 'change what is in her hands' },
 ];
 
+// --- WHAT THE BUTTONS ON A PAD ARE CALLED -------------------------------------------
+//
+// The mapping is the same either way - the browser hands every standard pad
+// the same numbers, and 0 is the bottom face button whatever is printed on it.
+// What is NOT the same is what it SAYS. Telling an Xbox player to press circle
+// is telling them nothing, and the game said exactly that everywhere.
+//
+// So the numbers stay where they are and only the words change, off the pad's
+// own id. Anything that is not obviously Sony gets the Xbox names, because a
+// generic pad on Windows arrives through XInput and is Xbox-shaped.
+
+export const PAD_STYLES = {
+  ps: {
+    name: 'PlayStation', move: 'the left stick', jump: 'cross', dash: 'circle',
+    act: 'square', belt: 'L1', menu: 'options',
+  },
+  xbox: {
+    name: 'Xbox', move: 'the left stick', jump: 'A', dash: 'B',
+    act: 'X', belt: 'LB', menu: 'menu',
+  },
+};
+
+let padStyle = 'xbox';
+
+/** Called whenever a pad turns up, with whatever string it calls itself. */
+export function setPadStyle(id) {
+  padStyle = /dualsense|dualshock|playstation|054c|0ce6|sony/i.test(String(id || ''))
+    ? 'ps' : 'xbox';
+  return padStyle;
+}
+
+/** What to call that button out loud, on the pad that is plugged in. */
+export function padName(what) {
+  return PAD_STYLES[padStyle][what] || what;
+}
+
 /** Keys the game keeps for itself, whatever a player would like. */
 export const RESERVED_KEYS = ['escape', 'enter'];
 

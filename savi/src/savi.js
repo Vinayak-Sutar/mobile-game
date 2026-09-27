@@ -30,7 +30,10 @@ import { rumble } from './gamepad.js';
 import { initFullscreen, enterFullscreen, isFullscreen, touchLike } from './fullscreen.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import { themeById } from './music-regions.js';
-import { keys, kdown, actionFor, keyLabel, keyLabels, loadKeys } from './savi-keys.js';
+import {
+  keys, kdown, actionFor, keyLabel, keyLabels, loadKeys, setPadStyle, padName,
+} from './savi-keys.js';
+import { stepTeach, teachText, noteJump, noteDash } from './savi-teach.js';
 import {
   initMenu, openMenu, closeMenu, menuOn, menuKey, menuPad, menuPointer, stepMenu, drawMenu, loadSound,
 } from './savi-menu.js';
@@ -628,7 +631,7 @@ const STICK_MAX = 62;              // how far the knob travels before it drags
 //   CROSS    jump          CIRCLE  dash
 //   SQUARE   action        L1        her belt
 const pad = {
-  on: false, mx: 0, my: 0,
+  on: false, mx: 0, my: 0, id: '',
   held: false, pressed: false,           // square / R2: the action
   upHeld: false, upPressed: false,       // and the stick, for choosing a reply
   downHeld: false, downPressed: false,
@@ -644,6 +647,10 @@ function pollPad() {
   let gp = null;
   for (const g of list) if (g && g.connected) { gp = g; break; }
   pad.on = !!gp;
+  // WHAT IT IS CALLED. The numbers are the same on every standard pad; the
+  // words printed on the buttons are not, and telling an Xbox player to press
+  // circle tells them nothing.
+  if (gp && gp.id !== pad.id) { pad.id = gp.id; setPadStyle(gp.id); }
   if (!gp) {
     // EVERY flag, not four of them. A pad that went away mid-press used to
     // leave dashPressed or beltPressed stuck true, and the game would dash,
@@ -702,6 +709,7 @@ const GORGE = { inside: inGorge, mouth: MOUTH_AT, where: 'south-west, at the foo
 let dtSeen = 1 / 60;       // the last frame's length, for the fades in render()
 let warmedArt = false;     // the rest of the painted art, asked for once
 let ripT = 0;              // and the water is only allowed a ring so often
+let taughtX = START.x, taughtY = START.y;   // where she was last frame, for the teaching
 
 // A little run, not a combat roll. Ashfall dashes 156 units in 0.17 s, which
 // out here would put her across a drift in one press; hers goes about 90, and
@@ -740,6 +748,7 @@ let jumpWant = 0, coyote = 0, held = false, wasHeld = false, onLeaf = null;
 let footing = null;
 
 function startJump() {
+  noteJump();
   if (st.talking || st.reading) return;
   S.vz = JUMP_V;
   S.z = 0.6;
@@ -828,6 +837,7 @@ function stepCapstan(dt) {
 }
 
 function startDash() {
+  noteDash();
   if (dashT > 0 || dashStock <= 0 || st.talking || st.reading || carried || st.watching) return;
   const mv = moveVector();
   const m = Math.hypot(mv.x, mv.y);
@@ -1637,6 +1647,12 @@ function step(dt) {
     }
   }
 
+  // THE FIRST STRETCH OF ROAD, and only that. How far she moved this frame is
+  // what counts as walking, so holding a key against a wall teaches nothing.
+  // It is over for good once the keeper has sent her to the first root.
+  stepTeach(dt, Math.hypot(S.x - taughtX, S.y - taughtY), st.briefed || st.done > 0);
+  taughtX = S.x; taughtY = S.y;
+
   // What she can reach, what the button would do about it, AND WHICH BUTTON.
   //
   // The prompt used to say only the what: "take the broom". A player who has
@@ -1646,8 +1662,8 @@ function step(dt) {
   // A phone says nothing: its ring carries the word already.
   st.prompt = '';
   st.cue = '';
-  const ih = isTouch() ? '' : (pad.on ? 'square' : keyLabel('interact'));
-  const uh = isTouch() ? '' : (pad.on ? 'square' : keyLabel('use'));
+  const ih = isTouch() ? '' : (pad.on ? padName('act') : keyLabel('interact'));
+  const uh = isTouch() ? '' : (pad.on ? padName('act') : keyLabel('use'));
   const press = (v) => (ih ? `${ih} to ${v}` : v);
   const hold = (v) => (uh ? `hold ${uh} to ${v}` : `hold to ${v}`);
   const nearBroom = has(st, 'broom') && !broom.held && Math.hypot(S.x - broom.x, S.y - broom.y) < 74;
@@ -2570,6 +2586,41 @@ function drawHud() {
       ctx.textAlign = 'left';
     }
   }
+  // THE THREE THINGS NOBODY TOLD THEM, on the first stretch of road. Above the
+  // prompt, in a band of its own, because it is the one line on the screen a
+  // player who has just started has to read.
+  const lesson = st.started && !cinemaOn() && !st.talking && !st.reading && !st.wheel
+    ? teachText({ touch: isTouch(), pad: pad.on }) : null;
+  if (lesson) {
+    const y = view.h - (isTouch() ? 186 * F : 96);
+    ctx.textAlign = 'center';
+    // IT HAS TO FIT. At the touch text scale the longest of the three ran off
+    // both ends of its own pill, so the size comes down until the whole thing
+    // sits inside the screen with a margin either side.
+    let px = 17;
+    ctx.font = fnt(px);
+    while (px > 11 && ctx.measureText(lesson.text).width + 44 * F > view.w - 40) {
+      px -= 1;
+      ctx.font = fnt(px);
+    }
+    const w = ctx.measureText(lesson.text).width + 44 * F;
+    ctx.fillStyle = 'rgba(14,10,8,0.5)';
+    ctx.beginPath();
+    const h = 30 * F, x = view.w / 2 - w / 2, ty = y - h * 0.72, r = h / 2;
+    ctx.moveTo(x + r, ty);
+    ctx.arcTo(x + w, ty, x + w, ty + h, r);
+    ctx.arcTo(x + w, ty + h, x, ty + h, r);
+    ctx.arcTo(x, ty + h, x, ty, r);
+    ctx.arcTo(x, ty, x + w, ty, r);
+    ctx.fill();
+    ctx.strokeStyle = lesson.got ? 'rgba(198,226,196,0.5)' : 'rgba(255,196,120,0.45)';
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.fillStyle = lesson.got ? 'rgba(214,238,210,0.95)' : 'rgba(255,224,186,0.95)';
+    ctx.fillText(lesson.text, view.w / 2, y);
+    ctx.font = fnt(13);
+    ctx.textAlign = 'left';
+  }
   if (st.prompt) {
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(255,214,170,0.92)';
@@ -2643,7 +2694,7 @@ function drawHud() {
       ctx.textAlign = 'center';
       ctx.font = '600 9px "Segoe UI", Roboto, system-ui, sans-serif';
       ctx.fillStyle = 'rgba(240,226,203,0.6)';
-      ctx.fillText(pad.on ? 'L1' : 'TAB', b.x, b.y + b.r + 13);
+      ctx.fillText(pad.on ? padName('belt') : keyLabel('belt').toUpperCase(), b.x, b.y + b.r + 13);
       ctx.textAlign = 'left';
     }
   });
@@ -2675,7 +2726,8 @@ function drawHud() {
     ctx.font = '600 13px "Segoe UI", Roboto, system-ui, sans-serif';
     ctx.fillStyle = `rgba(240,226,203,${st.t < 16 ? 0.5 : 0.26})`;
     ctx.fillText(pad.on
-      ? 'cross to jump · circle to dash · square to act · L1 for her belt · start to pause'
+      ? `${padName('jump')} to jump · ${padName('dash')} to dash · ${padName('act')} to act`
+        + ` · ${padName('belt')} for her belt · ${padName('menu')} to pause`
       : `${keyLabel('jump')} to jump · ${keyLabel('dash')} to dash · ${keyLabel('interact')} to interact`
         + ` · ${keyLabel('use')} to use · ${keyLabel('belt')} for her belt · escape to pause`,
     view.w / 2, view.h - 16);
@@ -2731,7 +2783,7 @@ function drawBelt(ctx) {
   ctx.font = '600 11px "Segoe UI", Roboto, system-ui, sans-serif';
   ctx.fillStyle = 'rgba(240,226,203,0.36)';
   ctx.fillText(pad.on
-    ? 'stick to choose · square to take it · L1 to close'
+    ? `stick to choose · ${padName('act')} to take it · ${padName('belt')} to close`
     : `tap one, or ${keyLabels('left')} and ${keyLabels('right')} · ${keyLabel('interact')} to take it`
       + ` · ${keyLabel('belt')} to close`, view.w / 2, y + R + 76);
   ctx.textAlign = 'left';
