@@ -563,7 +563,7 @@ const st = {
   // away mid-flood threw the whole beat away.
   watching: false, watchT: 0,
   talking: null, reading: null, metKeeper: false,
-  nearWoman: false, lastBeat: '', asked: {}, told: 0, prompt: '', swept: false,
+  nearWoman: false, asked: {}, told: 0, prompt: '', swept: false,
 };
 
 let ctx = null, cv = null, terrain = null, grass = null, water = null, overlay = null, rotateEl = null;
@@ -1894,7 +1894,6 @@ function wake(r) {
   st.lastRoot = beat.id;
   sfx.chime(); sfx.boon();
   spark(r.at.x, r.at.y, 90, { col: ['#ffb35e', '#ffd9a0', '#ff8a3c'], sp0: 40, sp1: 320, l0: 1, l1: 2.4, s0: 3, s1: 8, kind: 'ember' });
-  st.lastBeat = beat.lines[beat.lines.length - 1][1];
 }
 
 // --- drawing ----------------------------------------------------------------------------------------
@@ -2722,8 +2721,8 @@ function talkTo(node) {
   // What she has to add about the beat just told, which is the bit she has
   // been carrying about it for forty years with nobody to say it to.
   const last = ROOTS.find((r) => r.id === st.lastRoot);
-  keeperFill(st, ROOTS.length, st.lastBeat, stage(st), last && last.keeper);
-  st.talking = { keeper: node, who: 'The Keeper' };
+  keeperFill(st, stage(st), last && last.keeper);
+  st.talking = { keeper: node, who: 'The Old Keeper' };
   paintTalk();
 }
 
@@ -3039,7 +3038,7 @@ function stepReading(d = 1) {
   if (r.onDone) r.onDone();
 }
 
-const WHO = { keeper: 'The Keeper', savitri: 'Savitri', satyavan: 'Satyavan', yama: 'Yama, Lord of Death', narada: 'Narada' };
+const WHO = { keeper: 'The Old Keeper', savitri: 'Savitri', satyavan: 'Satyavan', yama: 'Yama, Lord of Death', narada: 'Narada' };
 
 // --- boot --------------------------------------------------------------------------------------------
 

@@ -44,7 +44,7 @@ console.log('walking the whole apprenticeship:');
     ok(toHer && toHer.kind === 'keeper', `${s.root}: unbriefed, the mark is on the keeper`);
 
     // The keeper's hub has to reach this stage's briefing node.
-    keeperFill(st, ROOTS.length, '', s, null);
+    keeperFill(st, s, null);
     const hub = KEEPER[keeperStart(st, ROOTS.length)];
     ok(!!hub, `${s.root}: her hub exists`);
     const route = hub && hub.choices.some((c) => c.to === s.brief || c.to === 'give' + i);
@@ -92,7 +92,7 @@ console.log('walking the whole apprenticeship:');
   st.after = true;
   ok(objective(st, ROOTS, WOMAN, TREE, { x: 2600, y: 1600 }, GORGE) === null,
     'and the valley asks nothing of her — no line, no arrow');
-  keeperFill(st, ROOTS.length, '', null, null);
+  keeperFill(st, null, null);
   ok(!!KEEPER.idle.text, `she has something to say at her fire — "${KEEPER.idle.text.slice(0, 44)}…"`);
 }
 

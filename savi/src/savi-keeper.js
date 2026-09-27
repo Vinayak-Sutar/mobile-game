@@ -159,10 +159,14 @@ export const KEEPER = {
     // Filled in by keeperFill with what she has to say about the beat that
     // just came back. This is only the fallback.
     text: 'I felt that one come home. The trunk went warm under my hand — the first warm thing in this valley for two winters.',
+    // ONE LINE. "Tell me that piece again" repeated something she had heard
+    // a minute earlier, which the panel on the tree does properly whenever
+    // she likes, and "How much is left?" read back a number that is already
+    // at the top of the screen. Neither of them told her anything, and two
+    // rows of nothing on the one hub she comes back to five times is worse
+    // than no rows at all.
     choices: [
       { say: 'What is next?', to: 'brief0', spine: true },   // retargeted in keeperFill
-      { say: 'Tell me that piece again.', to: 'retell' },
-      { say: 'How much is left?', to: 'howmuch' },
     ],
   },
 
@@ -231,8 +235,6 @@ export const KEEPER = {
     text: 'Spoil it? Stones are what a spring is made of, child. It has been running over them since before the tree. Put them back where they came from and it will not notice.',
     choices: [{ say: 'Then I will go.', to: 'brief4' }],
   },
-  retell: { repeat: true, text: '', choices: [{ say: '…', to: 'back' }] },
-  howmuch: { repeat: true, text: '', choices: [{ say: 'I will go on.', to: 'back' }] },
 
   // --- all five awake, and the end of it in three beats ---------------------------
   //
@@ -305,14 +307,7 @@ export function keeperStart(st, total) {
 }
 
 /** The lines the game fills in with what is actually true right now. */
-export function keeperFill(st, total, lastBeat, stageNow, onLast) {
-  const left = total - st.done;
-  KEEPER.howmuch.text = st.done === 0
-    ? 'Not one of them yet. Do not let that sit on you — five is only five.'
-    : left === 1
-      ? 'One. One root, and then we are done, and I can put this blanket down.'
-      : `${st.done} awake, ${left} still cold. You are further than I got in two winters.`;
-  KEEPER.retell.text = lastBeat || 'Nothing yet, child. Wake a root and there will be something to tell.';
+export function keeperFill(st, stageNow, onLast) {
   KEEPER.idle.text = IDLE[(Math.random() * IDLE.length) | 0];
   // SHE HAS SOMETHING TO ADD. She used to greet every root with the same
   // sentence about the trunk going warm, five times, which made her a door
