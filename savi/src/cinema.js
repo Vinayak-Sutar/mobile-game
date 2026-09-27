@@ -30,9 +30,19 @@ const FONT = '"Segoe UI", Roboto, system-ui, sans-serif';
 
 let film = null;
 
-/** Start a film. `onEnd` runs once, whether it was watched or skipped. */
-export function startCinema(shots, onEnd) {
-  film = { shots, onEnd, i: 0, t: 0, age: 0, out: 0, outMax: FADE, fired: new Set() };
+/**
+ * Start a film. `onEnd` runs once, whether it was watched or skipped.
+ *
+ * `opts.manual` makes it a PICTURE BOOK rather than a film: a shot holds
+ * until the player presses, and a press turns the page. `hold` then only
+ * says how long the shot takes to settle, not how long it lasts, and the
+ * line stays up instead of fading out on a clock - there is no clock.
+ */
+export function startCinema(shots, onEnd, opts = {}) {
+  film = {
+    shots, onEnd, i: 0, t: 0, age: 0, out: 0, outMax: FADE, fired: new Set(),
+    manual: !!opts.manual,
+  };
   const first = shots[0];
   if (first && first.cue) first.cue();
   return film;
@@ -43,6 +53,29 @@ export function cinemaOn() { return !!film; }
 /** Any press: out, over the same fade a cut uses. */
 export function skipCinema() {
   if (film && film.out <= 0) { film.out = 0.4; film.outMax = 0.4; }
+}
+
+/** Turn the page. The last page closes the book. */
+export function advanceCinema() {
+  if (!film || film.out > 0) return;
+  // Not while the cut is still crossing, or one eager tap takes two pages.
+  if (film.t < 0.35 && film.i > 0) return;
+  if (film.age < 0.5) return;
+  cut();
+}
+
+/** What a press does to THIS film: turn the page, or leave. */
+export function pressCinema() {
+  if (!film) return;
+  if (film.manual) advanceCinema(); else skipCinema();
+}
+
+function cut() {
+  film.i++;
+  film.t = 0;
+  const next = film.shots[film.i];
+  if (!next) { film.out = film.outMax = FADE; return; }
+  if (next.cue) next.cue();
 }
 
 export function updateCinema(dt) {
@@ -74,13 +107,8 @@ export function updateCinema(dt) {
     }
   }
 
-  if (film.t >= shot.hold) {
-    film.i++;
-    film.t = 0;
-    const next = film.shots[film.i];
-    if (!next) { film.out = film.outMax = FADE; return; }
-    if (next.cue) next.cue();
-  }
+  // A picture book waits. A film does not.
+  if (!film.manual && film.t >= shot.hold) cut();
 }
 
 const ease = (k) => k * k * (3 - 2 * k);
@@ -118,7 +146,9 @@ export function drawCinema(ctx, view) {
   if (shot.say) {
     const at = shot.sayAt === undefined ? 0.55 : shot.sayAt;
     const up = clamp((film.t - at) / 0.5, 0, 1);
-    const down = clamp((shot.hold - 0.35 - film.t) / 0.45, 0, 1);
+    // A page that waits keeps its line up. Fading it out on `hold` would
+    // take the words away while the picture was still there to be read.
+    const down = film.manual ? 1 : clamp((shot.hold - 0.35 - film.t) / 0.45, 0, 1);
     const show = Math.min(up, down);
     // A wash under the line: a lamp, a fire or a dawn can sit exactly where the
     // words are, and white on gold is not reading.
@@ -132,14 +162,20 @@ export function drawCinema(ctx, view) {
     drawSay(ctx, view, shot.say, show * 0.96, bar);
   }
 
-  // A player who has seen it before should not have to sit through it.
-  const hint = clamp((film.age - 2.2) / 0.8, 0, 1) * (film.out > 0 ? 0 : 1);
+  // What a press would do. On a picture book it comes up as soon as the
+  // line has, because it is the instruction rather than an escape hatch.
+  const last = film.i >= film.shots.length - 1;
+  const after = film.manual ? (shot.sayAt === undefined ? 0.55 : shot.sayAt) + 0.7 : 2.2;
+  const hint = clamp((film.t - after) / 0.6, 0, 1) * (film.out > 0 ? 0 : 1)
+    * (film.manual ? 1 : clamp((film.age - 2.2) / 0.8, 0, 1));
   if (hint > 0.01) {
-    ctx.globalAlpha = hint * 0.4;
+    const pulse = film.manual ? 0.62 + 0.24 * Math.sin(film.age * 2.6) : 0.4;
+    ctx.globalAlpha = hint * pulse;
     ctx.fillStyle = '#e9dcc8';
     ctx.font = `600 11px ${FONT}`;
     ctx.textAlign = 'right';
-    ctx.fillText('PRESS ANYWHERE TO SKIP', view.w - 18, view.h - bar - 14);
+    ctx.fillText(film.manual ? (last ? 'TAP TO BEGIN  ›' : 'TAP TO GO ON  ›') : 'PRESS ANYWHERE TO SKIP',
+      view.w - 18, view.h - bar - 14);
     ctx.textAlign = 'left';
     ctx.globalAlpha = 1;
   }
@@ -148,7 +184,11 @@ export function drawCinema(ctx, view) {
   let dark = 0;
   if (film.age < OPEN) dark = 1 - film.age / OPEN;
   if (film.t < FADE && film.i > 0) dark = Math.max(dark, 1 - film.t / FADE);
-  if (shot.hold - film.t < FADE && film.out <= 0) dark = Math.max(dark, 1 - (shot.hold - film.t) / FADE);
+  // THE FADE-OUT AT THE END OF A SHOT IS KEYED ON `hold`, and a page that
+  // waits runs past `hold` for ever - so (hold - t) goes negative, the veil
+  // clamps to 1, and the whole picture book is a black screen. A page only
+  // goes dark when it is actually turned, which the cross-fade above does.
+  if (!film.manual && shot.hold - film.t < FADE && film.out <= 0) dark = Math.max(dark, 1 - (shot.hold - film.t) / FADE);
   if (film.out > 0) dark = Math.max(dark, 1 - film.out / film.outMax);
   if (dark > 0.001) {
     ctx.fillStyle = `rgba(0,0,0,${clamp(dark, 0, 1).toFixed(3)})`;

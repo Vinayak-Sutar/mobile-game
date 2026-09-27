@@ -33,7 +33,7 @@ import { themeById } from './music-regions.js';
 import { ROOTS, CLIMAX, CLIMAX_SAVI } from './savi-story.js';
 import { KEEPER, keeperStart, keeperFill } from './savi-keeper.js';
 import { stage, has, objective, brief, rootDone } from './savi-quest.js';
-import { startCinema, updateCinema, drawCinema, skipCinema, cinemaOn } from './cinema.js';
+import { startCinema, updateCinema, drawCinema, pressCinema, cinemaOn } from './cinema.js';
 import { openingFilm } from './savi-open.js';
 import { preload, PORTRAITS, MURALS, keeperMood } from './savi-assets.js';
 import {
@@ -1307,7 +1307,7 @@ function step(dt) {
   }
   beltAxis = false;
   if (pad.jumpPressed) { begin(); if (st.talking || st.reading) advance(); else jumpWant = BUFFER; }
-  if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) skipCinema();
+  if (cinemaOn() && (pad.pressed || pad.jumpPressed || pad.dashPressed)) pressCinema();
   held = pad.jumpHeld || keys.has(' ');
   if (pad.dashPressed) { begin(); dashWant = true; }
   holding = keys.has('e') || BTN.act.on || pad.held;   // space is the jump now
@@ -3069,6 +3069,9 @@ function resize() {
  * ends. That was learned the hard way in the game this engine came from.
  */
 function playOpening(after) {
+  // A PICTURE BOOK, not a film: it holds each page until she turns it. Three
+  // held pictures that go by on a timer are three pictures somebody else
+  // decided you had finished looking at.
   startCinema(openingFilm(), () => {
     // BHUPALI, which is what the title screen was already playing. The id is
     // 'bhupali'; 'Hearthfields' is only the piece's NAME, and themeById looks
@@ -3079,7 +3082,7 @@ function playOpening(after) {
     setAmbientTheme(themeById('bhupali'));
     setMusicIntensity(0.4);
     if (after) after();
-  });
+  }, { manual: true });
 }
 
 function begin() {
@@ -3163,7 +3166,7 @@ function main() {
 
   addEventListener('keydown', (e) => {
     const k = e.key.toLowerCase();
-    if (cinemaOn()) { skipCinema(); e.preventDefault(); return; }
+    if (cinemaOn()) { pressCinema(); e.preventDefault(); return; }
     // TAB IS THE BELT. It has to preventDefault whether the belt opens or not,
     // or the browser walks focus off the canvas and the next key goes nowhere.
     if (st.credits) { if (creditsEnd) creditsEnd(); e.preventDefault(); return; }
@@ -3213,7 +3216,7 @@ function main() {
 
   /** A finger went down. The buttons get first refusal, then the stick. */
   cv.addEventListener('pointerdown', (e) => {
-    if (cinemaOn()) { skipCinema(); return; }
+    if (cinemaOn()) { pressCinema(); return; }
     begin();
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
     const px = e.clientX / sc(), py = e.clientY / sc();
