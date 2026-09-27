@@ -1453,7 +1453,10 @@ function step(dt) {
   // tenths held her at forty-two per cent for a WHOLE SECOND - and since
   // holding the button repeats the stroke, that was for ever. It is set to
   // the length of the thing it is timing now, and the brake is lighter.
-  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.58 : 1) * (carried ? 0.62 : 1);
+  // A capstan is not a thing you stroll round. Slower, and the three turns
+  // become a piece of work rather than a lap.
+  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.58 : 1)
+    * (carried ? 0.62 : 1) * (S.crank ? 0.66 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
   if (dashT > 0) {
     dashT -= dt;
@@ -1596,7 +1599,7 @@ function step(dt) {
   }
   else if (nearBroom) st.prompt = 'take the broom';
   else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
-  else if (nearFinal) st.prompt = 'read the last of it';
+  else if (nearFinal) st.prompt = 'read the last mural';
   else if (onLeaf) st.prompt = 'jump';
   else if (st.equip === 'broom') st.prompt = 'hold to sweep';
   else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
@@ -1613,7 +1616,7 @@ function step(dt) {
       yt.rung = true;
       st.watching = false;                  // there is something to go and see
       sfx.chime();
-      toast = { t: 0, text: 'a panel has come up on the new tree' };
+      toast = { t: 0, text: 'a mural has come up on the new tree' };
     }
   }
 

@@ -49,11 +49,11 @@ export const KEEPER = {
   },
   roots: {
     repeat: true,
-    text: 'Five Great Roots, and a root that cannot breathe carries nothing home. Clear one and a young banyan comes up out of it within the hour — they always have — and there will be a PANEL on it. Painted. Nobody living knows by whose hand.',
+    text: 'Five Great Roots, and a root that cannot breathe carries nothing home. Clear one and a young banyan comes up out of it within the hour — they always have — and there will be a MURAL on it. Painted. Nobody living knows by whose hand.',
     choices: [
       { say: 'Then that is my work. Where do I start?', to: 'brief0', spine: true },
       { say: 'Why can you not do it?', to: 'frail' },
-      { say: 'What is on the panels?', to: 'before' },
+      { say: 'What is on the murals?', to: 'before' },
     ],
   },
 
@@ -200,7 +200,7 @@ export const KEEPER = {
     choices: [{ say: 'Then I will go.', to: 'roots' }],
   },
   before: {
-    text: 'The story, in pieces. One panel to a root. Every keeper before me learned it off them the same way you are about to — go and stand in front of one and it will come back to me, and I will tell you what I see.',
+    text: 'The story, in pieces. One mural to a root. Every keeper before me learned it off them the same way you are about to — go and stand in front of one and it will come back to me, and I will tell you what I see.',
     choices: [{ say: 'I understand.', to: 'roots' }],
   },
   whyleaves: {
@@ -245,7 +245,7 @@ export const KEEPER = {
   sendoff: {
     repeat: true,
     mark: 'sent',
-    text: 'All five. I felt the last one go. Now — there is a sixth panel, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
+    text: 'All five. I felt the last one go. Now — there is a sixth mural, child, and it is not on any sapling. It is on the Great Banyan itself, low on the braid of the trunk, and I have not walked that far in two winters. Go and read me the end of it.',
     choices: [{ say: 'I will go and look.', to: 'leave', spine: true }],
   },
   farewell: {

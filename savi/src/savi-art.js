@@ -1050,9 +1050,14 @@ export function drawSavi(ctx, p, time) {
   ctx.ellipse(p.x + 1, p.y + 5, 12 - Math.min(4.5, z * 0.1), 5 - Math.min(2, z * 0.045), 0, 0, TAU);
   ctx.fill();
   ctx.translate(p.x, p.y + bob - z);
+  // THE LEAN. Skewed about her feet, so they stay planted and everything
+  // above them goes forward into the bar; and stretched or squashed a little
+  // for a push away from the camera or toward it.
+  if (p.crank) ctx.transform(1, 0, -fx * 0.36, 1 - fy * 0.15, 0, 2.5);
 
-  // Boots, stepping.
-  const st = walking ? Math.sin(ph) * 5 : 0;
+  // Boots, stepping. A push is a WIDE, SLOW stride with the back leg out
+  // behind her - nothing like the trot she crosses the valley with.
+  const st = walking ? Math.sin(ph) * (p.crank ? 8.5 : 5) : 0;
   ctx.fillStyle = '#3a2b22';
   ctx.beginPath(); ctx.ellipse(-4.5 + fx * st * 0.5, 1 + st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
   ctx.beginPath(); ctx.ellipse(4.5 - fx * st * 0.5, 1 - st * 0.5, 3.6, 4.4, 0, 0, TAU); ctx.fill();
@@ -1176,30 +1181,44 @@ export function drawSavi(ctx, p, time) {
   ctx.restore();
   }
 
-  // BOTH HANDS ON THE CAPSTAN BAR, and leaning her weight into it.
+  // BOTH HANDS ON THE BAR, AND HER WHOLE WEIGHT BEHIND IT.
   //
-  // `p.crank` is where the grip is, relative to her — so the arms go to the
-  // actual bar rather than to a guess, and as the bar swings round with her
-  // the reach swings with it. A capstan is pushed with the arms out and the
-  // body low behind them; she is eleven, so most of what moves it is her
-  // leaning on it and refusing to stop.
+  // The first go at this hung two curved arms off an upright girl who was
+  // otherwise out for a walk, and it looked exactly like that. What a
+  // capstan push looks like is the old God of War shove: the arms locked
+  // straight out at the shaft, the body angled in behind them, the stance
+  // dropped and the back leg driving. The lean is the whole of it - the
+  // silhouette has to be a diagonal, not a vertical with sticks on it.
+  //
+  // The lean is a SKEW about her feet (they stay planted, everything above
+  // them goes forward), plus a squash or stretch for leaning toward or away
+  // from the camera. It is applied to the body below, so the skirt, shawl,
+  // braid and head all go with it and not just the arms.
   if (p.crank) {
-    const gx = p.crank.dx, gy = p.crank.dy;
-    const px2 = -Math.sin(Math.atan2(gy, gx)), py2 = Math.cos(Math.atan2(gy, gx));
+    // THE GRIP IS IN WORLD SPACE AND SHE IS SKEWED, so the hands have to be
+    // drawn where the skew will PUT them on the bar, not where the bar is.
+    // Without this her fists land seven units past it and she is pushing
+    // thin air just in front of the thing.
+    const sk = -fx * 0.36, sq = 1 - fy * 0.15;
+    const gy = (p.crank.dy - 2.5) / sq;
+    const gx = p.crank.dx - sk * gy;
+    const aim = Math.atan2(p.crank.dy, p.crank.dx);
+    const px2 = -Math.sin(aim), py2 = Math.cos(aim);
     ctx.strokeStyle = '#c08a5a';
-    ctx.lineWidth = 3;
+    ctx.lineWidth = 3.1;
     ctx.lineCap = 'round';
+    // Straight. A locked-out arm is the difference between pushing a thing
+    // and reaching for it.
     for (const d of [-1, 1]) {
-      const sx = px2 * d * 5.5, sy = -15 + py2 * d * 2.5;
       ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.quadraticCurveTo((sx + gx) / 2 + px2 * d * 2, (sy + gy) / 2, gx + px2 * d * 3.4, gy + py2 * d * 1.6);
+      ctx.moveTo(px2 * d * 5 + fx * 2, -16 + py2 * d * 2.2 + fy * 1.2);
+      ctx.lineTo(gx + px2 * d * 3.6, gy + py2 * d * 1.8);
       ctx.stroke();
     }
     ctx.fillStyle = '#c08a5a';                   // her fists on the grip
     for (const d of [-1, 1]) {
       ctx.beginPath();
-      ctx.ellipse(gx + px2 * d * 3.4, gy + py2 * d * 1.6, 2.9, 2.4, 0, 0, TAU);
+      ctx.ellipse(gx + px2 * d * 3.6, gy + py2 * d * 1.8, 3, 2.5, 0, 0, TAU);
       ctx.fill();
     }
   }

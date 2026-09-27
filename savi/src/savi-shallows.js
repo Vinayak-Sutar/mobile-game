@@ -673,16 +673,25 @@ export function drawSluice(ctx, t, drained) {
   ctx.beginPath(); ctx.moveTo(-1, -7); ctx.lineTo(-1, -20); ctx.stroke();
   for (const k of [0, 1]) {
     const b = C.wound + C.lag + idle + k * Math.PI;
-    const ex = Math.cos(b) * 48, ey = Math.sin(b) * 29;
-    ctx.strokeStyle = '#7b6a52'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    // THE SHAFT RUNS PAST HER. She used to hold the very tip of it like the
+    // handle of a suitcase; a capstan shaft goes THROUGH the hands and out
+    // the other side, and that overhang is most of why the old God of War
+    // shove reads as a shove. Her grip stays at 48 - where she walks - and
+    // the timber carries on to 66.
+    const ex = Math.cos(b) * 66, ey = Math.sin(b) * 40;
+    const hx = Math.cos(b) * 48, hy = Math.sin(b) * 29;
+    ctx.strokeStyle = '#6b5c46'; ctx.lineWidth = 10; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(ex, ey - 18); ctx.stroke();
-    ctx.strokeStyle = '#96836a'; ctx.lineWidth = 4;
+    ctx.strokeStyle = '#8a7859'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(ex, ey - 20); ctx.stroke();
-    // The grips at the ends, worn pale by however many hands came before hers.
+    ctx.strokeStyle = '#4a4033'; ctx.lineWidth = 1.2;   // and a capped end
+    ctx.beginPath(); ctx.ellipse(ex, ey - 20, 4.2, 3.4, 0, 0, TAU); ctx.stroke();
+    // The grip, worn pale by however many hands came before hers, where the
+    // hands actually go.
     ctx.fillStyle = '#b3a189';
-    ctx.beginPath(); ctx.ellipse(ex, ey - 20, 6.5, 5, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(hx, hy - 20, 7, 5.4, 0, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#4a4033'; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.ellipse(ex, ey - 20, 6.5, 5, 0, 0, TAU); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(hx, hy - 20, 7, 5.4, 0, 0, TAU); ctx.stroke();
   }
   ctx.lineCap = 'butt';
   ctx.fillStyle = '#5f5340';

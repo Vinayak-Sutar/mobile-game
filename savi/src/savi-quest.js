@@ -98,7 +98,7 @@ export function objective(st, ROOTS, WOMAN, TREE, here, gorge, unread) {
   // her to it - before the keeper, because she has nothing to say about a
   // piece she has not been reminded of yet.
   if (unread) {
-    return { text: 'a panel has come up on the new tree — go and read it', x: unread.x, y: unread.y, kind: 'mural' };
+    return { text: 'a mural has come up on the new tree — go and read it', x: unread.x, y: unread.y, kind: 'mural' };
   }
   const s = stage(st);
   if (!s) {
@@ -108,7 +108,7 @@ export function objective(st, ROOTS, WOMAN, TREE, here, gorge, unread) {
       return { text: 'all five are awake — go back to the keeper', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };
     }
     if (!(st.bloom >= 1)) {
-      return { text: 'the last panel is on the Banyan itself', x: TREE.x, y: TREE.y + 40, kind: 'mural' };
+      return { text: 'the last mural is on the Banyan itself', x: TREE.x, y: TREE.y + 40, kind: 'mural' };
     }
     if (!st.blessed) {
       return { text: 'go and tell her what it says', x: WOMAN.x, y: WOMAN.y, kind: 'keeper' };

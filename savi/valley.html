@@ -147,7 +147,7 @@ panel('The stone fall',
 
 // ---------------------------------------------------------------- the capstan
 panel('Winding the capstan',
-  'Both hands on the bar, walking it round. The grip is where the bar actually is, so the reach swings with it as the capstan turns. She is at 2.1x here.',
+  'Both hands on the bar, arms locked out, leaning her weight into it and walking it round. The grip is where the bar actually is, so the reach swings with it as the capstan turns. She is at 2.1x here.',
   300, (c, t, W) => {
   const cy = 122;
   for (let i = 0; i < 4; i++) {
@@ -156,7 +156,8 @@ panel('Winding the capstan',
     const a = t * 1.1 + i * (Math.PI / 2);
     // the bar, as the game draws it: an ellipse, foreshortened
     const gx = ox + Math.cos(a) * 46, gy = cy + Math.sin(a) * 28 - 20;
-    const fx2 = ox + Math.cos(a + Math.PI) * 46, fy2 = cy + Math.sin(a + Math.PI) * 28 - 20;
+    const ex2 = ox + Math.cos(a) * 64, ey2 = cy + Math.sin(a) * 39 - 20;
+    const fx2 = ox + Math.cos(a + Math.PI) * 64, fy2 = cy + Math.sin(a + Math.PI) * 39 - 20;
     c.strokeStyle = 'rgba(255,214,170,0.14)';
     c.lineWidth = 11;
     c.beginPath(); c.ellipse(ox, cy, 52, 32, 0, 0, Math.PI * 2); c.stroke();
@@ -165,9 +166,9 @@ panel('Winding the capstan',
     c.strokeStyle = '#5f5340'; c.lineWidth = 10; c.lineCap = 'round';
     c.beginPath(); c.moveTo(ox, cy - 5); c.lineTo(ox, cy - 20); c.stroke();
     c.strokeStyle = '#7b6a52'; c.lineWidth = 8;
-    c.beginPath(); c.moveTo(fx2, fy2); c.lineTo(gx, gy); c.stroke();
+    c.beginPath(); c.moveTo(fx2, fy2); c.lineTo(ex2, ey2); c.stroke();
     c.fillStyle = '#b3a189';
-    c.beginPath(); c.ellipse(gx, gy, 6, 4.6, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(gx, gy, 6.6, 5, 0, 0, Math.PI * 2); c.fill();
     // and her, out on the ring with her hands on that grip
     const hx = ox + Math.cos(a) * 54, hy = cy + Math.sin(a) * 34;
     const p = {
