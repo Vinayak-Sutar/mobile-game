@@ -99,21 +99,33 @@ export function createGrass(terrain, opts) {
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const xs = [], ys = [], hs = [], hues = [], tall = [];
 
-  // Sow: dense tall grass, a lighter scatter of short grass.
-  const sow = (step, want, isTall, hMin, hMax) => {
+  // Sow. `want` is the list of grounds this pass will take, and `where` an
+  // optional second opinion - used to put tall grass in the shade of trees,
+  // which is a thing about the PLACE rather than about the ground type.
+  const sow = (step, want, isTall, hMin, hMax, where) => {
     for (let gy = OY; gy < OY + H; gy += step) {
       for (let gx = OX; gx < OX + W; gx += step) {
         const x = gx + rand(0, step), y = gy + rand(0, step);
-        if (terrain.typeAt(x, y) !== want) continue;
+        if (!want.includes(terrain.typeAt(x, y))) continue;
         if (terrain.roadAt(x, y) < 32) continue;
         if (opts.blocked(x, y)) continue;
+        if (where && !where(x, y)) continue;
         xs.push(x); ys.push(y); hs.push(rand(hMin, hMax));
         hues.push((Math.random() * 3) | 0); tall.push(isTall ? 1 : 0);
       }
     }
   };
-  sow(coarse ? 21 : 17, TT.TALL, true, 17, 27);
-  sow(coarse ? 44 : 34, TT.GRASS, false, 7, 11);
+  // SHORT GRASS ALMOST EVERYWHERE. It used to grow on one ground type out of
+  // the eight the valley is painted with, at a step of thirty-four, so most
+  // of the floor was bare colour - and the ring of MOSS round the Banyan,
+  // which is the most looked-at ground in the game, had not a blade on it.
+  sow(coarse ? 34 : 27, [TT.GRASS, TT.MOSS, TT.DIRT], false, 7, 12);
+  // TALL GRASS where the noise says meadow...
+  sow(coarse ? 21 : 17, [TT.TALL], true, 17, 27);
+  // ...and IN THE SHADE OF TREES, which is where it really grows: nothing
+  // grazes under a tree and nothing walks there either, so what comes up
+  // round a trunk comes up long. Under the Banyan most of all.
+  if (opts.tallAt) sow(coarse ? 32 : 24, [TT.GRASS, TT.MOSS, TT.TALL], true, 15, 25, opts.tallAt);
 
   const n = xs.length;
   // Sort into buckets so a patch of the world is a contiguous run of tufts.

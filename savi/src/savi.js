@@ -1971,6 +1971,38 @@ function drawRipples(c) {
   }
 }
 
+/**
+ * WHERE THE LONG GRASS GROWS: in the shade of a tree, and under the Banyan.
+ *
+ * Asking "is there a tree near this blade of grass?" of seven hundred trees
+ * for every one of forty thousand candidate tufts is twenty-eight million
+ * distance tests at boot. So the trees stamp a coarse mask once and the
+ * grass reads it, which is two arithmetic ops a tuft.
+ */
+const TALLG = { s: 64, w: 0, h: 0, m: null };
+function sowTallMask() {
+  TALLG.w = Math.ceil(V.w / TALLG.s); TALLG.h = Math.ceil(V.h / TALLG.s);
+  TALLG.m = new Uint8Array(TALLG.w * TALLG.h);
+  const mark = (x, y, r) => {
+    const i0 = Math.max(0, ((x - r) / TALLG.s) | 0), i1 = Math.min(TALLG.w - 1, ((x + r) / TALLG.s) | 0);
+    const j0 = Math.max(0, ((y - r) / TALLG.s) | 0), j1 = Math.min(TALLG.h - 1, ((y + r) / TALLG.s) | 0);
+    for (let j = j0; j <= j1; j++) {
+      for (let i = i0; i <= i1; i++) {
+        const cx = i * TALLG.s + TALLG.s / 2, cy = j * TALLG.s + TALLG.s / 2;
+        if (Math.hypot(cx - x, cy - y) < r) TALLG.m[j * TALLG.w + i] = 1;
+      }
+    }
+  };
+  mark(TREE.x, TREE.y + 70, 470);                 // the whole skirt of the Banyan
+  for (const o of SCENERY) if (!o.rock) mark(o.x, o.y - 12, 62 + o.s * 48);
+}
+const tallGrassAt = (x, y) => {
+  if (!TALLG.m) return false;
+  const i = (x / TALLG.s) | 0, j = (y / TALLG.s) | 0;
+  if (i < 0 || j < 0 || i >= TALLG.w || j >= TALLG.h) return false;
+  return !!TALLG.m[j * TALLG.w + i];
+};
+
 /** Scratch for litterAt, so drawing a thousand leaves allocates nothing. */
 const FIELD = { dx: 0, dy: 0, sp: 0 };
 
@@ -2786,10 +2818,18 @@ function main() {
   // waits on this and nothing is ever blank.
   preload(PORTRAITS.filter((n) => n.startsWith('keeper-')));
   terrain = createTerrain({ W: V.w, H: V.h, classify, roadDist });
-  grass = createGrass(terrain, { W: V.w, H: V.h, x0: 0, y0: 0, blocked: (x, y) => nearRiver(x, y, 30) });
+  // THE TREES GO IN FIRST. The grass needs to know where they are - the long
+  // stuff grows in their shade - and it used to be sown before a single tree
+  // existed, so `tallAt` would have answered no everywhere.
+  sowScenery();
+  sowTallMask();
+  grass = createGrass(terrain, {
+    W: V.w, H: V.h, x0: 0, y0: 0, tallAt: tallGrassAt,
+    blocked: (x, y) => nearRiver(x, y, 30) || inTarn(x, y, 24) || onSolid(x, y)
+      || (x > COURT.x && x < COURT.x + COURT.w && y > COURT.y && y < COURT.y + COURT.h),
+  });
   water = createWildsWater();
   water.setCalm(2.6);          // a lake this wide has too much shore to lap at
-  sowScenery();
   resize();
   camera.x = clamp(S.x - view.w / 2, 0, Math.max(0, V.w - view.w));
   camera.y = clamp(S.y - view.h / 2, 0, Math.max(0, V.h - view.h));
