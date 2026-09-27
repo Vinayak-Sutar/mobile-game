@@ -132,18 +132,18 @@ export const KEEPER = {
 
   brief4: {
     repeat: true,
-    text: 'The last one is north, on the dead ground. Nothing grows there and nothing has for a long while. That root is not buried or bound — it is starved, and there is nothing out there to give it.',
+    text: 'The last one is north, at the head of the valley. Half the hillside came down on it the winter before last and it has been under the stones ever since. No fire will shift that, and no broom either — not while they are sitting on it.',
     choices: [
-      { say: 'Then I take something to it.', to: 'give4', spine: true },
-      { say: 'What happened to that ground?', to: 'whyash' },
+      { say: 'Then I will move them.', to: 'give4', spine: true },
+      { say: 'Nobody cleared it?', to: 'whyash' },
     ],
   },
   give4: {
     repeat: true,
-    give: 'lamp',
-    text: 'The lamp again, and mind it on the way — it is a long cold walk and a coal does not like the cold. There are little fires along the north road; stand at one a moment if it dims. And when you reach the root, child, you give the lamp away. All of it.',
+    give: 'broom',
+    text: 'One at a time, child, and no cleverness about it. There is a spring up there — the one this whole valley drinks out of. Throw them in. It has swallowed bigger. And when the last one is off, sweep the grit they leave behind, and you will find the root under it.',
     choices: [
-      { say: 'Give it away? Then I will have nothing.', to: 'giveaway' },
+      { say: 'Into the water? Will that not spoil it?', to: 'giveaway' },
       { say: 'I will go.', to: 'leave', spine: true },
     ],
   },
@@ -222,12 +222,12 @@ export const KEEPER = {
     choices: [{ say: 'Then it will go when the tree comes back.', to: 'brief3' }],
   },
   whyash: {
-    text: 'A fire, long before me. It burned through and the ground never took anything again. Some places hold a grudge.',
+    text: 'I tried. I was already old when it came down and there is only so much an old woman can lift. I got nine of them off and then I sat down on the tenth, and that was the end of that.',
     choices: [{ say: 'I see.', to: 'brief4' }],
   },
   giveaway: {
-    text: 'You will have nothing, and it will be dark, and that is the whole of it. The last root does not want work, child. It wants a gift. There is a difference and you will feel it.',
-    choices: [{ say: 'Then I will give it.', to: 'brief4' }],
+    text: 'Spoil it? Stones are what a spring is made of, child. It has been running over them since before the tree. Put them back where they came from and it will not notice.',
+    choices: [{ say: 'Then I will go.', to: 'brief4' }],
   },
   retell: { repeat: true, text: '', choices: [{ say: '…', to: 'back' }] },
   howmuch: { repeat: true, text: '', choices: [{ say: 'I will go on.', to: 'back' }] },

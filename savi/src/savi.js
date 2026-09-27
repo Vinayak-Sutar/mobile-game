@@ -46,11 +46,12 @@ import {
   initLitter, pushLitter, settleLitter, litterAt, breezeAt, drawLeafSprite, drawFallingLeaves,
 } from './savi-litter.js';
 import {
-  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawVeil,
+  drawBanyan, drawCanopy, drawRoot, drawSavi, drawBreath, drawWoman, drawFire, drawMural, drawTree, drawRock, drawStone, drawVeil,
   mixHex,
   drawYoungTree, drawBroom, drawShrine, drawGate, glow, clamp01,
 } from './savi-art.js';
 import { drawPortrait } from './savi-faces.js';
+import { inTarn, throwSpeed, THROW } from './savi-spring.js';
 import { initFauna, stepFauna, drawFauna, drawSkyFauna } from './savi-fauna.js';
 
 // --- the valley ---------------------------------------------------------------------------
@@ -84,7 +85,9 @@ const PLACES = {
   fall: { at: { x: ROOT_AT[0], y: ROOT_AT[1] }, patch: { x: 2800, y: 1300, w: 2400, h: 1900 }, mat: 'water' },
   pursuit: { at: { x: 760, y: 1120 }, patch: { x: 500, y: 880, w: 620, h: 520 }, mat: 'thorn' },
   steps: { at: { x: 4180, y: 760 }, patch: { x: 3840, y: 520, w: 720, h: 520 }, mat: 'snow' },
-  boon: { at: { x: 2600, y: 420 }, patch: { x: 2250, y: 220, w: 700, h: 440 }, mat: 'ash' },
+  // The stone fall. `mat: 'ash'` is the GRIT under the stones - the layer is
+  // already the right grey - and it is swept, not burned, now.
+  boon: { at: { x: 2600, y: 440 }, patch: { x: 2250, y: 300, w: 700, h: 400 }, mat: 'ash' },
 };
 ROOTS.forEach((r, i) => Object.assign(r, PLACES[r.id], { seed: i * 5 + 3, order: i }));
 
@@ -103,6 +106,7 @@ ROOTS.forEach((r, i) => Object.assign(r, PLACES[r.id], { seed: i * 5 + 3, order:
 const inRiver = (x, y) => { const r = riverAt(x, y); return r.d < widthAt(r.s); };
 const nearRiver = (x, y, pad) => { const r = riverAt(x, y); return r.d < widthAt(r.s) + pad; };
 const INFLOW = [[4640, 1180], [4560, 1430], [4470, 1620], [4400, 1740]];
+
 let drained = false;                                        // the hollow has let go
 
 const ROAD = [[2600, 3340], [2600, 2900], [2560, 2500], [2600, 2100], [2600, 1820]];
@@ -229,6 +233,9 @@ function classify(x, y) {
   const inD = polyDist(x, y, INFLOW);
   if (inD < 26) return TT.WATER;
   if (inD < 46) return TT.SHALLOW;
+  // The spring at the head of it, with a wadeable lip round the edge.
+  if (inTarn(x, y)) return TT.WATER;
+  if (inTarn(x, y, 32)) return TT.SHALLOW;
   // The bowl. The near shore and the two sandbars are wadeable; the rest of it
   // is over her head. Once it has let go the whole bowl is a marsh.
   // THE RIVER: water in the channel, rock walls either side of it. The walls
@@ -244,7 +251,7 @@ function classify(x, y) {
   if (inWall(x, y)) return TT.ROCK;
   const n = fbm(x * 0.0016, y * 0.0016);
   if (roadDist(x, y) < 46) return TT.DIRT;
-  if (inSoft(x, y, PLACES.boon.patch, 280) > 0.34 + n * 0.3) return TT.ASH;
+  if (inSoft(x, y, PLACES.boon.patch, 280) > 0.34 + n * 0.3) return TT.GRAVEL;
   if (inSoft(x, y, PLACES.steps.patch, 320) > 0.3 + n * 0.3) return TT.SNOW;
   const dt = Math.hypot(x - TREE.x, y - TREE.y);
   if (dt < 430 + n * 190) return TT.MOSS;
@@ -272,23 +279,27 @@ const LITTER = 0.16;
 const CLEAR = 0.3;
 const MAT = { none: 0, leaves: 1, snow: 2, thorn: 3, ash: 4 };
 /**
- * THE THREE THINGS THE LAMP IS FOR, and how far each of them gives way, in ONE
- * table - because the fire is DRAWN now as well as carved, and a cone drawn
- * wider than the cone that clears would promise reach she does not have. The
- * first thorn just inside the glow that refused to move would read as a bug.
- * Both the carve and the drawing take the same object out of here.
+ * THE TWO THINGS THE LAMP IS FOR, and how far each of them gives way, in ONE
+ * table - because the fire is DRAWN as well as carved, and a cone drawn wider
+ * than the cone that clears would promise reach she does not have. The first
+ * thorn just inside the glow that refused to move would read as a bug. Both
+ * the carve and the drawing take the same object out of here.
  *
  *   THORN  draws back ahead of her: a narrow reach, worked slowly, so what
  *          opens is a corridor she has to follow in
  *   SNOW   melts: a broad round pool opening out from where she stands, and it
  *          costs more heat, because melting a thing is not the same as
  *          frightening it
- *   ASH    has to be burned off, which is broad and steady
+ *
+ * There used to be a third. The last root was dead ground burned off with the
+ * lamp, which was the lamp's third outing and its least interesting - the
+ * same verb a third time, on the beat where the story is Savitri ASKING FOR
+ * SOMETHING BACK. It is a fall of stones now, carried off one at a time, and
+ * the grit under them is swept like any other mess.
  */
 const BURN = {
   2: { reach: 104, arc: 1.45, rate: 3.4, drain: 0.13, steam: true },    // snow
   3: { reach: 68, arc: 1.0, rate: 2.4, drain: 0.085, steam: false },    // thorn
-  4: { reach: 124, arc: 1.0, rate: 3.0, drain: 0.085, steam: false },   // ash
 };
 /** The three the lamp is for. The broom will not claim any of them. */
 const BURNS = BURN;
@@ -352,7 +363,9 @@ function buildGround() {
   put(COURT, MAT.leaves, 0.95, 150);
   for (const r of ROOTS) {
     if (r.mat === 'water') continue;
-    if (r.mat === 'thorn') blob(r.patch, MAT.thorn, 1.0);
+    // The thorn and the grit are both SHAPES rather than plots of land. A
+    // rectangle of anything reads as somewhere a surveyor has been.
+    if (r.mat === 'thorn' || r.mat === 'ash') blob(r.patch, MAT[r.mat], 1.0);
     else put(r.patch, MAT[r.mat], 1.0, 190);
   }
   G.cv = document.createElement('canvas');
@@ -740,7 +753,7 @@ function stepCapstan(dt) {
 }
 
 function startDash() {
-  if (dashT > 0 || dashStock <= 0 || st.talking || st.reading) return;
+  if (dashT > 0 || dashStock <= 0 || st.talking || st.reading || carried) return;
   const mv = moveVector();
   const m = Math.hypot(mv.x, mv.y);
   dashDir = m > 0.15 ? Math.atan2(mv.y, mv.x) : S.face;
@@ -1026,6 +1039,8 @@ function carve(x, y, a, r, arc, power, m) {
       let da = Math.abs(Math.atan2(dy, dx) - a);
       if (da > Math.PI) da = TAU - da;
       if (da > arc) continue;
+      // The grit under a stone stays put until the stone is gone.
+      if (m === MAT.ash && underStone(i * CELL + 7, j * CELL + 7)) continue;
       const t = Math.min(G.dep[q], (0.45 + (1 - d / r) * (1 - da / arc)) * power);
       if (t <= 0) continue;
       G.dep[q] -= t;
@@ -1100,6 +1115,10 @@ function step(dt) {
       talkTo(keeperStart(st, ROOTS.length));
       st.metKeeper = true;
       tapDone = true;
+    } else if (!busy && carried) {
+      hurlStone(); tapDone = true;
+    } else if (!busy && !carried && reachStone()) {
+      takeStone(reachStone()); tapDone = true;
     } else if (!busy && beginStroke()) {
       tapDone = true;                           // one press, one sweep
     }
@@ -1127,6 +1146,8 @@ function step(dt) {
   const grounded = S.z <= 0.5;
   coyote = grounded ? COYOTE : Math.max(0, coyote - dt);
   jumpWant = Math.max(0, jumpWant - dt);
+  // Both hands are full. A stone is a real thing to be holding.
+  if (carried) jumpWant = 0;
   if (jumpWant > 0 && (grounded || coyote > 0)) startJump();
   if (S.z > 0 || S.vz !== 0) {
     // Letting go early cuts it short - ONCE, on the frame she lets go. Applied
@@ -1190,7 +1211,7 @@ function step(dt) {
   const air = S.z > 0.5;
   const drag = air || !under.m ? 0 : MATS[under.m].drag * Math.min(1, under.d);
   const wet = !air && water.wetAt(S.x, S.y + 6) ? 0.34 : 0;
-  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1);
+  const sp = 196 * (1 - Math.max(drag, wet)) * (S.act > 0 ? 0.42 : 1) * (carried ? 0.62 : 1);
   S.vx = mv.x * sp; S.vy = mv.y * sp;
   if (dashT > 0) {
     dashT -= dt;
@@ -1209,6 +1230,13 @@ function step(dt) {
   // The gorge wall. This is the whole reason the river is a river: without it
   // she walks up the bank and the leaves are decoration. One axis at a time so
   // she slides along it rather than sticking to it.
+  // The spring is over her head and she is not going in it. One axis at a
+  // time, so she walks round the lip rather than sticking to it.
+  if (inTarn(nx, ny)) {
+    if (!inTarn(nx, S.y)) ny = S.y;
+    else if (!inTarn(S.x, ny)) nx = S.x;
+    else { nx = S.x; ny = S.y; }
+  }
   if (inWall(nx, ny)) {
     if (!inWall(nx, S.y)) ny = S.y;
     else if (!inWall(S.x, ny)) nx = S.x;
@@ -1305,9 +1333,12 @@ function step(dt) {
   const nearYoung = YOUNG.find((yt) => yt.grow >= 1 && Math.hypot(S.x - yt.x, S.y - yt.y) < 130);
   const atCapstan = !drained && Math.hypot(S.x - CAPSTAN.x, S.y - CAPSTAN.y) < CAPSTAN.r + 40;
   const boon = ROOTS.find((r) => r.mat === 'ash');
-  const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 200;
-  if (atBoon && !(st.hasEmber && st.ember > 0.02)) st.prompt = `the coal has gone out — there is a fire ${towardFire()}`;
-  else if (atBoon) st.prompt = 'take it to the root and give it away';
+  const atBoon = boon && !st.woken[boon.id] && Math.hypot(S.x - boon.at.x, S.y - boon.at.y) < 320;
+  const left = atBoon ? stonesOn(boon.patch) : 0;
+  if (carried) st.prompt = 'throw it in the spring — north';
+  else if (!carried && reachStone()) st.prompt = 'lift the stone';
+  else if (atBoon && left) st.prompt = `${left} stone${left === 1 ? '' : 's'} still on the root`;
+  else if (atBoon) st.prompt = 'now sweep the grit off it';
   else if (Math.hypot(S.x - WOMAN.x, S.y - WOMAN.y) < 120) st.prompt = 'speak to her';
   else if (atCapstan) {
     st.prompt = CAPSTAN.turns < 0.08
@@ -1386,12 +1417,12 @@ function step(dt) {
       if (!blaze && (near || cleared(r.patch, MAT.thorn) > 0.36)) lightTheThicket(r);
       done = false;
     }
-    else if (r.mat === 'ash') done = near && st.hasEmber && st.ember > 0.02;
+    // THE STONE FALL, IN TWO STAGES, and the second cannot start early
+    // because the stones are physically in the way of the broom. Every stone
+    // off the root's ground, and then the grit under them swept.
+    else if (r.mat === 'ash') done = stonesOn(r.patch) === 0 && fraction(r) > 0.8;
     else done = fraction(r) > 0.8;
-    if (done) {
-      if (r.mat === 'ash') { st.hasEmber = false; st.ember = 0; }
-      wake(r);
-    }
+    if (done) wake(r);
   }
 
   if (st.count >= ROOTS.length && !st.ended && Math.hypot(S.x - TREE.x, S.y - TREE.y) < 340) {
@@ -1400,6 +1431,7 @@ function step(dt) {
     say(CLIMAX, () => { st.bloom = 1; }, 'bloom');
   }
 
+  stepStones(dt);
   if (blaze) stepBlaze(dt);
   stepFauna(dt, S, st);
   st.bloomK += (st.bloom - st.bloomK) * Math.min(1, dt * 0.6);
@@ -1648,6 +1680,153 @@ function drawLayer(c) {
   }
   c.globalAlpha = 1;
 }
+// --- THE STONE FALL -------------------------------------------------------------
+//
+// Two dozen loose stones lying on the last root. One press picks one up; one
+// more throws it. In she is slower and cannot jump or dash, because the
+// weight has to be worth something or carrying is just walking.
+//
+// A stone in the spring is gone for good, with a splash you can see from the
+// far side of the field. A stone that lands short is simply a stone lying
+// somewhere else, and can be picked up and thrown again - missing costs the
+// walk back and nothing else, which is the right price in a game like this.
+//
+// And a stone SITTING ON THE GRIT HOLDS IT DOWN: the broom cannot get under
+// one. That is the whole of the two-stage task, with no gate and no rule to
+// explain. The stones come off, and then the ground can be swept.
+
+const STONES = [];
+let carried = null;
+const RIPPLES = [];
+
+function sowStones() {
+  const p = PLACES.boon.patch;
+  for (let tr = 0; STONES.length < 18 && tr < 6000; tr++) {
+    const x = rand(p.x + 34, p.x + p.w - 34), y = rand(p.y + 30, p.y + p.h - 26);
+    if (inTarn(x, y, 80)) continue;
+    // Not sitting on the root itself - she has to be able to see what she
+    // came for, or there is nothing to aim the work at.
+    if (Math.hypot(x - PLACES.boon.at.x, y - PLACES.boon.at.y) < 52) continue;
+    let clash = false;
+    for (const s of STONES) if (Math.hypot(x - s.x, y - s.y) < 76) { clash = true; break; }
+    if (clash) continue;
+    STONES.push({ x, y, r: rand(13, 20), seed: rand(0, 9), z: 0, vx: 0, vy: 0, vz: 0, fly: false, spin: false, held: false });
+  }
+}
+
+/** How many are still lying on the root's ground, the carried one included. */
+function stonesOn(p) {
+  let n = carried ? 1 : 0;
+  for (const s of STONES) {
+    if (s.held) continue;
+    if (s.x > p.x - 40 && s.x < p.x + p.w + 40 && s.y > p.y - 40 && s.y < p.y + p.h + 40) n++;
+  }
+  return n;
+}
+
+/** A stone sitting on the grit holds it down: the broom cannot get under it. */
+function underStone(x, y) {
+  for (const s of STONES) {
+    if (s.held || s.fly) continue;
+    if (Math.hypot(x - s.x, y - s.y) < s.r + 16) return true;
+  }
+  return false;
+}
+
+/** The one she could get her hands under from here. */
+function reachStone() {
+  let best = null, bd = 54;
+  for (const s of STONES) {
+    if (s.fly || s.held) continue;
+    const d = Math.hypot(S.x - s.x, S.y + 4 - s.y) - s.r;
+    if (d < bd) { bd = d; best = s; }
+  }
+  return best;
+}
+
+function takeStone(s) {
+  carried = s;
+  s.held = true;
+  sfx.pickup();
+  const g = groundFx(s.x, s.y);
+  if (g) spark(s.x, s.y, 7, { col: g.col, sp0: 20, sp1: 90, l0: 0.4, l1: 1, s0: 3, s1: 7, lift: g.lift, kind: g.kind });
+}
+
+function hurlStone() {
+  const s = carried;
+  carried = null;
+  s.held = false;
+  const a = S.face;
+  // A big one does not go as far, which is the only reason to look at which
+  // one you are picking up.
+  const sp = throwSpeed(s.r);
+  s.x = S.x + Math.cos(a) * 14;
+  s.y = S.y + Math.sin(a) * 10;
+  s.vx = Math.cos(a) * sp;
+  s.vy = Math.sin(a) * sp;
+  s.vz = THROW.VZ; s.z = THROW.Z0; s.fly = true; s.spin = true;
+  sfx.swish(1.2);
+}
+
+function stepStones(dt) {
+  for (let i = STONES.length - 1; i >= 0; i--) {
+    const s = STONES[i];
+    if (!s.fly) continue;
+    s.vz -= THROW.G * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+    if (s.z > 0) continue;
+    s.z = 0; s.fly = false; s.spin = false;
+    s.x = clamp(s.x, 40, V.w - 40); s.y = clamp(s.y, 40, V.h - 40);
+    if (inTarn(s.x, s.y, 10)) {
+      sfx.splash();
+      spark(s.x, s.y, 30, {
+        col: ['#bfe0e8', '#8fbcc8', '#dff0f4', '#ffffff'],
+        sp0: 50, sp1: 260, l0: 0.5, l1: 1.5, s0: 3, s1: 9, kind: 'drop', lift: 110,
+      });
+      RIPPLES.push({ x: s.x, y: s.y, t: 0 });
+      STONES.splice(i, 1);
+      continue;
+    }
+    sfx.thud();
+    const g = groundFx(s.x, s.y);
+    if (g) {
+      spark(s.x, s.y, 9, { col: g.col, sp0: 40, sp1: 150, l0: 0.5, l1: 1.3, s0: 3, s1: 8, lift: g.lift, kind: g.kind });
+      if (depAt(s.x, s.y).m === MAT.leaves) pushLitter(s.x, s.y + 4, 48, 0, 0, 6);
+    }
+  }
+  for (let i = RIPPLES.length - 1; i >= 0; i--) {
+    RIPPLES[i].t += dt;
+    if (RIPPLES[i].t > 1.6) RIPPLES.splice(i, 1);
+  }
+}
+
+/** The stones in a band of y, so they sort against her like everything else. */
+function drawStones(c, y0, y1) {
+  for (const s of STONES) {
+    if (s.held) continue;
+    const sy = s.fly ? s.y + 200 : s.y;      // in the air, always over the ground
+    if (sy < y0 || sy >= y1) continue;
+    if (s.x < camera.x - 60 || s.x > camera.x + view.w + 60 || s.y < camera.y - 120 || s.y > camera.y + view.h + 60) continue;
+    drawStone(c, s, st.t);
+  }
+}
+
+/** The rings going out from where one went in. */
+function drawRipples(c) {
+  for (const r of RIPPLES) {
+    const k = r.t / 1.6;
+    c.strokeStyle = `rgba(226,242,248,${0.5 * (1 - k) * (1 - k)})`;
+    c.lineWidth = 3 - k * 2;
+    for (const o of [0, 0.34, 0.66]) {
+      const u = k - o;
+      if (u <= 0) continue;
+      c.beginPath();
+      c.ellipse(r.x, r.y, u * 130, u * 130 * 0.42, 0, 0, TAU);
+      c.stroke();
+    }
+  }
+}
+
 /** Scratch for litterAt, so drawing a thousand leaves allocates nothing. */
 const FIELD = { dx: 0, dy: 0, sp: 0 };
 
@@ -1673,6 +1852,7 @@ function sowScenery() {
   // clear of where she wakes up, because a deer two paces from her starting
   // position is scenery rather than something she came across.
   initFauna(V, classify, (x, y) => Math.hypot(x - START.x, y - START.y));
+  sowStones();
 }
 
 function render() {
@@ -1686,6 +1866,7 @@ function render() {
 
   terrain.draw(ctx, camera.x, camera.y, view.w, view.h);
   drawLayer(ctx);
+  drawRipples(ctx);
   drawBlaze(ctx);
   grass.draw(ctx, st.t, win());
   drawRootBed(ctx, st.t, drained);
@@ -1704,6 +1885,7 @@ function render() {
   S.broom = broom.held;
   // The lamp is hers from the moment the keeper hands it over, and the coal in
   // it is however much heat is left.
+  S.carry = carried ? carried.r : 0;
   S.lamp = has(st, 'lamp');
   S.ember = st.hasEmber ? st.ember : 0;
   if (!broom.held) drawBroom(ctx, broom, st.t);
@@ -1726,6 +1908,7 @@ function render() {
   }
   for (const o of below) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth, st.bloomK);
   drawFauna(ctx, st.t, camera, view, -1e9, S.y, st.bloomK);
+  drawStones(ctx, -1e9, S.y);
 
   drawBanyan(ctx, TREE, st.bloomK, st.t);
   drawFire(ctx, FIRE, st.t, st.hasEmber ? 0.4 : 1);
@@ -1746,6 +1929,7 @@ function render() {
   drawSavi(ctx, S, st.t);
   if (S.burn && !behind) drawBreath(ctx, S, S.burn, st.t);
   drawFauna(ctx, st.t, camera, view, S.y, 1e9, st.bloomK);
+  drawStones(ctx, S.y, 1e9);
   for (const o of above) {
     ctx.globalAlpha = o.see === undefined ? 1 : o.see;
     (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth, st.bloomK);
@@ -2432,6 +2616,7 @@ function main() {
 main();
 window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
+  STONES, inTarn, stonesOn, reachStone, takeStone, hurlStone, get carried() { return carried; },
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
   opening() { playOpening(null); },

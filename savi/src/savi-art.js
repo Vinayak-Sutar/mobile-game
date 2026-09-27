@@ -733,6 +733,54 @@ export function drawRock(ctx, o, time, warmth) {
   ctx.beginPath(); ctx.ellipse(x - 5 * s, y - 9 * s, 8 * s, 4.4 * s, -0.4, 0, TAU); ctx.fill();
 }
 
+/**
+ * A STONE OFF THE FALL — one of the ones she carries to the spring.
+ *
+ * It has to read as loose at a glance, or the field looks like scenery and
+ * nobody tries to pick anything up. So it is not drawn like drawRock, which
+ * is a thing bedded into the ground with grass round its foot: this sits ON
+ * the ground with its whole shadow showing under it and a clear lit top, the
+ * way a thing you could get your hands under looks.
+ *
+ * `o.z` is how high off the ground it is while it is in the air, and the
+ * shadow stays behind and shrinks, which is the only thing that says "thrown"
+ * from directly above.
+ */
+export function drawStone(ctx, o, time) {
+  const r = o.r, z = o.z || 0, seed = o.seed;
+  const sh = Math.min(0.9, z * 0.0055);
+  ctx.fillStyle = `rgba(0,0,0,${0.32 - sh * 0.2})`;
+  ctx.beginPath();
+  ctx.ellipse(o.x + r * 0.16, o.y + r * 0.34, r * (1 - sh * 0.4), r * 0.44 * (1 - sh * 0.4), 0, 0, TAU);
+  ctx.fill();
+  ctx.save();
+  ctx.translate(o.x, o.y - z + (o.spin ? Math.sin(time * 9 + seed) * 0.6 : 0));
+  const tip = o.spin ? Math.sin(time * 5 + seed) * 0.5 : 0;
+  ctx.rotate(tip);
+  // The mass. Three overlapping lumps so no two stones are the same stone.
+  for (let i = 0; i < 3; i++) {
+    const a = seed + i * 2.2;
+    ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * r * 0.2, -r * 0.16 + Math.sin(a) * r * 0.14,
+      r * (1 - i * 0.16), r * (0.78 - i * 0.13), a, 0, TAU);
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(30,26,22,0.5)';           // outlined, like everything here
+  ctx.lineWidth = 1.3;
+  ctx.beginPath(); ctx.ellipse(0, -r * 0.16, r * 0.98, r * 0.78, 0, 0, TAU); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,240,210,0.2)';          // the light on top of it
+  ctx.beginPath(); ctx.ellipse(-r * 0.24, -r * 0.46, r * 0.44, r * 0.24, -0.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(122,146,86,0.5)';           // and the lichen on it
+  for (let i = 0; i < 3; i++) {
+    const a = seed * 1.7 + i * 2.6;
+    ctx.beginPath();
+    ctx.ellipse(Math.cos(a) * r * 0.5, -r * 0.16 + Math.sin(a) * r * 0.38, r * 0.15, r * 0.1, a, 0, TAU);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 /** The cold standing over a root the valley is not ready for. */
 export function drawVeil(ctx, at, time) {
   ctx.save();
@@ -1035,6 +1083,39 @@ export function drawSavi(ctx, p, time) {
     ctx.fillRect(hx - 2.9, -25.2, 1.6, 2);
     ctx.fillRect(hx + 1.3, -25.2, 1.6, 2);
   }
+  // A STONE, CARRIED. Both hands under it, held against her, and it is in
+  // front of everything else she is wearing because that is where it is. The
+  // weight of it is sold by the walk - she is slowed and cannot jump - but it
+  // wants to be visible from across the field as well, or you cannot tell at
+  // a glance whether you are still holding one.
+  if (p.carry) {
+    // NOT AT ITS WORLD SIZE. A stone lying on the ground is drawn at the size
+    // it is; held up against a girl thirty pixels tall, that same circle
+    // covers her from chin to knee and she disappears behind her own load.
+    // Three fifths of it reads as a heavy rock held in both arms, which is
+    // what it is, and leaves her face showing.
+    const cr = p.carry * 0.58;
+    ctx.save();
+    ctx.translate(fx * 2.5, -11 + Math.abs(Math.sin(ph)) * (walking ? 1.4 : 0) + Math.sin(time * 1.3) * 0.4);
+    for (let i = 0; i < 3; i++) {
+      const a2 = 1.3 + i * 2.2;
+      ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
+      ctx.beginPath();
+      ctx.ellipse(Math.cos(a2) * cr * 0.2, Math.sin(a2) * cr * 0.14, cr * (1 - i * 0.16), cr * (0.78 - i * 0.13), a2, 0, TAU);
+      ctx.fill();
+    }
+    ctx.strokeStyle = 'rgba(30,26,22,0.5)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, cr * 0.98, cr * 0.78, 0, 0, TAU); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,210,0.2)';
+    ctx.beginPath(); ctx.ellipse(-cr * 0.24, -cr * 0.3, cr * 0.44, cr * 0.22, -0.4, 0, TAU); ctx.fill();
+    // Her hands under it.
+    ctx.fillStyle = '#c08a5a';
+    ctx.beginPath(); ctx.ellipse(-cr * 0.82, cr * 0.34, 2.8, 2.2, -0.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(cr * 0.82, cr * 0.34, 2.8, 2.2, 0.4, 0, TAU); ctx.fill();
+    ctx.restore();
+  }
+
   if (away) braid();                           // her back is to us: it is in front
 
   // THE LAMP. She has been carrying it since the second root as a flag on a

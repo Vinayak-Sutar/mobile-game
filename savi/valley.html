@@ -15,7 +15,7 @@
 larger so it can be judged. Nothing here is a mock-up.</p>
 <div id="out"></div>
 <script type="module">
-import { drawSavi, drawBreath, drawWoman, drawTree, drawYoungTree } from './src/savi-art.js';
+import { drawSavi, drawBreath, drawWoman, drawTree, drawYoungTree, drawStone } from './src/savi-art.js';
 import { FIGURE } from './src/savi-fauna.js';
 
 const out = document.getElementById('out');
@@ -119,6 +119,28 @@ panel('What else lives here',
       c.save(); c.translate(x - 32 + m * 64, 108); FIGURE[WHO[i]](c, a, t); c.restore();
       c.save(); c.translate(x - 34 + m * 68, 244); c.scale(2, 2); FIGURE[WHO[i]](c, a, t); c.restore();
     }
+  }
+});
+
+// ---------------------------------------------------------------- the stones
+panel('The stone fall',
+  'The stones off the last root, at the sizes they come in, and Savi carrying one. A big one leaves her hands slower, so it does not go as far.',
+  270, (c, t, W) => {
+  const R = [13, 15, 17, 20];
+  for (let i = 0; i < 4; i++) {
+    const x = 78 + i * 96;
+    label(c, x, 22, R[i] + ' across');
+    drawStone(c, { x, y: 74, r: R[i], seed: 3 + i * 2.3, z: 0 }, t);
+    drawStone(c, { x, y: 150, r: R[i], seed: 11 + i * 1.7, z: 30 + Math.sin(t * 2 + i) * 22, spin: true }, t);
+  }
+  label(c, 240, 118, 'and in the air');
+  const FACE = [[Math.PI / 2, 'toward you'], [-Math.PI / 2, 'away'], [0, 'right'], [Math.PI, 'left']];
+  for (let i = 0; i < 4; i++) {
+    const x = 500 + i * 70;
+    label(c, x, 22, FACE[i][1]);
+    const p = { x: 0, y: 0, face: FACE[i][0], phase: t * 6, speed: 80, act: 0, sweep: 0, broom: false, carry: 17, z: 0 };
+    c.save(); c.translate(x, 78); drawSavi(c, p, t); c.restore();
+    c.save(); c.translate(x, 240); c.scale(2.4, 2.4); drawSavi(c, p, t); c.restore();
   }
 });
 </script></body></html>

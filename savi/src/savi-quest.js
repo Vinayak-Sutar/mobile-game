@@ -58,9 +58,9 @@ export const CHAIN = [
   },
   {
     root: 'boon',
-    tool: 'lamp',
-    where: 'the dead ground, north',
-    task: 'carry the lamp there and give it away',
+    tool: 'broom',
+    where: 'the stone fall, north',
+    task: 'throw the stones in the spring, then sweep what is left',
     brief: 'brief4',
   },
 ];
