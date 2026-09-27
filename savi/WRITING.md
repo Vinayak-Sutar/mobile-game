@@ -1331,7 +1331,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-choice-1
 *The Old Keeper speaks. Line 1 of 7.*
 
-> Ah... I remember her fire. Savitri, a princess so bright that grown men stepped out of her way.
+> Ah, I remember her fire. Savitri was a strong, elegant princess. Not one prince came to ask for her hand, for she was better than all of them at everything, and they knew it.
 
 **Remark:**
 
@@ -1359,21 +1359,21 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-choice-5
 *The Old Keeper speaks. Line 5 of 7.*
 
-> They rejoiced. And then the sage Narada came to the palace with a shadow in his eyes.
+> They rejoiced. And then the sage Narada came to the palace with a deep fear in his eyes.
 
 **Remark:**
 
 #### MURAL-choice-6
 *Narada speaks. Line 6 of 7.*
 
-> The boy is faultless, my King. And in one year from today, he will die.
+> The boy is faultless, my King. But in one year from today, he will die.
 
 **Remark:**
 
 #### MURAL-choice-7
 *The Old Keeper speaks. Line 7 of 7.*
 
-> A cursed love. The princess would not be moved by it. And the year began to run.
+> A cursed love. The princess would not change her decision, and they started their life together.
 
 **Remark:**
 
@@ -1630,7 +1630,7 @@ seconds. She is eleven and has never heard any of this before.
 #### SAVI-choice
 *After reading The Choice.*
 
-> A whole year. Somebody told her the day he would die, and she went and married him anyway. I cannot tell yet if that is brave or just stubborn.
+> She knew he had one year. She married him anyway. I wonder what happened after that.
 
 **Remark:**
 

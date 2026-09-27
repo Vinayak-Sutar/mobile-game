@@ -1598,8 +1598,8 @@ function step(dt) {
       : `the gate is coming up. ${(CAPSTAN.need - CAPSTAN.turns).toFixed(1)} turns to go`;
   }
   else if (nearBroom) st.prompt = 'take the broom';
-  else if (nearYoung) st.prompt = `read ${nearYoung.name}`;
-  else if (nearFinal) st.prompt = 'read the last mural';
+  else if (nearYoung) st.prompt = 'read the mural';
+  else if (nearFinal) st.prompt = 'read the mural';
   else if (onLeaf) st.prompt = 'jump';
   else if (st.equip === 'broom') st.prompt = 'hold to sweep';
   else if (st.equip === 'lamp') st.prompt = 'hold the lantern out at thorn or snow';
