@@ -86,7 +86,7 @@ export const ROOTS = [
       ['savitri', 'Lord Yama, according to our <i>dharma</i>, it is said that if two people walk seven steps together, they are friends.', 'clever'],
       ['savitri', 'I have walked a great deal further than seven with you. A friend must hear a friend.', 'clever'],
       ['yama', 'You are a clever girl. Are you not afraid that I am the Lord of Death?', 'caught'],
-      ['keeper', 'Yama was impressed by her wits. He began to offer her a boon to be rid of her. Would she be able to bring Satyavan back to life?', 'pleased'],
+      ['keeper', 'Yama was impressed by her wits. Would she be able to bring Satyavan back to life?', 'pleased'],
     ],
   },
   {

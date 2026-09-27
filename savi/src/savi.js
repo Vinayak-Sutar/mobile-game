@@ -278,6 +278,9 @@ function classify(x, y) {
 
 const CELL = 14;
 const LITTER = 0.16;
+// What comes off a broom on ground that has nothing on it: a little dry
+// earth, not a handful of autumn.
+const DUST = ['#9b8b71', '#877963', '#b0a287', '#7a6d59'];
 /**
  * WHEN GROUND IS CLEAR, and there is exactly one of these numbers now.
  *
@@ -638,6 +641,7 @@ const pad = {
   leftHeld: false, leftPressed: false,   // and across, for a volume in the menu
   rightHeld: false, rightPressed: false,
   menuHeld: false, menuPressed: false,   // options / start: the pause screen
+  thinkHeld: false, thinkPressed: false, // triangle / Y: put her thought down
   jumpHeld: false, jumpPressed: false,   // cross
   dashHeld: false, dashPressed: false,   // circle
   beltHeld: false, beltPressed: false,   // L1: the belt
@@ -664,6 +668,7 @@ function pollPad() {
     pad.upHeld = pad.upPressed = pad.downHeld = pad.downPressed = false;
     pad.leftHeld = pad.leftPressed = pad.rightHeld = pad.rightPressed = false;
     pad.menuHeld = pad.menuPressed = false;
+    pad.thinkHeld = pad.thinkPressed = false;
     return;
   }
   const dead = (v) => (Math.abs(v) < 0.24 ? 0 : (v - Math.sign(v) * 0.24) / 0.76);
@@ -689,6 +694,10 @@ function pollPad() {
   // the only one on a standard pad the game was not already listening to.
   pad.menuPressed = down(9) && !pad.menuHeld;
   pad.menuHeld = down(9);
+  // 3 is triangle on a DualSense and Y on an Xbox pad, and it is the only
+  // face button this game was not already using.
+  pad.thinkPressed = down(3) && !pad.thinkHeld;
+  pad.thinkHeld = down(3);
   pad.jumpPressed = jump && !pad.jumpHeld;
   pad.jumpHeld = jump;
   pad.dashPressed = dash && !pad.dashHeld;
@@ -1027,21 +1036,52 @@ function stepStroke(dt) {
     // A broom's width, not a semicircle of the parish. The head is about 60
     // across and it is out in front of her where she is looking.
     const took = carve(S.x + Math.cos(a) * 34, S.y + Math.sin(a) * 34 + 6, a, 62, 0.8, dt * SWEEP_BITE, stroke.mat);
-    if (took > 0.0004) {
-      // Thrown the way the broom is going, not sucked toward her.
-      const out = a + stroke.side * 1.15;
+    // Thrown the way the broom is going, not sucked toward her.
+    const out = a + stroke.side * 1.15;
+
+    // GOLD OFF GROUND WITH NO GOLD ON IT.
+    //
+    // Three things were wrong and they compounded. The spark colour was the
+    // LEAF palette for everything that was not snow, so sweeping the grit in
+    // the stone fall threw autumn off it. `took` was the only test, and took
+    // is not "there was something there" - leaves never carve below LITTER
+    // and heal back up to it, so ground she had already swept clean still
+    // returned a take on every stroke and kept flinging gold at nothing. And
+    // where there was genuinely nothing, the broom went by in silence with no
+    // effect of any kind, which reads as a broken button.
+    //
+    // So: what is UNDER the head decides, each thing throws its own colour,
+    // and bare ground gets a puff of dry earth, which is what a broom on bare
+    // ground actually does.
+    //
+    // THE BAR IS THE ONE THE GROUND IS DRAWN WITH. drawLayer skips a cell
+    // below CLEAR * 0.66 entirely, so that number IS "you can see something
+    // there". A threshold picked by hand would drift away from it the first
+    // time either was tuned.
+    const at = depAt(S.x + Math.cos(a) * 40, S.y + Math.sin(a) * 40 + 6);
+    const real = at.m === stroke.mat && at.d > CLEAR * 0.66 && took > 0.0004;
+
+    if (real) {
       if (stroke.mat === MAT.leaves) {
         pushLitter(S.x + Math.cos(a) * 46, S.y + Math.sin(a) * 46 + 6, 52, Math.cos(out), Math.sin(out), dt * 70);
       }
       spark(S.x + Math.cos(a) * 62, S.y + Math.sin(a) * 62 + 6, 3, stroke.mat === MAT.snow
         ? { col: ['#ffffff', '#e4ecf4', '#cfdae6'], angle: out, arc: 0.7, sp0: 130, sp1: 300, l0: 0.4, l1: 1, s0: 3, s1: 7, lift: 56 }
-        : { col: MATS[1].col, angle: out, arc: 0.8, sp0: 170, sp1: 420, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 46, drag: 1.2 });
+        : { col: MATS[stroke.mat].col, angle: out, arc: 0.8, sp0: 170, sp1: 420, l0: 0.7, l1: 1.7, s0: 5, s1: 12, lift: 46, drag: 1.2 });
       if (!stroke.sounded) {
         stroke.sounded = true;
         strokeN++;
         if (strokeN & 1) { stroke.mat === MAT.snow ? sfx.clack(1.6) : sfx.hiss(); }
         rumble(0.2, 0.12, 70);
       }
+    } else if (!stroke.dusted) {
+      // One puff per stroke, not per frame: a broom raises dust when it goes
+      // past, and twenty-two frames of it is a dust storm.
+      stroke.dusted = true;
+      spark(S.x + Math.cos(a) * 54, S.y + Math.sin(a) * 54 + 6, 5, {
+        col: DUST, angle: out, arc: 1.3, sp0: 30, sp1: 120, l0: 0.35, l1: 0.85,
+        s0: 2, s1: 5, lift: 14, drag: 2.6,
+      });
     }
   }
   if (stroke.t >= total) {
@@ -1318,6 +1358,8 @@ function step(dt) {
   // on the way out. It cannot be opened over a dialogue, because a dialogue
   // already has its own way out and its panel is HTML sitting above this
   // canvas, so the menu would be drawn underneath it.
+  // Triangle on a DualSense, Y on an Xbox pad: put her thought down.
+  if (pad.thinkPressed && st.think) dropThought();
   if (pad.menuPressed) {
     begin();
     if (menuOn()) closeMenu();
@@ -2818,11 +2860,16 @@ function think(text) {
   if (text) st.think = { text, t: 0 };
 }
 const THINK_FOR = 7.5;
+// WHERE THE CROSS IS. A thought of hers sits over her head for seven and a
+// half seconds and there was no way to put it down early - you read it in two
+// and then waited, with the valley behind it. Laid out by the draw and read
+// by the pointer, the way her belt's slots are.
+let thinkX = null;
 
 function drawThought(c) {
-  if (!st.think) return;
+  if (!st.think) { thinkX = null; return; }
   st.think.t += dtSeen;
-  if (st.think.t > THINK_FOR) { st.think = null; return; }
+  if (st.think.t > THINK_FOR) { st.think = null; thinkX = null; return; }
   const F = isTouch() ? clamp(view.h / 400, 1, 1.55) : 1;
   const k = Math.min(1, st.think.t * 5) * clamp01((THINK_FOR - st.think.t) * 1.4);
   const size = Math.round(13 * F);
@@ -2887,7 +2934,43 @@ function drawThought(c) {
       x += c.measureText(t.w).width + sp;
     }
   });
+
+  // PUT IT DOWN. A cross on the corner for a hand with a mouse or a thumb,
+  // and for a pad the name of the one face button nothing else uses - there
+  // is nothing on a controller to click a cross with.
+  if (pad.on) {
+    thinkX = null;
+    c.textAlign = 'right';
+    c.font = `600 ${Math.round(10 * F)}px "Segoe UI", Roboto, system-ui, sans-serif`;
+    c.fillStyle = 'rgba(255,196,130,0.7)';
+    c.fillText(`${padName('dismiss')} to dismiss`, bx + bw - 2, by + bh + 13 * F);
+  } else {
+    const r = 9 * F, cx = bx + bw - r * 0.3, cy = by + r * 0.3;
+    thinkX = { x: cx, y: cy, r: r * 1.9 };        // a generous skirt, as the buttons have
+    c.beginPath(); c.arc(cx, cy, r, 0, TAU);
+    c.fillStyle = 'rgba(24,18,14,0.95)';
+    c.fill();
+    c.strokeStyle = 'rgba(255,196,130,0.6)';
+    c.lineWidth = 1.4;
+    c.stroke();
+    c.strokeStyle = 'rgba(244,232,214,0.9)';
+    c.lineWidth = 1.7;
+    const q = r * 0.42;
+    c.beginPath();
+    c.moveTo(cx - q, cy - q); c.lineTo(cx + q, cy + q);
+    c.moveTo(cx + q, cy - q); c.lineTo(cx - q, cy + q);
+    c.stroke();
+  }
   c.restore();
+}
+
+/** Put her thought down, from whichever thing asked. */
+function dropThought() {
+  if (!st.think) return false;
+  st.think = null;
+  thinkX = null;
+  sfx.click();
+  return true;
 }
 
 function roundRectPath(c, x, y, w, h, r) {
@@ -3422,6 +3505,9 @@ function main() {
     if (isTouch() && !isFullscreen()) enterFullscreen().then(checkOrientation);
     const px = e.clientX / sc(), py = e.clientY / sc();
     if (menuOn()) { menuPointer(px, py); return; }
+    // The cross on her thought sits over the world, so it is asked before the
+    // buttons and before the steering.
+    if (thinkX && Math.hypot(px - thinkX.x, py - thinkX.y) < thinkX.r) { dropThought(); return; }
 
     // The belt, open, owns the whole screen.
     if (st.wheel) {
@@ -3537,6 +3623,10 @@ window.savi = {
   st, S, G, V, ROOTS, TREE, FIRE, WOMAN, CAPSTAN, SLUICE_GATE, PLATFORMS, COURSE_LEN, atRiver, riverAt, inWall, broom, YOUNG,
   STONES, inTarn, stonesOn, reachStone, takeStone, hurlStone, get carried() { return carried; },
   BTN, touch, keys, get holding() { return holding; }, layoutButtons, hitButton,
+  get parts() { return P; },
+  dep: (x, y) => depAt(x, y),
+  get thinkX() { return thinkX; },
+  LITTER,
   render, resize, begin, say, advance, fraction, gateOpen, gateLift,
   jump() { jumpWant = BUFFER; step(1 / 60); },
   opening() { playOpening(null); },

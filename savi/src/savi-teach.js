@@ -66,8 +66,12 @@ export function teachLine(step, { touch, pad }) {
   return '';
 }
 
-/** And what it says for the second or so after they have done it. */
-export const GOT = ['good', 'good', 'that is all three'];
+/**
+ * And what it says for the second or so after they have done it. The same
+ * word every time: counting the lessons off out loud at the end of the third
+ * one is the tutorial talking about itself.
+ */
+export const GOT = ['good', 'good', 'good'];
 
 /**
  * One frame of it.

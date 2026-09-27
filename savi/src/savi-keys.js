@@ -50,11 +50,11 @@ export const ACTIONS = [
 export const PAD_STYLES = {
   ps: {
     name: 'PlayStation', move: 'the left stick', jump: 'cross', dash: 'circle',
-    act: 'square', belt: 'L1', menu: 'options',
+    act: 'square', belt: 'L1', menu: 'options', dismiss: 'triangle',
   },
   xbox: {
     name: 'Xbox', move: 'the left stick', jump: 'A', dash: 'B',
-    act: 'X', belt: 'LB', menu: 'menu',
+    act: 'X', belt: 'LB', menu: 'menu', dismiss: 'Y',
   },
 };
 

@@ -27,7 +27,6 @@ export const KEEPER = {
     choices: [
       { say: 'What is wrong with the tree?', to: 'tree', spine: true },
       { say: 'Who are you?', to: 'who' },
-      { say: 'Is it always this cold here?', to: 'valley' },
     ],
   },
   tree: {
@@ -35,7 +34,6 @@ export const KEEPER = {
     text: 'It is dying. The Great Banyan, that has stood here longer than the village, and it is going out like a lamp.',
     choices: [
       { say: 'Then give it water.', to: 'water', spine: true },
-      { say: 'How long has it been like this?', to: 'howlong' },
     ],
   },
   water: {
@@ -167,14 +165,6 @@ export const KEEPER = {
   who: {
     text: 'The keeper. They choose one out of the villages and send her up, the way they have always done, the way they sent you. I was nine when they sent me. There is not much keeping left in me now.',
     choices: [{ say: 'I see.', to: 'welcome' }],
-  },
-  valley: {
-    text: 'It was not always cold here. The tree\'s roots have gone untended, and everything under a banyan goes the way the banyan goes.',
-    choices: [{ say: 'I see.', to: 'welcome' }],
-  },
-  howlong: {
-    text: 'Two winters that I have counted. It went slowly at first. You do not notice a thing going out until the evening you look up and it has.',
-    choices: [{ say: 'Go on.', to: 'tree' }],
   },
   story: {
     text: 'Because of what happened under it, long ago. That is why they come up and tie their threads on it. I knew the whole of it word for word once. I have told it a hundred times. But I am old and it has gone out of me. Free the roots, and the murals may bring it back.',
