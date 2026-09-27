@@ -1109,20 +1109,40 @@ export function drawSavi(ctx, p, time) {
     ctx.fillRect(hx - 2.9, -25.2, 1.6, 2);
     ctx.fillRect(hx + 1.3, -25.2, 1.6, 2);
   }
-  // A STONE, CARRIED. Both hands under it, held against her, and it is in
-  // front of everything else she is wearing because that is where it is. The
-  // weight of it is sold by the walk - she is slowed and cannot jump - but it
-  // wants to be visible from across the field as well, or you cannot tell at
-  // a glance whether you are still holding one.
+  // A STONE, CARRIED — ON HER HIP, and always on a hip.
+  //
+  // It used to sit dead centre on her chest. Facing the camera that hid most
+  // of her behind her own load; facing AWAY it sat squarely on her spine and
+  // read as a pack she was wearing, which is the one thing it must not look
+  // like. Nobody carries a rock on their back and nobody carries one in the
+  // middle of their ribs either - a child lugging one holds it against the
+  // hip with both arms round it.
+  //
+  // A hip is OUTSIDE her silhouette from every angle, so the stone is fully
+  // visible whichever way she is turned, she is not hidden behind it, and
+  // from behind it is plainly in her arms and not on her back. Her near arm
+  // comes over the top of it and her far hand takes the weight underneath.
   if (p.carry) {
     // NOT AT ITS WORLD SIZE. A stone lying on the ground is drawn at the size
     // it is; held up against a girl thirty pixels tall, that same circle
-    // covers her from chin to knee and she disappears behind her own load.
-    // Three fifths of it reads as a heavy rock held in both arms, which is
-    // what it is, and leaves her face showing.
+    // covers her from chin to knee.
     const cr = p.carry * 0.58;
+    const side = Math.abs(fx) > 0.3 ? (fx > 0 ? 1 : -1) : 1;
+    const bx = side * (cr + 2.6) + fx * 1.5;
+    const by = -8 + (walking ? Math.abs(Math.sin(ph)) * 1.3 : 0) + Math.sin(time * 1.3) * 0.35;
+
+    // The far arm first, under the stone, taking the weight.
+    ctx.strokeStyle = '#a8724a';
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(side * 4, -15);
+    ctx.quadraticCurveTo(side * 6, by + cr * 0.5, bx - side * cr * 0.4, by + cr * 0.62);
+    ctx.stroke();
+
     ctx.save();
-    ctx.translate(fx * 2.5, -11 + Math.abs(Math.sin(ph)) * (walking ? 1.4 : 0) + Math.sin(time * 1.3) * 0.4);
+    ctx.translate(bx, by);
+    ctx.rotate(side * 0.12);
     for (let i = 0; i < 3; i++) {
       const a2 = 1.3 + i * 2.2;
       ctx.fillStyle = ['#6a655e', '#7b756c', '#57524c'][i];
@@ -1130,16 +1150,25 @@ export function drawSavi(ctx, p, time) {
       ctx.ellipse(Math.cos(a2) * cr * 0.2, Math.sin(a2) * cr * 0.14, cr * (1 - i * 0.16), cr * (0.78 - i * 0.13), a2, 0, TAU);
       ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(30,26,22,0.5)';
+    ctx.strokeStyle = 'rgba(30,26,22,0.55)';
     ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.ellipse(0, 0, cr * 0.98, cr * 0.78, 0, 0, TAU); ctx.stroke();
     ctx.fillStyle = 'rgba(255,240,210,0.2)';
     ctx.beginPath(); ctx.ellipse(-cr * 0.24, -cr * 0.3, cr * 0.44, cr * 0.22, -0.4, 0, TAU); ctx.fill();
-    // Her hands under it.
-    ctx.fillStyle = '#c08a5a';
-    ctx.beginPath(); ctx.ellipse(-cr * 0.82, cr * 0.34, 2.8, 2.2, -0.4, 0, TAU); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(cr * 0.82, cr * 0.34, 2.8, 2.2, 0.4, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(122,146,86,0.45)';                 // a bit of lichen on it
+    ctx.beginPath(); ctx.ellipse(cr * 0.36, cr * 0.2, cr * 0.2, cr * 0.13, 0.7, 0, TAU); ctx.fill();
     ctx.restore();
+
+    // The near arm, over the top of it, and the hands on it.
+    ctx.strokeStyle = '#c08a5a';
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    ctx.moveTo(side * 6, -17);
+    ctx.quadraticCurveTo(bx + side * cr * 0.5, by - cr * 1.1, bx + side * cr * 0.55, by + cr * 0.12);
+    ctx.stroke();
+    ctx.fillStyle = '#c08a5a';
+    ctx.beginPath(); ctx.ellipse(bx + side * cr * 0.6, by + cr * 0.2, 2.7, 2.2, side * 0.4, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(bx - side * cr * 0.45, by + cr * 0.66, 2.6, 2.1, -side * 0.4, 0, TAU); ctx.fill();
   }
 
   if (away) braid();                           // her back is to us: it is in front
