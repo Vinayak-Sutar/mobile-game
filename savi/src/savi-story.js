@@ -70,7 +70,7 @@ export const ROOTS = [
       ['yama', 'Mortal. Turn back. The living do not walk this road.', 'proud'],
       ['savitri', 'Where my husband goes, I go. My road is tied to his.', 'resolute'],
       ['keeper', 'She did not weep, and she did not kneel. She stood up and walked after Death himself.', 'speaking'],
-      ['keeper', 'And Yama raised his hand. Would he strike her down for it?', 'weary'],
+      ['keeper', 'Yama turned on her in anger. He reminded her who she was following, and what he could do to her. He is the Lord of Death himself.', 'weary'],
     ],
   },
   {

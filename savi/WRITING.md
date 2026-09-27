@@ -1415,7 +1415,7 @@ Savi can page back and forth and re-read any of it any time.
 #### MURAL-pursuit-5
 *The Old Keeper speaks. Line 5 of 5.*
 
-> And Yama raised his hand. Would he strike her down for it?
+> Yama turned on her in anger. He reminded her who she was following, and what he could do to her. He is the Lord of Death himself.
 
 **Remark:**
 
