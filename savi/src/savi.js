@@ -1045,7 +1045,7 @@ function actHold(dt) {
     if (actT <= 0) {
       actT = 1.2;
       say(st.hasEmber
-        ? [['keeper', `Your coal has gone out, child. There is a fire ${towardFire()}. Stand at it a moment and it will come back to itself.`]]
+        ? [['keeper', `Your coal has gone out, child. There is a fire ${towardFire()}. Stand at it a moment and it will fill again.`]]
         : [['keeper', 'This will not move for hands. The old woman keeps a fire. Take a coal from it and hold it out.']], null);
     }
     return;

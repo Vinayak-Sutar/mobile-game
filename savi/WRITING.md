@@ -900,7 +900,7 @@ Aside: "Is it dangerous?"
 #### KEEP-thornsafe
 *What she says.*
 
-> It will not bite you. It will only refuse to let you past, which in its way is worse. It has refused me for two years.
+> It will not bite you. It will only refuse to let you past.
 
 **Remark:**
 
@@ -918,7 +918,7 @@ She hands over the lantern, and explains that thorn draws back from warmth.
 #### KEEP-give2
 *What she says.*
 
-> You do not cut it, child, you warm it. Take this lamp. There is a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.
+> You do not cut it, child, you burn it. Take this lamp. It will not burn without a coal in it, and I have put one of mine in. Hold it out at the thorn and burn a way through.
 
 **Remark:**
 
@@ -943,7 +943,7 @@ Aside: "What if it goes out?" — how to relight the coal.
 #### KEEP-lampout
 *What she says.*
 
-> Then come back and I will light it again, and mind the cold on the way. There are small fires along the roads. Stand at one a moment and the coal comes back to itself.
+> Stand at any fire a moment and it fills again.
 
 **Remark:**
 
@@ -1638,7 +1638,7 @@ her. The bit she has been carrying about that beat for forty years.
 #### KREF-fall
 *Her word on The Fall.*
 
-> A year of counting, and she took the last three of it without food or sleep. Then she got up on the morning she knew about, and walked out into the wood beside him, and talked about the weather.
+> Satyavan died after a year. And the Lord of Death, <i>Yamaraj</i>, came himself to collect his soul.
 
 **Remark:**
 

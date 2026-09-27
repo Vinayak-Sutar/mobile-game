@@ -50,7 +50,7 @@ export const ROOTS = [
     mural: 'fall',
     hint: 'East, in the hollow the water has taken.',
     savi: '<i>Yamaraj</i> himself. The god of death came for Satyavan with his own hands. Poor Savitri. I feel so bad for her.',
-    keeper: 'A year of counting, and she took the last three of it without food or sleep. Then she got up on the morning she knew about, and walked out into the wood beside him, and talked about the weather.',
+    keeper: 'Satyavan died after a year. And the Lord of Death, <i>Yamaraj</i>, came himself to collect his soul.',
     lines: [
       ['keeper', 'They lived together for one year. After that year, Satyavan went into the wood to cut timber, and he fainted, and he fell.', 'speaking'],
       ['keeper', 'Savitri took his head into her lap, and stayed there.', 'weary'],

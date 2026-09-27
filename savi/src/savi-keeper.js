@@ -104,7 +104,7 @@ export const KEEPER = {
   give2: {
     repeat: true,
     give: 'lamp',
-    text: 'You do not cut it, child, you warm it. Take this lamp. There is a coal of my own fire in it. Thorn draws back from warmth the way a hand draws back from a stove. Hold it out in front of you and walk slowly, and it will open a way for you.',
+    text: 'You do not cut it, child, you burn it. Take this lamp. It will not burn without a coal in it, and I have put one of mine in. Hold it out at the thorn and burn a way through.',
     choices: [
       { say: 'What if it goes out?', to: 'lampout' },
       { say: 'I will go.', to: 'leave', spine: true },
@@ -211,11 +211,11 @@ export const KEEPER = {
     choices: [{ say: 'Right.', to: 'brief1' }],
   },
   thornsafe: {
-    text: 'It will not bite you. It will only refuse to let you past, which in its way is worse. It has refused me for two years.',
+    text: 'It will not bite you. It will only refuse to let you past.',
     choices: [{ say: 'Not me.', to: 'brief2' }],
   },
   lampout: {
-    text: 'Then come back and I will light it again, and mind the cold on the way. There are small fires along the roads. Stand at one a moment and the coal comes back to itself.',
+    text: 'Stand at any fire a moment and it fills again.',
     choices: [{ say: 'I will remember.', to: 'brief2' }],
   },
   whysnow: {
