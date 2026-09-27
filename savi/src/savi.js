@@ -1851,7 +1851,13 @@ function sowScenery() {
   // on it, so this has to happen after the valley is decided; and they keep
   // clear of where she wakes up, because a deer two paces from her starting
   // position is scenery rather than something she came across.
-  initFauna(V, classify, (x, y) => Math.hypot(x - START.x, y - START.y));
+  // THE ANIMALS, BY REGION. One cluster per root - which does not appear at
+  // all until that root is awake - and one round the Banyan, which is for the
+  // ending only. What comes back, comes back where she has been working.
+  initFauna(V, classify, [
+    ...ROOTS.map((r) => ({ id: r.id, x: r.at.x, y: r.at.y, r: 620 })),
+    { id: 'hub', hub: true, x: TREE.x, y: TREE.y + 220, r: 640 },
+  ]);
   sowStones();
 }
 
@@ -1907,7 +1913,7 @@ function render() {
     (o.y < S.y ? below : above).push(o);
   }
   for (const o of below) (o.rock ? drawRock : drawTree)(ctx, o, st.t, st.warmth, st.bloomK);
-  drawFauna(ctx, st.t, camera, view, -1e9, S.y, st.bloomK);
+  drawFauna(ctx, st.t, camera, view, -1e9, S.y);
   drawStones(ctx, -1e9, S.y);
 
   drawBanyan(ctx, TREE, st.bloomK, st.t);
@@ -1928,7 +1934,7 @@ function render() {
   if (behind) drawBreath(ctx, S, S.burn, st.t);
   drawSavi(ctx, S, st.t);
   if (S.burn && !behind) drawBreath(ctx, S, S.burn, st.t);
-  drawFauna(ctx, st.t, camera, view, S.y, 1e9, st.bloomK);
+  drawFauna(ctx, st.t, camera, view, S.y, 1e9);
   drawStones(ctx, S.y, 1e9);
   for (const o of above) {
     ctx.globalAlpha = o.see === undefined ? 1 : o.see;
@@ -1944,7 +1950,7 @@ function render() {
   drawCanopy(ctx, TREE, st.bloomK, st.t, canopySee);
   // The birds go over the top of everything, canopy included, with their
   // shadows down on the ground - which is the only thing that says "high up".
-  drawSkyFauna(ctx, st.t, camera, view, st.bloomK);
+  drawSkyFauna(ctx, st.t, camera, view);
 
   // Along the avenue the air is full of them.
   const onAvenue = Math.abs(S.x - 2600) < 420 && S.y > 2250;

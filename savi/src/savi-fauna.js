@@ -9,12 +9,18 @@
 // in the air. They are decoration with one job - the valley should feel lived
 // in - and they are wired to the healing, which is the second job:
 //
-//   at the start   a handful, and every one of them bolts at fifty paces
-//   at the end     the place is full of them and the deer let her walk up
+//   at the start   nothing. An empty valley, which is the problem.
+//   as she works    one or two come back to EACH ROOT SHE FREES, and only
+//                   there - the ground she has not got to yet stays empty
+//   at the end      the tree blooms and the whole place fills up at once
 //
-// That curve is the whole point. Nothing has to be said about it and nothing
-// in the HUD counts it; you just notice, somewhere around the fourth root,
-// that there are deer standing near the tree that would not have been there.
+// That curve is the whole point, and the middle of it is the part that says
+// something. An animal standing on ground she cleared an hour ago is the
+// valley answering her; the same animal standing on ground she has not
+// touched is decoration. So they are grouped by ROOT, and a root's animals
+// do not exist until that root is awake. Nothing has to be said about it and
+// nothing in the HUD counts it; you walk back past the thorn a day later and
+// there is a deer in it.
 //
 // None of it collides with anything. There is nothing here to get stuck on,
 // nothing to push her off a ledge, and nothing that can wander into the river.
@@ -28,67 +34,90 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
-/** Where each of them will stand, and how many of them there are to begin and to end with. */
+/** Where each of them will stand, how fast it goes, and how far it strays. */
 const DRY = [TT.GRASS, TT.TALL, TT.MOSS, TT.DIRT];
 const KINDS = {
-  deer: { few: 2, many: 7, sp: 44, run: 130, roam: 240, r: 13, ground: DRY },
-  fawn: { few: 0, many: 4, sp: 42, run: 138, roam: 150, r: 9, ground: DRY },
-  peacock: { few: 1, many: 5, sp: 32, run: 94, roam: 160, r: 10, ground: [...DRY, TT.PAVE, TT.GRAVEL] },
-  hare: { few: 3, many: 7, sp: 38, run: 158, roam: 130, r: 6, ground: DRY },
-  crane: { few: 1, many: 4, sp: 22, run: 66, roam: 90, r: 11, ground: [TT.SHALLOW, TT.MUD] },
+  deer: { sp: 44, run: 130, roam: 240, r: 13, ground: DRY },
+  fawn: { sp: 42, run: 138, roam: 150, r: 9, ground: DRY },
+  peacock: { sp: 32, run: 94, roam: 160, r: 10, ground: [...DRY, TT.PAVE, TT.GRAVEL] },
+  hare: { sp: 38, run: 158, roam: 130, r: 6, ground: DRY },
+  crane: { sp: 22, run: 66, roam: 90, r: 11, ground: [TT.SHALLOW, TT.MUD] },
 };
 
 const A = [];        // everything that walks
 const F = [];        // the flocks
+const R = [];        // the regions they belong to
 let VW = 0, VH = 0;
 let ok = null;       // (x, y, kind) -> may something of that kind stand here
 
+/** What each region gets, in the order it gets it. The first two show early. */
+const MIX = ['deer', 'hare', 'peacock', 'fawn', 'deer', 'hare', 'crane', 'peacock'];
+
 /**
- * Scatter them. Each one gets a HOME it wanders around rather than the run of
- * the whole valley, because an animal that can end up anywhere ends up nowhere
- * in particular, and a peacock is supposed to be a thing you see by the shrine.
+ * Scatter them BY REGION - one cluster per root, and one round the tree.
+ *
+ * They used to be sown anywhere in five thousand by three thousand, which put
+ * most of them in corners of the valley she never walks through and made the
+ * count meaningless: "more animals as it heals" is nothing if you cannot tell
+ * where the extra ones went. Grouped round the roots, the same animals say
+ * something specific - this ground is alive again, and that ground is not.
+ *
+ * Each one still gets a HOME it wanders around inside its region, because an
+ * animal that can end up anywhere ends up nowhere in particular.
  */
-export function initFauna(V, classify, near) {
+export function initFauna(V, classify, regions) {
   VW = V.w; VH = V.h;
   ok = (x, y, k) => {
     if (x < 60 || y < 60 || x > VW - 60 || y > VH - 60) return false;
     return KINDS[k].ground.includes(classify(x, y));
   };
-  A.length = 0; F.length = 0;
-  for (const k of Object.keys(KINDS)) {
-    const K = KINDS[k];
-    for (let i = 0; i < K.many; i++) {
-      // Try honestly for a spot, and if the valley has no room for this one it
-      // simply never appears. Better a missing hare than a hare in a cliff.
+  A.length = 0; F.length = 0; R.length = 0;
+  for (let g = 0; g < regions.length; g++) {
+    const G = regions[g];
+    // One region gets a single animal early and the next gets two, so the
+    // valley does not come back in a pattern.
+    const reg = { id: G.id, x: G.x, y: G.y, few: G.hub ? 0 : 1 + (g & 1), n: 0 };
+    R.push(reg);
+    for (const k of MIX) {
+      // Try honestly for a spot inside the region, and if there is nowhere in
+      // it this one likes - a crane wants water and most regions have none -
+      // it simply never exists. Better a missing crane than a crane in a cliff.
       let hx = 0, hy = 0, got = false;
-      for (let tr = 0; tr < 500 && !got; tr++) {
-        hx = rand(200, VW - 200); hy = rand(200, VH - 200);
-        // Keep them off the doorstep - she should have to notice them.
-        if (near && near(hx, hy) < 260) continue;
+      for (let tr = 0; tr < 400 && !got; tr++) {
+        const a = rand(0, TAU), d = rand(150, G.r || 560);
+        hx = G.x + Math.cos(a) * d; hy = G.y + Math.sin(a) * d;
         got = ok(hx, hy, k);
       }
       if (!got) continue;
       A.push({
-        k, i, hx, hy, x: hx, y: hy, tx: hx, ty: hy,
+        k, region: reg, rank: reg.n++, hx, hy, x: hx, y: hy, tx: hx, ty: hy,
         dir: Math.random() < 0.5 ? -1 : 1, mode: 'graze', t: rand(0, 4),
         ph: rand(0, TAU), seed: Math.random() * 1000, head: 0, buck: Math.random() < 0.45,
-        sp: 0,
+        sp: 0, on: false,
       });
     }
-  }
-  // The flocks. They go where the trees are, which is most of the valley, and
-  // they are the only ones that are allowed over the water.
-  for (let i = 0; i < 7; i++) {
+    // A flock over the same ground, on the same terms.
     F.push({
-      i, x: rand(400, VW - 400), y: rand(400, VH - 400), a: rand(0, TAU),
-      h: rand(46, 96), n: 3 + ((i * 3) % 5), t: rand(0, 9), sp: rand(30, 52),
+      region: reg, x: G.x, y: G.y, a: rand(0, TAU), h: rand(46, 96),
+      n: 3 + (g % 5), t: rand(0, 9), sp: rand(30, 52), on: false,
     });
   }
   return A.length;
 }
 
-/** How many of a kind are out today. Fewer at the start, all of them at the end. */
-const howMany = (k, bloom) => Math.round(KINDS[k].few + (KINDS[k].many - KINDS[k].few) * bloom);
+/**
+ * IS THIS ONE OUT TODAY?
+ *
+ * Before the tree blooms: only if its root is awake, and only the first one
+ * or two of that root's animals. After: all of them, everywhere, fading in
+ * over the bloom - including the ones round the tree, which is a region with
+ * `few: 0` and therefore exists only for the ending.
+ */
+function present(a, woken, bloom) {
+  const reg = a.region;
+  const base = woken && woken[reg.id] ? reg.few : 0;
+  return a.rank < base + Math.round(bloom * (reg.n - base));
+}
 
 /**
  * A step. Four moods and nothing cleverer: graze, walk somewhere, freeze
@@ -100,8 +129,12 @@ export function stepFauna(dt, S, st) {
   const bloom = clamp01(st.bloomK || 0);
   const flee = 128 - bloom * 60;
   const wary = flee + 66;
+  // Who is out, worked out once and read by both draw passes, so the two can
+  // never disagree about whether something exists.
+  for (const a of A) a.on = present(a, st.woken, bloom);
+  for (const f of F) f.on = !!(st.woken && st.woken[f.region.id]) || bloom > 0.35;
   for (const a of A) {
-    if (a.i >= howMany(a.k, bloom)) continue;
+    if (!a.on) continue;
     const K = KINDS[a.k];
     // Off-screen and far away, they do not need thinking about every frame.
     const d = Math.hypot(S.x - a.x, S.y - a.y);
@@ -154,7 +187,7 @@ export function stepFauna(dt, S, st) {
   // The flocks drift and turn. Nothing up there has to avoid anything.
   for (const f of F) {
     f.t += dt;
-    f.a += Math.sin(f.t * 0.24 + f.i) * dt * 0.5;
+    f.a += Math.sin(f.t * 0.24 + f.n) * dt * 0.5;
     f.x += Math.cos(f.a) * f.sp * dt;
     f.y += Math.sin(f.a) * f.sp * dt;
     if (f.x < 200 || f.x > VW - 200) { f.a = Math.PI - f.a; f.x = clamp(f.x, 200, VW - 200); }
@@ -178,11 +211,10 @@ function aim(a, K) {
 // a deer in front of her covers her and a deer behind her does not. The caller
 // hands over the band of y it wants.
 
-export function drawFauna(ctx, time, cam, view, y0, y1, bloom) {
-  const bl = clamp01(bloom || 0);
+export function drawFauna(ctx, time, cam, view, y0, y1) {
   for (const a of A) {
+    if (!a.on) continue;
     if (a.y < y0 || a.y >= y1) continue;
-    if (a.i >= howMany(a.k, bl)) continue;
     if (a.x < cam.x - 90 || a.x > cam.x + view.w + 90 || a.y < cam.y - 110 || a.y > cam.y + view.h + 90) continue;
     ctx.save();
     ctx.translate(a.x, a.y);
@@ -193,13 +225,12 @@ export function drawFauna(ctx, time, cam, view, y0, y1, bloom) {
 }
 
 /** The birds, over the top of everything, with their shadows on the ground. */
-export function drawSkyFauna(ctx, time, cam, view, bloom) {
-  const n = 2 + Math.round(clamp01(bloom || 0) * 5);
+export function drawSkyFauna(ctx, time, cam, view) {
   for (const f of F) {
-    if (f.i >= n) continue;
+    if (!f.on) continue;
     if (f.x < cam.x - 200 || f.x > cam.x + view.w + 200 || f.y < cam.y - 200 || f.y > cam.y + view.h + 200) continue;
     for (let k = 0; k < f.n; k++) {
-      const o = k * 1.9 + f.i;
+      const o = k * 1.9 + f.n;
       const bx = f.x + Math.cos(f.a + Math.PI) * k * 15 + Math.sin(time * 0.8 + o) * 13;
       const by = f.y + Math.sin(f.a + Math.PI) * k * 9 + Math.cos(time * 0.7 + o) * 9;
       ctx.fillStyle = 'rgba(0,0,0,0.13)';
