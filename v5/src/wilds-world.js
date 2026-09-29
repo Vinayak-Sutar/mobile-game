@@ -28,6 +28,7 @@ import {
   WILDS, START, REGIONS, ROADS, LAKES, RIVERS, SEA, CHASMS, BRIDGES, PLATEAUS, RIMS, CLEARINGS, LAND, OFFSET, LAMPS, SEALS, DUNGEONS, NPCS,
 } from './wilds-layout.js';
 import { createWildsWater } from './wilds-water.js';
+import { fillMarket, clearFolk } from './wilds-folk.js';
 import { takeSmoulder } from './wilds-progress.js';
 import { planSites, updateSites, resetSites, unitsFromPlaces } from './wilds-sites.js';
 import { planPlaces, floorLookup } from './wilds-places.js';
@@ -1123,8 +1124,13 @@ export function updateOverworld(dt) {
       const many = P.boss === 'solaris';          // the Twin Wardens are two
       action = { toast: [P.name.toUpperCase(), P.beaten ? `${title} ${many ? 'are' : 'is'} no more`
         : P.needs && remnantCount() < P.needs ? `${remnantCount()} of ${P.needs} Remnants set` : `${title} ${many ? 'wait' : 'waits'} beyond the fog`] };
+      clearFolk();
     } else if (P) {
       P.seen = true;
+      // A market fills with people as you walk into it, and empties behind
+      // you. Nothing is saved: they are scenery with legs.
+      if (P.market) fillMarket(P);
+      else clearFolk();
       const champ = W.sites.find((s) => s.id === `${P.id}:champ`);
       action = { toast: [P.name.toUpperCase(), champ && champ.claimed ? 'Its champion has fallen' : champ ? `${champ.name} holds it` : 'The Wilds'] };
     }

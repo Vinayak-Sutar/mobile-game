@@ -568,6 +568,85 @@ function foxTails(g, n, glow) {
 // states turn it to face you (aimAt).
 
 const FIGS = {
+  // --- TOWNSFOLK. Not a fight: a person with somewhere to be.
+  //
+  // One definition serves the whole market. Every person's clothes come from
+  // `e.tint`, which the draw below reads in place of `C.main`, so forty people
+  // out of one entry are forty different people rather than forty of the same
+  // one. `work` is a stallholder leaning over their table; `flee` is running
+  // with the arms up; everything else is walking, hands at the sides.
+  townsfolk: {
+    scale: 1.14,
+    body: { legL: 11, torsoH: 11, torsoW: 10, torsoD: 7, shW: 5, armL: 10.5, headR: 5.6, legW: 3, armW: 2.6 },
+    c: { main: '#6a5a7a', leg: '#3c3038', arm: '#c08a5a', hand: '#d8ab7e', skin: '#d8ab7e', foot: '#2e2420' },
+    crown: 2,
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'work') {
+        // Leaning over a table, both hands down and forward.
+        return { crouch: 1.5, lean: 0.34, handR: [B.armL - 3, 3, shH - 9], handL: [B.armL - 4, -3, shH - 9] };
+      }
+      if (e.state === 'flee') {
+        return { lean: 0.42, stance: 'wide', handR: [-2, 4, shH + 3], handL: [-2, -4, shH + 3] };
+      }
+      if (e.state === 'wary') {
+        // Stopped, half turned away, hands up a little.
+        return { lean: -0.12, handR: [1, 5, shH - 6], handL: [1, -5, shH - 6] };
+      }
+      return { handR: [1, 4, shH - 8], handL: [1, -4, shH - 8] };
+    },
+    head(ctx, g) {
+      skull(ctx, g, '#3a2a20');
+      // A cap of hair over the crown only: a full dark circle behind a face
+      // leaves a ring under the chin that reads as a beard.
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.3, R + 0.6, R * 0.72, 0, Math.PI, TAU);
+      ctx.closePath(); g.fillOut(g.col('#2a1c18'), 1.1);
+    },
+  },
+  // --- A porter: bigger, slower, carrying the load on one shoulder.
+  porter: {
+    scale: 1.26,
+    body: { legL: 11, torsoH: 12, torsoW: 12, torsoD: 8, shW: 5.6, armL: 11, headR: 5.8, legW: 3.4, armW: 3 },
+    c: { main: '#7a6a52', leg: '#4a3c2e', arm: '#b8825a', hand: '#d8ab7e', skin: '#d8ab7e', foot: '#2e2420' },
+    crown: 2,
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      if (e.state === 'flee') return { lean: 0.4, stance: 'wide', handR: [-2, 4, shH + 2], handL: [-2, -4, shH + 2] };
+      // One hand up steadying whatever is on that shoulder.
+      return { lean: 0.08, handR: [0, 5, shH + 1], handL: [2, -4, shH - 9] };
+    },
+    over(ctx, g) {
+      // The bundle, riding the right shoulder.
+      if (g.e.state === 'flee') return;
+      const [x, y] = g.hp(2, 7, 30);
+      ctx.beginPath(); ctx.ellipse(x, y, 7.5, 5.5, 0.2, 0, TAU);
+      g.fillOut(g.col('#8a6a3e'), 1.2);
+    },
+    head(ctx, g) {
+      skull(ctx, g, '#3a2a20');
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.34, R + 0.8, R * 0.66, 0, Math.PI, TAU);
+      ctx.closePath(); g.fillOut(g.col('#5a4632'), 1.1);
+    },
+  },
+  // --- A child: small, quick, arms out.
+  child: {
+    scale: 0.82,
+    body: { legL: 8, torsoH: 8, torsoW: 8, torsoD: 6, shW: 4, armL: 8, headR: 5.4, legW: 2.4, armW: 2.1, cycle: 60, stride: 4.4 },
+    c: { main: '#8a6a7a', leg: '#4a3a44', arm: '#c08a5a', hand: '#d8ab7e', skin: '#d8ab7e', foot: '#2e2420' },
+    crown: 2,
+    pose(e, G, B) {
+      const shH = B.legL + B.torsoH;
+      return { lean: 0.16, handR: [-1, 5, shH - 2], handL: [-1, -5, shH - 2] };
+    },
+    head(ctx, g) {
+      skull(ctx, g, '#3a2a20');
+      const { x, y, R } = g.head;
+      ctx.beginPath(); ctx.ellipse(x, y - R * 0.28, R + 0.6, R * 0.78, 0, Math.PI, TAU);
+      ctx.closePath(); g.fillOut(g.col('#2a1c18'), 1.1);
+    },
+  },
   // --- Goblin Cutthroat (the wretch): darts in, crouches, lunges with a knife.
   wretch: {
     scale: 1.12,

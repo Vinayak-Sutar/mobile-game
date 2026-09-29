@@ -233,6 +233,71 @@ function build(P, rng, roadNear) {
       P.relic = { x: cx + 60, y: cy - 40 };
       break;
     }
+    // --- CINDERFAIR. A market, and the one place in the Wilds with no fight
+    // in it.
+    //
+    // The shape is the point. A crowd in an open square parts around you and
+    // you feel nothing - measured at 1.07-1.27x the empty walk, whatever the
+    // tuning. Penned in a lane with nowhere sideways to go, the same people
+    // cost 1.7-2.1x. So the spine of this place is a NARROW WALLED STREET,
+    // buildings shoulder to shoulder down both sides, and the square is only
+    // where that street opens out.
+    case 'market': {
+      const R = P.r * 0.86;
+      const LANE = 104;                 // the gap you squeeze through
+      const half = LANE / 2;
+      const SQ = 250;                   // the square in the middle
+
+      // The street, and the square it opens into.
+      floor(cx - R, cy - half - 6, 2 * R, LANE + 12, 'pave');
+      floor(cx - SQ, cy - SQ, 2 * SQ, 2 * SQ, 'pave');
+
+      // The walls of the lane: two rows of buildings, tight, broken only
+      // where the square opens. Anything overlapping the square or the lane
+      // itself is skipped, the way the village keeps its lanes clear.
+      const keep = [
+        { x: cx - R, y: cy - half, w: 2 * R, h: LANE },
+        { x: cx - SQ, y: cy - SQ, w: 2 * SQ, h: 2 * SQ },
+      ];
+      const clashes = (b2) => keep.some((L) => L.x < b2.x + b2.w && L.x + L.w > b2.x
+        && L.y < b2.y + b2.h && L.y + L.h > b2.y);
+      for (const side of [-1, 1]) {
+        let x = cx - R;
+        while (x < cx + R - 90) {
+          const w = 120 + rng() * 80, h = 96 + rng() * 44;
+          const y = side < 0 ? cy - half - h : cy + half;
+          const box = { x: x - 6, y: y - 6, w: w + 12, h: h + 12 };
+          if (!clashes(box)) building(x, y, w, h, hut);
+          x += w + 12 + rng() * 26;
+        }
+      }
+
+      // The stalls: a ring round the square, and a couple down the lane.
+      // Recorded on the place so the crowd knows where the work is.
+      P.market = { lane: keep[0], square: keep[1], stalls: [] };
+      const stall = (sx, sy) => {
+        if (prop(sx, sy, 54, 34, rng() < 0.5 ? 'crate' : 'barrel')) {
+          // Where the keeper stands: just behind their table.
+          P.market.stalls.push({ x: sx, y: sy + (sy < cy ? -30 : 30) });
+        }
+      };
+      for (let k = 0; k < 8; k++) {
+        const a2 = (k / 8) * Math.PI * 2 + 0.4;
+        stall(cx + Math.cos(a2) * (SQ - 70), cy + Math.sin(a2) * (SQ - 70));
+      }
+      stall(cx - R * 0.62, cy - half + 22);
+      stall(cx + R * 0.62, cy + half - 22);
+
+      prop(cx, cy, 40, 36, 'well');
+      deco(cx - 150, cy - 150, 'fire');
+      deco(cx + 150, cy + 150, 'fire');
+      for (const [dx, dy] of [[-SQ + 40, -SQ + 40], [SQ - 40, -SQ + 40], [-SQ + 40, SQ - 40], [SQ - 40, SQ - 40]]) {
+        deco(cx + dx, cy + dy, jp ? 'chochin' : 'banner');
+      }
+      // No groups and no champion: nobody holds a market.
+      P.relic = { x: cx + 70, y: cy - 60 };
+      break;
+    }
     case 'temple': {
       // A stepped platform at the head of a colonnaded avenue.
       tower(cx - 420, cy - 360, 840, 520, 50, 170);

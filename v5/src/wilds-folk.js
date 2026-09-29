@@ -26,8 +26,9 @@
 // nothing, and can be tuned by feel rather than by proof.
 
 import { world } from './state.js';
-import { clamp, rand, TAU, normalize } from './util.js';
+import { clamp, rand, TAU, normalize, pick } from './util.js';
 import { collideWorld } from './ai.js';
+import { drawFigure } from './figures.js';
 
 /** How big a person is, and how hard they are to shove. */
 const R = 14;
@@ -81,10 +82,22 @@ let nextId = 1;
  * One person. `home` is where they belong and drift back to; `goal` is where
  * they are heading right now.
  */
+/** The clothes of one person. Read by figures.js in place of its own palette. */
+const CLOTH = ['#6a5a7a', '#4a5a7a', '#7a5a4a', '#5a6a4a', '#7a6a5a', '#4a6a6a',
+  '#6a4a5a', '#5a4a3a', '#7a7a5a', '#48566a'];
+
 export function makeFolk(x, y, kind = 'adult', extra = {}) {
   return {
     id: nextId++,
     kind,
+    // WHAT figures.js NEEDS. `type` picks the definition, `tint` is this
+    // person's own clothes, and `r` sets their size (REF is 17). Everything
+    // else it wants - the gait, the facing octant, the smear - it derives
+    // from where they were last frame and stashes on `g`-prefixed fields.
+    type: kind === 'child' ? 'child' : kind === 'porter' ? 'porter' : 'townsfolk',
+    tint: pick(CLOTH),
+    color: '#000',
+    flash: 0,
     x, y, vx: 0, vy: 0,
     r: R,
     mass: MASS[kind] || 1,
@@ -113,9 +126,14 @@ export function makeFolk(x, y, kind = 'adult', extra = {}) {
  * walk out of the far end and you reappear at the near one - so the cost is
  * flat and there is no churn.
  */
-export function makeCrowd(x, y, w, h, flow = 0, density = 0.7, kinds = ['adult']) {
+export function makeCrowd(x, y, w, h, flow = 0, density = 0.7, kinds = ['adult'], max = 999) {
   const area = (w * h) / (100 * 100);
-  const n = Math.max(1, Math.round(area * density));
+  // A CAP, because density alone lies about the cost. Six per hundred square
+  // units is the measured sweet spot for how a lane FEELS, but a lane twice
+  // as long then costs twice as much to draw for no extra feeling - you can
+  // only ever be in one part of it. Cap the people, keep the density where
+  // you are.
+  const n = Math.min(max, Math.max(1, Math.round(area * density)));
   const c = { x, y, w, h, flow, density, kinds, folk: [] };
   for (let i = 0; i < n; i++) {
     const kind = kinds[(Math.random() * kinds.length) | 0];
@@ -225,6 +243,12 @@ function goalForce(f, out) {
     tx = f.x + Math.cos(f.flow) * 200;
     ty = f.y + Math.sin(f.flow) * 200;
   } else if (f.goal) {
+    // Reached the stall they wanted: look at it a moment, then pick another.
+    if (Math.hypot(f.goal.x - f.x, f.goal.y - f.y) < 34) {
+      if (f.pause <= 0) f.pause = rand(1.4, 4);
+      if (f.stalls && f.stalls.length) f.goal = f.stalls[(Math.random() * f.stalls.length) | 0];
+      return;
+    }
     tx = f.goal.x; ty = f.goal.y;
   } else return;
   const [nx, ny] = normalize(tx - f.x, ty - f.y);
@@ -237,8 +261,9 @@ function stepFolk(f, p, dt) {
   if (f.dead) return;
   if (f.yielding > 0) f.yielding -= dt;
 
+  if (f.pause > 0) { f.pause -= dt; }
   const want = { x: 0, y: 0 };
-  goalForce(f, want);
+  if (f.pause <= 0) goalForce(f, want);
   separation(f, want);
   if (p && !p.dead) yieldForce(f, p, want);
 
@@ -313,6 +338,53 @@ export function updateFolk(dt, p = world.player) {
   }
 }
 
+/**
+ * Fill a market: keepers at their stalls, shoppers drifting between them, and
+ * a crowd flowing down the lane.
+ *
+ * Three populations because a market is three things at once. Take any one
+ * away and it stops reading: only keepers and it is a museum, only shoppers
+ * and nobody is selling anything, only the lane crowd and it is a corridor.
+ */
+export function fillMarket(P) {
+  clearFolk();
+  const M = P.market;
+  if (!M) return;
+
+  // The keepers. Each is pinned behind their own table by the same leash the
+  // Wilds already uses to hold a champion to its ring.
+  for (const st of M.stalls) {
+    const f = makeFolk(st.x, st.y, Math.random() < 0.25 ? 'porter' : 'adult');
+    f.state = 'work';
+    f.home = { x: st.x, y: st.y };
+    f.leash = { x: st.x, y: st.y, r: 26 };
+    f.face = st.y < P.y ? Math.PI / 2 : -Math.PI / 2;   // facing their table
+    world.folk.push(f);
+  }
+
+  // Shoppers, wandering the square from stall to stall.
+  const sq = M.square;
+  for (let i = 0; i < 8; i++) {
+    const f = makeFolk(sq.x + rand(40, sq.w - 40), sq.y + rand(40, sq.h - 40),
+      Math.random() < 0.18 ? 'child' : 'adult');
+    f.stalls = M.stalls;
+    f.goal = M.stalls.length ? M.stalls[(Math.random() * M.stalls.length) | 0] : null;
+    world.folk.push(f);
+  }
+
+  // And the lane. Density 6 is the measured sweet spot: about forty people in
+  // a hundred-wide street, 37% of it covered, and a crossing that costs a bit
+  // over twice the empty walk without ever stopping you.
+  // The lane. Density 6 is the measured sweet spot - about forty people in a
+  // hundred-wide street, 37% of it covered, a crossing costing a bit over
+  // twice the empty walk - but this lane is thirteen hundred long, and six
+  // per hundred square units over all of it is eighty-two people at ten
+  // milliseconds a frame to draw. Capped at twenty-two: you are only ever in
+  // one stretch of the street, and the rest is cost with no feeling attached.
+  const L = M.lane;
+  makeCrowd(L.x, L.y, L.w, L.h, 0, 6, ['adult', 'adult', 'porter', 'child'], 22);
+}
+
 export function clearFolk() {
   world.folk.length = 0;
 }
@@ -328,14 +400,37 @@ export function clearFolk() {
 // The walk is one sine wave off `seed` and distance travelled - enough to
 // read as walking at this size, and free.
 
-const CLOTH = ['#6a5a7a', '#4a5a7a', '#7a5a4a', '#5a6a4a', '#7a6a5a', '#4a6a6a', '#6a4a5a'];
 const SKIN = ['#d8ab7e', '#c08a5a', '#e2bb92', '#a87450'];
 
-/** One person. `sortY` is set by the caller's sort, not used here. */
-export function drawFolkOne(ctx, f, time) {
+/**
+ * One person, drawn with the game's own character system.
+ *
+ * `drawFigure` is the same puppet the enemies and the Wanderer use - eight
+ * facing octants, two-bone legs and arms, a stepped stride, squash on a
+ * wind-up. It costs more than the flat body below (roughly 35-55 canvas
+ * operations against 25) and it is worth it: a market drawn in a different
+ * style from everything else in the world reads as a different game.
+ *
+ * It returns false when the hooded skin is on (the chambers) or when there
+ * is no definition, and then the flat body takes over so nothing vanishes.
+ */
+export function drawFolkOne(ctx, f, time, full = true) {
+  if (full && !f.dead && drawFigure(f, ctx)) {
+    if (f.yielding > 0) {
+      // A glance your way: the only tell they get, and it is enough.
+      ctx.fillStyle = `rgba(255,214,170,${(f.yielding * 0.45).toFixed(2)})`;
+      ctx.beginPath(); ctx.arc(f.x, (f.figTop || f.y - 40) - 6, 1.7, 0, TAU); ctx.fill();
+    }
+    return;
+  }
+  drawFolkFlat(ctx, f, time);
+}
+
+/** The fallback body: flat, cheap, and used where the figure system is off. */
+function drawFolkFlat(ctx, f, time) {
   const x = f.x, y = f.y;
   const i = f.seed | 0;
-  const cloth = CLOTH[i % CLOTH.length];
+  const cloth = f.tint || CLOTH[i % CLOTH.length];
   const skin = SKIN[(i >> 2) % SKIN.length];
   const tall = f.kind === 'child' ? 0.68 : f.kind === 'porter' ? 1.1 : 1;
   const H = 30 * tall;
@@ -412,5 +507,29 @@ export function drawFolk(ctx, time, inView) {
     if (!inView || inView(f.x, f.y, 90)) seen.push(f);
   }
   seen.sort((a, b) => a.y - b.y);
-  for (const f of seen) drawFolkOne(ctx, f, time);
+
+  // LEVEL OF DETAIL, and it is not optional.
+  //
+  // Measured on the dev PC: rendering a frame costs 7.6 ms with nobody in the
+  // market and 21 ms with forty figures on screen - about a third of a
+  // millisecond each, against a sixteen millisecond budget that already has
+  // three committed to streaming. A phone would be worse.
+  //
+  // So the nearest people get the real puppet, with its eight facing octants
+  // and two-bone limbs, and everybody else gets the flat body at roughly half
+  // the cost. You look at whoever is next to you; the far end of the street
+  // only has to read as a crowd.
+  const p = world.player;
+  const px = p ? p.x : 0, py = p ? p.y : 0;
+  let full = 0;
+  for (const f of seen) {
+    const near = (f.x - px) * (f.x - px) + (f.y - py) * (f.y - py) < LOD_NEAR * LOD_NEAR;
+    const rich = near && full < LOD_MAX;
+    if (rich) full++;
+    drawFolkOne(ctx, f, time, rich);
+  }
 }
+
+/** How close, and how many at once, get the full character rig. */
+const LOD_NEAR = 260;
+const LOD_MAX = 12;

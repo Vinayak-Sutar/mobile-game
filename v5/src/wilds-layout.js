@@ -309,6 +309,7 @@ const RAW_SEALS = [
 // duel ring. The spot here is where the designer wants it; wilds-places.js
 // moves it to the nearest open ground if water, a cliff or a lamp is in the way.
 const RAW_PLACES = [
+  { id: 'cinderfair', name: 'Cinderfair', kind: 'market', x: 17600, y: 13100, r: 760 },
   { id: 'ashford', name: 'Ashford', kind: 'village', x: 15200, y: 14300, r: 950 },
   { id: 'raidcamp', name: "Raiders' Camp", kind: 'camp', x: 21800, y: 9800, r: 850 },
   { id: 'oldhold', name: 'The Old Hold', kind: 'fort', x: 22600, y: 15600, r: 900 },
