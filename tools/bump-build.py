@@ -74,34 +74,10 @@ def check_level(staged):
             sys.exit(1)
 
 
-def check_v5(staged):
-    """Refuse a commit that breaks the two-player foundation.
-
-    The multiplayer work turns one player into a list and gives every hit a
-    target and an owner. Both are the kind of change that throws nothing when
-    it goes wrong - it just applies the wrong number to the wrong person.
-    """
-    if not any(q.startswith('v5/') for q in staged):
-        return
-    for name in ('check-two.mjs', 'check-damage.mjs'):
-        script = os.path.join(ROOT, 'v5', 'tools', name)
-        if not os.path.exists(script):
-            continue
-        r = subprocess.run(['node', script], cwd=ROOT, capture_output=True, text=True,
-                           encoding='utf-8', errors='replace')
-        if r.returncode != 0:
-            sys.stdout.write(r.stdout or '')
-            sys.stdout.write(r.stderr or '')
-            print('')
-            print('%s failed. Fix it, or commit with --no-verify.' % name)
-            sys.exit(1)
-
-
 def main():
     staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], cwd=ROOT,
                             capture_output=True, text=True, check=True).stdout.split()
     check_level(staged)
-    check_v5(staged)
     for folder, label in GAMES:
         bump(folder, label, staged)
 

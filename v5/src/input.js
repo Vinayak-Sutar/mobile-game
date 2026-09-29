@@ -5,17 +5,7 @@ import { view, camera } from './state.js';
 import { clamp, dist, normalize } from './util.js';
 import { pad } from './gamepad.js';
 
-/**
- * A fresh set of "what is being pressed", of exactly the shape every system
- * already reads.
- *
- * Player one's is filled by this file from the keyboard, the touch controls
- * and gamepad slot 0. A second player's is filled by another pad slot or by
- * the network. Nothing downstream knows or cares which - it only ever sees
- * `p.in`.
- */
-export function makeInput() {
-  return {
+export const input = {
   move: { x: 0, y: 0 },
   aim: { x: 1, y: 0 },
   aimActive: false,
@@ -42,11 +32,7 @@ export function makeInput() {
   touchMode: false,
   padMode: false,
   anyPressed: false,
-  };
-}
-
-/** Player one's, and the one this file writes into. */
-export const input = makeInput();
+};
 
 // Held state per source, composed in updateInput. Keeping these apart means a
 // gamepad button release can't be undone by a stale keyboard flag, and vice

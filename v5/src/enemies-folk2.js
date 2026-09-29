@@ -85,7 +85,7 @@ const KAPPA = {
         // Held under: each squeeze lands even inside the usual hit-grace
         // (the hold is telegraphed by the crouch, and a dash ends it).
         p.invuln = 0;
-        damagePlayer(p, Math.round(e.damage * 0.45), e.x, e.y, 'kappa');
+        damagePlayer(Math.round(e.damage * 0.45), e.x, e.y, 'kappa');
       }
       // A dash breaks the hold and knocks it reeling.
       if (p.dashing || (p.heldUntil || 0) <= world.runTime || e.t <= 0) {
@@ -276,7 +276,7 @@ const DRAUGR = {
       e.t -= dt;
       if (e.t <= 0) {
         e.state = 'recover'; e.t = 0.6;
-        if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.aim, 1.6, 120)) damagePlayer(p, e.damage, e.x, e.y, 'draugr');
+        if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.aim, 1.6, 120)) damagePlayer(e.damage, e.x, e.y, 'draugr');
         burst(e.x + Math.cos(e.aim) * 60, e.y + Math.sin(e.aim) * 60, { count: 10, color: '#d8e0e8', speed: 220, size: 3, life: 0.3, drag: 5, shape: 'spark' });
         sfx.swing(1.3);
         shake(0.15);

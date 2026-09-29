@@ -23,6 +23,7 @@
 
 import { world, arenaBounds } from './state.js';
 import { TAU, clamp, dist, angleTo, angleDiff, rand } from './util.js';
+import { input } from './input.js';
 import { dealDamage, nearestEnemy, enemiesInRadius, healPlayer, setAegisHook } from './combat.js';
 import { spawnProjectile } from './spawn.js';
 import { burst, ring, damageText, shake } from './fx.js';
@@ -354,8 +355,8 @@ export function updateSpells(p, dt) {
   if (p.spellDenied) { p.spellDenied.t -= dt; if (p.spellDenied.t <= 0) p.spellDenied = null; }
   if (p.aegis) { p.aegis.t -= dt; if (p.aegis.t <= 0) p.aegis = null; }
 
-  if (p.in.spellCast !== null && p.in.spellCast !== undefined) {
-    const id = p.spells[p.in.spellCast];
+  if (input.spellCast !== null && input.spellCast !== undefined) {
+    const id = p.spells[input.spellCast];
     if (id) tryCast(p, id);
   }
   if (p.channel) updateChannel(p, dt);
@@ -407,8 +408,8 @@ export function tryCast(p, id) {
 function placeTarget(p, aim) {
   const b = arenaBounds();
   let x, y;
-  if (!p.in.touchMode && !p.in.padMode && p.in.grenadeAbs) {
-    x = p.in.grenadeAbs.x; y = p.in.grenadeAbs.y;
+  if (!input.touchMode && !input.padMode && input.grenadeAbs) {
+    x = input.grenadeAbs.x; y = input.grenadeAbs.y;
     const d = dist(p.x, p.y, x, y);
     if (d > PLACE_RANGE) { const a = angleTo(p.x, p.y, x, y); x = p.x + Math.cos(a) * PLACE_RANGE; y = p.y + Math.sin(a) * PLACE_RANGE; }
   } else {
@@ -495,7 +496,7 @@ function updateChannel(p, dt) {
     if (c.tick <= 0 && c.target) {
       c.tick = 0.2;
       const dealt = dealDamage(c.target, 5 * power(c.lv), { source: 'spell', dir: angleTo(p.x, p.y, c.target.x, c.target.y) });
-      if (dealt > 0) { healPlayer(p, dealt * 0.5, false); c.healed += dealt * 0.5; }
+      if (dealt > 0) { healPlayer(dealt * 0.5, false); c.healed += dealt * 0.5; }
       burst(c.target.x, c.target.y, { count: 3, color: '#9be34a', speed: 120, size: 3, life: 0.3, drag: 3 });
     }
   }

@@ -51,7 +51,7 @@ export const BOONS = [
   {
     id: 'vigor', god: 'gaia', name: 'Verdant Vigor', max: 6,
     desc: () => '+18 max health, and heal that much now.',
-    apply: (s, lv, p) => { s.maxHp += 18; healPlayer(p, 18, false); },
+    apply: (s) => { s.maxHp += 18; healPlayer(18, false); },
   },
   {
     id: 'bloodroot', god: 'gaia', name: 'Bloodroot', max: 4,
@@ -136,7 +136,7 @@ export function offerBoons(player, count = 3) {
 
 export function applyBoon(player, boon) {
   const level = player.boons[boon.id] || 0;
-  boon.apply(player.stats, level, player);
+  boon.apply(player.stats, level);
   player.boons[boon.id] = level + 1;
   player.boonOrder = player.boonOrder.filter((id) => id !== boon.id);
   player.boonOrder.push(boon.id);

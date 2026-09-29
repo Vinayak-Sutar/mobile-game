@@ -162,7 +162,7 @@ function bite(e, S, mult) {
   const p = world.player;
   if (!p || p.dead || S.headUnder || S.biteCd > 0) return;
   if (dist(S.head.x, S.head.y, p.x, p.y) < S.head.r + p.r * 0.5) {
-    if (damagePlayer(p, Math.round(e.damage * mult), S.head.x, S.head.y, e.type)) S.biteCd = 0.6;
+    if (damagePlayer(Math.round(e.damage * mult), S.head.x, S.head.y, e.type)) S.biteCd = 0.6;
   }
 }
 
@@ -308,7 +308,7 @@ export const NAGA = {
       pool.tick -= dt;
       if (pool.tick <= 0 && dist(p.x, p.y, pool.x, pool.y) < pool.r + p.r * 0.5) {
         pool.tick = 0.5;
-        damagePlayer(p, Math.max(2, Math.round(e.damage * 0.22)), null, null, 'venom');
+        damagePlayer(Math.max(2, Math.round(e.damage * 0.22)), null, null, 'venom');
       }
     }
     e.pools = e.pools.filter((q) => q.t > 0);
@@ -478,7 +478,7 @@ export const NAGA = {
         const T = e.tailAt;
         const d = dist(T.x, T.y, p.x, p.y);
         if (d < 250 + p.r * 0.5 && Math.abs(angleDiff(T.a, angleTo(T.x, T.y, p.x, p.y))) < 0.95) {
-          if (damagePlayer(p, Math.round(e.damage * 0.8), T.x, T.y, e.type)) {
+          if (damagePlayer(Math.round(e.damage * 0.8), T.x, T.y, e.type)) {
             p.vx = (p.vx || 0) + Math.cos(T.a) * 260; p.vy = (p.vy || 0) + Math.sin(T.a) * 260;
           }
         }
@@ -520,7 +520,7 @@ export const NAGA = {
         // Phase 2 adds the hiss-shockwave (gaps either side, or dash through it).
         if (p2(e)) shockwave(e, { color: SCALE_LT, speed: 300, dmg: 0.4 });
         if (dist(e.x, e.y, p.x, p.y) < 230 + p.r * 0.5 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 0.6) {
-          damagePlayer(p, Math.round(e.damage * 0.6), e.x, e.y, e.type);
+          damagePlayer(Math.round(e.damage * 0.6), e.x, e.y, e.type);
         }
         burst(e.x, e.y, { count: 22, color: VENOM, speed: 380, size: 4, life: 0.4, dir: e.face, spread: 0.6, drag: 3 });
         idle(e, 0.4);
@@ -1083,7 +1083,7 @@ function coilUpdate(e, dt, p) {
     }
     if (e.t <= 0) {
       if (dist(p.x, p.y, C.x, C.y) < C.R + 20) {
-        damagePlayer(p, Math.round(e.damage * 1.5), C.x, C.y, e.type);
+        damagePlayer(Math.round(e.damage * 1.5), C.x, C.y, e.type);
         shake(0.6);
         damageText(p.x, p.y - p.r - 18, 'CRUSHED', { color: '#ff5e6e', size: 17 });
       }

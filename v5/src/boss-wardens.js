@@ -65,7 +65,7 @@ function touch(e, mult) {
   const p = world.player;
   if (!p || p.dead || (e.touchCd || 0) > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r * 0.5) {
-    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
+    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
   }
 }
 
@@ -1144,7 +1144,7 @@ export const GRUMM = {
         if (e.t > 0) return;
         const d = dist(e.x, e.y, p.x, p.y);
         if (d < 170 + p.r * 0.5 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 1.2) {
-          if (damagePlayer(p, Math.round(e.damage * 0.85), e.x, e.y, e.type)) { p.vx = (p.vx || 0) + Math.cos(e.face) * 320; p.vy = (p.vy || 0) + Math.sin(e.face) * 320; }
+          if (damagePlayer(Math.round(e.damage * 0.85), e.x, e.y, e.type)) { p.vx = (p.vx || 0) + Math.cos(e.face) * 320; p.vy = (p.vy || 0) + Math.sin(e.face) * 320; }
         }
         friendly(e, e.x + Math.cos(e.face) * 100, e.y + Math.sin(e.face) * 100, 110, 0.05);
         sfx.swing(1.6);

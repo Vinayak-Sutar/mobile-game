@@ -375,7 +375,7 @@ export function updateDungeon(dt) {
         D.fade = 0.6;
         shake(0.35); sfx.thud();
         burst(p.x, p.y + 10, { count: 14, color: '#6a6470', speed: 160, size: 4, life: 0.5, drag: 4 });
-        damagePlayer(p, Math.round(p.stats.maxHp * 0.05), p.x, p.y - 10, 'fall');
+        damagePlayer(Math.round(p.stats.maxHp * 0.05), p.x, p.y - 10, 'fall');
         p.invuln = Math.max(p.invuln || 0, 0.8);
         p.hop = null;
         for (const e of world.enemies) if (dist(e.x, e.y, p.x, p.y) < 420) e.woke = true;
@@ -384,7 +384,7 @@ export function updateDungeon(dt) {
         const s = D.safe;
         if (s.k !== D.cur) switchTo(s.k, s.x, s.y); else { p.x = s.x; p.y = s.y; }
         D.fade = 0.8;
-        damagePlayer(p, Math.round(p.stats.maxHp * 0.15), p.x, p.y, 'pit');
+        damagePlayer(Math.round(p.stats.maxHp * 0.15), p.x, p.y, 'pit');
         p.invuln = Math.max(p.invuln || 0, 1.2);
         A().toast = ['THE DARK BELOW', 'You climb back up, bruised'];
       }
@@ -401,7 +401,7 @@ export function updateDungeon(dt) {
       const s = D.safe;
       if (s.k !== D.cur) switchTo(s.k, s.x, s.y); else { p.x = s.x; p.y = s.y; }
       D.fade = 0.5;
-      damagePlayer(p, Math.round(p.stats.maxHp * 0.14), p.x, p.y, 'lava');
+      damagePlayer(Math.round(p.stats.maxHp * 0.14), p.x, p.y, 'lava');
       p.invuln = Math.max(p.invuln || 0, 1.2);
     }
     return act;
@@ -568,7 +568,7 @@ export function updateDungeon(dt) {
 
   // --- traps ----------------------------------------------------------------------
   const hurt = (x, y, r, amount, src) => {
-    if (dist(p.x, p.y + p.r * 0.3, x, y) < r + p.r * 0.5) damagePlayer(p, amount, x, y - 20, src);
+    if (dist(p.x, p.y + p.r * 0.3, x, y) < r + p.r * 0.5) damagePlayer(amount, x, y - 20, src);
     for (const e of world.enemies) {
       if (e.dead || e.z) continue;
       if (dist(e.x, e.y, x, y) < r + e.r * 0.5 && (e.trapCd || 0) <= D.t) { e.trapCd = D.t + 0.6; dealDamage(e, amount * 0.8, { raw: true, source: 'trap' }); }

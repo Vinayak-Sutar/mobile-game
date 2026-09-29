@@ -68,7 +68,7 @@ function touch(e, mult) {
   const p = world.player;
   if (!p || p.dead || (e.touchCd || 0) > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r * 0.5 + 10) {
-    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.7;
+    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.7;
   }
 }
 
@@ -398,7 +398,7 @@ export const BRIDE = {
         for (const w of e.wails) {
           const d = dist(w.src.x, w.src.y, p.x, p.y);
           if (d < 320 + p.r * 0.5 && Math.abs(angleDiff(w.a, angleTo(w.src.x, w.src.y, p.x, p.y))) < 0.65) {
-            if (damagePlayer(p, Math.round(e.damage * 0.8), w.src.x, w.src.y, e.type)) {
+            if (damagePlayer(Math.round(e.damage * 0.8), w.src.x, w.src.y, e.type)) {
               p.silencedUntil = world.runTime + 3;
               p.vx = (p.vx || 0) + Math.cos(w.a) * 380; p.vy = (p.vy || 0) + Math.sin(w.a) * 380;
               damageText(p.x, p.y - p.r - 20, 'SILENCED', { color: HEX, size: 15 });
@@ -604,7 +604,7 @@ export const BRIDE = {
           p.hex = {
             id, until: world.runTime + 10,
             onCast: (pl) => {
-              damagePlayer(p, Math.round(e.damage * 0.9), null, null, 'hex');
+              damagePlayer(Math.round(e.damage * 0.9), null, null, 'hex');
               damageText(pl.x, pl.y - pl.r - 22, 'HEXED!', { color: HEX, size: 16 });
               burst(pl.x, pl.y, { count: 18, color: HEX, speed: 220, size: 4, life: 0.5, drag: 3 });
             },

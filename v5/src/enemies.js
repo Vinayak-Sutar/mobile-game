@@ -181,7 +181,7 @@ export const ENEMY_DEFS = {
           burst(e.x, e.y, { count: 20, color: '#ff9a4d', speed: 380, size: 5, life: 0.5, drag: 4, shape: 'shard' });
           shake(0.45);
           sfx.explode();
-          if (dist(e.x, e.y, p.x, p.y) < 128 + p.r) damagePlayer(p, e.damage, e.x, e.y, 'brute');
+          if (dist(e.x, e.y, p.x, p.y) < 128 + p.r) damagePlayer(e.damage, e.x, e.y, 'brute');
         }
       } else if (e.state === 'recover') {
         e.t -= dt;
@@ -485,7 +485,7 @@ export const ENEMY_DEFS = {
             burst(e.x, e.y, { count: 34, color: '#ff9a4d', speed: 520, size: 6, life: 0.6, drag: 4, shape: 'shard' });
             shake(0.75);
             sfx.explode();
-            if (dist(e.x, e.y, p.x, p.y) < 220 + p.r) damagePlayer(p, e.damage * 1.15, e.x, e.y, 'warden');
+            if (dist(e.x, e.y, p.x, p.y) < 220 + p.r) damagePlayer(e.damage * 1.15, e.x, e.y, 'warden');
             e.action = 'idle'; e.t = e.phase >= 3 ? 0.4 : 0.75;
           }
           break;

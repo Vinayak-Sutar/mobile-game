@@ -78,7 +78,7 @@ function fall(e, p) {
   p.x = c.x + (p.x - c.x) / k * 0.72;
   p.y = c.y + (p.y - c.y) / k * 0.72;
   p.vx = p.vy = 0;
-  damagePlayer(p, Math.round(p.stats.maxHp * 0.12), null, null, 'the cloud sea');
+  damagePlayer(Math.round(p.stats.maxHp * 0.12), null, null, 'the cloud sea');
   damageText(p.x, p.y - p.r - 22, 'FELL!', { color: CLOUD, size: 16 });
   ring(p.x, p.y, { r0: 40, r1: 6, color: CLOUD, life: 0.35, width: 4 });
   sfx.splash();
@@ -96,7 +96,7 @@ function touchR(e, mult, extra = 10) {
   const p = world.player;
   if (!p || p.dead || e.hidden || (e.touchCd || 0) > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r * 0.5 + extra) {
-    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
+    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
   }
 }
 
@@ -111,7 +111,7 @@ function inLane(p, x, y, a, len, halfW) {
 function strikeLane(e, x, y, a, len, halfW, mult, kb) {
   const p = world.player;
   if (p && !p.dead && inLane(p, x, y, a, len, halfW)) {
-    if (damagePlayer(p, Math.round(e.damage * mult), x, y, e.type)) {
+    if (damagePlayer(Math.round(e.damage * mult), x, y, e.type)) {
       p.vx = (p.vx || 0) + Math.cos(a) * kb;
       p.vy = (p.vy || 0) + Math.sin(a) * kb;
     }
@@ -126,7 +126,7 @@ function cutLands(e, arc, r, mult) {
   if (!p || p.dead) return;
   const d = dist(e.x, e.y, p.x, p.y);
   if (d < r + p.r * 0.5 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < arc / 2 + 0.1) {
-    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) {
+    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) {
       p.vx = (p.vx || 0) + Math.cos(e.face) * 260;
       p.vy = (p.vy || 0) + Math.sin(e.face) * 260;
     }
@@ -784,7 +784,7 @@ export const MONKEY = {
           if (dist(C.x, C.y, e.x, e.y) < 30) { e.cudgel = null; idle(e, 0.3); return; }
         }
         if (!C.hit && p && !p.dead && dist(C.x, C.y, p.x, p.y) < 38 + p.r * 0.5) {
-          if (damagePlayer(p, Math.round(e.damage * 0.8), C.x, C.y, e.type)) C.hit = true;
+          if (damagePlayer(Math.round(e.damage * 0.8), C.x, C.y, e.type)) C.hit = true;
         }
         forward(e, 80, dt, e.face + (PI / 2) * e.sign);
         [e.x, e.y] = clampPlat(e, e.x, e.y, e.r + 6);
@@ -877,7 +877,7 @@ export const MONKEY = {
         H.hitT -= dt;
         if (H.hitT <= 0) {
           for (const s of [0, PI]) {
-            if (inLane(p, e.x, e.y, H.a + s, HEAVEN_LEN, 16) && damagePlayer(p, Math.round(e.damage * 0.9), e.x, e.y, e.type)) { H.hitT = 0.6; break; }
+            if (inLane(p, e.x, e.y, H.a + s, HEAVEN_LEN, 16) && damagePlayer(Math.round(e.damage * 0.9), e.x, e.y, e.type)) { H.hitT = 0.6; break; }
           }
         }
         if ((H.ringT -= dt) <= 0) {

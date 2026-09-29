@@ -65,13 +65,13 @@ function arcHit(e, p, radius, arc, mult = 1, a = e.aim) {
   if (!p || p.dead) return false;
   if (dist(e.x, e.y, p.x, p.y) > radius + p.r) return false;
   if (arc < TAU && Math.abs(angleDiff(a, angleTo(e.x, e.y, p.x, p.y))) > arc / 2) return false;
-  return damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type);
+  return damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type);
 }
 function lineHit(e, p, len, wid, mult = 1, a = e.aim) {
   if (!p || p.dead) return false;
   const cx = e.x + Math.cos(a) * len / 2, cy = e.y + Math.sin(a) * len / 2;
   if (!circleOrientedRect(p.x, p.y, p.r, cx, cy, a, len, wid)) return false;
-  return damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type);
+  return damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type);
 }
 /** Keep between near and far of the player, circling. */
 function hold(e, dt, p, near, far, k = 1) {
@@ -577,7 +577,7 @@ const ALPHA = mini({ r: 26, hp: 520, speed: 200, mass: 5, color: '#5a5a66', dama
         if (e.sub === 'crouch') { e.aim = angleTo(e.x, e.y, p.x, p.y); e.face = e.aim; if (e.t <= 0) { sub(e, 'leap', 0.24); e.hit = false; sfx.swing(0.8); } }
         else if (e.sub === 'leap') {
           dashStep(e, dt, 620);
-          if (!e.hit && dist(e.x, e.y, p.x, p.y) < e.r + p.r + 4) e.hit = damagePlayer(p, e.damage, e.x, e.y, e.type);
+          if (!e.hit && dist(e.x, e.y, p.x, p.y) < e.r + p.r + 4) e.hit = damagePlayer(e.damage, e.x, e.y, e.type);
           if (e.t <= 0) { e.leaps--; if (e.leaps > 0) sub(e, 'crouch', 0.24 * k2(e)); else expose(e, 0.8); }
         }
       },

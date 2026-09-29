@@ -62,11 +62,7 @@ export function dealDamage(e, amount, opts = {}) {
     if (dealt > 0 && e.onProxyHit) e.onProxyHit(e, dealt);
     return dealt;
   }
-  // WHOSE HIT IS THIS. Damage multiplier, crit chance and crit damage belong
-  // to the attacker, and until now there was only one possible attacker so it
-  // read `world.player` from module scope. With two players, player two's
-  // sword was about to crit off player one's boons.
-  const p = opts.from || world.player;
+  const p = world.player;
   const st = p ? p.stats : null;
 
   let dmg = amount;
@@ -126,7 +122,7 @@ export function dealDamage(e, amount, opts = {}) {
 
   // --- boon side effects (never recurse) ---
   if (st && !opts.chained) {
-    if (st.lifesteal > 0 && p && p.hp > 0) healPlayer(p, dmg * st.lifesteal, false);
+    if (st.lifesteal > 0 && p && p.hp > 0) healPlayer(dmg * st.lifesteal, false);
 
     if (st.burn > 0) {
       e.burn = { dps: st.burn, time: 3 };
@@ -185,7 +181,7 @@ export function killEnemy(e, opts = {}) {
   e.dead = true;
   world.kills++;
 
-  const p = opts.from || world.player;      // whoever landed the last hit
+  const p = world.player;
   const st = p ? p.stats : null;
 
   burst(e.x, e.y, {
@@ -253,13 +249,13 @@ export function explode(x, y, radius, damage, exclude, color = '#ff9a4d', hitsPl
     });
   }
   if (hitsPlayer) {
-    for (const p of world.players) {
-      if (p && !p.dead && dist(x, y, p.x, p.y) < radius + p.r) damagePlayer(p, damage, x, y, source);
-    }
+    const p = world.player;
+    if (p && dist(x, y, p.x, p.y) < radius + p.r) damagePlayer(damage, x, y, source);
   }
 }
 
-export function healPlayer(p, amount, showText = true) {
+export function healPlayer(amount, showText = true) {
+  const p = world.player;
   if (!p || p.hp <= 0) return;
   const before = p.hp;
   p.hp = Math.min(p.stats.maxHp, p.hp + amount);
@@ -276,15 +272,8 @@ export function healPlayer(p, amount, showText = true) {
 let aegisHook = null;
 export function setAegisHook(fn) { aegisHook = fn; }
 
-/**
- * Hurt a player - and it has to be told WHICH one.
- *
- * It used to read `world.player` out of module scope, which was fine while
- * there was exactly one. Every caller already knows who it hit: they all do
- * their own overlap test against a local `p` first. So the target is now the
- * first argument, and the sixty call sites pass the `p` they already had.
- */
-export function damagePlayer(p, amount, sx = null, sy = null, source = 'unknown') {
+export function damagePlayer(amount, sx = null, sy = null, source = 'unknown') {
+  const p = world.player;
   if (!p || p.hp <= 0) return false;
   if (p.invuln > 0 || p.dashing) return false;
   if (p.invincible) return false;                    // Training Ground toggle

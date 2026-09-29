@@ -48,12 +48,6 @@ export function createPlayer(weapon, meta = {}) {
   };
 
   return {
-    // WHAT IS DRIVING THIS PLAYER. Player one gets the device's own `input`
-    // object, so nothing about single player changes. A second player is
-    // handed a separate object of the same shape, filled by a second pad or
-    // by the network - and nothing in here has to know which it is.
-    in: input,
-    team: 0,
     x: 0, y: 0, vx: 0, vy: 0,
     r: 17,
     stats,
@@ -123,11 +117,11 @@ export function createPlayer(weapon, meta = {}) {
 }
 
 function aimAngle(p) {
-  if (p.in.aimActive) return Math.atan2(p.in.aim.y, p.in.aim.x);
+  if (input.aimActive) return Math.atan2(input.aim.y, input.aim.x);
   // Soft auto-aim: on a touchscreen the player is steering, not aiming.
   const t = nearestEnemy(p.x, p.y, 420);
   if (t) return angleTo(p.x, p.y, t.x, t.y);
-  if (p.in.move.x || p.in.move.y) return Math.atan2(p.in.move.y, p.in.move.x);
+  if (input.move.x || input.move.y) return Math.atan2(input.move.y, input.move.x);
   return p.face;
 }
 
@@ -167,8 +161,8 @@ export function updatePlayer(p, dt) {
   else p.aimAngle = aimAngle(p);
 
   // --- dash ---------------------------------------------------------------
-  if (p.in.dashPressed && !p.dashing && !p.leap && !p.hop && p.dashStock > 0) startDash(p);
-  else if (p.in.dashPressed && !p.dashing && !p.leap) {
+  if (input.dashPressed && !p.dashing && !p.leap && !p.hop && p.dashStock > 0) startDash(p);
+  else if (input.dashPressed && !p.dashing && !p.leap) {
     // Out of charges: say no out loud rather than doing nothing.
     p.dashDenied = 0.45;
     sfx.click();
@@ -224,10 +218,10 @@ export function updatePlayer(p, dt) {
     if ((p.slowUntil || 0) > world.runTime) speed *= p.slowMult ?? 1;
     if (p.ghost) speed = GHOST_SPEED;
 
-    const mag = Math.min(1, Math.hypot(p.in.move.x, p.in.move.y));
+    const mag = Math.min(1, Math.hypot(input.move.x, input.move.y));
     p.moveMag = mag;
     if (mag > 0.06) {
-      const [nx, ny] = normalize(p.in.move.x, p.in.move.y);
+      const [nx, ny] = normalize(input.move.x, input.move.y);
       p.x += nx * speed * mag * dt;
       p.y += ny * speed * mag * dt;
       p.face = Math.atan2(ny, nx);
@@ -264,7 +258,7 @@ export function updatePlayer(p, dt) {
         // hop down; dash off it and you land in a plunge. From below it is a wall.
         if (p.hop) continue;
         if (p.y < o.y + o.h / 2) {
-          const down = p.dashing ? Math.sin(p.dashDir) > 0.35 : p.in.move.y > 0.35;
+          const down = p.dashing ? Math.sin(p.dashDir) > 0.35 : input.move.y > 0.35;
           if (down && p.y + p.r > o.y - 1 && p.x > o.x && p.x < o.x + o.w && !p.leap) { startHop(p, o); continue; }
         }
       }
@@ -287,8 +281,8 @@ export function updatePlayer(p, dt) {
 }
 
 function startDash(p) {
-  const mag = Math.hypot(p.in.move.x, p.in.move.y);
-  const dir = mag > 0.12 ? Math.atan2(p.in.move.y, p.in.move.x) : p.aimAngle;
+  const mag = Math.hypot(input.move.x, input.move.y);
+  const dir = mag > 0.12 ? Math.atan2(input.move.y, input.move.x) : p.aimAngle;
   p.dashing = true;
   p.dashT = DASH_TIME;
   p.dashDir = dir;
@@ -337,7 +331,7 @@ function updateGun(p, dt) {
     } else if (p.rifleAmmo <= 0 && !p.aiming) {
       p.rifleReloadT = rf.reload;
       sfx.clack(0.7);
-    } else if (p.in.reloadPressed && p.rifleAmmo < rf.rounds && !p.aiming) {
+    } else if (input.reloadPressed && p.rifleAmmo < rf.rounds && !p.aiming) {
       p.rifleReloadT = rf.reload * 0.8;
     }
   }
@@ -353,11 +347,11 @@ function updateGun(p, dt) {
   }
   // Reload on demand: a shell short is enough, and it is a touch quicker than
   // reloading an empty gun.
-  if (p.in.reloadPressed && p.reloadT <= 0 && p.ammo < g.shells && !p.attack) {
+  if (input.reloadPressed && p.reloadT <= 0 && p.ammo < g.shells && !p.attack) {
     p.reloadT = p.ammo > 0 ? g.reload * 0.8 : g.reload;
     p.idleT = 0;
     sfx.clack(0.8);
-  } else if (p.in.reloadPressed && p.ammo >= g.shells) {
+  } else if (input.reloadPressed && p.ammo >= g.shells) {
     sfx.click();                                   // already full
   }
   if (p.reloadT > 0) {
@@ -371,12 +365,12 @@ function updateGun(p, dt) {
   } else if (p.ammo <= 0) {
     p.reloadT = g.reload;
     sfx.clack(0.8);
-  } else if (p.ammo < g.shells && !p.attack && !p.in.attack) {
+  } else if (p.ammo < g.shells && !p.attack && !input.attack) {
     // A pause tops the gun back up, a little quicker than an empty reload.
     p.idleT += dt;
     if (p.idleT > g.idleReload) { p.idleT = 0; p.reloadT = g.reload * 0.6; }
   }
-  if (p.attack || p.in.attack) p.idleT = 0;
+  if (p.attack || input.attack) p.idleT = 0;
 }
 
 /**
@@ -391,8 +385,8 @@ const SCOPE_TURN = 3.2;          // rad/s at most
 function aimScope(p, dt) {
   const A = p.aiming;
   let want = null;
-  if (p.in.aimActive) want = Math.atan2(p.in.aim.y, p.in.aim.x);
-  else if (Math.hypot(p.in.specialVec.x, p.in.specialVec.y) > 0.2) want = Math.atan2(p.in.specialVec.y, p.in.specialVec.x);
+  if (input.aimActive) want = Math.atan2(input.aim.y, input.aim.x);
+  else if (Math.hypot(input.specialVec.x, input.specialVec.y) > 0.2) want = Math.atan2(input.specialVec.y, input.specialVec.x);
   const before = A.angle;
   if (want !== null) {
     const d = angleDiff(A.angle, want);
@@ -416,7 +410,7 @@ function startHop(p, o) {
   p.hop = {
     t: 0, T: plunge ? 0.3 : 0.36, plunge,
     x0: p.x, y0: p.y,
-    x1: clamp(p.x + p.in.move.x * 26, o.x + p.r, o.x + o.w - p.r), y1: o.y + o.h + p.r + 3,
+    x1: clamp(p.x + input.move.x * 26, o.x + p.r, o.x + o.w - p.r), y1: o.y + o.h + p.r + 3,
   };
   sfx.dash();
 }
@@ -476,7 +470,7 @@ function updateAttack(p, dt) {
   // --- charged weapons ---
   if (w.charge) {
     if (!p.attack) {
-      if (p.in.attack) {
+      if (input.attack) {
         p.charging = true;
         p.charge = Math.min(w.charge.time, p.charge + dt * p.stats.attackSpeed);
         if (p.charge >= w.charge.time && !p.chargeReady) {
@@ -503,8 +497,8 @@ function updateAttack(p, dt) {
   } else if (w.heavy) {
     // The maul: a tap swings, a hold winds up a slam.
     if (!p.attack) {
-      if (p.in.attack && !p.holding) { p.holding = true; p.holdT = 0; }
-      if (p.holding && p.in.attack) {
+      if (input.attack && !p.holding) { p.holding = true; p.holdT = 0; }
+      if (p.holding && input.attack) {
         p.holdT += dt;
         if (p.holdT >= w.heavy.hold) {
           p.charging = true;
@@ -531,12 +525,12 @@ function updateAttack(p, dt) {
     }
   } else if (w.gun) {
     // The blunderbuss: hold to keep firing while there are shells.
-    if (!p.attack && !p.fan && p.reloadT <= 0 && p.in.attack && p.ammo > 0) {
+    if (!p.attack && !p.fan && p.reloadT <= 0 && input.attack && p.ammo > 0) {
       beginAttack(p, w.combo[0], 0, false, 1);
-    } else if (p.in.attackPressed && p.ammo <= 0 && !p.fan) {
+    } else if (input.attackPressed && p.ammo <= 0 && !p.fan) {
       sfx.click();                                  // the dry click of an empty gun
     }
-  } else if (p.in.attackPressed && !p.attack) {
+  } else if (input.attackPressed && !p.attack) {
     const idx = p.comboTimer > 0 ? p.comboIndex % w.combo.length : 0;
     beginAttack(p, w.combo[idx], idx, false, 1);
   }
@@ -544,12 +538,12 @@ function updateAttack(p, dt) {
   if (w.rifle) {
     // Press: the scope comes up at once. Release: the round goes. A tap is an
     // instant shot; a hold lets you aim (mouse, right stick) and steady it.
-    if (!p.aiming && p.in.specialPressed && p.specialCd <= 0) {
+    if (!p.aiming && input.specialPressed && p.specialCd <= 0) {
       if (p.rifleAmmo > 0 && p.rifleReloadT <= 0) {
         if (p.attack && p.attack.phase === 'recover') p.attack = null;   // cut a swing short
         // The scope comes up where you are pointing (mouse, stick), else where
         // you are facing - never snapped onto the nearest enemy.
-        const start = p.in.aimActive ? Math.atan2(p.in.aim.y, p.in.aim.x) : p.face;
+        const start = input.aimActive ? Math.atan2(input.aim.y, input.aim.x) : p.face;
         p.aiming = { t: 0, angle: start, sway: Math.random() * 10 };
       } else {
         sfx.click();                                 // empty, or reloading
@@ -563,13 +557,13 @@ function updateAttack(p, dt) {
       } else if (p.aiming.t < w.rifle.steady) {
         p.aiming.steady = false;                   // swung off the mark
       }
-      if (!p.in.special && !p.attack) {
+      if (!input.special && !p.attack) {
         const power = p.aiming.steady ? 1 : 0.9;
         p.aiming = null;
         beginAttack(p, w.special, -1, true, power);
       }
     }
-  } else if (p.in.specialPressed && !p.attack && !p.leap && !p.fan && p.specialCd <= 0) {
+  } else if (input.specialPressed && !p.attack && !p.leap && !p.fan && p.specialCd <= 0) {
     p.charging = false;
     p.holding = false;
     p.charge = 0;

@@ -11,6 +11,7 @@
 
 import { world, arenaBounds } from './state.js';
 import { TAU, clamp, dist, angleTo, rand, normalize } from './util.js';
+import { input } from './input.js';
 import { explode, nearestEnemy } from './combat.js';
 import { burst, ring, shake, damageText } from './fx.js';
 import { sfx } from './audio.js';
@@ -33,17 +34,17 @@ export const GRENADE = {
 /** Resolve where a held throw is currently pointed, in world coordinates. */
 function resolveAim(p) {
   // Mouse gives an absolute point; clamp it into range.
-  if (p.in.grenadeAbs) {
-    const d = dist(p.x, p.y, p.in.grenadeAbs.x, p.in.grenadeAbs.y);
-    if (d <= GRENADE.range) return { x: p.in.grenadeAbs.x, y: p.in.grenadeAbs.y };
-    const a = angleTo(p.x, p.y, p.in.grenadeAbs.x, p.in.grenadeAbs.y);
+  if (input.grenadeAbs) {
+    const d = dist(p.x, p.y, input.grenadeAbs.x, input.grenadeAbs.y);
+    if (d <= GRENADE.range) return { x: input.grenadeAbs.x, y: input.grenadeAbs.y };
+    const a = angleTo(p.x, p.y, input.grenadeAbs.x, input.grenadeAbs.y);
     return { x: p.x + Math.cos(a) * GRENADE.range, y: p.y + Math.sin(a) * GRENADE.range };
   }
 
   // Stick or drag gives a direction plus how far it's pushed.
-  const m = Math.hypot(p.in.grenadeVec.x, p.in.grenadeVec.y);
+  const m = Math.hypot(input.grenadeVec.x, input.grenadeVec.y);
   if (m > GRENADE.deadzone) {
-    const [nx, ny] = normalize(p.in.grenadeVec.x, p.in.grenadeVec.y);
+    const [nx, ny] = normalize(input.grenadeVec.x, input.grenadeVec.y);
     const reach = clamp((m - GRENADE.deadzone) / (1 - GRENADE.deadzone), 0, 1) * GRENADE.range;
     return { x: p.x + nx * reach, y: p.y + ny * reach };
   }
@@ -99,7 +100,7 @@ export function updateGrenade(p, dt) {
 
   // Cancel a throw in progress, keeping the charge: drag onto the ✕ (touch),
   // right-click (mouse), or dash (any input).
-  if (p.grenadeArmed && (p.in.grenadeCancel || (p.grenadeAiming && p.in.dashPressed))) {
+  if (p.grenadeArmed && (input.grenadeCancel || (p.grenadeAiming && input.dashPressed))) {
     p.grenadeArmed = false;
     p.grenadeAiming = false;
     p.grenadeHeld = 0;
@@ -107,24 +108,24 @@ export function updateGrenade(p, dt) {
     sfx.ui();
   }
 
-  if (p.in.grenadePressed && p.grenadeStock <= 0) {
+  if (input.grenadePressed && p.grenadeStock <= 0) {
     p.grenadeDenied = 0.45;
     sfx.click();
   }
-  if (p.in.grenadePressed && p.grenadeStock > 0) {
+  if (input.grenadePressed && p.grenadeStock > 0) {
     p.grenadeHeld = 0;
     p.grenadeAiming = false;
     p.grenadeArmed = true;
   }
 
-  if (p.grenadeArmed && p.in.grenade) {
+  if (p.grenadeArmed && input.grenade) {
     p.grenadeHeld += dt;
     // Past the threshold this becomes a placed throw, and the reticle shows.
     if (p.grenadeHeld >= GRENADE.holdThreshold) p.grenadeAiming = true;
     if (p.grenadeAiming) p.grenadeTarget = clampToArena(resolveAim(p));
   }
 
-  if (p.grenadeArmed && !p.in.grenade) {
+  if (p.grenadeArmed && !input.grenade) {
     // Released. A short press is a tap even if the aim vector moved.
     // A placed throw is fixed; a tap follows whatever it locked on to.
     const target = p.grenadeAiming
@@ -218,7 +219,7 @@ export function updateGrenades(dt) {
 /** Reticle, range ring and blast preview, drawn under the entities. */
 export function drawGrenadeAim(ctx, p, time) {
   if (!p || p.dead || !p.grenadeAiming || !p.grenadeTarget) return;
-  if (p.in.grenadeInCancel) return;     // the finger is on the ✕: nothing will be thrown
+  if (input.grenadeInCancel) return;     // the finger is on the ✕: nothing will be thrown
   const t = p.grenadeTarget;
 
   // How far you may throw.

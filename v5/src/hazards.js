@@ -66,7 +66,7 @@ export function clearHazards(owner = null) {
 function hitPlayer(h, amount, sx, sy) {
   const p = world.player;
   if (!p || p.dead || amount <= 0) return false;
-  return damagePlayer(p, amount, sx, sy, h.source);
+  return damagePlayer(amount, sx, sy, h.source);
 }
 
 export function updateHazards(dt) {
