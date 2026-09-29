@@ -55,6 +55,7 @@ import {
   FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, effDepth,
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
+import { updateFolk, drawFolk, makeCrowd, makeFolk, clearFolk } from './wilds-folk.js';
 import { BOSS_INFO, BOSS_POOL, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
@@ -502,6 +503,7 @@ function tick(dt) {
       updateSpellZones(dt);
       updateProjectiles(dt);
       updateHazards(dt);
+      updateFolk(dt);
       updatePickups(dt);
       if (world.training) updateTraining(dt);
       if (world.dungeon) {
@@ -583,6 +585,7 @@ function tick(dt) {
     updateEnemies(dt);
     updateProjectiles(dt);
     updateHazards(dt);
+    updateFolk(dt);      // the market does not stop because you fell
     deathTimer -= dt;
     if (deathTimer <= 0) {
       // A spare life stands you back up where you fell - in the chambers and
@@ -651,6 +654,7 @@ function render() {
     drawGrenadeAim(ctx, world.player, world.runTime);
     drawCorpses(ctx);
     drawPickups(ctx);
+    drawFolk(ctx, world.runTime, null);
     drawEnemies(ctx);
     if (world.player && world.player.fallK) {
       // Falling down a hole: smaller and darker as the dark takes you.
@@ -3365,6 +3369,16 @@ requestAnimationFrame((t) => { last = t; rafId = requestAnimationFrame(frame); }
 // poking at balance from the browser console.
 window.ashfall = {
   world, view, arena, input, fx,
+  // The crowd, for tuning it by hand: `ashfall.crowd()` fills the arena,
+  // `ashfall.folkOff()` empties it.
+  crowd: (w = 520, h = 260, density = 1.1) => {
+    const b2 = arenaBounds();
+    return makeCrowd((b2.l + b2.r) / 2 - w / 2, (b2.t + b2.b) / 2 - h / 2, w, h, 0, density,
+      ['adult', 'adult', 'porter', 'child']);
+  },
+  folk: (x, y, kind) => { const f = makeFolk(x, y, kind); world.folk.push(f); return f; },
+  folkOff: () => clearFolk(),
+  CROWD_TUNE: () => import('./wilds-folk.js').then((m) => m.CROWD),
   // Version 4 spells: learn/level one, open a Spell door screen, cast by id.
   SPELLS,
   learn: (id, times = 1) => { for (let k = 0; k < times; k++) learnSpell(world.player, id); return world.player.spells; },

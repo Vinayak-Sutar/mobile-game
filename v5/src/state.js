@@ -10,6 +10,11 @@ export const world = {
   pickups: [],
   hazards: [],      // telegraphed ground attacks (hazards.js)
   corpses: [],      // bodies left by kills, for the Vetala (enemies-folk.js)
+  // TOWNSFOLK, and deliberately not in `enemies`. That array is read in
+  // ninety-nine places and aimAngle() auto-aims at the nearest thing in it,
+  // so a shopper in there would steal the player's aim every time she walked
+  // past. See wilds-folk.js.
+  folk: [],
   training: false,  // the Training Ground, not a run
   tutorial: false,  // the tutorial chamber (tutorial.js)
   overworld: false, // The Wilds, the open world (wilds-world.js)
@@ -67,6 +72,7 @@ export function resetWorld() {
   world.pickups.length = 0;
   world.hazards.length = 0;
   world.corpses.length = 0;
+  world.folk.length = 0;
   world.room = null;
   world.depth = 1;
   world.loop = 0;
@@ -94,4 +100,5 @@ export function clearEntities() {
   world.pickups.length = 0;
   world.hazards.length = 0;
   world.corpses.length = 0;
+  world.folk.length = 0;
 }
