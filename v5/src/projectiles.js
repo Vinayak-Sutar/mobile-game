@@ -485,6 +485,13 @@ export function updateHitboxes(dt) {
       h.y = h.follow.y + Math.sin(h.angle) * h.offset;
     }
 
+    // ONLY A FRIENDLY SWING HURTS ENEMIES, which until now was true by luck
+    // rather than by code: every hitbox in the game comes from weapons.js and
+    // is the player's, so nothing noticed that the loop below never looked at
+    // `h.friendly` at all. The first hostile hitbox anyone added would have
+    // hurt the enemies that threw it and cut their own shots out of the air.
+    if (!h.friendly) continue;
+
     for (const e of world.enemies) {
       if (e.dead || e.spawning || e.invuln) continue;
       if (h.hits.has(e)) continue;

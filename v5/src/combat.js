@@ -323,7 +323,17 @@ export function damagePlayer(amount, sx = null, sy = null, source = 'unknown') {
 
 // Burn / slow ticking, run once per frame over all enemies.
 export function updateStatuses(dt) {
-  for (const e of world.enemies) {
+  // THE LENGTH IS READ ONCE, ON PURPOSE. A burn tick calls dealDamage, which
+  // can kill, which fires onDeath, which can spawn - a splitter's two halves,
+  // a Vetala raising a corpse - and `for…of` over an array walks a live
+  // index, so anything appended landed in the same pass. Nothing inherits a
+  // status today, so nothing went wrong; the first status that IS inherited
+  // would burn twice on the frame it was born, once as the parent and once
+  // as the child. Indices are stable here because the dead are spliced out by
+  // updateEnemies, not by this loop.
+  const n = world.enemies.length;
+  for (let i = 0; i < n; i++) {
+    const e = world.enemies[i];
     if (e.dead) continue;
     if (e.burn && e.burn.time > 0) {
       e.burn.time -= dt;

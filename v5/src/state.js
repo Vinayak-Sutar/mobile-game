@@ -26,7 +26,6 @@ export const world = {
   kills: 0,
   runTime: 0,
   damageLog: {},
-  timeScale: 1,
   paused: false,
 };
 
@@ -84,7 +83,6 @@ export function resetWorld() {
   world.kills = 0;
   world.runTime = 0;
   world.damageLog = {};
-  world.timeScale = 1;
 }
 
 export function clearEntities() {
