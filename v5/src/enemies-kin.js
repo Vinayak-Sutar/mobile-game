@@ -183,7 +183,7 @@ const BONELING = {
       e.t -= dt;
       if (e.t <= 0) {
         e.state = 'swipe'; e.t = 0.18; sfx.swing(0.5);
-        if (dist(e.x, e.y, p.x, p.y) < e.r + p.r + 22) damagePlayer(e.damage, e.x, e.y, 'boneling');
+        if (dist(e.x, e.y, p.x, p.y) < e.r + p.r + 22) damagePlayer(p, e.damage, e.x, e.y, 'boneling');
       }
       return;
     }
@@ -241,7 +241,7 @@ const JIANGSHI = {
         ring(e.x, e.y, { r0: 8, r1: 62, color: '#bfe8ff', life: 0.25, width: 4 });
         burst(e.x, e.y + e.r * 0.6, { count: 6, color: '#a89a88', speed: 120, size: 3, life: 0.3, drag: 4 });
         sfx.thud();
-        if (dist(e.x, e.y, p.x, p.y) < 62 + p.r) damagePlayer(e.damage, e.x, e.y, 'jiangshi');
+        if (dist(e.x, e.y, p.x, p.y) < 62 + p.r) damagePlayer(p, e.damage, e.x, e.y, 'jiangshi');
       }
     }
   },
@@ -444,7 +444,7 @@ const TENGU = {
         ring(e.x, e.y, { r0: 10, r1: 80, color: '#e8e0ff', life: 0.3, width: 6 });
         burst(e.x, e.y, { count: 14, color: '#2a2a3a', speed: 240, size: 4, life: 0.4, drag: 4, shape: 'shard' });
         shake(0.25); sfx.thud();
-        if (dist(e.x, e.y, p.x, p.y) < 80 + p.r) damagePlayer(e.damage, e.x, e.y, 'tengu');
+        if (dist(e.x, e.y, p.x, p.y) < 80 + p.r) damagePlayer(p, e.damage, e.x, e.y, 'tengu');
         e.state = 'dazed'; e.t = 1.1; e.exposed = 1.1;
       }
       return;
@@ -488,7 +488,7 @@ const BANSHEE = {
         sfx.bossRoar();
         for (let k = 0; k < 10; k++) burst(e.x + Math.cos(e.aim) * k * 28, e.y + Math.sin(e.aim) * k * 28, { count: 2, color: '#e8f0ff', speed: 120, size: 3, life: 0.35, drag: 3 });
         const inCone = d < REACH + p.r && Math.abs(angleDiff(e.aim, angleTo(e.x, e.y, p.x, p.y))) < CONE;
-        if (inCone && damagePlayer(e.damage, e.x, e.y, 'banshee')) {
+        if (inCone && damagePlayer(p, e.damage, e.x, e.y, 'banshee')) {
           p.vx = (p.vx || 0) + Math.cos(e.aim) * 320; p.vy = (p.vy || 0) + Math.sin(e.aim) * 320;
         }
         e.state = 'rest'; e.t = 0.9;
@@ -540,7 +540,7 @@ const SPEARMAN = {
     if (e.state === 'thrust') {
       e.t -= dt;
       const cx = e.x + Math.cos(e.aim) * (SPEAR_LEN / 2), cy = e.y + Math.sin(e.aim) * (SPEAR_LEN / 2);
-      if (!e.hit && circleOrientedRect(p.x, p.y, p.r, cx, cy, e.aim, SPEAR_LEN, 16)) { e.hit = true; damagePlayer(e.damage, e.x, e.y, 'spearman'); }
+      if (!e.hit && circleOrientedRect(p.x, p.y, p.r, cx, cy, e.aim, SPEAR_LEN, 16)) { e.hit = true; damagePlayer(p, e.damage, e.x, e.y, 'spearman'); }
       if (e.t <= 0) {
         if (e.thrusts < 2) { e.state = 'draw'; e.t = 0.3; }
         else { e.state = 'recover'; e.t = 0.7; e.thrusts = 0; }

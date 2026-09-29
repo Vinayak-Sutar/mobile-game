@@ -69,7 +69,7 @@ const RONIN = {
         // The draw: he stays where he stands, and the cut flies down the line.
         e.state = 'draw'; e.t = 0.16; sfx.swing(1.2);
         const len = DASH + e.r, mx = e.x + Math.cos(e.aim) * len / 2, my = e.y + Math.sin(e.aim) * len / 2;
-        if (circleOrientedRect(p.x, p.y, p.r, mx, my, e.aim, len, 24)) damagePlayer(e.damage, e.x, e.y, 'ronin');
+        if (circleOrientedRect(p.x, p.y, p.r, mx, my, e.aim, len, 24)) damagePlayer(p, e.damage, e.x, e.y, 'ronin');
         e.cut = { t: 0.25, a: e.aim, len };
         slash(e.x, e.y, e.aim, 1.4, 50, '#e8f0ff', 0.16, 10);
         for (let k = 1; k <= 6; k++) burst(e.x + Math.cos(e.aim) * len * k / 6, e.y + Math.sin(e.aim) * len * k / 6, { count: 1, color: '#e8f0ff', speed: 60, size: 3, life: 0.3, drag: 4, shape: 'spark' });

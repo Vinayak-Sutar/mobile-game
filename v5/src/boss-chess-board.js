@@ -95,7 +95,7 @@ export function updateStrikes(e, dt, p) {
       e.flashes.push({ c: cell.c, r: cell.r, t: 0.25, color: s.color });
       if (!s.hit && p && !p.dead && playerOn(e.board, p, cell.c, cell.r)) {
         const [x, y] = cellCenter(e.board, cell.c, cell.r);
-        if (damagePlayer(Math.round(e.damage * s.dmg), x, y, e.type)) {
+        if (damagePlayer(p, Math.round(e.damage * s.dmg), x, y, e.type)) {
           s.hit = true;
           if (s.onHit) s.onHit(s);
         }

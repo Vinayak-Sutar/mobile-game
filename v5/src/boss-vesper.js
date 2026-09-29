@@ -628,7 +628,7 @@ export const VESPER = {
           if (e.t > 0) return;
           const d = dist(e.x, e.y, p.x, p.y);
           if (d < e.r + p.r + 38 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 1.3) {
-            if (damagePlayer(Math.round(e.damage * 0.55), e.x, e.y, e.type)) {
+            if (damagePlayer(p, Math.round(e.damage * 0.55), e.x, e.y, e.type)) {
               p.vx = (p.vx || 0) + Math.cos(e.face) * 300;
               p.vy = (p.vy || 0) + Math.sin(e.face) * 300;
             }

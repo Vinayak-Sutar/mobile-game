@@ -1,7 +1,7 @@
 // Mau, the cat of nine lives — shared helpers for the fight (boss-mau.js) and
 // its legends (boss-mau-legends.js).
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, nearestPlayer } from './state.js';
 import { clamp, dist, angleTo, angleDiff, lerp } from './util.js';
 import { inArena } from './boss-kit.js';
 import { damagePlayer } from './combat.js';
@@ -30,9 +30,9 @@ export function blastAt(e, x, y, r, delay, mult, color, extra = {}) {
 }
 
 /** Damage from something that keeps touching (a wheel, a lynx, a wisp). */
-export function hurt(e, mult, sx, sy) {
+export function hurt(e, mult, sx, sy, p = nearestPlayer(e.x, e.y)) {
   if ((e.contactCd || 0) > 0) return false;
-  if (damagePlayer(Math.round(e.damage * mult), sx, sy, e.type)) { e.contactCd = 0.5; return true; }
+  if (damagePlayer(p, Math.round(e.damage * mult), sx, sy, e.type)) { e.contactCd = 0.5; return true; }
   return false;
 }
 
@@ -53,7 +53,7 @@ export function inLane(p, x, y, a, len, halfW) {
 export function strikeLane(e, x, y, a, len, halfW, mult, kb = 240) {
   const p = world.player;
   if (!p || p.dead || !inLane(p, x, y, a, len, halfW)) return false;
-  if (!damagePlayer(Math.round(e.damage * mult), x, y, e.type)) return false;
+  if (!damagePlayer(p, Math.round(e.damage * mult), x, y, e.type)) return false;
   p.vx = (p.vx || 0) + Math.cos(a) * kb;
   p.vy = (p.vy || 0) + Math.sin(a) * kb;
   return true;
@@ -63,7 +63,7 @@ export function strikeLane(e, x, y, a, len, halfW, mult, kb = 240) {
 export function cutLands(e, a, arc, r, mult) {
   const p = world.player;
   if (p && !p.dead && dist(e.x, e.y, p.x, p.y) < r + p.r * 0.5 && Math.abs(angleDiff(a, angleTo(e.x, e.y, p.x, p.y))) < arc / 2 + 0.1) {
-    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) {
+    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) {
       p.vx = (p.vx || 0) + Math.cos(a) * 240;
       p.vy = (p.vy || 0) + Math.sin(a) * 240;
     }

@@ -60,7 +60,7 @@ export function contactDamage(e, dt, amount, cooldown = 0.7) {
   e.touchCd = Math.max(0, (e.touchCd || 0) - dt);
   if (e.touchCd > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r) {
-    if (damagePlayer(amount, e.x, e.y, e.type)) e.touchCd = cooldown;
+    if (damagePlayer(p, amount, e.x, e.y, e.type)) e.touchCd = cooldown;
   }
 }
 

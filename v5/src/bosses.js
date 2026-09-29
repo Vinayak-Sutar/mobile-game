@@ -103,7 +103,7 @@ const TURTLE = {
             sfx.swing(1.2);
             vaultSplash(e.x + Math.cos(e.face) * e.r * 1.5, e.y + Math.sin(e.face) * e.r * 1.5, 30, 1.6, 2);
             if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.face, 1.3, 150)) {
-              damagePlayer(e.damage, e.x, e.y, e.type);
+              damagePlayer(p, e.damage, e.x, e.y, e.type);
             }
             burst(e.x + Math.cos(e.face) * e.r * 1.3, e.y + Math.sin(e.face) * e.r * 1.3, {
               count: 8, color: SHELL, speed: 200, size: 3.5, life: 0.3, dir: e.face, spread: 1.2, drag: 5,
@@ -353,7 +353,7 @@ const CROC = {
           if (!e.snapHit && e.st >= 0.1) {
             e.snapHit = true;
             if (circleArc(p.x, p.y, p.r * 0.6, e.snapX, e.snapY, e.snapA, 1.0, 215)) {
-              damagePlayer(Math.round(e.damage * 1.1), e.x, e.y, e.type);
+              damagePlayer(p, Math.round(e.damage * 1.1), e.x, e.y, e.type);
             }
             sfx.hit(1.2);
             burst(e.x + Math.cos(e.face) * e.r, e.y + Math.sin(e.face) * e.r, {
@@ -781,7 +781,7 @@ const GORILLA = {
           if (e.t <= 0) {
             sub(e, 'clap', 0.35);
             if (circleArc(p.x, p.y, p.r * 0.6, e.x, e.y, e.face, 1.8, 180)) {
-              damagePlayer(Math.round(e.damage * 1.05), e.x, e.y, e.type);
+              damagePlayer(p, Math.round(e.damage * 1.05), e.x, e.y, e.type);
             }
             shake(0.5);
             sfx.explode();

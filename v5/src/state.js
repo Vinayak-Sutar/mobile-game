@@ -1,7 +1,13 @@
 // Shared mutable world state. Every system reads and writes this object.
 
 export const world = {
-  player: null,
+  // EVERY PLAYER, not one. `players[0]` is player one and, on a networked
+  // game, the one this device is driving; `players[1]` is the second pad or
+  // the peer. `world.player` below is an alias for players[0], so the 157
+  // places that already say `world.player` keep working and only the ones
+  // whose MEANING is wrong ("the nearest player", "the player who was hit")
+  // have to be touched.
+  players: [],
   enemies: [],
   projectiles: [],
   spellZones: [],      // lasting spells (sigil, singularity, meteors)
@@ -29,6 +35,43 @@ export const world = {
   timeScale: 1,
   paused: false,
 };
+
+/**
+ * PLAYER ONE, BY ITS OLD NAME.
+ *
+ * It is a real property with a getter AND a setter, so both halves of the
+ * existing code keep working unchanged: the seven `world.player = createPlayer(…)`
+ * writes in game.js, and every read everywhere else. Nothing has to be
+ * rewritten to add a second player - only the places that meant something
+ * other than "player one" all along.
+ */
+Object.defineProperty(world, 'player', {
+  get() { return world.players[0] || null; },
+  set(p) { world.players[0] = p; },
+  enumerable: true,
+  configurable: true,
+});
+
+/** Everyone still standing. Empty between runs. */
+export function livePlayers() {
+  return world.players.filter((p) => p && !p.dead);
+}
+
+/**
+ * Whichever player is closest to a point - what an enemy means when it says
+ * "the player". Falls back to player one so a caller never gets null while
+ * anyone is alive.
+ */
+export function nearestPlayer(x, y) {
+  const live = livePlayers();
+  if (live.length < 2) return live[0] || world.players[0] || null;
+  let best = null, bestD = Infinity;
+  for (const p of live) {
+    const d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+    if (d < bestD) { bestD = d; best = p; }
+  }
+  return best;
+}
 
 // Bumped when the browser throws the GPU's canvases away (a phone does this to
 // a backgrounded app). Every cached drawing keys on it, so they all rebuild.

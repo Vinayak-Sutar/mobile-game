@@ -83,7 +83,7 @@ function bite(e, dt, amount, cooldown) {
   e.touchCd = Math.max(0, (e.touchCd || 0) - dt);
   if (e.touchCd > 0) return false;
   if (dist(e.x, e.y, p.x, p.y) > e.r + p.r) return false;
-  if (!damagePlayer(amount, e.x, e.y, e.type)) return false;
+  if (!damagePlayer(p, amount, e.x, e.y, e.type)) return false;
   e.touchCd = cooldown;
   return true;
 }

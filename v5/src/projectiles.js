@@ -230,7 +230,7 @@ export function updateProjectiles(dt) {
           continue;
         }
         if (!p.dashing && p.invuln <= 0) {
-          damagePlayer(pr.damage, pr.x, pr.y, pr.srcType || 'projectile');
+          damagePlayer(p, pr.damage, pr.x, pr.y, pr.srcType || 'projectile');
           fizzle(pr);
           world.projectiles.splice(i, 1);
           continue;
@@ -579,7 +579,7 @@ export function updatePickups(dt) {
         sfx.pickup();
         burst(k.x, k.y, { count: 5, color: world.overworld ? '#ff8a3a' : '#ffc861', speed: 130, size: 3, life: 0.28, drag: 5 });
       } else {
-        healPlayer(k.value);
+        healPlayer(p, k.value);
       }
       world.pickups.splice(i, 1);
     }

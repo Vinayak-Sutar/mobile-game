@@ -304,7 +304,7 @@ function handleDoor(door) {
     return;
   }
   if (door.reward === 'heal') {
-    healPlayer(Math.round(world.player.stats.maxHp * 0.40));
+    healPlayer(world.player, Math.round(world.player.stats.maxHp * 0.40));
   } else if (door.reward === 'gold') {
     const amount = Math.round(18 + effDepth(world.depth) * 9);
     world.gold += amount;

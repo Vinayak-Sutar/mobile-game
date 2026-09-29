@@ -22,7 +22,7 @@
 // under everything; Pipe Organ, the Canon, and the GRAND FINALE.
 // ============================================================================
 
-import { world, arena, arenaBounds } from './state.js';
+import { world, arena, arenaBounds, nearestPlayer } from './state.js';
 import { TAU, clamp, rand, randInt, dist, angleTo, angleDiff, lerp } from './util.js';
 import { sub, idle, expose, shot, shockwave, inArena, turnToward, forward, spawnEnemyFn } from './boss-kit.js';
 import { damagePlayer } from './combat.js';
@@ -132,16 +132,16 @@ function drumRing(e, x, y, o = {}) {
 }
 
 /** Damage from something that keeps touching (a pendulum, a cymbal). */
-function hurt(e, mult, sx, sy) {
+function hurt(e, mult, sx, sy, p = nearestPlayer(e.x, e.y)) {
   if ((e.contactCd || 0) > 0) return;
-  if (damagePlayer(Math.round(e.damage * mult), sx, sy, e.type)) e.contactCd = 0.5;
+  if (damagePlayer(p, Math.round(e.damage * mult), sx, sy, e.type)) e.contactCd = 0.5;
 }
 
 function touch(e, mult) {
   const p = world.player;
   if (!p || p.dead || (e.touchCd || 0) > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r * 0.5 + 10) {
-    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
+    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.6;
   }
 }
 
@@ -153,7 +153,7 @@ function strike(e, x, y, a, len, halfW, mult, kb) {
     const dx = p.x - x, dy = p.y - y;
     const along = dx * c + dy * s, across = Math.abs(-dx * s + dy * c);
     if (along > -12 && along < len && across < halfW + p.r * 0.5) {
-      if (damagePlayer(Math.round(e.damage * mult), x, y, e.type)) {
+      if (damagePlayer(p, Math.round(e.damage * mult), x, y, e.type)) {
         p.vx = (p.vx || 0) + c * kb;
         p.vy = (p.vy || 0) + s * kb;
       }
@@ -166,7 +166,7 @@ function cutLands(e, a, arc, r, mult) {
   const p = world.player;
   if (!p || p.dead) return;
   if (dist(e.x, e.y, p.x, p.y) < r + p.r * 0.5 && Math.abs(angleDiff(a, angleTo(e.x, e.y, p.x, p.y))) < arc / 2 + 0.1) {
-    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) {
+    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) {
       p.vx = (p.vx || 0) + Math.cos(a) * 240;
       p.vy = (p.vy || 0) + Math.sin(a) * 240;
     }
@@ -266,7 +266,7 @@ function sforzando(e, at) {
     },
     fire: (e, p) => {
       const inSafe = e.safe && e.safe.some((s) => dist(p.x, p.y, s.x, s.y) < s.r + p.r * 0.3);
-      if (!inSafe) damagePlayer(Math.round(e.damage * 1.4), e.x, e.y, e.type);
+      if (!inSafe) damagePlayer(p, Math.round(e.damage * 1.4), e.x, e.y, e.type);
       flash(0.35, SFZ);
       shake(0.8);
       band.sforzando(chordAt(at).pad);
@@ -873,7 +873,7 @@ export const MAESTRO = {
             fire: (e, p) => {
               for (const i of idx) {
                 const K = keyRect(i);
-                if (p.x + p.r * 0.4 > K.x0 && p.x - p.r * 0.4 < K.x1) { damagePlayer(Math.round(e.damage * 0.6), (K.x0 + K.x1) / 2, p.y, e.type); break; }
+                if (p.x + p.r * 0.4 > K.x0 && p.x - p.r * 0.4 < K.x1) { damagePlayer(p, Math.round(e.damage * 0.6), (K.x0 + K.x1) / 2, p.y, e.type); break; }
               }
             },
           });
@@ -902,7 +902,7 @@ export const MAESTRO = {
             if (!e.harp) return;
             const R = harpRect(e.harp, k);
             const pad = p.r * 0.4;
-            if (p.x + pad > R.x0 && p.x - pad < R.x1 && p.y + pad > R.y0 && p.y - pad < R.y1) damagePlayer(Math.round(e.damage * 0.65), p.x, p.y, e.type);
+            if (p.x + pad > R.x0 && p.x - pad < R.x1 && p.y + pad > R.y0 && p.y - pad < R.y1) damagePlayer(p, Math.round(e.damage * 0.65), p.x, p.y, e.type);
             band.harp(chordAt(at).arp[k % 4] + 12);
           },
         });

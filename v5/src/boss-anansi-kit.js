@@ -1,7 +1,7 @@
 // Kwaku Anansi — shared helpers for the fight (boss-anansi.js) and its tales
 // (boss-anansi-tales.js).
 
-import { world, arenaBounds } from './state.js';
+import { world, arenaBounds, nearestPlayer } from './state.js';
 import { clamp, dist, angleTo, lerp, circleArc, circleOrientedRect } from './util.js';
 import { inArena } from './boss-kit.js';
 import { damagePlayer } from './combat.js';
@@ -37,9 +37,9 @@ export function blastAt(e, x, y, r, delay, mult, color, extra = {}) {
   return spawnHazard({ kind: 'blast', x: sx, y: sy, r, delay, damage: Math.round(e.damage * mult), color, source: e.type, owner: e, quiet: true, ...extra });
 }
 
-export function hurt(e, mult, sx, sy) {
+export function hurt(e, mult, sx, sy, p = nearestPlayer(e.x, e.y)) {
   if ((e.contactCd || 0) > 0) return false;
-  if (damagePlayer(Math.round(e.damage * mult), sx, sy, e.type)) { e.contactCd = 0.5; return true; }
+  if (damagePlayer(p, Math.round(e.damage * mult), sx, sy, e.type)) { e.contactCd = 0.5; return true; }
   return false;
 }
 
@@ -55,7 +55,7 @@ export function strikeLane(e, x, y, a, len, halfW, mult, kb = 240) {
   const dx = p.x - x, dy = p.y - y;
   const along = dx * c + dy * s, across = Math.abs(-dx * s + dy * c);
   if (along < -12 || along > len || across > halfW + p.r * 0.5) return false;
-  if (!damagePlayer(Math.round(e.damage * mult), x, y, e.type)) return false;
+  if (!damagePlayer(p, Math.round(e.damage * mult), x, y, e.type)) return false;
   p.vx = (p.vx || 0) + c * kb;
   p.vy = (p.vy || 0) + s * kb;
   return true;

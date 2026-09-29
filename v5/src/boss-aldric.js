@@ -63,7 +63,7 @@ function touch(e, mult) {
   const p = world.player;
   if (!p || p.dead || (e.touchCd || 0) > 0) return;
   if (dist(e.x, e.y, p.x, p.y) < e.r + p.r * 0.5 + 16) {
-    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.5;
+    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) e.touchCd = 0.5;
   }
 }
 
@@ -88,7 +88,7 @@ function cutLands(e, arc, r, mult, kb = 240) {
   if (!p || p.dead) return;
   const d = dist(e.x, e.y, p.x, p.y);
   if (d < r + p.r * 0.5 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < arc / 2 + 0.1) {
-    if (damagePlayer(Math.round(e.damage * mult), e.x, e.y, e.type)) {
+    if (damagePlayer(p, Math.round(e.damage * mult), e.x, e.y, e.type)) {
       p.vx = (p.vx || 0) + Math.cos(e.face) * kb; p.vy = (p.vy || 0) + Math.sin(e.face) * kb;
     }
   }
@@ -195,7 +195,7 @@ export const ALDRIC = {
     // Black fire (his burning trail): a small bite every half second.
     for (const f of e.fires) {
       f.t -= dt; f.tick -= dt;
-      if (f.tick <= 0 && dist(p.x, p.y, f.x, f.y) < f.r + p.r * 0.5) { f.tick = 0.5; damagePlayer(Math.max(2, Math.round(e.damage * 0.25)), null, null, 'black flame'); }
+      if (f.tick <= 0 && dist(p.x, p.y, f.x, f.y) < f.r + p.r * 0.5) { f.tick = 0.5; damagePlayer(p, Math.max(2, Math.round(e.damage * 0.25)), null, null, 'black flame'); }
     }
     e.fires = e.fires.filter((f) => f.t > 0);
 
@@ -545,7 +545,7 @@ export const ALDRIC = {
         const d = dist(e.x, e.y, p.x, p.y);
         if (d < 220 + p.r * 0.5 && Math.abs(angleDiff(e.face, angleTo(e.x, e.y, p.x, p.y))) < 0.75) {
           e.blind = 2.2;
-          damagePlayer(Math.round(e.damage * 0.2), e.x, e.y, e.type);
+          damagePlayer(p, Math.round(e.damage * 0.2), e.x, e.y, e.type);
           damageText(p.x, p.y - p.r - 18, 'BLINDED', { color: '#c9a36b', size: 15 });
         }
         burst(e.x, e.y, { count: 26, color: '#c9a36b', speed: 320, size: 3, life: 0.4, dir: e.face, spread: 0.7, drag: 3 });
