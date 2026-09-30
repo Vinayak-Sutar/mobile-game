@@ -56,6 +56,9 @@ import {
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
 import { updateFolk, drawFolk, makeCrowd, makeFolk, clearFolk } from './wilds-folk.js';
+import {
+  startLawn, endLawn, updateLawn, drawLawnBelow, drawLawnFront, drawMower, drawLawnHud, lawnState,
+} from './mowing.js';
 import { BOSS_INFO, BOSS_POOL, clearBullets } from './bosses.js';
 import { WEAPONS } from './weapons.js';
 import { updateGrenades, drawGrenades, drawGrenadeAim, GRENADE } from './grenade.js';
@@ -505,7 +508,8 @@ function tick(dt) {
       updateHazards(dt);
       updateFolk(dt);
       updatePickups(dt);
-      if (world.training) updateTraining(dt);
+      if (world.mowing) updateLawn(dt);
+      else if (world.training) updateTraining(dt);
       if (world.dungeon) {
         const act = updateDungeon(dt);
         if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.8);
@@ -644,6 +648,7 @@ function render() {
     } else {
       drawFloor(ctx, world.runTime);
       drawAmbient(ctx, world.biome);
+      if (world.mowing) drawLawnBelow(ctx);
       drawFxBelow(ctx);
       drawObstacles(ctx);
       drawDoors(ctx, world.runTime);
@@ -655,6 +660,7 @@ function render() {
     drawCorpses(ctx);
     drawPickups(ctx);
     drawFolk(ctx, world.runTime, null);
+    if (world.mowing) drawMower(ctx);
     drawEnemies(ctx);
     if (world.player && world.player.fallK) {
       // Falling down a hole: smaller and darker as the dark takes you.
@@ -666,6 +672,7 @@ function render() {
       ctx.restore();
       ctx.globalAlpha = 1;
     } else if (world.player) drawPlayer(world.player, ctx);
+    if (world.mowing) drawLawnFront(ctx);   // blades over your boots
     if (world.player) drawPlayerSpells(ctx, world.player, world.runTime);
     drawProjectiles(ctx);
     drawHazardsAbove(ctx);
@@ -684,7 +691,8 @@ function render() {
     drawHud(ctx, world.runTime);
     input.mapRect = null;                 // only where the minimap is drawn this frame
     if (world.overworld) drawOverworldMap(ctx);
-    drawTrainingHud(ctx);
+    if (world.mowing) drawLawnHud(ctx);
+    else drawTrainingHud(ctx);
     if (world.tutorial && state === 'playing') drawTutorialHud(ctx);
     if (state === 'playing') drawControls(ctx, world.runTime);
     drawLowHealthVignette();
@@ -1162,6 +1170,7 @@ function showTitle() {
         <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
+        <button class="btn ghost" data-act="mowing">The Lawn</button>
         <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeons</button>
         <button class="btn ghost" data-act="opening">The Opening</button>
@@ -1661,6 +1670,38 @@ function trainingClear() {
   clearEntities();
   clearFx();
   resetMeter();
+}
+
+/**
+ * THE LAWN. One room, wall to wall grass, and a mower to push through it.
+ *
+ * A sandbox for one question - how does mowing feel - so it is the smallest
+ * world that can answer it: no enemies, no timer, nothing to lose. The grass
+ * is the same field the open world grows; see mowing.js.
+ */
+function startMowing() {
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+
+  world.biome = getBiome(save.biome);
+  initAmbient(world.biome);
+  world.player = createPlayer(WEAPONS[training.weapon], metaBonuses());
+  world.training = true;          // no run, no death screen
+  world.mowing = true;
+  world.depth = 1;
+
+  const room = generateRoom(1, 0, { training: true });
+  room.obstacles.length = 0;      // nothing to mow round, this first time
+  room.waves.length = 0;
+  startRoom(room);
+  clearEntities();
+
+  startLawn();
+  showToast('THE LAWN', 'Push it up and down. It grows back.');
+  state = 'playing';
+  hideOverlay();
 }
 
 function startTraining() {
@@ -2930,6 +2971,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     // Like Begin Run, the Training Ground and the tutorial go fullscreen on a phone.
     case 'training': phoneFullscreen(); showTraining(); break;
     case 't-start': phoneFullscreen(); startTraining(); break;
+    case 'mowing': phoneFullscreen(); startMowing(); break;
     case 'wilds': showWildsIntro(); break;
     case 'dungeon-demo': showDungeonList(); break;
     case 'd-pick': phoneFullscreen(); startDungeonDemo(DUNGEON_LIST[idx]); break;

@@ -16,6 +16,7 @@ export const world = {
   // past. See wilds-folk.js.
   folk: [],
   training: false,  // the Training Ground, not a run
+  mowing: false,    // the Lawn: one room of grass and a mower (mowing.js)
   tutorial: false,  // the tutorial chamber (tutorial.js)
   overworld: false, // The Wilds, the open world (wilds-world.js)
   owBoss: null,     // a guardian fought from one of The Wilds' gates
@@ -80,6 +81,7 @@ export function resetWorld() {
   world.beaten = [];
   world.trial = null;
   world.training = false;
+  world.mowing = false;
   world.tutorial = false;
   world.overworld = false;
   world.owBoss = null;

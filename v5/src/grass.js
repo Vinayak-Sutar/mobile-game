@@ -288,7 +288,24 @@ export function createGrass(terrain, opts) {
     return found;
   }
 
-  return { update, draw, drawFront, inTall, count: n };
+  /**
+   * How much of the tall grass is currently cut, 0 to 1.
+   *
+   * Only the tall counts, because the short was never cuttable. A tuft is
+   * cut for thirty seconds and then it is back, so this falls on its own if
+   * you stop - which is what makes mowing a thing you have to keep doing.
+   */
+  function mown(t) {
+    let tallN = 0, cutN = 0;
+    for (let k = 0; k < n; k++) {
+      if (!TALL[k]) continue;
+      tallN++;
+      if (t - CUT[k] < 30) cutN++;
+    }
+    return tallN ? cutN / tallN : 0;
+  }
+
+  return { update, draw, drawFront, inTall, mown, count: n };
 }
 
 export function grassMovers() {
