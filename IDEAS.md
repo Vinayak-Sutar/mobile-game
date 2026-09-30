@@ -346,3 +346,78 @@ test them.
 - **Special rooms:** a merchant (spend gold on spells or grenades mid-run), a "duel" room
   (one strong enemy, no adds), a **chaos portal** (random modifiers for a random big
   reward), a puzzle room (use elements to open a door: freeze the water, burn the vines).
+
+## The living field — grass as a mechanic, not a backdrop
+
+Added 2026-09-30, after the owner played **The Lawn** (`v5/src/mowing.js`, a
+sandbox mode: one room of grass and a mower to push through it). The idea came
+out of noticing how grass already answers an attack, and the note is here so
+the next person does not rediscover it from scratch.
+
+**What `grass.js` already does, today, with no new work.** This is the reason
+both ideas below are cheap rather than speculative:
+
+- Every tuft is a damped spring. Anything that moves through it presses it
+  flat and it springs back. Gusts roll across a field as waves.
+- **A friendly hitbox cuts tall grass.** Any shape — the arc of a sword swing,
+  an oriented box, a circle. It throws clippings, drops to stubble, and grows
+  back after thirty seconds.
+- **Something is hiding in it**: a cut tuft has a 2.5% chance of gold and a 1%
+  chance of a heal.
+- It sows itself wherever the terrain says `TT.TALL`, so *where* grass is is a
+  terrain decision, not a placement one.
+- It is cheap: 1,247 tufts cost 1.82 ms to render, because a tuft at rest is a
+  ready-made picture from an atlas and only the disturbed ones are stroked.
+- `mown(t)` returns the fraction of tall grass currently cut.
+
+### 1. Cutting grass as an RPG mechanic
+
+The owner wants this in the RPG somewhere — **not a lawnmower**, something
+else, to be decided. The mechanic is already built; only the fiction and the
+reward are open. Things it could be, cheapest first:
+
+- **Foraging.** Cut grass to find what is in it. The hiding-in-it roll already
+  exists and already drops gold and heals; point it at herbs, reagents or
+  Cinders instead and cutting a meadow becomes a thing worth doing.
+- **Sightlines.** Tall grass hides enemies and hides you. Clearing a field
+  before a fight becomes preparation, and choosing *not* to clear it becomes
+  an ambush you can set. `inTall(x, y)` already answers "is this thing in
+  cover".
+- **A tended place.** Somewhere in the world that grows over if you leave it
+  and stays clear if you come back — the thirty-second regrowth makes the
+  short loop, a longer timer would make the long one. Pairs with Cinderfair
+  and the folk.
+- **A tool rather than a weapon.** A scythe or sickle that is poor in a fight
+  and excellent at clearing. The weapon table already carries element, heavy
+  steps and reach, so a cutting tool is a data entry.
+
+Whatever it becomes, the thing to preserve is what made the sandbox fun: **the
+work is visible**. You can see exactly where you have been, and it goes back
+if you stop.
+
+### 2. Dry grass that burns
+
+The owner wants some places to have dry grass that catches fire — a field that
+answers a flame the way the green field answers a blade.
+
+- **The pieces already exist.** Fire is in the game (Dragon's Breath, fireball,
+  burn status, braziers). Grass already has a per-tuft state with a timestamp
+  (`CUT[k]`), which is the same shape a `BURN[k]` would need. The bucket index
+  (`each(x0, y0, x1, y1, fn)`) already answers "every tuft in this rectangle",
+  which is exactly what a spreading fire asks every frame.
+- **The spread is the whole design problem, and it is a fairness problem.**
+  Fire that spreads without limit will eventually reach the player, which
+  turns an immersive flourish into an unfair hit. The Savi thicket burn solved
+  the same problem by making the fire a *ring that runs outward from a point
+  and stops at the edge of the patch* — worth copying rather than simulating
+  cell-by-cell contagion.
+- **Where it is dry should be a terrain type**, a `TT.DRY` beside `TT.TALL`,
+  so a region decides its own fields are tinder. Emberfall and the gulch want
+  this; the Heartland and the mire do not.
+- **What it should do:** burn a patch away in a few seconds, leave scorched
+  ground that regrows slowly or not at all, hurt anything standing in the
+  flames, and — the interesting part — let the player set it deliberately. A
+  fire you can start upwind of a camp is a tactic; one that only happens to
+  you is a hazard.
+- Smoke would block sightlines for both sides, which pairs with the cover idea
+  above.

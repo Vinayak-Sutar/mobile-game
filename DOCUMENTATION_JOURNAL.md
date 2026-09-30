@@ -1093,6 +1093,13 @@ Version 2 split, menu-clipping fix.
   one life. Would need a balance pass either way.
 - If Version 1 should also get specific Version 2 improvements (for example
   the fairer bullet hurtbox), port them deliberately and list them in §5.15.
+- **Grass as a mechanic, and dry grass that burns** (owner, 2026-09-30, after
+  playing The Lawn). Cutting grass is to become something in the RPG — not a
+  lawnmower, the fiction is open — and some places are to have dry grass that
+  catches fire. Both are cheaper than they sound because `grass.js` already
+  cuts to any hitbox shape, hides things in itself, regrows, and costs 1.8 ms
+  for 1,247 tufts. Written up with the existing pieces and the design traps in
+  **IDEAS.md, "The living field"**.
 
 ---
 
