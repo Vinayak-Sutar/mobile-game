@@ -62,6 +62,29 @@ function smoulderIcon(ctx, x, y, r) {
 
 const PX = 2 / FOG;                      // map pixels per world unit
 
+/**
+ * A market on a map: a stall's awning over its table.
+ *
+ * Deliberately neither the keep nor red-and-green. Every other place is a
+ * keep that is red while its champion stands and green once he has fallen -
+ * and a market has no champion, so it would have sat there permanently red,
+ * reading as a fight you had failed to win. Amber, and the same whenever you
+ * look at it.
+ */
+function marketIcon(ctx, x, y, r) {
+  ctx.fillStyle = '#8a6a3e';
+  ctx.fillRect(x - r * 0.7, y - r * 0.1, r * 1.4, r * 1.05);
+  ctx.strokeStyle = '#1a1014'; ctx.lineWidth = 1;
+  ctx.strokeRect(x - r * 0.7, y - r * 0.1, r * 1.4, r * 1.05);
+  ctx.fillStyle = '#ffc861';
+  ctx.beginPath();
+  ctx.moveTo(x - r * 1.25, y - r * 0.1);
+  ctx.lineTo(x, y - r * 1.15);
+  ctx.lineTo(x + r * 1.25, y - r * 0.1);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+}
+
 /** Has this place's champion fallen (and its reliquary been claimed)? */
 function placeWon(W, P) {
   const c = W.sites.find((q) => q.id === `${P.id}:champ`);
@@ -80,6 +103,7 @@ function lairIcon(ctx, x, y, beaten, r) {
 /** A place or a lair, as the map shows it. */
 function markIcon(ctx, x, y, W, P, r) {
   if (P.kind === 'lair') lairIcon(ctx, x, y, P.beaten, r * 1.15);
+  else if (P.kind === 'market') marketIcon(ctx, x, y, r * 1.1);
   else placeIcon(ctx, x, y, placeWon(W, P), r);
 }
 const INK = '#16121c';
@@ -209,7 +233,12 @@ export function mountWildsMap(canvas, opts = {}) {
     for (const P of W.places) {
       if (!P.seen && !W.fogOff) continue;
       markIcon(ctx, toX(P.x), toY(P.y), W, P, st.zoom > 1.5 ? 8 : 5);
-      if (st.zoom > 1.5) { ctx.fillStyle = P.kind === 'lair' ? 'rgba(232,220,255,0.95)' : 'rgba(255,200,180,0.9)'; ctx.fillText(P.name, toX(P.x), toY(P.y) + 20); }
+      if (st.zoom > 1.5) {
+        ctx.fillStyle = P.kind === 'lair' ? 'rgba(232,220,255,0.95)'
+          : P.kind === 'market' ? 'rgba(255,200,97,0.95)'      // the awning's own amber
+            : 'rgba(255,200,180,0.9)';
+        ctx.fillText(P.name, toX(P.x), toY(P.y) + 20);
+      }
     }
     ctx.font = '700 11px system-ui';
     ctx.textAlign = 'center';
