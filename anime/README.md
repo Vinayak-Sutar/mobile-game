@@ -26,10 +26,13 @@ exports `draw(ctx, { w, h })`.
 | `src/view.js` | the one projection: 2:1 isometric, 31° camera, depth on `x + y` |
 | `src/palette.js` | the two colour tiers and the measured shadow rule |
 | `src/kit.js` | the prop primitives — box, post, awning, banner, foliage, machine, car |
-| `src/girl.js` | her, as a cel drawing standing on a point |
+| `src/girl.js` | her: the rig, eight directions out of five drawings, the walk and the idle |
+| `src/walk.js` | **step 2** — an empty plane to walk her around on |
+| `src/input.js` | a move vector from a keyboard, a thumb or a stick |
 | `src/style-test.js` | the scene, written as data |
 | `tools/check-view.mjs` | there is exactly one projection, and it is the measured one |
 | `tools/check-palette.mjs` | every colour obeys the rules the footage set |
+| `tools/check-girl.mjs` | she faces where she walks, and her feet do not skate |
 
 ## Looking at it
 
@@ -55,6 +58,7 @@ rebuilt: `?z=2&cx=170&cy=-40` re-aims the camera, `?w=&h=` sets the canvas and
 ```bash
 node anime/tools/check-view.mjs
 node anime/tools/check-palette.mjs
+node anime/tools/check-girl.mjs
 ```
 
 The first one earned its keep on its first run: it found two places in the
@@ -63,11 +67,31 @@ screen origin by hand, and squashing a manhole cover with a hard-coded 0.515.
 Both are the exact failure this project keeps hitting, and both were invisible
 in the render.
 
+## Her
+
+136 cm, about four and a third heads. The first pass chased the show's
+character and got a figure that was too tall against the street and read as a
+doll; this one is deliberately shorter, rounder, and built out of shapes we
+can draw — which is what the owner asked for and is the better trade anyway.
+
+Eight directions come out of **five drawings and one mirror**: front,
+front-three-quarter, side, back-three-quarter, back. They are not five
+separate drawings either — one drawing with a `turn` dial from 0 to 1 and a
+`back` flag, so a change to her hair is one edit instead of five.
+
+The mirror happens exactly once, in `drawGirl`, from a flip that comes out of
+exactly one table. `check-girl.mjs` asserts that table against the real
+projection rather than against the comment next to it, counts the `ctx.scale`
+calls, and measures a stride at two speeds to prove her feet are driven by
+distance and not by time.
+
 ## Where it stands
 
-Measured on a desktop: **4.3 ms median** for the full scene, 6.9 ms at the 90th
-percentile. A phone is several times slower, and roughly 3,900 paving slabs are
-redrawn every frame — so the ground wants baking into a tile before this moves.
+Measured on a desktop: the style test is **4.3 ms median** for the full scene,
+and the walk plane is **1.0 ms**. A phone is several times slower. The style
+test redraws roughly 3,900 paving slabs every frame, so that ground wants
+baking into a tile before the street moves; the walk plane draws grid lines
+instead and costs nothing.
 
 The scenery's median saturation is 22% against the ED's 14%. Close, slightly
 hot, and worth pulling down as more of the street gets built.

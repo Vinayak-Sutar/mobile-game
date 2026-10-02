@@ -18,7 +18,7 @@ import {
   slabs, band, box, post, awning, banner, bush, vending, bin, shopWindow,
   contact, castShadow, quadX, grain, sunWash, car, groundCircle,
 } from './kit.js';
-import { drawGirl } from './girl.js';
+import { createGirl, drawGirl, HEIGHT_CM } from './girl.js';
 
 export const VIEW = { w: 1280, h: 600 };
 
@@ -126,11 +126,12 @@ export function draw(ctx, o = {}) {
   for (const [x, y, d] of props) scene.add(x, y, d);
 
   // --- her -----------------------------------------------------------------
-  const HER = { x: 170, y: 40, cm: 155 };
+  const HER = { x: 170, y: 40 };
+  const her = createGirl(HER.x, HER.y, Math.PI / 4);   // standing, facing us
   scene.add(HER.x, HER.y, (c) => {
-    contact(c, HER.x, HER.y, 34, 0.38);
+    contact(c, HER.x, HER.y, 28, 0.36);
     const p = toScreen(HER.x, HER.y, 0);
-    drawGirl(c, p.x, p.y, upPixels(HER.cm));
+    drawGirl(c, her, p.x, p.y, upPixels(HEIGHT_CM));
   });
 
   scene.paint(ctx);

@@ -52,9 +52,9 @@ def bump(folder, label, staged):
 CHECKS = {
     'savi': ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs', 'check-quest.mjs',
              'check-keys.mjs', 'check-menu.mjs', 'check-teach.mjs', 'check-broom.mjs'),
-    # Anime's two read the SOURCE as well as running it: a second projection
-    # and an off-key colour are both invisible in a render.
-    'anime': ('check-view.mjs', 'check-palette.mjs'),
+    # Anime's read the SOURCE as well as running it: a second projection, an
+    # off-key colour and a mirrored sprite are all invisible in a render.
+    'anime': ('check-view.mjs', 'check-palette.mjs', 'check-girl.mjs'),
 }
 
 

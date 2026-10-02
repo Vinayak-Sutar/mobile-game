@@ -109,6 +109,15 @@
     font: 600 13px/1 inherit; cursor: pointer; pointer-events: auto;
     backdrop-filter: blur(6px);
   }
+  .tog {
+    position: fixed; right: max(12px, env(safe-area-inset-right));
+    top: max(12px, env(safe-area-inset-top)); z-index: 3;
+    padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(246, 241, 232, 0.92); color: var(--soft);
+    font: 600 13px/1 inherit; cursor: pointer; pointer-events: auto;
+    backdrop-filter: blur(6px);
+  }
+  .tog.on { color: var(--teal); border-color: var(--teal); }
   .loading { padding: 40px 4px; color: var(--soft); }
 
   /* --- the reference page ---------------------------------------------- */

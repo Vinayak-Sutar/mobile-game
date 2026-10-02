@@ -11,7 +11,9 @@
 // the thing is visible from the front door.
 //
 // Adding a section is one entry in the list below plus a module that exports
-// draw(ctx, { w, h }). Nothing else has to change.
+// draw(ctx, { w, h }). A section that also exports update(dt) gets a fixed
+// timestep loop; one that does not is painted once and left alone. Nothing
+// else has to change.
 
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
 import {
@@ -48,9 +50,10 @@ const SECTIONS = [
   {
     id: 'walk',
     name: 'Her walking',
-    blurb: 'An empty tilted plane and nothing else: the projection, the walk, '
-      + 'her hair and her earrings on springs. This is the feel.',
-    ready: false,
+    blurb: 'An empty tilted plane and nothing else. Walk her around in all '
+      + 'eight directions - this is the feel, and it is the thing to judge.',
+    ready: true,
+    load: () => import('./walk.js'),
   },
   {
     id: 'street',
@@ -77,6 +80,29 @@ const SECTIONS = [
 ];
 
 let current = null;              // the open section, or null on the title
+
+// The loop. Fixed timestep with a guard, the same shape every version here
+// uses: a tab that was in the background for a minute must not try to
+// simulate a minute when it comes back.
+const STEP = 1 / 60;
+let raf = 0, last = 0, acc = 0;
+
+function frame(now) {
+  raf = requestAnimationFrame(frame);
+  const dt = Math.min(0.25, (now - last) / 1000);
+  last = now;
+  let guard = 0;
+  acc += dt;
+  while (acc >= STEP && guard++ < 5) { current.mod.update(STEP, viewport); acc -= STEP; }
+  if (guard >= 5) acc = 0;
+  repaint();
+}
+
+function stopLoop() {
+  if (raf) cancelAnimationFrame(raf);
+  raf = 0; acc = 0;
+  if (current && current.mod && current.mod.stop) current.mod.stop();
+}
 
 // --- the canvas -------------------------------------------------------------
 
@@ -107,6 +133,7 @@ function repaint() {
 // --- the title screen -------------------------------------------------------
 
 function showTitle() {
+  stopLoop();
   current = null;
   document.body.classList.remove('playing');
   overlay.innerHTML = `
@@ -159,15 +186,23 @@ async function openSection(id) {
   const mod = await s.load();
   current = { ...s, mod };
   document.body.classList.add('playing');
-  overlay.innerHTML = '<button class="back" data-act="back">← sections</button>';
+  overlay.innerHTML = '<button class="back" data-act="back">← sections</button>'
+    + (mod.toggles || []).map((t) => `<button class="tog" data-tog="${t.id}">${t.label}</button>`).join('');
   overlay.hidden = false;
-  repaint();
+  if (mod.start) mod.start(viewport);
+  if (mod.update) {
+    last = performance.now(); acc = 0;
+    raf = requestAnimationFrame(frame);
+  } else {
+    repaint();
+  }
 }
 
 /** The reference frames, as a page rather than on the canvas - they are
  *  photographs of someone else's work and they are here to be compared
  *  against, not drawn over. */
 function showReference() {
+  stopLoop();
   current = null;
   document.body.classList.add('playing');
   const frames = [
@@ -197,10 +232,15 @@ function showReference() {
 // --- wiring -----------------------------------------------------------------
 
 overlay.addEventListener('click', (ev) => {
-  const el = ev.target.closest('[data-open],[data-act]');
+  const el = ev.target.closest('[data-open],[data-act],[data-tog]');
   if (!el) return;
   if (el.dataset.open) { openSection(el.dataset.open); return; }
   if (el.dataset.act === 'back') { showTitle(); return; }
+  if (el.dataset.tog) {
+    const t = (current && current.mod.toggles || []).find((x) => x.id === el.dataset.tog);
+    if (t) { t.fn(); el.classList.toggle('on', !!t.on); }
+    return;
+  }
   if (el.dataset.act === 'refresh') { hardRefresh(() => {}); }
 });
 

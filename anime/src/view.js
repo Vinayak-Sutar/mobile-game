@@ -50,6 +50,44 @@ export function toScreen(x, y, z = 0) {
 }
 
 /**
+ * THE INVERSE, and the two direction helpers that go with it.
+ *
+ * A control stick and a mouse live on the screen; the simulation lives flat
+ * in the world. Something has to convert, and if that something is written
+ * twice it will be written differently the second time - which is how every
+ * "she walks the wrong way on diagonals" bug starts. So the inverse lives
+ * here, beside the thing it inverts.
+ */
+
+/** Where a point on the canvas lands on the ground. */
+export function worldAt(px, py) {
+  const u = (px - camera.ox) / camera.scale;            // u = dx - dy
+  const v = ((py - camera.oy) / camera.scale) / GROUND; // v = dx + dy
+  return { x: (u + v) / 2 + camera.x, y: (v - u) / 2 + camera.y };
+}
+
+/** Which way a world direction points on the screen, as a unit vector. */
+export function screenDir(dx, dy) {
+  const sx = dx - dy, sy = (dx + dy) * GROUND;
+  const m = Math.hypot(sx, sy) || 1;
+  return { x: sx / m, y: sy / m };
+}
+
+/**
+ * Which way a SCREEN direction points in the world, as a unit vector.
+ *
+ * This is what makes the controls feel right: push the stick up and she walks
+ * up the screen, which under this camera is diagonally away in world terms.
+ * Push it right and she walks right. The player never has to think in x and y.
+ */
+export function worldDir(ux, uy) {
+  const dx = (ux + uy / GROUND) / 2;
+  const dy = (uy / GROUND - ux) / 2;
+  const m = Math.hypot(dx, dy) || 1;
+  return { x: dx / m, y: dy / m };
+}
+
+/**
  * How many screen pixels tall a vertical world length is.
  *
  * The characters are billboards - flat drawings standing up from a point on
