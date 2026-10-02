@@ -1,0 +1,21 @@
+{
+  "name": "Anime — a street",
+  "short_name": "Anime",
+  "description": "An isometric street drawn entirely in code.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#efe7db",
+  "theme_color": "#efe7db",
+  "categories": ["games"],
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

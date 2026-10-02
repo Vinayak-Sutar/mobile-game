@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#efe7db">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon.svg" type="image/svg+xml">
+<title>Anime — a street</title>
+<style>
+  /* The page wears the same palette as the thing it hosts: a warm
+     near-neutral at 77% value, with the loud colours rationed. */
+  :root {
+    --paper: #efe7db;
+    --slab:  #f6f1e8;
+    --ink:   #404352;
+    --soft:  #8d8578;
+    --line:  #ddd4c4;
+    --pink:  #f0a0b4;
+    --teal:  #17929e;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%; overflow: hidden;
+    background: var(--paper); color: var(--ink);
+    font: 400 15px/1.55 ui-rounded, "Avenir Next", "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Sized in JS so the logical frame is never stretched: it fits the window
+     and letterboxes on the few aspect ratios the clamp cannot follow. */
+  #game {
+    position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    display: none; touch-action: none;
+  }
+  body.playing #game { display: block; }
+
+  #overlay {
+    position: fixed; inset: 0;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
+             max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  }
+  body.playing #overlay { overflow: hidden; pointer-events: none; }
+  body.playing #overlay .ref { pointer-events: auto; }
+  body.playing #overlay { overflow-y: auto; }
+
+  /* --- the title ------------------------------------------------------- */
+  .sheet { max-width: 1120px; margin: 0 auto; padding: 8px 0 28px; }
+  h1 {
+    margin: 10px 0 2px; font-size: 42px; font-weight: 800; letter-spacing: -0.02em;
+  }
+  h1::after {
+    content: ""; display: block; width: 54px; height: 5px; margin-top: 8px;
+    border-radius: 3px; background: var(--pink);
+  }
+  .sub { margin: 12px 0 22px; max-width: 62ch; color: var(--soft); }
+  .sub i { color: var(--ink); font-style: italic; }
+
+  .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(286px, 1fr)); }
+
+  .card {
+    position: relative; display: block; width: 100%; text-align: left;
+    padding: 15px 17px 15px 20px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--slab); color: inherit; font: inherit; cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
+  }
+  .card::before {
+    content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 4px;
+    border-radius: 0 3px 3px 0; background: var(--teal);
+  }
+  .card b { display: block; font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .card span { display: block; color: var(--soft); font-size: 13.5px; line-height: 1.5; }
+  .card em {
+    display: inline-block; margin-top: 9px; font-style: normal; font-size: 11px;
+    font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: #a2998a;
+  }
+  .card:hover:not(:disabled) {
+    transform: translateY(-1px); border-color: #cfc3ad;
+    box-shadow: 0 4px 14px rgba(120, 104, 86, 0.13);
+  }
+  .card:disabled { cursor: default; background: transparent; border-style: dashed; opacity: 0.72; }
+  .card:disabled::before { background: var(--line); }
+
+  .foot { margin: 22px 0 0; font-size: 12px; color: #a2998a; letter-spacing: 0.02em; }
+  .foot b { color: var(--teal); font-weight: 700; }
+  .foot .away {
+    float: right; color: var(--soft); text-decoration: none;
+    border-bottom: 1px solid var(--line);
+  }
+  .foot .away:hover { color: var(--ink); }
+  .refresh {
+    margin-left: 6px; padding: 3px 9px; border: 1px solid var(--teal); border-radius: 999px;
+    background: transparent; color: var(--teal); font: 600 11px/1 inherit; cursor: pointer;
+  }
+
+  /* --- inside a section ------------------------------------------------ */
+  .back {
+    position: fixed; left: max(12px, env(safe-area-inset-left));
+    top: max(12px, env(safe-area-inset-top)); z-index: 3;
+    padding: 7px 13px; border: 1px solid var(--line); border-radius: 999px;
+    background: rgba(246, 241, 232, 0.92); color: var(--ink);
+    font: 600 13px/1 inherit; cursor: pointer; pointer-events: auto;
+    backdrop-filter: blur(6px);
+  }
+  .loading { padding: 40px 4px; color: var(--soft); }
+
+  /* --- the reference page ---------------------------------------------- */
+  .ref { max-width: 1000px; margin: 0 auto; padding: 46px 0 40px; }
+  .ref h2 { margin: 0 0 6px; font-size: 26px; font-weight: 800; }
+  .ref figure { margin: 22px 0 0; }
+  .ref img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
+  .ref figcaption { margin-top: 7px; font-size: 12.5px; color: var(--soft); }
+  .ref code { font-size: 12px; background: #e7dfd1; padding: 1px 5px; border-radius: 4px; }
+
+  /* --- portrait phones -------------------------------------------------- */
+  #rotate {
+    position: fixed; inset: 0; z-index: 9; display: none;
+    place-items: center; text-align: center; padding: 30px;
+    background: var(--paper); color: var(--soft);
+  }
+  @media (orientation: portrait) and (pointer: coarse) {
+    body.playing #rotate { display: grid; }
+  }
+</style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="overlay"></div>
+  <div id="rotate"><p>Turn the phone sideways.<br>This one wants a landscape street.</p></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

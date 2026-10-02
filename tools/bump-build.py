@@ -1,9 +1,12 @@
-"""Bump Version 5's build number when a commit touches v5/.
+"""Bump a version's build number when a commit touches its folder.
 
 Run by the git pre-commit hook (install it with `python tools/bump-build.py
---install`). The number lives in v5/src/build.js; the game's title screen
-compares it with the copy on the server, so the owner can tell at a glance
-whether the phone is running what was just pushed.
+--install`). The number lives in <folder>/src/build.js; each version's title
+screen compares it with the copy on the server, so the owner can tell at a
+glance whether the phone is running what was just pushed.
+
+The hook also runs the offline checkers for the folders that have them, and
+refuses the commit if one fails.
 """
 import datetime
 import io
@@ -14,7 +17,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every folder that carries its own build number, and the file it lives in.
-GAMES = [('v5', 'Version 5'), ('savi', 'Savi')]
+GAMES = [('v5', 'Version 5'), ('savi', 'Savi'), ('anime', 'Anime')]
 HOOK = os.path.join(ROOT, '.git', 'hooks', 'pre-commit')
 
 
@@ -44,6 +47,17 @@ def bump(folder, label, staged):
     print('%s build %d' % (label, n))
 
 
+# The offline checkers, per folder. Each one exists because something shipped
+# broken in a way that only showed up by playing it.
+CHECKS = {
+    'savi': ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs', 'check-quest.mjs',
+             'check-keys.mjs', 'check-menu.mjs', 'check-teach.mjs', 'check-broom.mjs'),
+    # Anime's two read the SOURCE as well as running it: a second projection
+    # and an off-key colour are both invisible in a render.
+    'anime': ('check-view.mjs', 'check-palette.mjs'),
+}
+
+
 def check_level(staged):
     """Refuse a commit that breaks a root.
 
@@ -52,12 +66,14 @@ def check_level(staged):
     music shipped wrong for four builds and could only be found by listening.
     These run in about a second between them.
     """
-    if not any(p.startswith('savi/') for p in staged):
-        return
-    for name in ('check-level.mjs', 'check-stones.mjs', 'check-music.mjs', 'check-quest.mjs',
-                 'check-keys.mjs', 'check-menu.mjs', 'check-teach.mjs',
-                 'check-broom.mjs'):
-        script = os.path.join(ROOT, 'savi', 'tools', name)
+    for folder, names in CHECKS.items():
+        if any(p.startswith(folder + '/') for p in staged):
+            run_checks(folder, names)
+
+
+def run_checks(folder, names):
+    for name in names:
+        script = os.path.join(ROOT, folder, 'tools', name)
         if not os.path.exists(script):
             continue
         # utf-8, explicitly. check-keys prints the arrow keys as arrows, and on a

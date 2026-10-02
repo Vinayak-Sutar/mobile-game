@@ -6,8 +6,20 @@ season 1 ending, "Pure" by Pas Tasta feat. 橋本絵莉子.
 
 Everything is drawn in code. No images, no generated art, no build step.
 
+It is a version in its own right, a sibling of `v1`-`v5` and `savi`: its own
+cache prefix (`anime-`), its own manifest, its own build number, and a button
+on every other version's title screen. It is **not** `v6` - that is the
+shelved 3D experiment and it is gitignored.
+
+Inside it, **sections**, because it is an experiment rather than one game.
+Each step of the plan is an entry on the title screen; the ones that are not
+written yet are there too, greyed out, so the shape of the thing is visible
+from the front door. Adding one is a line in `SECTIONS` plus a module that
+exports `draw(ctx, { w, h })`.
+
 | | |
 | --- | --- |
+| `index.html`, `src/main.js` | the shell: the title screen and the section list |
 | `reference/NOTES.md` | what the ED actually looks like, measured off the footage |
 | `reference/frames/`, `reference/sheet*.jpg` | the frames those numbers came from |
 | `style-test.html` | **step 1** — one still screen, to judge the look |
@@ -27,7 +39,12 @@ ES modules need a server; `file://` will not do.
 python serve.py 8000
 ```
 
-Then open `http://localhost:8000/anime/style-test.html`.
+Then open `http://localhost:8000/anime/`. On a phone it is the same URL on the
+Pages site, and the title screen says whether that phone has the build that
+was last pushed.
+
+`style-test.html` is the same scene on a bare page, kept because it is the
+quicker thing to iterate against.
 
 The page takes query parameters so the drawing can be inspected without being
 rebuilt: `?z=2&cx=170&cy=-40` re-aims the camera, `?w=&h=` sets the canvas and
