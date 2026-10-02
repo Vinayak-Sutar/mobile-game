@@ -13,3 +13,7 @@ __pycache__/
 
 # Version 6 (the 3D experiment) is shelved: kept on disk, out of the repo.
 v6/
+
+# The ED reference video, which the owner supplied. The frames we work from
+# live in anime/reference/; the video itself does not belong in the repo.
+pure.mp4
