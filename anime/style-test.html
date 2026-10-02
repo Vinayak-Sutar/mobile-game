@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Style test</title>
+<style>
+  html, body {
+    margin: 0; height: 100%; background: #171a1f;
+    display: grid; place-items: center;
+    font: 500 12px/1.5 system-ui, sans-serif; color: #8b8f98;
+  }
+  #wrap { display: grid; gap: 10px; justify-items: center; }
+  canvas { display: block; max-width: 96vw; height: auto; border-radius: 3px; }
+  p { margin: 0; letter-spacing: 0.04em; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <canvas id="c"></canvas>
+    <p id="note">drawing…</p>
+  </div>
+<script type="module">
+  import { draw, VIEW } from './src/style-test.js';
+
+  // ?z=2&cx=170&cy=40 re-aims the camera, which is how the drawing gets looked
+  // at close up without rebuilding the scene.
+  const q = new URLSearchParams(location.search);
+  const num = (k, d) => (q.has(k) ? Number(q.get(k)) : d);
+  const o = {
+    w: num('w', VIEW.w), h: num('h', VIEW.h),
+    z: num('z', undefined), cx: num('cx', undefined), cy: num('cy', undefined),
+  };
+
+  const c = document.getElementById('c');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = o.w * dpr;
+  c.height = o.h * dpr;
+  c.style.width = num('dw', o.w) + 'px';
+  const ctx = c.getContext('2d', { alpha: false });
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const t0 = performance.now();
+  const n = draw(ctx, o);
+  const ms = performance.now() - t0;
+  document.getElementById('note').textContent =
+    `${n} items, ${ms.toFixed(1)} ms`;
+  window.__styleTest = { ms, n };
+</script>
+</body>
+</html>
