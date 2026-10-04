@@ -86,6 +86,7 @@ import {
   normaliseOutfit, setOutfit, randomOutfit,
 } from './outfits.js';
 import { BUILD, BUILT, latestBuild, hardRefresh } from './update.js';
+import { NAME } from './name.js';
 import { bakeSpriteSheet, bakeTextures, exportAll, exportAsDataURLs, canvasToDataURL, saveAssets } from './bake.js';
 import { PLAYER_SKELETON, PLAYER_CLIPS } from './rigs.js';
 import { resolvePose, drawSkeleton } from './anim.js';
@@ -882,9 +883,9 @@ function versionRow() {
       <button class="ver" data-act="version" data-href="../v2/">Version 2<small>15 chambers · 5 bosses</small></button>
       <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
       <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
-      <button class="ver on" data-act="version-here" aria-current="true">Version 5<small>enemy variety · minibosses</small></button>
+      <button class="ver" data-act="version" data-href="../v5/">Version 5<small>enemy variety · minibosses</small></button>
       <button class="ver" data-act="version" data-href="../anime/">Anime<small>an experiment · an isometric street</small></button>
-      <button class="ver" data-act="version" data-href="../v7/">Campaign<small>the mobile game</small></button>
+      <button class="ver on" data-act="version-here" aria-current="true">Campaign<small>the mobile game</small></button>
     </div>`;
 }
 
@@ -1160,7 +1161,7 @@ function showTitle() {
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">top-down action roguelike · prototype</div>
-      <h1>Ashfall</h1>
+      <h1>${NAME}</h1>
       ${versionRow()}
       ${buildRow()}
       <p class="sub">Every guardian stands between you and the surface, one in every other chamber.
@@ -2660,7 +2661,7 @@ function showTutorialOffer() {
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">before you descend</div>
-      <h2>New to Ashfall?</h2>
+      <h2>New to ${NAME}?</h2>
       <p class="sub">A short tutorial chamber teaches moving, attacking, dashing, your
       weapon's special, grenades and spells, one at a time, then a small real fight.
       About two minutes. You can skip it from the pause menu, and it is always on the

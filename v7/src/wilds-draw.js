@@ -1,0 +1,719 @@
+// Drawing The Wilds (world space: game.js has already applied the camera).
+//
+// Only what is in view is touched: the painted ground comes in chunks
+// (terrain.js), the hand-placed walls and water through the spatial hash, and
+// the trees, boulders and small things from the few sectors on screen.
+//
+// Each region grows its own kind of tree: broad crowns in the Heartland and
+// by the lake, dark heavy ones in the Webwood, snow pines on the Moors and
+// the Summit, bare dead ones in the Mire and on the Peaks' ash, tall cypress
+// in the palace gardens, and cactus in the Gulch.
+
+import { world, camera, view, gfx } from './state.js';
+import { TAU, dist } from './util.js';
+import { wildsState, sectorsIn, sectorAt } from './wilds-world.js';
+import { journey } from './wilds-progress.js';
+import { drawPlaceObstacle, drawPlaceDeco, drawRoof } from './wilds-places.js';
+import { drawLairFront } from './wilds-lairs.js';
+import { DUNGEONS, NPCS } from './wilds-layout.js';
+import { npcById } from './dialogue.js';
+import { drawToriiPillar, drawToriiBeams, drawToro, drawSakura, drawPetalBed, drawPetal, drawChochinPost } from './wilds-sakura.js';
+import { relicAt } from './wilds-sites.js';
+
+const inView = (x, y, pad = 80) => x > camera.x - pad && x < camera.x + view.w + pad && y > camera.y - pad && y < camera.y + view.h + pad;
+
+let printSpr = null, printEpoch = -1;
+function printSprite() {
+  if (printSpr && printEpoch === gfx.epoch) return printSpr;
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(24, 24, 2, 24, 24, 24);
+  gr.addColorStop(0, 'rgba(60,64,80,0.55)');
+  gr.addColorStop(0.6, 'rgba(80,86,104,0.25)');
+  gr.addColorStop(1, 'rgba(90,96,114,0)');
+  g.fillStyle = gr;
+  g.fillRect(0, 0, 48, 48);
+  printSpr = c;
+  printEpoch = gfx.epoch;
+  return c;
+}
+
+export function drawOverworldBelow(ctx, time) {
+  const W = wildsState();
+  if (!W) return;
+  const cx = camera.x, cy = camera.y, vw = view.w, vh = view.h;
+
+  // The painted ground, and the live water's light over it.
+  W.terrain.draw(ctx, cx, cy, vw, vh);
+  W.water.draw(ctx);
+
+  // Prints in the snow, the ash and the mud, filling back in.
+  if (W.prints.length) {
+    const spr = printSprite();
+    for (const pr of W.prints) {
+      const age = time - pr.t;
+      if (age > 12 || !inView(pr.x, pr.y, 30)) continue;
+      ctx.globalAlpha = Math.min(1, 1.3 - age / 12) * (pr.dark ? 0.6 : 0.9);
+      const s2 = pr.big ? 30 : 22;
+      ctx.drawImage(spr, pr.x - s2 / 2, pr.y - s2 * 0.3, s2, s2 * 0.6);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // The hand-placed things that need more than paint: the bridges' railings -
+  // and the boulders and cactus grown in the sectors.
+  const x0 = cx - 120, y0 = cy - 120, x1 = cx + vw + 120, y1 = cy + vh + 120;
+  for (const o of W.hash.query(x0, y0, x1, y1)) drawObstacle(ctx, o, time);
+
+  const secs = sectorsIn(x0, y0, x1, y1);
+  for (const S of secs) {
+    for (const d of S.decals) if (inView(d.x, d.y, 24)) drawDecal(ctx, d, time);
+  }
+  for (const S of secs) for (const g of S.grass) g.draw(ctx, time, { x: cx, y: cy, w: vw, h: vh });
+
+  // The places' fires, braziers and banners; the fighting units' rings,
+  // braziers and rewards.
+  for (const P of W.places) {
+    if (!inView(P.x, P.y, P.r + 100)) continue;
+    for (const d of P.deco) if (inView(d.x, d.y, 90)) drawPlaceDeco(ctx, d, time);
+  }
+  // A lair's front, when you stand before it (behind it, it is drawn over you).
+  const me = world.player;
+  for (const P of W.places) {
+    if (P.kind === 'lair' && inView(P.gx, P.gy - 150, 420) && !(me && me.y < P.gy - 150)) drawLairFront(ctx, P, time);
+  }
+  for (const s of W.sites) if (inView(s.x, s.y, s.r + 60)) drawSite(ctx, s, time);
+  for (const d of DUNGEONS) if (inView(d.x, d.y, 160)) drawDungeonStair(ctx, d, time);
+  for (const n of NPCS) if (inView(n.x, n.y, 120)) drawNpc(ctx, n, time);
+
+  // The Ashlamps, and your smoulder.
+  for (const l of W.lamps) if (inView(l.x, l.y, 120)) drawLamp(ctx, l, time);
+  if (journey.smoulder && inView(journey.smoulder.x, journey.smoulder.y, 80)) drawSmoulder(ctx, journey.smoulder, time);
+
+  // Tree trunks and their shadows (the crowns are drawn over everyone).
+  for (const S of secs) {
+    for (const t of S.trees) {
+      if (!inView(t.x, t.y, 90)) continue;
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(t.x + 10, t.y + 8, t.r * 0.9, t.r * 0.45, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = t.kind === 'dead' ? '#4a4038' : t.kind === 'dark' ? '#241a14' : '#3a2a1c';
+      ctx.fillRect(t.x - 7, t.y - 10, 14, 18);
+    }
+  }
+}
+
+/**
+ * Someone who will talk to you: a figure in a hooded robe, leaning on a staff,
+ * with a lamp that lights the grass round them. A soft ring on the ground says
+ * where the talking starts, and the lamp swings a little as they breathe.
+ */
+function drawNpc(ctx, n, time) {
+  const npc = npcById(n.id);
+  const c = (npc && npc.look) || {};
+  const x = n.x, y = n.y;
+  const sway = Math.sin(time * 1.3 + x * 0.01) * 1.2;
+  // Where the talk begins.
+  ctx.strokeStyle = `rgba(255,190,120,${(0.14 + 0.05 * Math.sin(time * 2)).toFixed(2)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(x, y + 6, 74, 30, 0, 0, TAU); ctx.stroke();
+  // The lamp's own light on the ground.
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x + 16, y - 26, 4, x + 16, y - 26, 96);
+  g.addColorStop(0, 'rgba(255,170,80,0.22)'); g.addColorStop(1, 'rgba(255,150,60,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x + 16, y - 26, 96, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 3, y + 5, 15, 6, 0, 0, TAU); ctx.fill();
+  const out = (col, w = 1.6) => { ctx.fillStyle = col; ctx.fill(); ctx.strokeStyle = '#1b130f'; ctx.lineWidth = w; ctx.stroke(); };
+  // The staff, and the lamp hanging from it.
+  ctx.strokeStyle = '#1b130f'; ctx.lineWidth = 4.6;
+  ctx.beginPath(); ctx.moveTo(x + 13, y + 2); ctx.lineTo(x + 16, y - 44); ctx.stroke();
+  ctx.strokeStyle = c.staff || '#6a4a30'; ctx.lineWidth = 2.6; ctx.stroke();
+  // The robe.
+  ctx.beginPath();
+  ctx.moveTo(x - 9, y - 30);
+  ctx.quadraticCurveTo(x - 13, y - 12, x - 11, y + 2);
+  ctx.lineTo(x + 9 + sway * 0.3, y + 2);
+  ctx.quadraticCurveTo(x + 11, y - 14, x + 8, y - 30);
+  ctx.quadraticCurveTo(x, y - 33, x - 9, y - 30);
+  ctx.closePath();
+  out(c.robe || '#4a5a7a');
+  ctx.fillStyle = c.robeShade || '#333f58';
+  ctx.fillRect(x + 2, y - 30, 7, 32);
+  // The hood, and a face in its shade.
+  ctx.beginPath(); ctx.arc(x, y - 36, 7.4, 0, TAU); out(c.hood || '#3c4a66', 1.5);
+  ctx.fillStyle = c.skin || '#d8ab7e';
+  ctx.beginPath(); ctx.ellipse(x + 1, y - 35, 4.4, 4.8, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(x + 1, y - 38.5, 4.6, 2.6, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#1b130f';
+  ctx.fillRect(x - 0.6, y - 35.4, 1.4, 1.8); ctx.fillRect(x + 2.4, y - 35.4, 1.4, 1.8);
+  // The lamp.
+  const lx = x + 16 + sway, ly = y - 34 + Math.abs(sway) * 0.3;
+  ctx.strokeStyle = '#1b130f'; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(x + 16, y - 43); ctx.lineTo(lx, ly - 6); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(lx, ly, 5, 6.4, 0, 0, TAU); out(c.lamp || '#ffb35e', 1.3);
+  ctx.fillStyle = 'rgba(255,240,190,0.9)';
+  ctx.beginPath(); ctx.ellipse(lx, ly, 2.2, 3.4, 0, 0, TAU); ctx.fill();
+}
+
+/** A dungeon's way down: steps into the dark between low ruined walls, a blue sigil over them. */
+function drawDungeonStair(ctx, d, time) {
+  const x = d.x, y = d.y;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(x + 6, y + 30, 80, 20, 0, 0, TAU); ctx.fill();
+  for (let k = 0; k < 6; k++) {
+    const v = 90 - k * 13;
+    ctx.fillStyle = `rgb(${v},${v - 6},${v + 6})`;
+    ctx.fillRect(x - 46, y + 20 - k * 11, 92, 11);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(x - 46, y + 29 - k * 11, 92, 2);
+  }
+  ctx.fillStyle = '#0a080c'; ctx.fillRect(x - 46, y - 46, 92, 12);
+  for (const [wx, wy, ww, wh] of [[x - 64, y - 56, 128, 18], [x - 64, y - 56, 18, 80], [x + 46, y - 56, 18, 80]]) {
+    ctx.fillStyle = '#5e5854'; ctx.fillRect(wx, wy - 18, ww, wh + 18);
+    ctx.fillStyle = '#7e7874'; ctx.fillRect(wx, wy - 18, ww, 5);
+  }
+  const k = 0.6 + Math.sin(time * 2) * 0.25;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y - 80, 2, x, y - 80, 60);
+  g.addColorStop(0, `rgba(140,190,255,${(0.35 * k).toFixed(2)})`); g.addColorStop(1, 'rgba(100,140,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y - 80, 60, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.strokeStyle = `rgba(170,210,255,${(0.6 + 0.3 * k).toFixed(2)})`; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(x, y - 80, 14, 0, TAU); ctx.moveTo(x, y - 94); ctx.lineTo(x, y - 66); ctx.moveTo(x - 10, y - 74); ctx.lineTo(x + 10, y - 86); ctx.stroke();
+}
+
+function drawObstacle(ctx, o, time) {
+  switch (o.kind) {
+    case 'rail':
+      // Timber railings along a bridge, posts every forty units.
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + 5, o.y + 6, o.w, o.h);
+      ctx.fillStyle = '#3a2c20'; ctx.fillRect(o.x, o.y, o.w, o.h);
+      ctx.fillStyle = '#6a5038';
+      if (o.h >= o.w) for (let y = o.y; y < o.y + o.h; y += 40) ctx.fillRect(o.x - 2, y, o.w + 4, 8);
+      else for (let x = o.x; x < o.x + o.w; x += 40) ctx.fillRect(x, o.y - 2, 8, o.h + 4);
+      break;
+    case 'rock': {
+      const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+      const shape = (dx, dy, k) => {
+        ctx.beginPath();
+        o.poly.forEach(([px, py], i) => (i ? ctx.lineTo(cx + dx + px * k, cy + dy + py * k) : ctx.moveTo(cx + dx + px * k, cy + dy + py * k)));
+        ctx.closePath();
+      };
+      const base = o.ashy ? ['#3e3a3a', '#54504e', '#6a6664'] : o.snowy ? ['#5e5e68', '#7c7c88', '#9a9aa6'] : ['#645c52', '#857c6e', '#a0978a'];
+      ctx.fillStyle = 'rgba(0,0,0,0.3)'; shape(7, 9, 1); ctx.fill();
+      ctx.fillStyle = base[0]; shape(0, 0, 1); ctx.fill();
+      ctx.fillStyle = base[1]; shape(-o.w * 0.08, -o.h * 0.12, 0.72); ctx.fill();
+      ctx.fillStyle = base[2]; shape(-o.w * 0.14, -o.h * 0.2, 0.36); ctx.fill();
+      if (o.snowy) { ctx.fillStyle = 'rgba(236,242,250,0.95)'; shape(-o.w * 0.06, -o.h * 0.24, 0.55); ctx.fill(); }
+      if (o.ashy && Math.sin(time * 3 + o.x) > 0.6) {
+        ctx.fillStyle = 'rgba(255,120,50,0.6)';
+        ctx.beginPath(); ctx.arc(cx + o.w * 0.2, cy + o.h * 0.1, 2, 0, TAU); ctx.fill();
+      }
+      break;
+    }
+    case 'wall':
+    case 'building':
+    case 'prop':
+      drawPlaceObstacle(ctx, o, time);
+      break;
+    case 'stake': {
+      // A sharpened timber stake.
+      const x = o.x + o.w / 2, y = o.y + o.h;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(x - 3, y - 2, 12, 5);
+      ctx.save(); ctx.translate(x, y); ctx.rotate(o.lean || 0);
+      ctx.fillStyle = '#5a3e26'; ctx.fillRect(-5, -30, 10, 30);
+      ctx.fillStyle = '#7a5636'; ctx.fillRect(-5, -30, 3, 30);
+      ctx.beginPath(); ctx.moveTo(-5, -30); ctx.lineTo(0, -40); ctx.lineTo(5, -30); ctx.closePath(); ctx.fillStyle = '#8a6a48'; ctx.fill();
+      ctx.restore();
+      break;
+    }
+    case 'stone': {
+      // A standing stone, weathered and leaning a little.
+      const x = o.x + o.w / 2, y = o.y + o.h;
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(x + 8, y, 16, 6, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#6a6670';
+      ctx.beginPath(); ctx.moveTo(x - 12, y); ctx.lineTo(x - 10, y - o.tall); ctx.quadraticCurveTo(x, y - o.tall - 8, x + 10, y - o.tall + 2); ctx.lineTo(x + 12, y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#86828c'; ctx.fillRect(x - 10, y - o.tall + 2, 5, o.tall - 4);
+      ctx.fillStyle = 'rgba(120,200,160,0.35)'; ctx.fillRect(x - 4, y - o.tall * 0.6, 7, 4);
+      break;
+    }
+    case 'ruinwall': {
+      const top = o.column ? 26 : 14;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(o.x + 6, o.y + 6, o.w, o.h);
+      ctx.fillStyle = '#5e5854'; ctx.fillRect(o.x, o.y - top, o.w, o.h + top);
+      ctx.fillStyle = '#7e7874'; ctx.fillRect(o.x, o.y - top, o.w, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 1;
+      for (let x = o.x + 18; x < o.x + o.w; x += 18) { ctx.beginPath(); ctx.moveTo(x, o.y - top + 5); ctx.lineTo(x, o.y + o.h); ctx.stroke(); }
+      break;
+    }
+    case 'thorn': {
+      const x = o.x + o.w / 2, y = o.y + o.h / 2;
+      ctx.fillStyle = '#2e3a24';
+      ctx.beginPath(); ctx.ellipse(x, y - 6, o.w / 2, o.h / 2 + 4, 0, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#5a4630'; ctx.lineWidth = 1.6;
+      for (let k = 0; k < 6; k++) {
+        const a = k * 1.1 + x * 0.01;
+        ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + Math.cos(a) * o.w * 0.55, y - 6 + Math.sin(a) * o.h * 0.6); ctx.stroke();
+      }
+      ctx.fillStyle = '#9a2a3a';
+      for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x - 8 + k * 8, y - 10 + (k % 2) * 6, 1.8, 0, TAU); ctx.fill(); }
+      break;
+    }
+    case 'seal': {
+      // A wall of grey ash across a sky bridge, ember runes crawling in it.
+      const k = 0.6 + Math.sin(time * 1.6) * 0.2;
+      ctx.fillStyle = 'rgba(60,54,52,0.85)'; ctx.fillRect(o.x - 6, o.y - 90, o.w + 12, o.h + 90);
+      ctx.fillStyle = 'rgba(150,140,136,0.35)';
+      for (let y = o.y - 80 + ((time * 20) % 30); y < o.y + o.h; y += 30) ctx.fillRect(o.x - 6, y, o.w + 12, 6);
+      ctx.fillStyle = `rgba(255,120,50,${k.toFixed(2)})`;
+      for (let y = o.y - 60; y < o.y + o.h - 10; y += 46) { ctx.fillRect(o.x + o.w / 2 - 4, y, 8, 3); ctx.fillRect(o.x + o.w / 2 - 1.5, y - 6, 3, 15); }
+      break;
+    }
+    case 'torii': drawToriiPillar(ctx, o); break;
+    case 'toro': drawToro(ctx, o, time); break;
+    case 'chochin': drawChochinPost(ctx, { x: o.x + o.w / 2, y: o.y + o.h / 2 + 4, ph: o.ph }, time); break;
+    case 'cactus': {
+      const x = o.x + o.w / 2, y = o.y + o.h;
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(x + 8, y, 14, 5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#4c7a3a';
+      ctx.fillRect(x - 5, y - o.h2, 10, o.h2);
+      if (o.arms) { ctx.fillRect(x - 15, y - o.h2 * 0.7, 6, 14); ctx.fillRect(x - 15, y - o.h2 * 0.7 + 8, 12, 5); ctx.fillRect(x + 9, y - o.h2 * 0.55, 6, 12); ctx.fillRect(x + 4, y - o.h2 * 0.55 + 7, 10, 5); }
+      ctx.fillStyle = '#6a9a50'; ctx.fillRect(x - 2, y - o.h2, 3, o.h2);
+      break;
+    }
+    default: break;
+  }
+}
+
+/**
+ * An Ashlamp: an iron cage on a stone post. Unkindled it is cold and dark;
+ * kindled, a flame burns in it and throws warm light round it. Stand at one
+ * and it says what it will do.
+ */
+function drawLamp(ctx, l, time) {
+  const x = l.x, y = l.y;
+  const fl = 0.8 + Math.sin(time * 9 + x) * 0.12 + Math.sin(time * 23 + y) * 0.08;
+  if (l.lit) {
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createRadialGradient(x, y - 30, 4, x, y - 30, 120);
+    g.addColorStop(0, `rgba(255,170,80,${(0.34 * fl).toFixed(3)})`);
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y - 30, 120, 0, TAU); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 4, 20, 7, 0, 0, TAU); ctx.fill();
+  // The post and its base.
+  ctx.fillStyle = '#4a4648'; ctx.fillRect(x - 12, y - 6, 24, 10);
+  ctx.fillStyle = '#5e5a5c'; ctx.fillRect(x - 5, y - 40, 10, 36);
+  ctx.fillStyle = '#6e6a6c'; ctx.fillRect(x - 5, y - 40, 3, 36);
+  // The cage.
+  ctx.strokeStyle = '#2a2628'; ctx.lineWidth = 2;
+  ctx.strokeRect(x - 9, y - 62, 18, 22);
+  ctx.beginPath(); ctx.moveTo(x - 3, y - 62); ctx.lineTo(x - 3, y - 40); ctx.moveTo(x + 3, y - 62); ctx.lineTo(x + 3, y - 40); ctx.stroke();
+  ctx.fillStyle = '#2a2628';
+  ctx.beginPath(); ctx.moveTo(x - 12, y - 62); ctx.lineTo(x, y - 70); ctx.lineTo(x + 12, y - 62); ctx.closePath(); ctx.fill();
+  // The flame, or cold ash.
+  if (l.lit) {
+    ctx.fillStyle = '#ff8a3a';
+    ctx.beginPath(); ctx.ellipse(x, y - 49, 5.5, 9 * fl, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#ffe08a';
+    ctx.beginPath(); ctx.ellipse(x, y - 47, 2.6, 5 * fl, 0, 0, TAU); ctx.fill();
+  } else {
+    ctx.fillStyle = '#3a3436'; ctx.fillRect(x - 5, y - 45, 10, 4);
+  }
+  if (l.near) {
+    ctx.textAlign = 'center';
+    ctx.font = '800 12px system-ui';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillText(l.name, x + 1, y - 81);
+    ctx.fillStyle = '#ffd9a0'; ctx.fillText(l.name, x, y - 82);
+    if (l.lit && !l.rested) {
+      const k = Math.min(1, l.still / 0.6);
+      ctx.font = '700 10px system-ui';
+      ctx.fillStyle = 'rgba(255,255,255,0.75)';
+      ctx.fillText('stand still to rest', x, y + 24);
+      if (k > 0) {
+        ctx.strokeStyle = '#ffb35e'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y - 49, 18, -Math.PI / 2, -Math.PI / 2 + k * TAU); ctx.stroke();
+      }
+    }
+  }
+}
+
+/**
+ * A fighting unit's own drawing (walls and buildings are obstacles, drawn with
+ * the rest): a small site's worn ring and braziers, a champion's duel ring
+ * while it is closed, an outpost's banner, and the reward once it is won - a
+ * chest of Cinders, or a champion's reliquary.
+ */
+function drawSite(ctx, s, time) {
+  if (s.kind === 'site') {
+    // Its edge: a worn ring on the ground.
+    ctx.strokeStyle = 'rgba(0,0,0,0.16)';
+    ctx.lineWidth = 6;
+    ctx.setLineDash([14, 10]);
+    ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.stroke();
+    ctx.setLineDash([]);
+    if (s.form === 'circle') {
+      for (let k = 0; k < 4; k++) {
+        const a = (k / 4) * TAU + Math.PI / 4;
+        const bx = s.x + Math.cos(a) * s.r * 0.62, by = s.y + Math.sin(a) * s.r * 0.62;
+        ctx.fillStyle = '#3a3230'; ctx.fillRect(bx - 7, by - 14, 14, 14);
+        if (s.members) {
+          const fl = 0.8 + Math.sin(time * 10 + k) * 0.2;
+          ctx.fillStyle = s.region === 'moors' || s.region === 'citadel' ? '#9fd8ff' : '#ff8a3a';
+          ctx.beginPath(); ctx.ellipse(bx, by - 18, 5, 8 * fl, 0, 0, TAU); ctx.fill();
+        }
+      }
+    }
+    if (s.form === 'outpost' && s.perches) {
+      const bx = s.perches[0].x + 150, by = s.perches[0].y;
+      ctx.fillStyle = '#3a2a1c'; ctx.fillRect(bx - 2, by - 60, 4, 60);
+      ctx.fillStyle = s.cleared ? '#6a6862' : '#a0342c';
+      const flap = Math.sin(time * 3 + bx) * 4;
+      ctx.beginPath(); ctx.moveTo(bx + 2, by - 58); ctx.lineTo(bx + 30 + flap, by - 52); ctx.lineTo(bx + 2, by - 40); ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // A champion's duel ring, closed: a wall of fire round it.
+  if (s.kind === 'champion' && s.sealed) {
+    const n = Math.round((TAU * s.r) / 24);
+    for (let k = 0; k < n; k++) {
+      const a = (k / n) * TAU;
+      const h = 12 + Math.sin(time * 9 + k * 1.7) * 6;
+      ctx.fillStyle = `rgba(255,110,50,${(0.4 + Math.sin(time * 7 + k) * 0.15).toFixed(2)})`;
+      ctx.beginPath(); ctx.ellipse(s.x + Math.cos(a) * s.r, s.y + Math.sin(a) * s.r - h / 2, 5, h, 0, 0, TAU); ctx.fill();
+    }
+  }
+
+  // The reward, once won: a chest of Cinders, or a champion's reliquary.
+  if (s.cleared && s.reward) {
+    const at = relicAt(s), rx = at.x, ry = at.y;
+    const relic = s.kind === 'champion';
+    if (!s.opened) {
+      const g = 0.7 + Math.sin(time * 4) * 0.3;
+      ctx.globalCompositeOperation = 'lighter';
+      const gr = ctx.createRadialGradient(rx, ry - 8, 2, rx, ry - 8, relic ? 80 : 50);
+      gr.addColorStop(0, relic ? `rgba(160,220,255,${(0.5 * g).toFixed(2)})` : `rgba(255,224,138,${(0.4 * g).toFixed(2)})`);
+      gr.addColorStop(1, 'rgba(255,200,90,0)');
+      ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(rx, ry - 8, relic ? 80 : 50, 0, TAU); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(rx - 16, ry - 2, 36, 10);
+    if (relic) {
+      // A reliquary: a stone casket with a glowing seal.
+      ctx.fillStyle = '#6a6670'; ctx.fillRect(rx - 20, ry - 22, 40, 24);
+      ctx.fillStyle = '#8a8690'; ctx.fillRect(rx - 22, ry - 26, 44, 6);
+      ctx.fillStyle = s.opened ? '#4a4a52' : '#9fe0ff';
+      ctx.beginPath(); ctx.arc(rx, ry - 12, 5, 0, TAU); ctx.fill();
+    } else {
+      ctx.fillStyle = s.opened ? '#4a3a2a' : '#6a4a2a'; ctx.fillRect(rx - 18, ry - 18, 36, 20);
+      ctx.fillStyle = s.opened ? '#6a5a44' : '#e0b050';
+      ctx.fillRect(rx - 18, ry - 11, 36, 3); ctx.fillRect(rx - 3, ry - 16, 6, 9);
+    }
+    if (!s.opened) {
+      ctx.textAlign = 'center';
+      ctx.font = '800 11px system-ui';
+      ctx.fillStyle = relic ? '#bfe8ff' : '#ffe08a';
+      ctx.fillText(relic && !s.claimed ? 'stand on it: a spell' : 'stand on it: Cinders', rx, ry - 36);
+      if (s.relT > 0) {
+        ctx.strokeStyle = relic ? '#bfe8ff' : '#ffe08a'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(rx, ry - 10, 28, -Math.PI / 2, -Math.PI / 2 + Math.min(1, s.relT) * TAU); ctx.stroke();
+      }
+    }
+  }
+}
+
+/** Your smoulder: the Cinders you dropped, a heap of embers breathing in and out. */
+function drawSmoulder(ctx, s, time) {
+  const k = 0.7 + Math.sin(time * 3) * 0.3;
+  ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(s.x, s.y, 2, s.x, s.y, 46);
+  g.addColorStop(0, `rgba(255,110,40,${(0.5 * k).toFixed(3)})`);
+  g.addColorStop(1, 'rgba(255,60,20,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(s.x, s.y, 46, 0, TAU); ctx.fill();
+  ctx.globalCompositeOperation = 'source-over';
+  for (let i = 0; i < 7; i++) {
+    const a = i * 0.9 + time * 0.3;
+    const r = 6 + (i % 3) * 5;
+    ctx.fillStyle = i % 2 ? '#ff8a3a' : '#ffd07a';
+    ctx.beginPath(); ctx.arc(s.x + Math.cos(a) * r, s.y + Math.sin(a) * r * 0.5, 2.4, 0, TAU); ctx.fill();
+  }
+  ctx.textAlign = 'center';
+  ctx.font = '800 11px system-ui';
+  ctx.fillStyle = '#ffd9a0';
+  ctx.fillText(`${s.amount} Cinders`, s.x, s.y - 26);
+}
+
+function drawDecal(ctx, d, time) {
+  switch (d.t) {
+    case 'flowers':
+      for (let k = 0; k < 5; k++) {
+        const fx = d.x + Math.cos(d.ph + k * 2.1) * 14, fy = d.y + Math.sin(d.ph + k * 1.3) * 8;
+        const nod = Math.sin(time * 1.8 + d.ph + k) * 1.5;
+        ctx.strokeStyle = '#4e6a3a'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(fx, fy + 5); ctx.lineTo(fx + nod, fy); ctx.stroke();
+        ctx.fillStyle = `rgba(${d.c},0.95)`;
+        ctx.beginPath(); ctx.arc(fx + nod, fy, 2.3, 0, TAU); ctx.fill();
+      }
+      break;
+    case 'reeds':
+      ctx.strokeStyle = '#6a7a44'; ctx.lineWidth = 1.6;
+      for (let k = 0; k < 6; k++) {
+        const bx = d.x + (k - 3) * 4, sway = Math.sin(time * 1.4 + d.ph + k) * 2;
+        ctx.beginPath(); ctx.moveTo(bx, d.y); ctx.lineTo(bx + sway, d.y - 18 - (k % 3) * 4); ctx.stroke();
+      }
+      ctx.fillStyle = '#5a3a24';
+      ctx.fillRect(d.x - 1 + Math.sin(time * 1.4 + d.ph) * 2, d.y - 24, 3, 7);
+      break;
+    case 'stump':
+      ctx.fillStyle = '#3a3028'; ctx.beginPath(); ctx.ellipse(d.x, d.y, 9, 5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#5a4a3a'; ctx.beginPath(); ctx.ellipse(d.x, d.y - 3, 8, 4, 0, 0, TAU); ctx.fill();
+      break;
+    case 'petalbed': drawPetalBed(ctx, d); break;
+    case 'web':
+      ctx.strokeStyle = 'rgba(230,230,240,0.35)'; ctx.lineWidth = 0.8;
+      for (let k = 0; k < 6; k++) {
+        const a = d.ph + (k / 6) * TAU;
+        ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x + Math.cos(a) * 16, d.y + Math.sin(a) * 11); ctx.stroke();
+      }
+      for (const r of [5, 10, 15]) { ctx.beginPath(); ctx.ellipse(d.x, d.y, r, r * 0.7, 0, 0, TAU); ctx.stroke(); }
+      break;
+    case 'shrooms':
+      for (let k = 0; k < 3; k++) {
+        const mx = d.x + k * 7 - 7, my = d.y + (k % 2) * 3;
+        ctx.fillStyle = '#d8ccb4'; ctx.fillRect(mx - 1, my - 5, 2, 5);
+        ctx.fillStyle = k === 1 ? '#b85a4a' : '#a8905a';
+        ctx.beginPath(); ctx.ellipse(mx, my - 5, 4, 2.5, 0, Math.PI, TAU); ctx.fill();
+      }
+      break;
+    case 'skull':
+      ctx.fillStyle = '#d8d0bc';
+      ctx.beginPath(); ctx.ellipse(d.x, d.y, 6, 4.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#3a3028'; ctx.fillRect(d.x - 3.5, d.y - 1.5, 2, 2); ctx.fillRect(d.x + 1.5, d.y - 1.5, 2, 2);
+      break;
+    case 'pebbles':
+      ctx.fillStyle = 'rgba(40,34,30,0.35)';
+      for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.arc(d.x + Math.cos(d.ph + k * 1.7) * 8, d.y + Math.sin(d.ph + k) * 4, 2.2, 0, TAU); ctx.fill(); }
+      break;
+    case 'ember': {
+      const glow = 0.5 + Math.sin(time * 4 + d.ph) * 0.3;
+      ctx.fillStyle = `rgba(255,${110 + glow * 60},50,${glow})`;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 2.2, 0, TAU); ctx.fill();
+      break;
+    }
+    case 'fissure': {
+      // A crack in the ash with lava glowing in it, brightening and dimming.
+      const glow = 0.55 + Math.sin(time * 2 + d.ph) * 0.25;
+      const ex = d.x + Math.cos(d.a) * d.len, ey = d.y + Math.sin(d.a) * d.len * 0.6;
+      const mx = (d.x + ex) / 2 + Math.sin(d.ph) * 6, my = (d.y + ey) / 2 + Math.cos(d.ph) * 4;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = `rgba(255,90,30,${(glow * 0.35).toFixed(2)})`; ctx.lineWidth = 7;
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,${150 + glow * 60 | 0},70,${glow.toFixed(2)})`; ctx.lineWidth = 2.2;
+      ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.quadraticCurveTo(mx, my, ex, ey); ctx.stroke();
+      ctx.lineCap = 'butt';
+      break;
+    }
+    case 'shell':
+      ctx.fillStyle = `rgba(${d.c},0.95)`;
+      ctx.beginPath(); ctx.ellipse(d.x, d.y, 4.5, 3.5, d.ph, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(150,110,90,0.6)'; ctx.lineWidth = 0.8;
+      for (let k = -1; k <= 1; k++) { ctx.beginPath(); ctx.moveTo(d.x + Math.cos(d.ph) * 3, d.y + Math.sin(d.ph) * 3); ctx.lineTo(d.x - Math.cos(d.ph + k * 0.6) * 4, d.y - Math.sin(d.ph + k * 0.6) * 3); ctx.stroke(); }
+      break;
+    case 'grave':
+      ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(d.x - 6, d.y - 1, 16, 5);
+      ctx.fillStyle = '#6a6870';
+      ctx.beginPath(); ctx.moveTo(d.x - 6, d.y); ctx.lineTo(d.x - 6, d.y - 14); ctx.arc(d.x, d.y - 14, 6, Math.PI, TAU); ctx.lineTo(d.x + 6, d.y); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#8a8890'; ctx.fillRect(d.x - 1, d.y - 16, 2, 8); ctx.fillRect(d.x - 3.5, d.y - 13, 7, 2);
+      break;
+    default: break;
+  }
+}
+
+/** Over everyone: tree crowns (see-through when you are under one), weather, the land's light. */
+export function drawOverworldAbove(ctx, time) {
+  const W = wildsState();
+  if (!W) return;
+  const p = world.player;
+
+  // Tall grass in front of whoever stands in it: waist-deep.
+  const front = (e) => { const S = sectorAt(e.x, e.y); if (S) for (const g of S.grass) g.drawFront(ctx, time, e); };
+  if (p && !p.dead) front(p);
+  for (const e of world.enemies) if (!e.dead && !e.z && inView(e.x, e.y, 20)) front(e);
+
+  // The places' roofs: they fade when you are behind them.
+  for (const P of W.places) {
+    if (!inView(P.x, P.y, P.r + 120)) continue;
+    for (const o of P.obs) if (o.kind === 'building' && inView(o.x + o.w / 2, o.y + o.h / 2, Math.max(o.w, o.h))) drawRoof(ctx, o, p);
+  }
+  for (const P of W.places) {
+    if (P.kind === 'lair' && p && p.y < P.gy - 150 && inView(P.gx, P.gy - 150, 420)) {
+      // Behind a lair: its front over you, see-through where you stand.
+      ctx.globalAlpha = Math.abs(p.x - P.gx) < P.front.w / 2 + 20 && p.y > P.gy - 150 - P.front.H - 60 ? 0.35 : 1;
+      drawLairFront(ctx, P, time);
+      ctx.globalAlpha = 1;
+    }
+  }
+  // Cloud Summit's gates: their beams over everyone, so you walk under them.
+  for (const g of W.gates) if (inView(g.x, g.y - 60, g.half + 120)) drawToriiBeams(ctx, g, time);
+  // Champions wear their names.
+  ctx.textAlign = 'center';
+  ctx.font = '800 12px system-ui';
+  for (const e of world.enemies) {
+    if (!e.champion || e.mini || e.dead || !inView(e.x, e.y, 60)) continue;
+    const y = (e.figTop ?? e.y - e.r) - 22;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(e.champion, e.x + 1, y + 1);
+    ctx.fillStyle = '#ffb35e'; ctx.fillText(e.champion, e.x, y);
+    const k = Math.max(0, e.hp / e.maxHp);
+    ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(e.x - 40, y + 5, 80, 5);
+    ctx.fillStyle = '#ff6a4a'; ctx.fillRect(e.x - 40, y + 5, 80 * k, 5);
+  }
+
+  const secs = sectorsIn(camera.x - 120, camera.y - 120, camera.x + view.w + 120, camera.y + view.h + 120);
+  for (const S of secs) {
+    for (const t of S.trees) {
+      if (!inView(t.x, t.y, 100)) continue;
+      const under = p && dist(p.x, p.y, t.x, t.y - 10) < t.r;
+      ctx.globalAlpha = under ? 0.35 : 1;
+      const sway = Math.sin(time * 0.9 + t.sway) * 2;
+      switch (t.kind) {
+        case 'pine': drawPine(ctx, t, sway); break;
+        case 'dead': drawDead(ctx, t, sway); break;
+        case 'cypress': drawCypress(ctx, t, sway); break;
+        case 'palm': drawPalm(ctx, t, sway, time); break;
+        case 'blossom': drawBroad(ctx, t, sway, [214, 120, 160], 1, [246, 176, 204]); break;
+        case 'sakura': drawSakura(ctx, t, sway, time); break;
+        case 'dark': drawBroad(ctx, t, sway, [18, 34, 26], 0.9); break;
+        default: drawBroad(ctx, t, sway, null, 1);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // Weather.
+  for (const l of W.leaves) {
+    const a = Math.min(1, (l.life - l.t), l.t * 2);
+    switch (l.kind) {
+      case 'snow': case 'motes':
+        ctx.globalAlpha = a * (l.kind === 'motes' ? 0.7 : 0.85);
+        ctx.fillStyle = l.kind === 'motes' ? '#d8ffb0' : '#f4f8ff';
+        ctx.beginPath(); ctx.arc(l.x, l.y, l.s, 0, TAU); ctx.fill();
+        break;
+      case 'ash':
+        ctx.globalAlpha = a * 0.8;
+        ctx.fillStyle = l.ember ? '#ff8a3a' : '#8a8484';
+        ctx.fillRect(l.x, l.y, l.s * 1.4, l.s);
+        break;
+      case 'dust':
+        ctx.globalAlpha = a * 0.35;
+        ctx.fillStyle = '#d8c090';
+        ctx.fillRect(l.x, l.y, l.s * 6, l.s);
+        break;
+      case 'mist': case 'cloud': {
+        ctx.globalAlpha = a * (l.kind === 'cloud' ? 0.14 : 0.1);
+        ctx.fillStyle = l.kind === 'cloud' ? '#ffffff' : '#c8d8d0';
+        ctx.beginPath(); ctx.ellipse(l.x, l.y, l.s, l.s * 0.45, 0, 0, TAU); ctx.fill();
+        break;
+      }
+      case 'wind':
+        ctx.globalAlpha = a * 0.18;
+        ctx.strokeStyle = '#e8e4f4'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(l.x + l.s, l.y + Math.sin(l.t * 3) * 2); ctx.stroke();
+        break;
+      case 'sakura': drawPetal(ctx, l, a); break;
+      default:
+        ctx.globalAlpha = a * 0.8;
+        ctx.fillStyle = l.c;
+        ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.rot);
+        ctx.fillRect(-3, -1.5, 6, 3);
+        ctx.restore();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // The land's light over everything (not the HUD).
+  const [gr, gg, gb, ga] = W.grade;
+  ctx.fillStyle = `rgba(${gr | 0},${gg | 0},${gb | 0},${ga.toFixed(3)})`;
+  ctx.fillRect(camera.x - 20, camera.y - 20, view.w + 40, view.h + 40);
+}
+
+function drawBroad(ctx, t, sway, tint, k, top = null) {
+  const base = 40 + t.shade;
+  const [r, g, b] = tint || [base - 14, base + 26, base - 6];
+  ctx.fillStyle = `rgb(${r * k | 0},${g * k | 0},${b * k | 0})`;
+  ctx.beginPath(); ctx.arc(t.x + sway, t.y - 16, t.r, 0, TAU); ctx.fill();
+  ctx.fillStyle = top ? `rgb(${top[0]},${top[1]},${top[2]})` : tint ? `rgb(${r + 10},${g + 16},${b + 10})` : `rgb(${base - 4},${base + 42},${base + 4})`;
+  ctx.beginPath(); ctx.arc(t.x - t.r * 0.25 + sway, t.y - 22 - t.r * 0.2, t.r * 0.65, 0, TAU); ctx.fill();
+  ctx.fillStyle = tint ? 'rgba(120,160,120,0.12)' : 'rgba(160,200,120,0.18)';
+  ctx.beginPath(); ctx.arc(t.x - t.r * 0.35 + sway, t.y - 28 - t.r * 0.3, t.r * 0.3, 0, TAU); ctx.fill();
+}
+
+/** A snow pine: three tiers of dark needles, snow on their shoulders when it lies. */
+function drawPine(ctx, t, sway) {
+  for (let k = 0; k < 3; k++) {
+    const w = t.r * (0.95 - k * 0.24), base = t.y - 4 - k * t.r * 0.42, top = base - t.r * 0.85;
+    const x = t.x + sway * (0.5 + k * 0.3);
+    ctx.fillStyle = k === 0 ? '#1f3530' : k === 1 ? '#264038' : '#2d4a40';
+    ctx.beginPath(); ctx.moveTo(x - w, base); ctx.lineTo(x + w, base); ctx.lineTo(x, top); ctx.closePath(); ctx.fill();
+    if (!t.snowy) continue;
+    ctx.fillStyle = 'rgba(234,240,248,0.92)';
+    ctx.beginPath();
+    ctx.moveTo(x - w * 0.55, base - t.r * 0.3); ctx.lineTo(x, top);
+    ctx.lineTo(x + w * 0.3, base - t.r * 0.42); ctx.lineTo(x + w * 0.05, base - t.r * 0.33);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+/** A dead tree: a bare trunk and crooked branches. */
+function drawDead(ctx, t, sway) {
+  const x = t.x, y = t.y - 8, h = t.r * 1.5;
+  ctx.strokeStyle = '#3e3630'; ctx.lineCap = 'round';
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + sway, y - h); ctx.stroke();
+  ctx.lineWidth = 3.5;
+  for (let k = 0; k < 4; k++) {
+    const by = y - h * (0.45 + k * 0.14), side = k % 2 ? 1 : -1;
+    const len = t.r * (0.7 - k * 0.1);
+    ctx.beginPath(); ctx.moveTo(x + sway * 0.6, by);
+    ctx.lineTo(x + side * len + sway, by - len * 0.5); ctx.lineTo(x + side * len * 1.3 + sway, by - len * 0.9); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+}
+
+/** A palm: a leaning, curving trunk and a crown of fronds that stir in the wind. */
+function drawPalm(ctx, t, sway, time) {
+  const lean = (t.shade / 8) * 0.35;
+  const h = t.r * 1.9;
+  const tx = t.x + lean * h + sway * 1.5, ty = t.y - h;
+  ctx.strokeStyle = '#8a6a44'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(t.x, t.y - 4); ctx.quadraticCurveTo(t.x + lean * h * 0.2, t.y - h * 0.6, tx, ty); ctx.stroke();
+  ctx.strokeStyle = 'rgba(60,44,28,0.5)'; ctx.lineWidth = 7;
+  for (let k = 1; k < 6; k++) {
+    const f = k / 6, bx = t.x + (tx - t.x) * f, by = t.y - 4 + (ty - t.y + 4) * f;
+    ctx.beginPath(); ctx.moveTo(bx - 3.5, by); ctx.lineTo(bx + 3.5, by); ctx.stroke();
+  }
+  ctx.lineWidth = 5;
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * TAU + t.sway + Math.sin(time * 1.3 + k) * 0.08;
+    const len = t.r * (0.9 + (k % 2) * 0.25);
+    const ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.55 + len * 0.25;
+    ctx.strokeStyle = k % 2 ? '#3f7a3a' : '#4f8e44';
+    ctx.beginPath(); ctx.moveTo(tx, ty); ctx.quadraticCurveTo((tx + ex) / 2, ty - len * 0.25, ex, ey); ctx.stroke();
+  }
+  ctx.lineCap = 'butt';
+}
+
+/** A garden cypress: a tall dark flame of a tree. */
+function drawCypress(ctx, t, sway) {
+  const x = t.x + sway * 0.6, y = t.y - 6, h = t.r * 2.2, w = t.r * 0.42;
+  ctx.fillStyle = '#1e3a2c';
+  ctx.beginPath(); ctx.ellipse(x, y - h / 2, w, h / 2, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#2c5038';
+  ctx.beginPath(); ctx.ellipse(x - w * 0.3, y - h * 0.55, w * 0.5, h * 0.38, 0, 0, TAU); ctx.fill();
+}

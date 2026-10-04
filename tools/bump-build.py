@@ -17,7 +17,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every folder that carries its own build number, and the file it lives in.
-GAMES = [('v5', 'Version 5'), ('savi', 'Savi'), ('anime', 'Anime')]
+GAMES = [('v5', 'Version 5'), ('savi', 'Savi'), ('anime', 'Anime'), ('v7', 'Campaign')]
 HOOK = os.path.join(ROOT, '.git', 'hooks', 'pre-commit')
 
 
@@ -55,6 +55,9 @@ CHECKS = {
     # Anime's read the SOURCE as well as running it: a second projection, an
     # off-key colour and a mirrored sprite are all invisible in a render.
     'anime': ('check-view.mjs', 'check-palette.mjs', 'check-girl.mjs'),
+    # A new folder that quietly shares another's cache prefix or save key
+    # is invisible until two versions start deleting each other's data.
+    'v7': ('check-version.mjs',),
 }
 
 
