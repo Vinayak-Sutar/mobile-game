@@ -13,18 +13,19 @@
 //     say   your line on the button
 //     to    the line it leads to ('leave' ends the talk)
 //     does  a word the game acts on (game.js): 'gift', 'markDungeon', 'rest'
-//     once  this choice is gone once it has been taken
+//     once  this choice is gone once it has been taken (a flag name)
 //     needs a flag that must already be set for the choice to show
+//
+// `once` and `needs` name flags in ONE global namespace, not a private map
+// per character. That matters: it is what lets one person react to something
+// somebody else told you, which the old per-NPC store made impossible.
 //
 // Nothing here knows how it is drawn or what a Cinder is: game.js reads `does`
 // and the panel, and dialogue state (what you have been told, what you have
 // been given) lives in the save so it is remembered.
 
-/** Everything said so far: { [npcId]: { met: true, taken: { choiceId: true } } } */
-export function talkState(save) {
-  if (!save.talks) save.talks = {};
-  return save.talks;
-}
+// Dialogue state lives in save.js under `progress` - see talkState there.
+// It is { missions, flags, met }; this file only touches `flags` and `met`.
 
 export const NPCS = [
   {
@@ -111,16 +112,15 @@ export const npcById = (id) => NPCS.find((n) => n.id === id) || null;
 
 /** The line to open with: people remember whether they have met you. */
 export function openingLine(npc, state) {
-  const s = state[npc.id];
-  return s && s.met && npc.lines.again ? 'again' : npc.start;
+  return state.met[npc.id] && npc.lines.again ? 'again' : npc.start;
 }
 
 /** One line, with a greeting picked if there are several, and the choices that apply. */
 export function lineOf(npc, id, state) {
   const line = npc.lines[id];
   if (!line) return null;
-  const taken = (state[npc.id] && state[npc.id].taken) || {};
+  const f = state.flags;
   const text = Array.isArray(line.text) ? line.text[Math.floor(Math.random() * line.text.length)] : line.text;
-  const choices = (line.choices || []).filter((c) => (!c.once || !taken[c.once]) && (!c.needs || taken[c.needs]));
+  const choices = (line.choices || []).filter((c) => (!c.once || !f[c.once]) && (!c.needs || f[c.needs]));
   return { ...line, text, choices };
 }

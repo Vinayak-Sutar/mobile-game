@@ -36,6 +36,7 @@ import { inGate } from './wilds-lairs.js';
 import { planShrine, newPetal, stepPetal } from './wilds-sakura.js';
 import { BOSS_INFO } from './bosses.js';
 import { packBits, unpackBits } from './wilds-save.js';
+import { missionDone, markMission } from './save.js';
 
 export { WILDS };
 export const FOG = 100;                  // fog-of-war cell
@@ -875,6 +876,16 @@ export const litLamps = () => (W ? W.lamps.filter((l) => l.lit) : []);
 export const allLamps = () => (W ? W.lamps : []);
 
 /** Rest here: it becomes where you wake. */
+/**
+ * Where you are checkpointed. THE one answer.
+ *
+ * game.js used to keep its own copy as `journey.lastLampId`, written by hand
+ * in four places and read in two. Every one of those writes was redundant -
+ * kindling, resting, travelling and restoring all set W.lastLamp themselves -
+ * so the copy could only ever drift, never lead.
+ */
+export const lastLampId = () => (W ? W.lastLamp : null);
+
 export function setLastLamp(id) {
   if (!W) return;
   const l = lampById(id);
@@ -927,7 +938,9 @@ export function worldSnapshot() {
     fog: packBits(W.fog),
     visited: [...W.visited],
     claimed: W.sites.filter((s) => s.claimed).map((s) => s.id),
-    lairs: lairs().filter((P) => P.beaten).map((P) => P.id),
+    // Lairs are NOT here any more. A lair boss is a mission, and there is one
+    // place that answers "has this been done" (save.js, progress.missions).
+    // What stays is world state that genuinely resets: lamps, fog, loot.
   };
 }
 
@@ -941,6 +954,7 @@ export function markLairBeaten(id) {
   const P = lairById(id);
   if (!P) return null;
   P.beaten = true;
+  markMission(id, { done: true });
   const l = P.lamp && lampById(P.lamp);
   if (l) l.lit = true;
   openFor(P.id);
@@ -997,8 +1011,13 @@ export function restoreWorld(snap) {
   for (const id of snap.visited || []) W.visited.add(id);
   const claimed = new Set(snap.claimed || []);
   for (const s of W.sites) { s.claimed = claimed.has(s.id); if (s.claimed) s.seen = true; }
-  const beaten = new Set(snap.lairs || []);
-  for (const P of lairs()) { P.beaten = beaten.has(P.id); if (P.beaten) { P.seen = true; openFor(P.id); } }
+  // Old journeys carried their lair kills in the snapshot; fold them forward
+  // once, then read from the one place from here on.
+  for (const id of snap.lairs || []) markMission(id, { done: true });
+  for (const P of lairs()) {
+    P.beaten = missionDone(P.id);
+    if (P.beaten) { P.seen = true; openFor(P.id); }
+  }
   syncSockets();
   W.repaint = { row: 0 };
 }

@@ -15,7 +15,7 @@ import { world, view } from './state.js';
 import { TAU, clamp, roundRect } from './util.js';
 import { input } from './input.js';
 import { REGIONS, DUNGEONS } from './wilds-layout.js';
-import { save } from './save.js';
+import { save, missionDone } from './save.js';
 import { wildsState, WILDS, FOG, chartOverview, chartProgress } from './wilds-world.js';
 import { journey } from './wilds-progress.js';
 
@@ -36,7 +36,7 @@ function dungeonIcon(ctx, x, y, cleared, r) {
   for (let k = 0; k < 3; k++) ctx.fillRect(x - r * 0.6 + k * r * 0.15, y - r * 0.3 + k * r * 0.35, r * 1.2 - k * r * 0.3, r * 0.22);
   if (cleared) { ctx.strokeStyle = '#9fe0a0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - r * 0.6, y); ctx.lineTo(x - r * 0.1, y + r * 0.5); ctx.lineTo(x + r * 0.8, y - r * 0.6); ctx.stroke(); }
 }
-const dungeonDone = (d) => !!(save.dungeonsCleared || {})[d.id];
+const dungeonDone = (d) => missionDone(d.id);
 
 /** A place on a map: a little keep, red while its champion stands, green once it has fallen. */
 function placeIcon(ctx, x, y, won, r) {

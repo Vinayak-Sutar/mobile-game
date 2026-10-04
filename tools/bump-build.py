@@ -57,7 +57,7 @@ CHECKS = {
     'anime': ('check-view.mjs', 'check-palette.mjs', 'check-girl.mjs'),
     # A new folder that quietly shares another's cache prefix or save key
     # is invisible until two versions start deleting each other's data.
-    'v7': ('check-version.mjs',),
+    'v7': ('check-version.mjs', 'check-progress.mjs'),
 }
 
 

@@ -4,7 +4,7 @@
 import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn,
-  overworldProgress, bindOverworldSpawner, arriveAt, setMapFog, lairById, markLairBeaten, remnantCount,
+  overworldProgress, bindOverworldSpawner, arriveAt, setMapFog, lairById, markLairBeaten, remnantCount, lastLampId,
   lampById, litLamps, setLastLamp, worldSnapshot, restoreWorld, resetWildsSites, sitesProgress,
 } from './wilds-world.js';
 import { siteFx } from './wilds-sites.js';
@@ -23,7 +23,7 @@ import { WESTERN_THEME } from './music-western.js';
 import { drawOverworldBelow, drawOverworldAbove } from './wilds-draw.js';
 import { enterDungeon, updateDungeon, leaveDungeon, dungeonWake, dungeonState } from './dungeon.js';
 import { DUNGEON_LIST, dungeonInfo } from './dungeon-levels.js';
-import { npcById, openingLine, lineOf, talkState } from './dialogue.js';
+import { npcById, openingLine, lineOf } from './dialogue.js';
 import { startCinema, updateCinema, drawCinema, skipCinema } from './cinema.js';
 import { openingFilm } from './cinema-opening.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
@@ -75,6 +75,7 @@ import {
 } from './spells.js';
 import {
   save, loadSave, writeSave, UPGRADES, upgradeCost, canAfford, buyUpgrade, metaBonuses, bankRun, goldMultiplier,
+  talkState, missionDone, clearMission, flag, setFlag, markMet,
 } from './save.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
@@ -398,7 +399,7 @@ function wakeAtLamp(x, y) {
   clearBullets();
   arriveAt(p.x, p.y);
   snapCamera();
-  const lamp = lampById(journey.lastLampId) || null;
+  const lamp = lampById(lastLampId()) || null;
   showToast(`YOU WAKE${lamp ? ` AT ${lamp.name.toUpperCase()}` : ' AGAIN'}`,
     lost ? `Your ${lost} Cinders smoulder where you fell. Go back for them.` : 'You carried no Cinders', 4);
   state = 'playing';
@@ -521,7 +522,6 @@ function tick(dt) {
         const act = updateOverworld(dt);
         if (act && act.toast) showToast(act.toast[0], act.toast[1], 2.6);
         if (act && act.kindle) {
-          journey.lastLampId = act.kindle.id;
           showToast('ASHLAMP KINDLED', `${act.kindle.name}: stand still at it to rest`, 3);
           sfx.boon();
           saveWilds();
@@ -1787,7 +1787,9 @@ function startWilds(cont) {
   const saved = cont ? loadJourney() : null;
   if (!saved) {
     clearJourney(); resetJourney();
-    save.talks = {};            // a new journey: nobody out there has met you yet
+    // A new journey resets the WORLD - lamps, fog, loot. It no longer wipes
+    // who you have met or which missions you have run: a campaign is one
+    // continuous thing, and those live in save.progress now.
     writeSave();
   }
   else {
@@ -1818,13 +1820,12 @@ function startWilds(cont) {
   const room = enterOverworld(true);
   world.room = room;
   if (saved && saved.world) restoreWorld(saved.world);
-  journey.lastLampId = saved && saved.world ? saved.world.last : null;
   setMapFog(!!save.mapNoFog);
   const at = overworldRespawn();
   p.x = at.x; p.y = at.y;
   arriveAt(p.x, p.y);
   snapCamera();
-  const lamp = lampById(journey.lastLampId);
+  const lamp = lampById(lastLampId());
   if (saved) showToast(lamp ? `YOU WAKE AT ${lamp.name.toUpperCase()}` : 'YOUR JOURNEY GOES ON', `Level ${totalLevel()} \u00b7 ${world.gold} Cinders`, 3.4);
   else showToast('THE WILDS', 'Find an Ashlamp. Tab or tap the minimap for the map.', 4);
   state = 'playing';
@@ -1860,7 +1861,6 @@ function restAtLamp(lamp) {
   if (!p) return;
   restore(p);
   setLastLamp(lamp.id);
-  journey.lastLampId = lamp.id;
   resetWildsSites();                 // the land's enemies return, souls-style
   sfx.heal();
   saveWilds();
@@ -1975,7 +1975,6 @@ function travelTo(id) {
   snapCamera();
   restore(p);
   setLastLamp(l.id);
-  journey.lastLampId = l.id;
   resetWildsSites();
   saveWilds();
   wildsResume();
@@ -2091,7 +2090,7 @@ let talking = null;            // { id, at } while a conversation is open
 function showTalk(id, at = null) {
   const npc = npcById(id);
   if (!npc) return;
-  const st = talkState(save);
+  const st = talkState();
   const where = at || openingLine(npc, st);
   if (where === 'leave') { endTalk(); return; }
   const line = lineOf(npc, where, st);
@@ -2099,8 +2098,7 @@ function showTalk(id, at = null) {
   state = 'paused';              // the game's own state: the Wilds hold still
   talking = { id, at: where };
   // Met, and remembered.
-  st[id] = st[id] || { met: false, taken: {} };
-  st[id].met = true;
+  markMet(id);
   if (line.does) doTalkEffect(npc, line.does);
   writeSave();
   const choices = line.choices.map((c, i) => `
@@ -2146,34 +2144,31 @@ function frameTalk(dt) {
 
 /** What a choice does, when it does anything. */
 function doTalkEffect(npc, what) {
-  const st = talkState(save);
-  const me = st[npc.id] = st[npc.id] || { met: true, taken: {} };
+  void npc;                       // flags are global now; who said it is in `met`
   if (what === 'gift') {
     // (Its own flag: the CHOICE's `once` is also called 'gift', and it is set
     // before the line it leads to is shown - sharing the name paid nothing.)
-    if (me.taken.gaveCinders) return;
-    me.taken.gaveCinders = true;
+    if (flag('gaveCinders')) return;
+    setFlag('gaveCinders');
     world.gold += 150;
     showToast('RELL GIVES YOU CINDERS', '150 Cinders for the road', 3);
     sfx.coin();
   } else if (what === 'markDungeon') {
-    me.taken.markDungeon = true;
+    setFlag('markDungeon');
     showToast('THE SUNKEN CATACOMB', 'East of the Hearth - it is on your map', 3.4);
     sfx.ui();
   }
-  writeSave();
 }
 
 /** A choice taken: do what it does, then say the next line (or stop). */
 function talkSay(idx) {
   if (!talking) return;
   const npc = npcById(talking.id);
-  const st = talkState(save);
-  const line = lineOf(npc, talking.at, st);
+  const line = lineOf(npc, talking.at, talkState());
   const choice = line && line.choices[idx];
   if (!choice) { endTalk(); return; }
   if (choice.does) doTalkEffect(npc, choice.does);
-  if (choice.once) { const me = st[npc.id]; me.taken[choice.once] = true; writeSave(); }
+  if (choice.once) setFlag(choice.once);
   if (choice.to === 'leave') { endTalk(); return; }
   showTalk(talking.id, choice.to);
 }
@@ -2201,7 +2196,7 @@ function showDungeonGate(d) {
   state = 'paused';
   pendingDungeon = d;
   const info = dungeonInfo(d.id);
-  const done = (save.dungeonsCleared || {})[d.id];
+  const done = missionDone(d.id);
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">steps down into the dark${done ? ' · cleared before' : ''}</div>
@@ -2229,7 +2224,7 @@ let demoDungeon = 'catacomb';
 function showDungeonList() {
   const cards = DUNGEON_LIST.map((id, i) => {
     const info = dungeonInfo(id);
-    const done = (save.dungeonsCleared || {})[id];
+    const done = missionDone(id);
     return `
       <div class="card musiccard" data-act="d-pick" data-idx="${i}">
         <div class="name">${done ? '✓ ' : ''}${info.name}</div>
@@ -2275,7 +2270,7 @@ function exitDungeon(kind) {
   const from = D ? D.from : 'demo';
   const dName = D ? D.name : 'The dungeon', bossTitle = D ? D.boss.title : 'Its keeper';
   if (kind === 'cleared' && D) {
-    save.dungeonsCleared = { ...(save.dungeonsCleared || {}), [D.id]: true };
+    clearMission(D.id);
     writeSave();
   }
   world.dungeon = false;
