@@ -618,10 +618,10 @@ function tick(dt) {
 
 function render() {
   const s = view.dpr * view.scale;
-  // The player's look (wanderer.js): as chosen, or by default the Wanderer
-  // in The Wilds' 3/4 world and the Hooded One in the chambers.
-  const ch = save.character;
-  look.skin = ch === 'hooded' || ch === 'wanderer' ? ch : world.overworld || world.owBoss || world.dungeon ? 'wanderer' : 'hooded';
+  // One character. The Wanderer, everywhere, always - the chambers included.
+  // The outfits are the cosmetic layer this game is monetised on, and they
+  // are drawn on this figure, so there is no second look to maintain.
+  look.skin = 'wanderer';
   tuning.speed = save.moveSpeed ?? SPEED_DEFAULT;
   ctx.setTransform(s, 0, 0, s, 0, 0);
 
@@ -779,28 +779,14 @@ function fullscreenRow() {
   </button></div>`;
 }
 
-const CHARACTERS = [
-  ['auto', 'Auto', 'The Wanderer in The Wilds, the Hooded One in the chambers'],
-  ['hooded', 'Hooded One', 'Seen from above, turning with the aim'],
-  ['wanderer', 'Wanderer', 'Standing, in the 3/4 view of The Wilds: a straw hat and a scarf'],
-];
-
-/**
- * Who you play as. The same moves; only the look changes (wanderer.js).
- * Offered on the title and in every pause screen; `back` redraws the screen
- * it was picked on, so the choice shows at once.
- */
-let charBack = null;
-function characterRow(back = null) {
-  charBack = back;
-  const cur = save.character || 'auto';
-  return `
-    <div class="volrow">
-      <span class="vollabel">Character</span>
-      ${CHARACTERS.map(([id, name, tip]) => `
-        <button class="tgl ${cur === id ? 'on' : ''}" data-act="char" data-v="${id}" title="${tip}">${name}</button>`).join('')}
-    </div>`;
-}
+// There is no character row any more: there is one character. What was a
+// choice between two looks is now the wardrobe alone (wardrobeRow), which is
+// the thing the game will actually sell.
+//
+// Which screen the settings were opened from, so changing one comes straight
+// back to it rather than dumping you on the title. This used to live with the
+// character picker; the wardrobe and the speed slider need it just the same.
+let settingsBack = null;
 
 // Walking speed, adjustable while it is being tuned by feel (a tester found
 // the old pace "like sliding on ice"). 85% of the old speed by default.
@@ -841,8 +827,9 @@ function wardrobeRow() {
 }
 
 /** The player settings shown on the title and in every pause screen. */
-function playerRows(back) {
-  return characterRow(back) + wardrobeRow() + speedRow() + fpsRow();
+function playerRows(back = null) {
+  settingsBack = back;
+  return wardrobeRow() + speedRow() + fpsRow();
 }
 
 function musicVolumeRow() {
@@ -1144,9 +1131,7 @@ function wardFrame(now) {
   c.beginPath(); c.ellipse(W / 2, H * 0.74, W * 0.32, H * 0.07, 0, 0, Math.PI * 2); c.fill();
   const Z = Math.min(W, H) / 70;
   c.setTransform(dpr * Z, 0, 0, dpr * Z, dpr * (W / 2 - p.x * Z), dpr * (H * 0.66 - p.y * Z));
-  const was = look.skin;
-  look.skin = 'wanderer';
-  try { drawPlayer(p, c); } finally { look.skin = was; }
+  drawPlayer(p, c);
 }
 
 function closeWardrobe() {
@@ -2982,7 +2967,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'opening': playOpening(showTitle); break;
     case 'opening-here': playOpening(() => showWildsIntro()); break;
     case 'music-room': showMusicRoom(); break;
-    case 'wardrobe': showWardrobe(charBack || showTitle); break;
+    case 'wardrobe': showWardrobe(settingsBack || showTitle); break;
     case 'w-tab': ward.tab = el.dataset.v; wardRefresh(); break;
     case 'w-piece': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
     case 'w-dye': wardSet({ [el.dataset.slot]: el.dataset.v }); break;
@@ -3032,7 +3017,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       const next = act === 'spd-def' ? SPEED_DEFAULT : cur + (act === 'spd-up' ? SPEED_STEP : -SPEED_STEP);
       save.moveSpeed = Math.round(clamp(next, SPEED_MIN, SPEED_MAX) * 100) / 100;
       writeSave();
-      (charBack || showTitle)();
+      (settingsBack || showTitle)();
       break;
     }
     case 'fps':
@@ -3042,13 +3027,6 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       el.textContent = save.showFps ? 'On' : 'Off';
       break;
     case 'w-ghost': setGhost(!wildsGhost); showWildsPause(); break;
-    case 'char': {
-      save.character = el.dataset.v;
-      writeSave();
-      // Redraw whichever screen the choice was made on.
-      (charBack || showTitle)();
-      break;
-    }
     case 'w-start':
     case 'w-new': if (loadJourney()) showWildsIntro(true); else { phoneFullscreen(); playOpening(() => startWilds(false)); } break;
     case 'w-new-yes': phoneFullscreen(); playOpening(() => startWilds(false)); break;

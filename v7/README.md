@@ -26,6 +26,27 @@ importing `NAME`.
 
 "Ashfall" is a working title.
 
+## One character
+
+v5 had two looks and let the player choose between them: the **Hooded One**,
+seen from straight above and turning with the aim, and the **Wanderer**,
+standing in a 3/4 view. This version has one: **the Wanderer, everywhere,
+chambers included.** The character picker is gone from settings.
+
+That is not a cosmetic tidy-up. The outfits are what this game is monetised
+on, they are drawn on the Wanderer's eleven layered slots (`outfits.js`), and
+keeping a second look in step with every outfit that will ever be sold is work
+nobody would ever see the benefit of.
+
+It also changes how the whole game looks, because `figures.js` only draws the
+enemies as standing figures when the Wanderer's look is on. One switch, and
+the chambers are populated by little people rather than top-down shapes.
+
+`drawPlayer`'s hooded branch (`player.js:654`) and `drawPlayerRig` are now
+unreachable. They are left in place rather than deleted: this folder is about
+to be restructured heavily and removing things is cheaper once the shape has
+settled.
+
 ## Why this folder has a checker
 
 A new version is a copy with **nine identifiers changed across seven files** —

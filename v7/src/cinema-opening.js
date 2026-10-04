@@ -15,7 +15,7 @@ import { NAME } from './name.js';
 import { createPlayer, drawPlayer } from './player.js';
 import { updatePlayerAnim } from './rigs.js';
 import { WEAPONS } from './weapons.js';
-import { look, prepareWanderer } from './wanderer.js';
+import { prepareWanderer } from './wanderer.js';
 import { sfx, setAmbientTheme, setMusicIntensity } from './audio.js';
 import { OPENING_MUSIC } from './music-regions.js';
 import { FILM } from './cinema.js';
@@ -448,13 +448,11 @@ function settleHero(o) {
 }
 
 function drawHero(ctx, p, x, y, s) {
-  const was = look.skin;
-  look.skin = 'wanderer';
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(s, s);
   ctx.translate(-p.x, -p.y);
-  try { drawPlayer(p, ctx); } finally { ctx.restore(); look.skin = was; }
+  try { drawPlayer(p, ctx); } finally { ctx.restore(); }
 }
 
 // --- the film ---------------------------------------------------------------

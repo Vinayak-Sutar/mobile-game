@@ -26,8 +26,20 @@ import { boneAt } from './anim.js';
 import { PLAYER_SKELETON } from './rigs.js';
 import { OUT, resolveOutfit } from './outfits.js';
 
-/** Which look is drawn: 'hooded' | 'wanderer' (set by game.js). */
-export const look = { skin: 'hooded' };
+/**
+ * Which look is drawn.
+ *
+ * Version 5 offered two - the Hooded One seen from straight above, and the
+ * Wanderer standing in a 3/4 view - and let the player choose. This version
+ * has ONE character: the Wanderer. Every outfit, every animation and every
+ * cosmetic that will ever be sold hangs off this figure, so there is no
+ * second look to keep in step with it.
+ *
+ * It stays an object rather than a constant because the opening film and the
+ * wardrobe preview both draw the player outside a run, and because figures.js
+ * and wilds-folk.js read it to decide whether to draw standing figures at all.
+ */
+export const look = { skin: 'wanderer' };
 
 // How far above the ground the hands are: the weapons are drawn this high.
 export const WANDERER_LIFT = 14;
