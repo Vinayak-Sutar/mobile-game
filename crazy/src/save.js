@@ -21,7 +21,7 @@ const DEFAULTS = {
   musicLead: {},
   outfit: null,
   // ONE answer to "has the player done this". See the note above `progress`.
-  progress: { missions: {}, flags: {}, met: {}, levels: {}, bossOrder: null },
+  progress: { missions: {}, flags: {}, met: {} },
   biome: 'ember',
   moveSpeed: 0.85,       // walking speed multiplier (settings); 1 was the old default
   tutorialSeen: false,   // the tutorial is offered once, before the first run
@@ -81,54 +81,7 @@ function prog() {
   if (!p.missions) p.missions = {};
   if (!p.flags) p.flags = {};
   if (!p.met) p.met = {};
-  if (!p.levels) p.levels = {};
   return p;
-}
-
-// --- the level ladder -------------------------------------------------------
-
-/** What has been earned on a level: 0 to 3 stars, and the best time. */
-export function levelRecord(id) { return prog().levels[id] || { stars: 0, bestMs: 0 }; }
-
-/** Keep the BEST result, never the latest - a bad replay must not undo a
- *  three-star clear, or nobody would ever risk replaying anything. */
-export function recordLevel(id, { stars, ms }) {
-  const was = levelRecord(id);
-  prog().levels[id] = {
-    stars: Math.max(was.stars, stars),
-    bestMs: was.bestMs && ms ? Math.min(was.bestMs, ms) : (ms || was.bestMs),
-  };
-  writeSave();
-}
-
-/** The highest level reached: everything up to it is open. */
-export function levelsCleared() {
-  return Object.keys(prog().levels).filter((id) => prog().levels[id].stars > 0).length;
-}
-
-export function totalStars() {
-  return Object.values(prog().levels).reduce((n, r) => n + (r.stars || 0), 0);
-}
-
-/**
- * Which four guardians this save fights, shuffled once and kept.
- *
- * Per save rather than per level, so a player's own game stays consistent -
- * but two players comparing notes find different bosses, which costs nothing
- * and is worth a surprising amount of talk.
- */
-export function bossOrder(pool) {
-  const p = prog();
-  if (!p.bossOrder || !p.bossOrder.length) {
-    const a = [...pool];
-    for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [a[i], a[j]] = [a[j], a[i]];
-    }
-    p.bossOrder = a;
-    writeSave();
-  }
-  return p.bossOrder;
 }
 
 /** Has this mission ever been completed? */

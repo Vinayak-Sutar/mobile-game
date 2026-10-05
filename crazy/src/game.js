@@ -76,11 +76,7 @@ import {
 import {
   save, loadSave, writeSave, UPGRADES, upgradeCost, canAfford, buyUpgrade, metaBonuses, bankRun, goldMultiplier,
   talkState, missionDone, clearMission, flag, setFlag, markMet,
-  levelRecord, recordLevel, levelsCleared, totalStars, bossOrder,
 } from './save.js';
-import {
-  LEVELS, LEVEL_COUNT, CHAPTER_LEN, levelById, chapterOf, bossFor, starsFor,
-} from './levels.js';
 import { initPortal, gameplayStart, gameplayStop } from './portal.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
@@ -270,28 +266,16 @@ function startTrial(weapon, bossType) {
   showToast('BOSS TRIAL', BOSS_INFO[bossType].animal);
 }
 
-// --- the level ladder -------------------------------------------------------
-//
-// A level is one to three chambers, or one guardian. It reuses the chamber
-// run's generator wholesale: `power` is fed in as an effective depth, so the
-// waves, the budgets and the enemy scaling are the ones already balanced -
-// nothing here invents a difficulty curve.
-//
-// Losing costs you the level and nothing else. That is deliberate: the
-// platform's conversion metric is the share of players still there after one
-// minute, and a game that takes your progress in the first minute does not
-// keep them.
-
-/** Live state for the level being played. Null outside one. */
-let lv = null;
-
 /**
- * Boons, carried from one level to the next within a chapter.
+ * The build, snapshotted and replayed.
  *
  * Stored as the id-to-level map the boon system already keeps and replayed
  * through applyBoon, rather than by copying stats across. Replaying is the
  * only way that stays correct when a boon's numbers are tuned later: a saved
  * stat block would quietly preserve the old balance forever.
+ *
+ * This is what an act's entryBuild will be made of - the build you walked
+ * into the act with, which is what a death inside it costs you back to.
  */
 function snapshotBoons(p) {
   return p ? { boons: { ...p.boons }, order: [...p.boonOrder] } : null;
@@ -305,139 +289,6 @@ function restoreBoons(p, snap) {
     for (let i = 0; i < (snap.boons[id] || 0); i++) applyBoon(p, b);
   }
   p.hp = p.stats.maxHp;
-}
-
-/** The generator reads difficulty as a depth; the levels speak in `power`. */
-const depthForPower = (power) => Math.max(1, 1 + (power - 1) * 4);
-
-function startLevel(id, keepBoons = null) {
-  const def = levelById(id);
-  if (!def) return;
-  resetWorld();
-  clearFx();
-  resetUi();
-  resetInput();
-
-  world.biome = getBiome(save.biome);
-  initAmbient(world.biome);
-  world.arcade = true;
-  world.player = createPlayer(pendingWeapon || WEAPONS[0], metaBonuses());
-  if (keepBoons) restoreBoons(world.player, keepBoons);
-
-  lv = { def, chamber: 0, t: 0, hit: false, boons: keepBoons };
-  world.depth = Math.round(depthForPower(def.power));
-  enterLevelChamber();
-  showToast(`${def.id}. ${def.name.toUpperCase()}`,
-    def.boss !== null ? 'A guardian bars the way' : `${def.chambers} room${def.chambers > 1 ? 's' : ''}`);
-}
-
-function enterLevelChamber() {
-  clearEntities();
-  clearFx();
-  const def = lv.def;
-  let room;
-  if (def.boss !== null) {
-    const type = bossFor(def, bossOrder(BOSS_POOL));
-    const tier = Math.min(3, (def.id / CHAPTER_LEN - 1) * 0.9);
-    room = generateRoom(world.depth, 0, { bossType: type, slot: 1, tier });
-  } else {
-    room = generateRoom(world.depth, 0);
-  }
-  // A level says when it is over, not a door: the doors are suppressed and
-  // the chamber count drives it.
-  room.final = false;
-  world.levelLabel = lv.def.boss !== null
-    ? `${lv.def.id}. ${lv.def.name.toUpperCase()}`
-    : `${lv.def.id}. ${lv.def.name.toUpperCase()}  ·  ROOM ${lv.chamber + 1} / ${lv.def.chambers}`;
-  startRoom(room);
-  state = 'playing';
-  hideOverlay();
-  gameplayStart();
-}
-
-/** A chamber fell: the next one, or the level is won. */
-function levelChamberCleared() {
-  lv.chamber++;
-  if (lv.chamber >= (lv.def.boss !== null ? 1 : lv.def.chambers)) { finishLevel(true); return; }
-  enterLevelChamber();
-  showToast(`ROOM ${lv.chamber + 1} OF ${lv.def.chambers}`, '');
-}
-
-function finishLevel(won) {
-  gameplayStop();
-  const def = lv.def;
-  const seconds = lv.t;
-  const stars = starsFor(def, { won, hit: lv.hit, seconds });
-  if (won) {
-    recordLevel(def.id, { stars, ms: Math.round(seconds * 1000) });
-    state = 'victory';
-    flash(0.3, '#ffd9a0');
-    showLevelEnd(stars, seconds);
-  } else {
-    state = 'dead';
-    showLevelEnd(0, seconds);
-  }
-}
-
-function retryLevel() {
-  if (!lv) return;
-  startLevel(lv.def.id, lv.boons);
-}
-
-function nextLevel() {
-  if (!lv) return;
-  const id = lv.def.id + 1;
-  if (id > LEVEL_COUNT) { showLevels(); return; }
-  // Boons carry through a chapter and reset at the next, so each chapter has
-  // its own arc and the power curve cannot run away from the content.
-  const keep = chapterOf(id) === chapterOf(lv.def.id) ? snapshotBoons(world.player) : null;
-  startLevel(id, keep);
-}
-
-/** The ladder. Everything up to the furthest cleared level is open. */
-function showLevels() {
-  gameplayStop();
-  lv = null;
-  world.arcade = false;
-  state = 'levels';
-  const open = levelsCleared() + 1;
-  const cards = LEVELS.map((d) => {
-    const r = levelRecord(d.id);
-    const locked = d.id > open;
-    const pips = [0, 1, 2].map((i) => `<i class="${i < r.stars ? 'on' : ''}"></i>`).join('');
-    return `<button class="lvl${locked ? ' locked' : ''}${d.boss !== null ? ' boss' : ''}"
-      ${locked ? 'disabled' : `data-act="level" data-v="${d.id}"`}>
-      <b>${d.id}</b><span>${locked ? '???' : d.name}</span>
-      <em>${locked ? '' : pips}</em></button>`;
-  }).join('');
-  showOverlay(`
-    <div class="panel wide">
-      <h1>${NAME}</h1>
-      <p class="sub">${totalStars()} of ${LEVEL_COUNT * 3} stars</p>
-      <div class="levels">${cards}</div>
-      <div class="row">${versionRow()}</div>
-    </div>`);
-}
-
-/** What a level was worth, and the one button that matters: the next one. */
-function showLevelEnd(stars, seconds) {
-  const def = lv.def;
-  const won = stars > 0;
-  const pips = [0, 1, 2].map((i) => `<i class="${i < stars ? 'on' : ''}"></i>`).join('');
-  const last = def.id >= LEVEL_COUNT;
-  showOverlay(`
-    <div class="panel">
-      <h1>${won ? (last ? 'That is all of them' : def.name) : 'You fell'}</h1>
-      ${won ? `<div class="stars big">${pips}</div>` : ''}
-      <p class="sub">${won
-        ? `${seconds.toFixed(1)}s${seconds <= def.par ? '' : ` · par ${def.par}s`}${lv.hit ? '' : ' · untouched'}`
-        : 'Nothing is lost but the room.'}</p>
-      <div class="row">
-        ${won && !last ? '<button class="big" data-act="lv-next">Next level</button>' : ''}
-        <button class="${won ? '' : 'big'}" data-act="lv-retry">${won ? 'Again' : 'Try again'}</button>
-        <button data-act="lv-list">All levels</button>
-      </div>
-    </div>`);
 }
 
 function advanceRoom() {
@@ -532,8 +383,6 @@ function revivePlayer() {
 }
 
 function onDeath() {
-  // A level costs you the level and nothing else.
-  if (world.arcade && lv) { finishLevel(false); return; }
   if (world.dungeon) {
     // Fallen in a dungeon with no life to spare: back at its last lamp, the dead risen with you.
     dungeonWake();
@@ -610,6 +459,18 @@ function frame(now) {
   if (view.cw !== window.innerWidth || view.ch !== window.innerHeight) resize();
 
   pollGamepad(overlayVisible());
+
+  // THE PLAY CLOCK, reported from the one place that cannot drift.
+  //
+  // The platform ranks the game on how long a session actually lasts, and both
+  // calls are idempotent, so deriving them from `state` here costs one compare
+  // a frame and is right by construction. The alternative - a gameplayStart by
+  // every place a run begins and a gameplayStop by every way one can end - is
+  // what the ladder did, and it left the clock running over its results screen.
+  // Menu time counted as play time would flatter our number against other
+  // games' real ones, which is the one way to lose a ranking by cheating at it.
+  if (state === 'playing' && !overlayVisible()) gameplayStart();
+  else gameplayStop();
 
   let dt = (now - last) / 1000;
   last = now;
@@ -744,24 +605,8 @@ function tick(dt) {
       // before its music takes over, so walking along a border never flickers.
       setAmbientTheme(placeTheme(dt));
 
-      // A level runs on its chamber count, not on doors. The short delay
-      // lets the last kill land before the screen changes - cutting away on
-      // the same frame as the killing blow feels like a bug.
-      if (world.arcade && lv) {
-        lv.t += dt;
-        const p2 = world.player;
-        if (lv.lastHp === undefined) lv.lastHp = p2.hp;
-        if (p2.hp < lv.lastHp) lv.hit = true;
-        lv.lastHp = p2.hp;
-        if (world.room && world.room.cleared) {
-          lv.clearT = (lv.clearT || 0) + dt;
-          if (lv.clearT > 0.7) { lv.clearT = 0; levelChamberCleared(); }
-        }
-      }
-
       const room = world.room;
       if (room && room.chosen && world.owBoss) room.chosen = null;   // no doors out of a gate fight
-      if (room && room.chosen && world.arcade) room.chosen = null;   // nor out of a level
       if (room && room.chosen) {
         const door = room.chosen;
         room.chosen = null;
@@ -2965,7 +2810,6 @@ function showTraining() {
 }
 
 function showPause() {
-  gameplayStop();                 // a pause screen is not play time
   if (world.dungeon) { showDungeonPause(); return; }
   // In the Training Ground the pause screen is the loadout panel.
   if (world.training) { showTraining(); return; }
@@ -3139,10 +2983,6 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
   if (act !== 'slot-pick') slotSel = -1;
   switch (act) {
     case 'title': pendingTrial = null; showTitle(); break;
-    case 'level': pendingWeapon = pendingWeapon || WEAPONS[0]; phoneFullscreen(); startLevel(Number(el.dataset.v)); break;
-    case 'lv-next': nextLevel(); break;
-    case 'lv-retry': retryLevel(); break;
-    case 'lv-list': showLevels(); break;
     case 'version': location.href = el.dataset.href; break;
     case 'version-here': break;
     case 'update':
@@ -3422,7 +3262,6 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'loop': loopDeeper(); break;
     case 'resume':
       state = 'playing'; hideOverlay(); resetInput();
-      if (world.arcade) gameplayStart();   // back in the level, back on the clock
       break;
     case 'mute': toggleMute(); save.muted = audio.muted; writeSave(); showPause(); break;
     case 'music': {
@@ -3583,16 +3422,13 @@ initGamepad({
     else if (state === 'playing' && world.overworld) showWildsMap();
   },
 });
-showLevels();
+showTitle();
 requestAnimationFrame((t) => { last = t; rafId = requestAnimationFrame(frame); });
 
 // Debug handle: lets the sim be driven without rAF, for smoke tests and for
 // poking at balance from the browser console.
 window.ashfall = {
   world, view, arena, input, fx,
-  // The level being played, for driving the ladder from the console.
-  level: () => lv,
-  startLevel, nextLevel, retryLevel, showLevels,
   // The crowd, for tuning it by hand: `ashfall.crowd()` fills the arena,
   // `ashfall.folkOff()` empties it.
   crowd: (w = 520, h = 260, density = 1.1) => {

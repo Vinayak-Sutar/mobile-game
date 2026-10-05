@@ -141,34 +141,6 @@
   .ver.on{color:var(--gold);border-color:rgba(255,200,97,.6);background:rgba(255,200,97,.08);cursor:default}
   .ver:not(.on):active{transform:scale(.96)}
 
-  /* --- the level ladder ------------------------------------------------ */
-  .panel.wide { max-width: 920px; }
-  .levels {
-    display: grid; gap: 8px; margin: 14px 0 6px;
-    grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
-    max-height: 56vh; overflow-y: auto; padding: 2px;
-  }
-  .lvl {
-    display: grid; gap: 2px; justify-items: start; text-align: left;
-    padding: 9px 11px; border-radius: 9px; cursor: pointer;
-    border: 1px solid rgba(255,190,120,0.22);
-    background: rgba(32,20,16,0.72); color: #f3e3cf;
-    font: inherit; transition: transform .1s ease, border-color .1s ease;
-  }
-  .lvl:hover:not(:disabled) { transform: translateY(-1px); border-color: rgba(255,190,120,0.6); }
-  .lvl.boss { border-color: rgba(255,120,80,0.5); background: rgba(48,20,16,0.8); }
-  .lvl:disabled { opacity: 0.4; cursor: default; }
-  .lvl b { font-size: 11px; font-weight: 800; color: #ff9a4d; letter-spacing: .08em; }
-  .lvl span { font-size: 13px; line-height: 1.25; }
-  .lvl em { display: flex; gap: 3px; margin-top: 3px; min-height: 9px; }
-  .lvl em i, .stars i {
-    width: 9px; height: 9px; border-radius: 50%;
-    background: rgba(255,210,150,0.18); display: block;
-  }
-  .lvl em i.on, .stars i.on { background: #ffc268; box-shadow: 0 0 7px rgba(255,194,104,0.75); }
-  .stars { display: flex; gap: 7px; justify-content: center; margin: 6px 0 2px; }
-  .stars.big i { width: 15px; height: 15px; }
-
   /* Version 5 Training Ground. */
   .tgsec{margin:14px 0 4px;font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
   .tgw{flex:1 1 120px;max-width:170px;min-height:84px;padding:10px;gap:4px}

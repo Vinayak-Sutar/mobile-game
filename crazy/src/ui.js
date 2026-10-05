@@ -153,12 +153,8 @@ export function drawHud(ctx, time) {
   // tutorial they mean nothing - and would sit over the boss's bar.
   const bossFight = world.trial || world.owBoss || (world.room && world.room.type === 'boss') || !!bossInRoom() || !!miniInFight() || world.enemies.some((e) => e.dBoss && !e.dead);
   const chambers = !world.overworld && !world.dungeon && !world.training && !world.tutorial
-    && !world.arcade && !bossFight;
-  // A level says which level it is and how far through it you are. The
-  // chamber run's "N of 29" means nothing on a ladder.
-  const lvl = world.arcade && world.levelLabel;
-  const label = lvl ? world.levelLabel
-    : world.overworld ? `${(world.zoneName || 'The Wilds').toUpperCase()}  ·  LEVEL ${world.wildsLevel || 1}`
+    && !bossFight;
+  const label = world.overworld ? `${(world.zoneName || 'The Wilds').toUpperCase()}  ·  LEVEL ${world.wildsLevel || 1}`
     : chambers ? `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}` : '';
   if (label) ctx.fillText(label, cx, 26);
 
