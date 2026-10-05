@@ -151,7 +151,7 @@ function showTitle() {
           </button>`).join('')}
       </div>
       <p class="foot"><span id="build">build ${BUILD} · ${BUILT}</span>
-        <a class="away" href="../v5/">Ashfall →</a></p>
+        <a class="away" href="../">&larr; All versions</a></p>
     </div>`;
   overlay.hidden = false;
   checkBuild();

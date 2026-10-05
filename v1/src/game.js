@@ -483,17 +483,15 @@ function applyMusicVolume(v) {
 
 /**
  * This is Version 1: the original eight-chamber game, kept as a separate copy
- * with its own save. Version 2 (15 chambers, five bosses) is in ../v2/.
+ * with its own save. Every version is listed by the launcher at ../.
  */
 function versionRow() {
+  // The roster used to live here, hardcoded, in nine separate copies that all
+  // drifted apart. It is now in ../versions.js and rendered once by the
+  // launcher at ../index.html, so this is only the way back to it.
   return `
     <div class="versions">
-      <button class="ver on" data-act="version-here" aria-current="true">Version 1<small>8 chambers · 1 boss</small></button>
-      <button class="ver" data-act="version" data-href="../v2/">Version 2<small>15 chambers · 5 bosses</small></button>
-      <button class="ver" data-act="version" data-href="../v3/">Version 3<small>spells · elements · traps</small></button>
-      <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
-      <button class="ver" data-act="version" data-href="../v5/">Version 5<small>enemy variety · minibosses</small></button>
-      <button class="ver" data-act="version" data-href="../anime/">Anime<small>an experiment · an isometric street</small></button>
+      <button class="ver" data-act="version" data-href="../">&larr; All versions</button>
     </div>`;
 }
 

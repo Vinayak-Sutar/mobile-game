@@ -2,39 +2,148 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Ashfall</title>
-<!-- No-JavaScript fallback; the script below goes straight away. -->
-<meta http-equiv="refresh" content="2; url=./v4/">
-<link rel="canonical" href="./v4/">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ashfall — versions</title>
+<meta name="theme-color" content="#0c0a12">
 <style>
-  html,body{margin:0;height:100%;background:#08060d;color:#f2ecff;
-    font-family:"Segoe UI",Roboto,system-ui,sans-serif;display:flex;align-items:center;justify-content:center}
-  a{color:#ffc861}
+  :root{
+    --bg:#0c0a12;
+    --surf:rgba(255,255,255,.045);
+    --surf-hi:rgba(255,255,255,.075);
+    --line:rgba(255,255,255,.11);
+    --line-hi:rgba(255,255,255,.26);
+    --ink:#f4f0fb;
+    --dim:#9f97b6;
+    --gold:#ffc861;
+    --hot:#ff9a4d;
+    --r:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",Roboto,-apple-system,system-ui,sans-serif;
+    -webkit-text-size-adjust:100%}
+  body{
+    padding:calc(34px + env(safe-area-inset-top,0px)) 20px calc(40px + env(safe-area-inset-bottom,0px));
+    /* A soft ember low on the page, so the dark has somewhere to come from. */
+    background-image:radial-gradient(90% 55% at 50% 118%,rgba(255,120,60,.16),transparent 70%);
+    background-repeat:no-repeat;
+  }
+  .wrap{max-width:860px;margin:0 auto}
+
+  header{text-align:center;margin-bottom:30px}
+  .eyebrow{font-size:10.5px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim)}
+  h1{margin:8px 0 6px;font-size:clamp(34px,8vw,58px);letter-spacing:.14em;text-transform:uppercase;
+    font-weight:800;line-height:1;
+    background:linear-gradient(180deg,#fff6e4,var(--hot) 62%,#c8354f);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  header p{margin:0;color:var(--dim);font-size:13.5px}
+
+  .list{display:grid;gap:10px}
+  /* A plain block, deliberately. This was a two-column grid with a chevron,
+     and the chevron's row span made auto-placement push the name into the
+     second column - names right-aligned, arrows on the left. Nothing here
+     needs columns, so there are none. */
+  a.v{
+    display:block;padding:14px 17px;border-radius:var(--r);
+    text-decoration:none;color:inherit;
+    background:var(--surf);border:1px solid var(--line);
+    transition:background .14s ease,border-color .14s ease,transform .14s ease;
+  }
+  a.v:hover,a.v:focus-visible{background:var(--surf-hi);border-color:var(--line-hi);transform:translateY(-1px)}
+  a.v:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+  a.v:active{transform:translateY(0) scale(.995)}
+  .name{display:block;font-weight:750;font-size:16px;letter-spacing:.03em}
+  .blurb{display:block;margin-top:3px;color:var(--dim);font-size:13px;line-height:1.5}
+  .note{display:block;margin-top:3px;font-size:11.5px;color:rgba(159,151,182,.78);font-style:italic}
+
+  /* The build being published leads, and is the only thing with the accent. */
+  a.v.ship{
+    background:linear-gradient(165deg,rgba(255,154,77,.14),rgba(255,154,77,.035));
+    border-color:rgba(255,200,97,.42);
+  }
+  a.v.ship:hover,a.v.ship:focus-visible{border-color:rgba(255,200,97,.8)}
+  a.v.ship .name{color:var(--gold);font-size:17.5px}
+  .tag{
+    display:inline-block;margin-left:9px;padding:3px 8px;border-radius:999px;vertical-align:2px;
+    font-size:9.5px;font-weight:800;letter-spacing:.17em;text-transform:uppercase;
+    color:#1b1208;background:linear-gradient(180deg,var(--hot),#d8433f);
+  }
+
+  .sep{display:flex;align-items:center;gap:12px;margin:26px 2px 14px;
+    font-size:10px;letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
+  .sep::after{content:"";flex:1;height:1px;background:var(--line)}
+
+  footer{margin-top:30px;text-align:center;color:var(--dim);font-size:11.5px;line-height:1.7}
+  noscript p{text-align:center;color:var(--dim)}
+  noscript a{color:var(--gold)}
+
+  @media (max-width:560px){
+    body{padding-left:16px;padding-right:16px}
+    a.v{padding:13px 14px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    a.v{transition:none}
+    a.v:hover,a.v:focus-visible{transform:none}
+  }
 </style>
-<script>
-  // Ashfall's front door. Version 4 is the default game; Versions 1-3 live in
-  // v1/, v2/ and v3/, and every title screen switches between them.
-  // This page used to be Version 2 with a service worker scoped here: retire
-  // that registration on the way through, then go to Version 4.
-  (function () {
-    var target = './v4/' + location.search + location.hash;
-    var gone = false;
-    function go() { if (!gone) { gone = true; location.replace(target); } }
-    if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
-      var here = new URL('./', location.href).href;
-      navigator.serviceWorker.getRegistrations()
-        .then(function (regs) {
-          return Promise.all(regs.filter(function (r) { return r.scope === here; })
-            .map(function (r) { return r.unregister(); }));
-        })
-        .then(go, go);
-      setTimeout(go, 800);
-    } else {
-      go();
-    }
-  })();
-</script>
 </head>
-<body><p>Opening <a href="./v4/">Ashfall</a>…</p></body>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">every version</div>
+    <h1>Ashfall</h1>
+    <p>One game, built nine times over. Pick one.</p>
+  </header>
+
+  <div class="list" id="list"></div>
+
+  <noscript>
+    <p>This page needs JavaScript to list the versions.
+      <a href="./crazy/">Open the Arcade build</a>.</p>
+  </noscript>
+
+  <footer>
+    Each version keeps its own save and its own offline cache, so they never
+    read each other's progress.
+  </footer>
+</div>
+
+<script type="module">
+  // THE LAUNCHER. The roster lives in ./versions.js and nowhere else - see the
+  // note at the top of that file for why this page exists at all.
+  import { VERSIONS } from './versions.js';
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  const card = (v) => `
+    <a class="v${v.shipping ? ' ship' : ''}" href="./${esc(v.slug)}/">
+      <span class="name">${esc(v.label)}${v.shipping ? '<span class="tag">playing now</span>' : ''}</span>
+      <span class="blurb">${esc(v.blurb)}</span>
+      ${v.note ? `<span class="note">${esc(v.note)}</span>` : ''}
+    </a>`;
+
+  // The published build leads on its own; everything else is under a rule, so
+  // it reads as "the game" and then "the workshop" rather than one long list.
+  const ship = VERSIONS.filter((v) => v.shipping);
+  const rest = VERSIONS.filter((v) => !v.shipping);
+  document.getElementById('list').innerHTML =
+    ship.map(card).join('')
+    + (rest.length ? `<div class="sep">and the rest</div>` : '')
+    + rest.map(card).join('');
+
+  // This page used to be Version 2, with a service worker scoped HERE. Left
+  // registered it would serve a four-year-old cached shell over this launcher,
+  // so retire it on the way through. Scoped exactly to this directory: a
+  // version's own worker, scoped to its own folder, must survive.
+  if ('serviceWorker' in navigator && navigator.serviceWorker.getRegistrations) {
+    const here = new URL('./', location.href).href;
+    navigator.serviceWorker.getRegistrations()
+      .then((regs) => Promise.all(
+        regs.filter((r) => r.scope === here).map((r) => r.unregister()),
+      ))
+      .catch(() => {});
+  }
+</script>
+</body>
 </html>

@@ -144,6 +144,51 @@ console.log('and no sibling version is using the same keys:');
   ok(/'crazy':\s*\('check-version\.mjs'/.test(bump), 'and runs this checker before a commit');
 }
 
+// --- 6. one roster, in one file -------------------------------------------
+//
+// The version list used to be a hardcoded block of HTML copied into all nine
+// folders. Nothing kept them in step, so every copy froze on the day its
+// folder was made: v1-v4 never learned crazy/ or v7/ existed, anime/ had no
+// list at all, and savi/ called itself "Version 5". From any door but v5 the
+// roster was wrong, which is how it was finally noticed.
+//
+// It now lives in ../versions.js and is rendered by the launcher. These two
+// checks are what stop a tenth copy appearing: the first forbids a roster
+// anywhere else, the second forbids the list and the folders on disk drifting.
+console.log('');
+console.log('and the version roster is in exactly one place:');
+{
+  const V = await import('../../versions.js');
+
+  const folders = readdirSync(REPO, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.')
+      && e.name !== 'tools' && e.name !== 'node_modules' && e.name !== 'v6'
+      && existsSync(join(REPO, e.name, 'index.html')))
+    .map((e) => e.name).sort();
+
+  ok(V.SLUGS.slice().sort().join() === folders.join(),
+    `versions.js lists exactly what is on disk (${folders.length}: ${folders.join(', ')})`);
+  ok(V.VERSIONS.filter((v) => v.shipping).length === 1
+    && V.shipping().slug === 'crazy', 'and marks crazy/ as the one being shipped');
+
+  // A sibling link anywhere in a version's source means a second roster.
+  const strays = [];
+  for (const f of folders) {
+    for (const e of readdirSync(join(REPO, f, 'src'), { withFileTypes: true })) {
+      if (!e.isFile() || !e.name.endsWith('.js')) continue;
+      const src = readFileSync(join(REPO, f, 'src', e.name), 'utf8');
+      // A literal substring, deliberately: a regex here needs '\.' escaped
+      // twice over and silently degrades to "any character" if it is not,
+      // which is how this check first passed while matching comment prose.
+      const hit = V.SLUGS.map((s) => `../${s}/`).find((t) => src.includes(t));
+      if (hit) strays.push(`${f}/src/${e.name} -> ${hit}`);
+    }
+  }
+  ok(strays.length === 0, strays.length
+    ? `a second roster is forming: ${strays.join('; ')}`
+    : 'no version links to a sibling folder - only back to the launcher');
+}
+
 console.log('');
 console.log(bad
   ? `${bad} thing(s) wrong - this folder is not yet its own version`
