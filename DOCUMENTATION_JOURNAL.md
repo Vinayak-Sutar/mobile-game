@@ -6256,6 +6256,78 @@ hand; `.hold(key)` / `.letGo(key)` drive the keyboard. Always call
 
 **Next:** the bow (draw, hold, release, and a jumping shot), then enemies.
 
+## 18. Version 7 (`v7/`) — the game aimed at Google Play (started 2026-10-04, PAUSED 2026-10-05)
+
+**Paused, not abandoned.** The owner turned to CrazyGames (§19). Everything
+below is done and pushed; it stands on its own and v5 is untouched.
+
+### What exists
+
+- **Its own version**, copied from `v5/` at build 52. Nine identifiers changed
+  across seven files, guarded by `v7/tools/check-version.mjs` — which exists
+  because `savi/` shipped with two of the nine wrong and has been sharing v5's
+  cache prefix ever since.
+- **`src/name.js`** — the naming trick. `SLUG` (`v7`) is permanent and
+  invisible: it is the cache prefix and the save key, and it never changes, so
+  naming the game later cannot orphan a save. `NAME`/`SHORT` are the only
+  things a player sees. `manifest.json` and `index.html`'s `<title>` carry
+  copies because they cannot import a module; the checker fails if they drift.
+- **One character.** The Hooded One is gone; the Wanderer is the only look,
+  chambers included. Side effect worth knowing: `figures.js` only draws enemies
+  as standing figures under the Wanderer's look, so one switch repopulated
+  every chamber with little people.
+- **One answer to "has the player done this".** There were four, and they
+  disagreed — `save.dungeonsCleared` (account-scoped, leaked across journeys),
+  `save.talks` (account-scoped, wiped by hand), `worldSnapshot().lairs` and
+  `.claimed` (journey-scoped) — across two localStorage keys with different
+  versioning rules. Now `save.progress = { missions, flags, met }`,
+  account-scoped, with the old stores folded forward once and deleted.
+  `journey.lastLampId` went too: a hand-kept copy of `W.lastLamp` written in
+  four places where every write was redundant. Guarded by
+  `v7/tools/check-progress.mjs`.
+- **A bounds filter through `build()`**, started and uncommitted at the pause.
+
+### Measured, and worth keeping
+
+Profiling `build()` in Node (the full Wilds entry, which is ~0.9 s of blocking
+work before any loading screen):
+
+| phase | ms |
+| --- | --- |
+| planPlaces | 131 |
+| **water mask (full-world tile loop)** | **441** |
+| statics + shrine + hash | 88 |
+| planSites | 57 |
+| createTerrain | 9 |
+| **total** | **729** |
+
+The water mask tests every 40-unit tile of a 47,500 × 29,000 world — 861,300
+of them — and is 60% of the cost. A hub-sized box is about 3,100 tiles.
+
+### The plan it was following
+
+A Khazan-shaped game: a one-screen walkable hub (Cinderfair and the Heartland
+Hearth are already clustered within ~1,400 units of the spawn), ~16 main
+missions plus side missions, replayable, 5–8 minutes each with a checkpoint
+before the boss, and the 29-chamber run kept as a second mode.
+
+The audit's finding, which stands whenever this is picked up again: **that
+structure is about 70% already built under different names.** `dungeon.js`
+(773 lines) + `dungeon-levels.js` + `dungeon-draw.js` is a finished mission
+container — authored semi-linear levels, mid-level checkpoints that heal and
+reset enemies but keep your key, a boss whose door seals, rewards, completion
+flags — with five levels written. `showDungeonList()` is already a
+mission-select board. `cinema.js` is a finished skippable film engine with one
+film written for it. What is genuinely missing is a mission registry, a
+mission state machine, prerequisites, and per-mission story.
+
+Also found and still true: the chamber run's meta tree costs 1,625 darkness to
+max and one winning run banks ~2,800, so progression ends after a single run;
+the player's power curve reaches ~20× against content that scales ~2×; and the
+Grandmaster chess boss (~42 KB) plus eight mini-bosses are fully built and
+unreachable.
+
+
 ## 12. Glossary
 
 | Term | Meaning |

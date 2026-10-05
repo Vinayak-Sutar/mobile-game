@@ -411,9 +411,39 @@ function makeClassify(raised, placeFloor) {
 
 // --- building ------------------------------------------------------------------------
 
-function build() {
+/**
+ * THE HUB'S BOUNDS.
+ *
+ * Everything a hub needs is already authored, and already clustered inside one
+ * screen of the spawn: Rell at ~235 units, the Heartland Hearth at ~460,
+ * Cinderfair at ~560, the Catacomb stair at ~730. This box holds all four and
+ * stops short of the Ashen Gate at 1350 - the last guardian should not loom
+ * over the front door.
+ */
+export const HUB = { x0: 19100, y0: 14600, x1: 21600, y1: 16600 };
+
+/**
+ * Building the whole world costs 729 ms, and 441 ms of that is one loop:
+ * the deep-water collision mask, tested over every 40-unit tile of a
+ * 47,500 x 29,000 world - 861,300 of them. Measured, not guessed:
+ *
+ *     planPlaces                131 ms
+ *     water mask                441 ms
+ *     statics + shrine + hash    88 ms
+ *     planSites                  57 ms
+ *     createTerrain               9 ms
+ *
+ * `bounds` clips the three expensive ones to a box. The hub's box is about
+ * 3,100 tiles against 861,300, which is the whole point: a hub you step back
+ * into between missions cannot cost most of a second.
+ *
+ * Nothing about the world's COORDINATES changes - the hub is the same place
+ * at the same numbers, with less of the rest of the island planned around it.
+ * The fog array stays full size so saves keep their shape.
+ */
+function build(bounds = null) {
   // The places come first: their towers and terraces are raised ground.
-  const places = planPlaces({ waterAt, inChasm, plateaus: PLATEAUS, roadSegs: ROAD_SEGS, regionAt });
+  const places = planPlaces({ waterAt, inChasm, plateaus: PLATEAUS, roadSegs: ROAD_SEGS, regionAt, bounds });
   const { R, walls } = buildRaised(places.flatMap((P) => P.plateaus));
   const raised = bucketRects(R);
   const hash = createHash();
@@ -423,6 +453,11 @@ function build() {
   // out at sea it is deep everywhere, so only the coast needs testing.
   const tw = Math.ceil(WILDS.W / TILE), th = Math.ceil(WILDS.H / TILE);
   const mask = new Uint8Array(tw * th);
+  // The rows and columns worth testing. Full world unless we are bounded.
+  const ti0 = bounds ? Math.max(0, Math.floor(bounds.x0 / TILE)) : 0;
+  const ti1 = bounds ? Math.min(tw - 1, Math.ceil(bounds.x1 / TILE)) : tw - 1;
+  const tj0 = bounds ? Math.max(0, Math.floor(bounds.y0 / TILE)) : 0;
+  const tj1 = bounds ? Math.min(th - 1, Math.ceil(bounds.y1 / TILE)) : th - 1;
   const mark = (x0, y0, x1, y1) => {
     for (let j = Math.max(0, Math.floor(y0 / TILE)); j <= Math.min(th - 1, Math.floor(y1 / TILE)); j++) {
       for (let i = Math.max(0, Math.floor(x0 / TILE)); i <= Math.min(tw - 1, Math.floor(x1 / TILE)); i++) {
@@ -440,8 +475,8 @@ function build() {
     if (Math.hypot(dx, dy) < COAST_MAX + 100) return true;
     return LAND.isles.some((I) => ((x - I.x) / (I.rx * 1.5)) ** 2 + ((y - I.y) / (I.ry * 1.5)) ** 2 < 1);
   };
-  for (let j = 0; j < th; j++) {
-    for (let i = 0; i < tw; i++) {
+  for (let j = tj0; j <= tj1; j++) {
+    for (let i = ti0; i <= ti1; i++) {
       const x = i * TILE + TILE / 2, y = j * TILE + TILE / 2;
       if (x > M.x + 200 && x < M.x + M.w - 200 && y > M.y + 200 && y < M.y + M.h - 200) { i = Math.floor((M.x + M.w - 200) / TILE); continue; }
       if (mask[j * tw + i]) continue;
@@ -451,10 +486,10 @@ function build() {
     }
   }
   const statics = [...walls];
-  for (let j = 0; j < th; j++) {
+  for (let j = tj0; j <= tj1; j++) {
     let run = -1;
-    for (let i = 0; i <= tw; i++) {
-      const wet = i < tw && mask[j * tw + i];
+    for (let i = ti0; i <= ti1 + 1; i++) {
+      const wet = i <= ti1 && mask[j * tw + i];
       if (wet && run < 0) run = i;
       if (!wet && run >= 0) {
         statics.push({ x: run * TILE, y: j * TILE, w: (i - run) * TILE, h: TILE, kind: 'water', low: true });
@@ -498,7 +533,10 @@ function build() {
   const classify = makeClassify(raised, floorLookup(places));
   // The fighting units: every place's posts and champion, then the smaller
   // sites and the road patrols between them. Their walls go in the hash too.
-  const smalls = planSites({
+  // A hub has no fights in it. planSites already refuses to place anything
+  // within 1400 units of the spawn, so a bounded build would mostly come back
+  // empty anyway - skipping it outright saves the 57 ms and says what we mean.
+  const smalls = bounds ? [] : planSites({
     classify,
     query: (x0, y0, x1, y1) => hash.query(x0, y0, x1, y1),
     stairsNear: (x0, y0, x1, y1) => raised.near(x0, y0, x1, y1).stairs,
@@ -525,7 +563,7 @@ function build() {
     ax: -1e9, ay: -1e9, activeDirty: true,
     fog: new Uint8Array(fogW * fogH), fogW, fogH,
     // The map's picture: two pixels per fog cell, painted in as the fog clears.
-    mapCanvas: typeof document !== 'undefined' ? makeCanvas(fogW * 2, fogH * 2) : null,
+    mapCanvas: !bounds && typeof document !== 'undefined' ? makeCanvas(fogW * 2, fogH * 2) : null,
     visited: new Set(),
     zone: null, respawn: { ...START },
     prints: [], stepT: 0, lastX: 0, lastY: 0, printX: 0, printY: 0,
@@ -535,6 +573,7 @@ function build() {
     lamps: LAMPS.map((l) => ({ ...l, lit: false, seen: false, near: false, still: 0, rested: false })),
     lastLamp: null,
     repaint: null,
+    bounds,
   };
 }
 
@@ -842,12 +881,14 @@ export function chartProgress() {
 
 /** Set the arena to the whole world (after a resize too). */
 export function applyOverworldBounds() {
+  const b = W && W.bounds;
+  if (b) { arena.x = b.x0; arena.y = b.y0; arena.w = b.x1 - b.x0; arena.h = b.y1 - b.y0; return; }
   arena.x = 0; arena.y = 0; arena.w = WILDS.W; arena.h = WILDS.H;
 }
 
 /** A fresh world, or the same one coming back from a fight. Returns the room. */
-export function enterOverworld(fresh) {
-  if (fresh || !W) W = build();
+export function enterOverworld(fresh, bounds = null) {
+  if (fresh || !W || (W.bounds || null) !== bounds) W = build(bounds);
   applyOverworldBounds();
   W.activeDirty = true;
   return W.room;
@@ -1086,8 +1127,13 @@ export function updateOverworld(dt) {
 
   // The camera leads a little the way you aim.
   const lead = 60;
-  const tx = clamp(p.x + Math.cos(p.aimAngle) * lead - view.w / 2, 0, Math.max(0, WILDS.W - view.w));
-  const ty = clamp(p.y + Math.sin(p.aimAngle) * lead - view.h / 2, 0, Math.max(0, WILDS.H - view.h));
+  // The camera stops at the edge of whatever we built - the hub's box, or the
+  // world. Without this the hub pans out over unplanned ground.
+  const B = W.bounds;
+  const cx0 = B ? B.x0 : 0, cy0 = B ? B.y0 : 0;
+  const cx1 = B ? B.x1 : WILDS.W, cy1 = B ? B.y1 : WILDS.H;
+  const tx = clamp(p.x + Math.cos(p.aimAngle) * lead - view.w / 2, cx0, Math.max(cx0, cx1 - view.w));
+  const ty = clamp(p.y + Math.sin(p.aimAngle) * lead - view.h / 2, cy0, Math.max(cy0, cy1 - view.h));
   const f = 1 - Math.exp(-6 * dt);
   camera.x += (tx - camera.x) * f;
   camera.y += (ty - camera.y) * f;
