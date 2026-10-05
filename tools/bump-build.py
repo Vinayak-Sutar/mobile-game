@@ -17,7 +17,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Every folder that carries its own build number, and the file it lives in.
-GAMES = [('v5', 'Version 5'), ('savi', 'Savi'), ('anime', 'Anime'), ('v7', 'Campaign')]
+GAMES = [('v5', 'Version 5'), ('savi', 'Savi'), ('anime', 'Anime'), ('v7', 'Campaign'), ('crazy', 'Arcade')]
 HOOK = os.path.join(ROOT, '.git', 'hooks', 'pre-commit')
 
 
@@ -58,6 +58,7 @@ CHECKS = {
     # A new folder that quietly shares another's cache prefix or save key
     # is invisible until two versions start deleting each other's data.
     'v7': ('check-version.mjs', 'check-progress.mjs'),
+    'crazy': ('check-version.mjs', 'check-progress.mjs'),
 }
 
 

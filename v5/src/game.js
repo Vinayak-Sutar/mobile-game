@@ -884,6 +884,7 @@ function versionRow() {
       <button class="ver" data-act="version" data-href="../v4/">Version 4<small>spells · pure action</small></button>
       <button class="ver on" data-act="version-here" aria-current="true">Version 5<small>enemy variety · minibosses</small></button>
       <button class="ver" data-act="version" data-href="../anime/">Anime<small>an experiment · an isometric street</small></button>
+      <button class="ver" data-act="version" data-href="../crazy/">Arcade<small>levels · for CrazyGames</small></button>
       <button class="ver" data-act="version" data-href="../v7/">Campaign<small>the mobile game</small></button>
     </div>`;
 }
