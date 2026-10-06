@@ -205,6 +205,15 @@ console.log('and it is written at chamber boundaries only:');
     : `saveRun is called ${calls} times; only saveChamber should call it`);
 
   ok(/clearRun\(\)/.test(game), 'winning or abandoning clears it');
+
+  // Endless shares startRun, advanceRoom and saveChamber with the journey, so
+  // without this guard a score run would overwrite a journey in progress -
+  // somebody's twenty minutes, gone, for playing the other mode.
+  const guard = body('saveChamber');
+  ok(/world\.endless/.test(guard),
+    'and an endless run writes nothing, so it cannot overwrite a journey');
+  ok(/!world\.endless/.test(readFileSync(join(SRC, 'rooms.js'), 'utf8')),
+    'while rooms.js drops the act boundaries and the last gate in endless');
 }
 
 console.log('');

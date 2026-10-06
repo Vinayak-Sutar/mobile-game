@@ -85,10 +85,10 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     bossSlot: isBoss ? (opts.slot ?? Math.min(GUARDIAN_COUNT - 1, guardianIndex(depth))) : 0,
     bossTier: opts.tier,
     // The last guardian of the run: its door is the way out.
-    final: isBoss && !world.trial && depth >= FINAL_DEPTH,
+    final: isBoss && !world.trial && !world.endless && depth >= FINAL_DEPTH,
     // The guardian that closes an act 1 or 2: its door leads on to the next
     // act, with a pause in between. The last act's guardian is `final`.
-    actEnd: isBoss && !world.trial && isActEnd(depth) && depth < FINAL_DEPTH,
+    actEnd: isBoss && !world.trial && !world.endless && isActEnd(depth) && depth < FINAL_DEPTH,
     obstacles: opts.training ? [] : isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
     waves: (isBoss || opts.training) ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,

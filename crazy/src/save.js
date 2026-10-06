@@ -39,6 +39,7 @@ const DEFAULTS = {
   reduceMotion: false,
   screenShake: 1,
   bestAct: 0,            // acts cleared, ever. Two unlocks Endless.
+  bestEndless: 0,        // deepest chamber in Endless, counting loops. The score.
 
   // THE JOURNEY IN PROGRESS, or null. Written at chamber boundaries only;
   // see journey.js for what is in it and why the build is a recipe rather

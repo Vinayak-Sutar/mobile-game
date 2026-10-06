@@ -27,6 +27,7 @@ export const world = {
   biome: null,      // terrain/palette chosen at run start
   bossOrder: [],    // this journey's twelve guardians, in order (acts.js)
   act: 1,           // 1-3. Depth runs 1-36 unbroken; the act is where it pauses.
+  endless: false,   // the score mode: no acts, no ending, no journey saved
   beaten: [],       // guardians beaten so far this run (the Monkey King borrows them)
   trial: null,      // boss type when playing a Boss Trial, else null
   gold: 0,
@@ -80,6 +81,7 @@ export function resetWorld() {
   world.loop = 0;
   world.bossOrder = [];
   world.act = 1;
+  world.endless = false;
   world.beaten = [];
   world.trial = null;
   world.training = false;

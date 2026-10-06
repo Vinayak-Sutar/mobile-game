@@ -228,7 +228,7 @@ window.addEventListener('orientationchange', () => setTimeout(resize, 120));
 
 // --- run lifecycle ---------------------------------------------------------
 
-function startRun(weapon) {
+function startRun(weapon, { endless = false } = {}) {
   resetWorld();
   clearFx();
   resetUi();
@@ -245,6 +245,7 @@ function startRun(weapon) {
   // indexes this list by guardian number, so acts needed nothing new here.
   world.bossOrder = drawJourney();
   world.act = 1;
+  world.endless = endless;
 
   const room = generateRoom(1, 0);
   startRoom(room);
@@ -292,12 +293,23 @@ function startTrial(weapon, bossType) {
  */
 function saveChamber() {
   if (world.trial || world.training || world.tutorial) return;
+  // Endless is a sitting, not a journey - and writing it here would overwrite
+  // a journey the player has in progress, which is the worst thing this file
+  // could do to somebody.
+  if (world.endless) return;
   if (world.dungeon || world.overworld || world.owBoss) return;   // not a journey
   saveRun(world);
 }
 
 function advanceRoom() {
   world.depth++;
+  // Endless past the last guardian: redraw the twelve and sharpen everything.
+  if (world.endless && world.depth > FINAL_DEPTH) {
+    world.loop++;
+    world.depth = 1;
+    world.bossOrder = drawJourney();
+    showToast(`LOOP ${world.loop + 1}`, 'The chambers sharpen their teeth.');
+  }
   clearEntities();
   clearFx();
   const room = generateRoom(world.depth, world.loop);
@@ -348,11 +360,40 @@ function resumeRun() {
   showToast(`ACT ${r.act}`, `Chamber ${r.depth} · you kept everything`);
 }
 
+let pendingEndless = false;
+
 function beginRun(weapon) {
   const trial = pendingTrial;
+  const endless = pendingEndless;
   pendingTrial = null;
+  pendingEndless = false;
   if (trial) startTrial(weapon, trial);
+  else if (endless) startEndless(weapon);
   else startRun(weapon);
+}
+
+/**
+ * How deep this endless run got. Loops count, so the number keeps climbing
+ * past the thirty-sixth chamber instead of resetting to 1 with the depth.
+ */
+const endlessScore = () => (world.loop || 0) * FINAL_DEPTH + (world.depth || 0);
+
+/**
+ * ENDLESS: the chamber run with the ending taken off.
+ *
+ * It is the same generator, the same guardians and the same scaling - the act
+ * structure is simply switched off, so chamber 12 does not stop you and
+ * chamber 36 is not the last. Past 36 the run loops: the guardians are redrawn
+ * and `world.loop` climbs, which the wave budget already reads.
+ *
+ * It saves NOTHING. A journey is a thing you come back to; this is a single
+ * sitting with a number at the end of it. That also keeps it from overwriting
+ * a journey you have in progress, which would be an unforgivable way to lose
+ * someone's twenty minutes.
+ */
+function startEndless(weapon) {
+  startRun(weapon, { endless: true });
+  showToast('ENDLESS', 'No ending. How deep can you get?');
 }
 
 function loopDeeper() {
@@ -1277,7 +1318,9 @@ function showTitle() {
         <button class="tile${acts >= 2 ? '' : ' locked'}" data-act="${acts >= 2 ? 'endless' : 'locked'}">
           <span><span class="tname">Endless</span>
             <span class="tsub">${acts >= 2 ? 'No ending. Go as deep as you can.' : 'Clear two acts to unlock'}</span></span>
-          ${acts >= 2 ? '' : '<span class="tmark">Locked</span>'}
+          ${acts >= 2
+            ? (save.bestEndless ? `<span class="tmark">Best ${save.bestEndless}</span>` : '')
+            : '<span class="tmark">Locked</span>'}
         </button>
 
         <button class="tile" data-act="settings">
@@ -1899,7 +1942,11 @@ function showActEnd() {
 }
 
 function showRunEnd(won) {
-  const r = won ? null : currentRun();
+  const r = won || world.endless ? null : currentRun();
+  if (world.endless) {
+    const score = endlessScore();
+    if (score > (save.bestEndless || 0)) { save.bestEndless = score; writeSave(); }
+  }
   const banked = Math.round(world.gold * goldMultiplier());
   // What actually ground you down, not just the final blow.
   const worst = Object.entries(world.damageLog).sort((a, b) => b[1] - a[1])[0];
@@ -1920,7 +1967,8 @@ function showRunEnd(won) {
              with the build you carried into Act ${r.act}.`
           : `You made it to chamber ${world.depth}. The dungeon keeps what it kills, but not what you carried.`}</p>
       <div class="stats">
-        <div class="stat"><b>${world.depth}</b><span>Chamber</span></div>
+        <div class="stat"><b>${world.endless ? endlessScore() : world.depth}</b><span>${world.endless ? 'Chambers deep' : 'Chamber'}</span></div>
+        ${world.endless ? `<div class="stat"><b>${save.bestEndless || 0}</b><span>Your best</span></div>` : ''}
         <div class="stat"><b>${world.kills}</b><span>Kills</span></div>
         <div class="stat"><b>${Math.floor(world.runTime / 60)}:${String(Math.floor(world.runTime % 60)).padStart(2, '0')}</b><span>Time</span></div>
         <div class="stat"><b>+${banked}</b><span>Darkness banked</span></div>
@@ -1929,7 +1977,8 @@ function showRunEnd(won) {
       <div class="row">
         ${won ? '<button class="btn" data-act="loop">Press Deeper</button>' : ''}
         ${!won && r ? `<button class="btn" data-act="retry-act">Retry Act ${r.act}</button>` : ''}
-        <button class="btn ${won || r ? 'ghost' : ''}" data-act="weapon">New Journey</button>
+        ${world.endless ? '<button class="btn" data-act="endless">Again</button>' : ''}
+        <button class="btn ${won || r || world.endless ? 'ghost' : ''}" data-act="weapon">${world.endless ? 'Back to the Journey' : 'New Journey'}</button>
         ${devEnabled() ? '<button class="btn ghost" data-act="mirror">Mirror of Night</button>' : ''}
       </div>
     </div>`);
@@ -3526,12 +3575,12 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     // settings. The biome picker was a screen between the player and the game
     // for a choice that almost never changes, and the first minute is the one
     // the platform ranks us on.
-    case 'play': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
-    case 'resume-run': resumeRun(); break;
+    case 'play': pendingTrial = null; pendingEndless = false; phoneFullscreen(); showWeaponSelect(); break;
+    case 'resume-run': pendingEndless = false; resumeRun(); break;
     // Starting over throws the old journey away, so it asks first.
     case 'new-run': showNewRunConfirm(); break;
-    case 'new-run-yes': clearRun(); pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
-    case 'endless': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
+    case 'new-run-yes': clearRun(); pendingTrial = null; pendingEndless = false; phoneFullscreen(); showWeaponSelect(); break;
+    case 'endless': pendingTrial = null; pendingEndless = true; phoneFullscreen(); showWeaponSelect(); break;
     case 'locked': break;
     case 'howto': showHowTo(); break;
     case 'devmenu': showDevMenu(); break;
