@@ -1440,7 +1440,7 @@ const lab = {
   biome: null,        // null = the biome in the save
   boss: null,         // a guardian to force into the chamber
   god: true,
-  empty: false,       // generate the room but spawn nothing
+  empty: true,        // generate the room but spawn nothing: terrain, alone
 };
 
 /** Everything the lab can put you in, built and entered directly. */
@@ -1537,6 +1537,52 @@ function showLab(back) {
         In the chamber: <kbd>[</kbd> <kbd>]</kbd> previous / next chamber ·
         <kbd>G</kbd> invincible · <kbd>K</kbd> kill everything ·
         <kbd>N</kbd> next terrain · <kbd>B</kbd> a boon · <kbd>P</kbd> pause
+      </div>
+    </div>`);
+}
+
+/**
+ * The lab's pause menu: change the place without leaving it.
+ *
+ * The full lab panel is twice the height of a phone held sideways, so using it
+ * to answer "what does the next terrain look like" meant pausing, scrolling
+ * past four rows of chips, tapping, scrolling back, and entering. For a
+ * question you ask thirty times in a row that is the wrong tool.
+ *
+ * Here every chip APPLIES AND RESUMES on one tap. Nothing is staged, there is
+ * no Enter to find, and the whole thing fits on screen without scrolling.
+ */
+function showLabPause() {
+  state = 'paused';
+  const room = world.room;
+  const here = (room && room.plan) ? room.plan.id : '?';
+  showOverlay(`
+    <div class="panel">
+      <h2 style="margin:0 0 10px;font-size:19px">Chamber ${lab.depth} · ${here}</h2>
+
+      <div class="chips" style="margin-bottom:10px">
+        <button class="tgl" data-act="lab-step" data-v="-1">◀ chamber</button>
+        <button class="tgl" data-act="lab-step" data-v="1">chamber ▶</button>
+        <button class="tgl ${lab.empty ? 'on' : ''}" data-act="lab-ptog" data-v="empty">No enemies</button>
+        <button class="tgl ${lab.god ? 'on' : ''}" data-act="lab-ptog" data-v="god">Invincible</button>
+      </div>
+
+      <div class="tgsec">terrain — one tap</div>
+      <div class="chips">
+        ${PLANS.map((pl) => `<button class="tgl ${here === pl.id ? 'on' : ''}"
+          data-act="lab-set" data-v="${pl.id}">${pl.id}</button>`).join('')}
+      </div>
+
+      <div class="tgsec">palette</div>
+      <div class="chips">
+        ${BIOMES.map((bm) => `<button class="tgl ${(world.biome && world.biome.id) === bm.id ? 'on' : ''}"
+          data-act="lab-setbiome" data-v="${bm.id}">${bm.name}</button>`).join('')}
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <button class="btn" data-act="lab-resume">Resume</button>
+        <button class="btn ghost" data-act="lab">All options</button>
+        <button class="btn ghost" data-act="title">Title</button>
       </div>
     </div>`);
 }
@@ -3387,7 +3433,7 @@ function showPause() {
   if (world.tutorial) { showTutorialPause(); return; }
   if (world.overworld || world.owBoss) { showWildsPause(); return; }
 
-  if (world.lab) { showLab(showPause); return; }
+  if (world.lab) { showLabPause(); return; }
   state = 'paused';
   const act = actOf(world.depth);
   showOverlay(`
@@ -3788,6 +3834,17 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'lab-boss': lab.boss = el.dataset.v || null; showLab(); break;
     case 'lab-tog': lab[el.dataset.v] = !lab[el.dataset.v]; showLab(); break;
     case 'lab-go': phoneFullscreen(); enterLab(); break;
+
+    // --- the lab's pause menu: apply and resume, never stage ----------------
+    case 'lab-step':
+      lab.depth = Math.min(FINAL_DEPTH, Math.max(1, lab.depth + Number(el.dataset.v)));
+      lab.plan = null;                       // follow the rotation for the new chamber
+      enterLab();
+      break;
+    case 'lab-set': lab.plan = el.dataset.v; enterLab(); break;
+    case 'lab-setbiome': lab.biome = el.dataset.v; enterLab(); break;
+    case 'lab-ptog': lab[el.dataset.v] = !lab[el.dataset.v]; enterLab(); break;
+    case 'lab-resume': state = 'playing'; hideOverlay(); resetInput(); break;
     case 'settings': showSettings(state === 'paused' ? showPause : showTitle); break;
     case 's-tab': settingsTab = el.dataset.v; showSettings(); break;
     case 's-back': (settingsReturn || showTitle)(); break;
