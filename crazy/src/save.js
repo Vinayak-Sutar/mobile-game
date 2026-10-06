@@ -39,6 +39,11 @@ const DEFAULTS = {
   reduceMotion: false,
   screenShake: 1,
   bestAct: 0,            // acts cleared, ever. Two unlocks Endless.
+
+  // THE JOURNEY IN PROGRESS, or null. Written at chamber boundaries only;
+  // see journey.js for what is in it and why the build is a recipe rather
+  // than a block of numbers.
+  run: null,
   mapNoFog: false,       // The Wilds' map shows everything, not just where you have been
 };
 

@@ -79,8 +79,12 @@ import {
   talkState, missionDone, clearMission, flag, setFlag, markMet,
 } from './save.js';
 import { initPortal, gameplayStart, gameplayStop } from './portal.js';
-import { drawJourney, actOf, ACT_COUNT, GROUPS } from './acts.js';
+import { drawJourney, actOf, actStartDepth, ACT_COUNT, GROUPS } from './acts.js';
 import { devEnabled } from './flags.js';
+import {
+  hasRun, currentRun, runLabel, saveRun, bankAct, clearRun,
+  applyBuild, weaponOf, captureBuild,
+} from './run-save.js';
 import { applyTouchLayout } from './input.js';
 import { applySkin, applyMotion } from './skin.js';
 import {
@@ -248,6 +252,7 @@ function startRun(weapon) {
 
   state = 'playing';
   hideOverlay();
+  saveChamber();        // chamber 1: the journey begins here
 }
 
 /**
@@ -275,28 +280,20 @@ function startTrial(weapon, bossType) {
 }
 
 /**
- * The build, snapshotted and replayed.
+ * THE SAVE POINT, and the only one.
  *
- * Stored as the id-to-level map the boon system already keeps and replayed
- * through applyBoon, rather than by copying stats across. Replaying is the
- * only way that stays correct when a boon's numbers are tuned later: a saved
- * stat block would quietly preserve the old balance forever.
+ * A chamber has just been generated and nothing is happening yet: no bullets
+ * in flight, no enemy part-way through a move, no boss mid-pattern. Saving
+ * anywhere else would mean serialising live combat, so instead a tab closed
+ * during a fight resumes at the start of that fight.
  *
- * This is what an act's entryBuild will be made of - the build you walked
- * into the act with, which is what a death inside it costs you back to.
+ * Called from exactly two places - startRun for chamber 1 and advanceRoom for
+ * the rest - because those are the two ways a chamber begins.
  */
-function snapshotBoons(p) {
-  return p ? { boons: { ...p.boons }, order: [...p.boonOrder] } : null;
-}
-
-function restoreBoons(p, snap) {
-  if (!p || !snap) return;
-  for (const id of snap.order) {
-    const b = boonById(id);
-    if (!b) continue;
-    for (let i = 0; i < (snap.boons[id] || 0); i++) applyBoon(p, b);
-  }
-  p.hp = p.stats.maxHp;
+function saveChamber() {
+  if (world.trial || world.training || world.tutorial) return;
+  if (world.dungeon || world.overworld || world.owBoss) return;   // not a journey
+  saveRun(world);
 }
 
 function advanceRoom() {
@@ -311,9 +308,46 @@ function advanceRoom() {
   else showToast(`CHAMBER ${world.depth}`, room.type === 'elite' ? 'An elite stalks this hall.' : '');
   state = 'playing';
   hideOverlay();
+  saveChamber();        // and every chamber after it
 }
 
 /** The weapon was picked: a normal run, or the Boss Trial chosen before it. */
+/**
+ * Walk back into a journey that was left.
+ *
+ * The player is built fresh and the saved build replayed onto them, so a boon
+ * retuned since the save takes its new value rather than the one frozen into
+ * the file. Then straight into the chamber they left - depth is set one short
+ * because advanceRoom() is what moves it.
+ */
+function resumeRun() {
+  const r = currentRun();
+  if (!r) { showTitle(); return; }
+
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+
+  world.biome = (r.biome && BIOMES.find((b) => b.id === r.biome)) || getBiome(save.biome);
+  initAmbient(world.biome);
+
+  world.player = createPlayer(weaponOf(r.now), metaBonuses());
+  applyBuild(world.player, r.now);
+
+  world.act = r.act;
+  world.bossOrder = r.bosses && r.bosses.length ? [...r.bosses] : drawJourney();
+  world.loop = r.loop || 0;
+  world.gold = r.gold || 0;
+  world.kills = r.kills || 0;
+  world.runTime = r.runTime || 0;
+  world.depth = r.depth - 1;
+
+  phoneFullscreen();
+  advanceRoom();
+  showToast(`ACT ${r.act}`, `Chamber ${r.depth} · you kept everything`);
+}
+
 function beginRun(weapon) {
   const trial = pendingTrial;
   pendingTrial = null;
@@ -445,7 +479,26 @@ function wakeAtLamp(x, y) {
   saveWilds();
 }
 
+/**
+ * Fall in an act and you restart that act, not the journey.
+ *
+ * `entry` is what makes this precise: the build as it stood when the act
+ * began, so four chambers of progress are lost and twenty are not. A loss
+ * costs a session rather than an evening, which is the only reason a
+ * thirty-minute roguelike is reasonable to offer in a browser tab.
+ */
+function retryAct() {
+  const r = currentRun();
+  if (!r) { showTitle(); return; }
+  const act = r.act;
+  save.run = { ...r, depth: actStartDepth(act), now: r.entry };
+  writeSave();
+  resumeRun();
+  showToast(`ACT ${act}, AGAIN`, 'Back to the build you walked in with');
+}
+
 function onVictory() {
+  clearRun();                      // the journey is done; nothing to come back to
   bankRun({ gold: world.gold, depth: FINAL_DEPTH, kills: world.kills, won: true });
   state = 'victory';
   flash(0.4, '#ffd9a0');
@@ -1198,6 +1251,7 @@ function showTitle() {
   state = 'title';
   const dev = devEnabled();
   const acts = save.bestAct || 0;
+  const resume = hasRun() ? runLabel() : null;
   showOverlay(`
     <div class="panel">
       <div class="eyebrow">a roguelike in three acts</div>
@@ -1207,10 +1261,18 @@ function showTitle() {
         after any of them.</p>
 
       <div class="menu">
-        <button class="tile primary" data-act="play">
-          <span><span class="tname">Play</span>
-            <span class="tsub">${acts ? `Act ${Math.min(ACT_COUNT, acts + 1)} of ${ACT_COUNT}` : `${ACT_COUNT} acts · twelve guardians`}</span></span>
+        ${resume ? `<button class="tile primary" data-act="resume-run">
+          <span><span class="tname">Continue</span>
+            <span class="tsub">${resume}</span></span>
         </button>
+        <button class="tile" data-act="new-run">
+          <span><span class="tname">New Journey</span>
+            <span class="tsub">Start again from Act 1. This one is forgotten.</span></span>
+        </button>`
+        : `<button class="tile primary" data-act="play">
+          <span><span class="tname">Play</span>
+            <span class="tsub">${ACT_COUNT} acts · twelve guardians</span></span>
+        </button>`}
 
         <button class="tile${acts >= 2 ? '' : ' locked'}" data-act="${acts >= 2 ? 'endless' : 'locked'}">
           <span><span class="tname">Endless</span>
@@ -1248,6 +1310,29 @@ function showTitle() {
  * and will come back to the front when they are ready for a stranger; the
  * rest are workshop tools that were never meant to be seen.
  */
+/**
+ * Throwing a journey away is asked about, once.
+ *
+ * It is the only destructive button on the title screen, and the thing it
+ * destroys took someone twenty minutes. A confirm here costs one tap and
+ * prevents the single worst thing this interface could do to a player.
+ */
+function showNewRunConfirm() {
+  const r = currentRun();
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">this cannot be undone</div>
+      <h2>Start again?</h2>
+      <p class="sub">You are ${r ? `in Act ${r.act}, at chamber ${r.depth}, carrying
+        ${r.now.boonOrder.length} boon${r.now.boonOrder.length === 1 ? '' : 's'}` : 'part way through a journey'}.
+        Starting a new journey forgets all of it.</p>
+      <div class="row">
+        <button class="btn ghost" data-act="new-run-yes">Start Again</button>
+        <button class="btn" data-act="title">Keep My Journey</button>
+      </div>
+    </div>`);
+}
+
 function showDevMenu() {
   state = 'title';
   showOverlay(`
@@ -1814,6 +1899,7 @@ function showActEnd() {
 }
 
 function showRunEnd(won) {
+  const r = won ? null : currentRun();
   const banked = Math.round(world.gold * goldMultiplier());
   // What actually ground you down, not just the final blow.
   const worst = Object.entries(world.damageLog).sort((a, b) => b[1] - a[1])[0];
@@ -1829,7 +1915,10 @@ function showRunEnd(won) {
       </h1>
       <p class="sub">${won
         ? 'The Warden falls and the last gate swings wide. You could stop here — or press deeper, where everything hits harder.'
-        : `You made it to chamber ${world.depth}. The dungeon keeps what it kills, but not what you carried.`}</p>
+        : r
+          ? `Chamber ${world.depth}. The act is lost — not the journey. Walk back in
+             with the build you carried into Act ${r.act}.`
+          : `You made it to chamber ${world.depth}. The dungeon keeps what it kills, but not what you carried.`}</p>
       <div class="stats">
         <div class="stat"><b>${world.depth}</b><span>Chamber</span></div>
         <div class="stat"><b>${world.kills}</b><span>Kills</span></div>
@@ -1839,8 +1928,9 @@ function showRunEnd(won) {
       ${killer}
       <div class="row">
         ${won ? '<button class="btn" data-act="loop">Press Deeper</button>' : ''}
-        <button class="btn ${won ? 'ghost' : ''}" data-act="weapon">New Run</button>
-        <button class="btn ghost" data-act="mirror">Mirror of Night</button>
+        ${!won && r ? `<button class="btn" data-act="retry-act">Retry Act ${r.act}</button>` : ''}
+        <button class="btn ${won || r ? 'ghost' : ''}" data-act="weapon">New Journey</button>
+        ${devEnabled() ? '<button class="btn ghost" data-act="mirror">Mirror of Night</button>' : ''}
       </div>
     </div>`);
 }
@@ -3437,6 +3527,10 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     // for a choice that almost never changes, and the first minute is the one
     // the platform ranks us on.
     case 'play': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
+    case 'resume-run': resumeRun(); break;
+    // Starting over throws the old journey away, so it asks first.
+    case 'new-run': showNewRunConfirm(); break;
+    case 'new-run-yes': clearRun(); pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
     case 'endless': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
     case 'locked': break;
     case 'howto': showHowTo(); break;
@@ -3559,9 +3653,12 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'loop': loopDeeper(); break;
+    case 'retry-act': retryAct(); break;
     // On into the next act, with the build you walked out of the last one with.
     case 'act-next':
-      world.act = actOf(world.depth) + 1;
+      // bankAct makes what you hold the thing a death returns you to, and
+      // writes it down before the first chamber of the new act is generated.
+      bankAct(world, actOf(world.depth) + 1);
       hideOverlay();
       state = 'playing';
       advanceRoom();
@@ -3591,6 +3688,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     }
     case 'abandon': {
       if (!world.trial) bankRun({ gold: world.gold, depth: world.depth, kills: world.kills, won: false });
+      clearRun();                  // walking away is a decision, and it sticks
       showTitle();
       break;
     }
