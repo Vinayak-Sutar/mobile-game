@@ -87,6 +87,23 @@ export function gameplayStop() {
 }
 
 /**
+ * Are we inside somebody else's page?
+ *
+ * CrazyGames always embeds the game in an iframe; served from a file, a local
+ * server or Pages it is the top document. That makes this the exact test for
+ * "is it safe to drop the service worker and reload", which is hostile inside
+ * an embed and perfectly ordinary outside one.
+ *
+ * Synchronous on purpose. The SDK's own environment is the better answer but
+ * is not known until init() resolves, and the title screen renders before
+ * that. Reading window.top across origins throws, and a throw means we are
+ * framed by somebody else - so the catch returns true.
+ */
+export function inFrame() {
+  try { return window.self !== window.top; } catch { return true; }
+}
+
+/**
  * Where the SDK thinks we are: 'crazygames', 'local', 'disabled', or null
  * while init() is still resolving.
  *

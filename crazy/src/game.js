@@ -78,7 +78,7 @@ import {
   save, loadSave, writeSave, UPGRADES, upgradeCost, canAfford, buyUpgrade, metaBonuses, bankRun, goldMultiplier,
   talkState, missionDone, clearMission, flag, setFlag, markMet,
 } from './save.js';
-import { initPortal, gameplayStart, gameplayStop } from './portal.js';
+import { initPortal, gameplayStart, gameplayStop, inFrame } from './portal.js';
 import { drawJourney, actOf, actStartDepth, ACT_COUNT, GROUPS } from './acts.js';
 import { devEnabled } from './flags.js';
 import {
@@ -1304,6 +1304,21 @@ function showTitle() {
         Three acts stand between you and the surface — and you may stop
         after any of them.</p>
 
+      ${/* VERSION 5'S BUILD ROW. What build this is, whether GitHub has a
+            newer one, and a Force refresh that drops the service worker and
+            re-fetches every script. Pages serves with max-age=600 and the
+            game is sixty-odd separate files, so without this a push looks
+            half-arrived on a phone - or worse, half-applied.
+
+            Above the menu rather than in the footer, because at a phone held
+            sideways the footer is below the fold and this gets pressed after
+            every single push.
+
+            Only where a hard reload is safe: inside the portal's iframe,
+            dropping a service worker and calling location.reload() is
+            hostile, and a player has no use for it anyway. */''}
+      ${inFrame() ? '' : buildRow()}
+
       <div class="menu">
         ${resume ? `<button class="tile primary" data-act="resume-run">
           <span><span class="tname">Continue</span>
@@ -1344,7 +1359,7 @@ function showTitle() {
       </div>
 
       ${statBlock()}
-      <div class="foot">Build <b>${BUILD}</b> · ${BUILT}</div>
+      ${inFrame() ? `<div class="foot">Build <b>${BUILD}</b> · ${BUILT}</div>` : ''}
     </div>`);
 }
 
