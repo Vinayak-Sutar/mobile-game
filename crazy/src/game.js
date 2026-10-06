@@ -1456,6 +1456,15 @@ function showLab(back) {
         </div>
       </div>
 
+      <!-- Enter sits HERE, not at the foot. On a phone held sideways this
+           panel is twice the height of the screen, and burying the only
+           button that does anything under four rows of chips means scrolling
+           the whole thing every single time you want the next chamber. -->
+      <div class="row">
+        <button class="btn" data-act="lab-go">Enter chamber ${lab.depth}</button>
+        <button class="btn ghost" data-act="s-back">Back</button>
+      </div>
+
       <div class="tgsec">terrain</div>
       <div class="chips">
         ${chip('lab-plan', '', 'auto', !lab.plan)}
@@ -1480,10 +1489,6 @@ function showLab(back) {
         ${chip('lab-tog', 'empty', 'No enemies', lab.empty)}
       </div>
 
-      <div class="row">
-        <button class="btn" data-act="lab-go">Enter</button>
-        <button class="btn ghost" data-act="s-back">Back</button>
-      </div>
       <div class="keys">
         In the chamber: <kbd>[</kbd> <kbd>]</kbd> previous / next chamber ·
         <kbd>G</kbd> invincible · <kbd>K</kbd> kill everything ·
