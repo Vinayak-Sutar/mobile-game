@@ -404,6 +404,48 @@ function makeDoor(x, y, reward) {
 export function drawFloor(ctx, time) {
   const room = world.room;
   const biome = world.biome || getBiome();
+  const b = arenaBounds();
+  const spec = bossSpec(room);
+
+  // A GUARDIAN'S CHAMBER IS NOT A MEADOW.
+  //
+  // Ten of the guardians paint their own arena - Solaris a cathedral nave,
+  // Vesper a sun-baked square, the Maestro a stage - and every one of them is
+  // painted in translucent overlays, because they were all written against a
+  // flat dark floor. Over composed ground you get a cathedral with grass
+  // growing through the marble, which is exactly what it looked like.
+  //
+  // So a bespoke arena gets the solid floor it was designed for, and the
+  // terrain is for ordinary chambers. Guardians that bring no arena of their
+  // own keep the ground, because an outdoor guardian is a fine thing.
+  if (spec && spec.drawArena) {
+    const pat = getFloorPattern(ctx, biome, room ? room.depth : 1);
+    ctx.fillStyle = pat || `hsl(${biome.floor.hue},22%,9%)`;
+    ctx.fillRect(b.l, b.t, arena.w, arena.h);
+
+    // Vignette, so the arena reads as a lit room rather than a sheet.
+    const vg = ctx.createRadialGradient(
+      b.l + arena.w / 2, b.t + arena.h / 2, Math.min(arena.w, arena.h) * 0.25,
+      b.l + arena.w / 2, b.t + arena.h / 2, Math.max(arena.w, arena.h) * 0.62,
+    );
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(b.l, b.t, arena.w, arena.h);
+    ctx.fillStyle = biome.fog;
+    ctx.fillRect(b.l, b.t, arena.w, arena.h);
+
+    // The wall band an interior needs and open ground does not.
+    ctx.strokeStyle = biome.wallTint;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(b.l - 2, b.t - 2, arena.w + 4, arena.h + 4);
+    ctx.strokeStyle = `${biome.accent}20`;
+    ctx.lineWidth = 16;
+    ctx.strokeRect(b.l - 10, b.t - 10, arena.w + 20, arena.h + 20);
+
+    spec.drawArena(ctx, room, time);
+    return;
+  }
 
   // Composed ground - soil, patches, grass, a verge of undergrowth - baked
   // once per chamber and blitted. See chamber-terrain.js.
@@ -412,15 +454,10 @@ export function drawFloor(ctx, time) {
   // A light wash of the biome's own colour, so the room still reads as one
   // place. A fraction of what it was: that opacity was chosen over a flat dark
   // tile and it buried composed ground in sludge.
-  const b = arenaBounds();
   ctx.globalAlpha = 0.3;
   ctx.fillStyle = biome.fog;
   ctx.fillRect(b.l, b.t, arena.w, arena.h);
   ctx.globalAlpha = 1;
-
-  // A boss may paint its own arena over the ground (Vesper's sun-baked square).
-  const spec = bossSpec(room);
-  if (spec && spec.drawArena) spec.drawArena(ctx, room, time);
 }
 
 /**

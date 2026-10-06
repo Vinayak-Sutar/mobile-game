@@ -87,7 +87,7 @@ import {
 } from './run-save.js';
 import { applyTouchLayout } from './input.js';
 import { applySkin, applyMotion } from './skin.js';
-import { clearGroundCache } from './chamber-terrain.js';
+import { clearGroundCache, PLANS, dressObstacles } from './chamber-terrain.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -295,6 +295,7 @@ function startTrial(weapon, bossType) {
  */
 function saveChamber() {
   if (world.trial || world.training || world.tutorial) return;
+  if (world.lab) return;                       // the lab is not a journey
   // Endless is a sitting, not a journey - and writing it here would overwrite
   // a journey the player has in progress, which is the worst thing this file
   // could do to somebody.
@@ -1378,6 +1379,146 @@ function showNewRunConfirm() {
     </div>`);
 }
 
+// --- the chamber lab -------------------------------------------------------
+//
+// Built because the owner cannot test a chamber by playing to it. Reaching
+// chamber 17 to look at its ground means twenty minutes and sixteen fights,
+// and the Training Ground answers a different question - it is one fixed room
+// for trying weapons, with no terrain, no guardians and no depth.
+//
+// This is touch-first on purpose. There is already a rich console handle on
+// `window.ashfall`, and it is no use at all on a phone, which is where this
+// game is actually tested.
+
+const lab = {
+  depth: 1,
+  plan: null,         // null = whatever the rotation says for this depth
+  biome: null,        // null = the biome in the save
+  boss: null,         // a guardian to force into the chamber
+  god: true,
+  empty: false,       // generate the room but spawn nothing
+};
+
+/** Everything the lab can put you in, built and entered directly. */
+function enterLab() {
+  const weapon = world.player ? world.player.weapon : WEAPONS[0];
+  resetWorld();
+  clearFx();
+  resetUi();
+  resetInput();
+  chamberArena();
+
+  world.biome = lab.biome ? BIOMES.find((b) => b.id === lab.biome) : getBiome(save.biome);
+  initAmbient(world.biome);
+  world.player = createPlayer(weapon, metaBonuses());
+  world.player.invincible = lab.god;
+  world.depth = lab.depth;
+  world.act = actOf(lab.depth);
+  world.bossOrder = drawJourney();
+  world.lab = true;
+
+  const opts = lab.boss ? { bossType: lab.boss, slot: Math.min(11, Math.floor(lab.depth / 3)) } : {};
+  const room = generateRoom(lab.depth, 0, opts);
+  if (lab.plan) room.plan = PLANS.find((pl) => pl.id === lab.plan) || room.plan;
+  if (lab.plan) dressObstacles(room);
+  if (lab.empty) { room.waves = []; room.cleared = true; }
+  clearGroundCache();
+  startRoom(room);
+  snapCamera();
+  state = 'playing';
+  hideOverlay();
+  showToast(`CHAMBER ${lab.depth}`, `${room.plan ? room.plan.name : ''}${lab.boss ? ` · ${lab.boss}` : ''}`);
+}
+
+const chip = (act, v, label, on) =>
+  `<button class="tgl ${on ? 'on' : ''}" data-act="${act}" data-v="${v}">${label}</button>`;
+
+function showLab(back) {
+  if (back) settingsReturn = back;
+  state = 'paused';
+  const preview = generateRoom(lab.depth, 0, lab.boss ? { bossType: lab.boss } : {});
+  const kind = preview.type;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">developer · not shipped</div>
+      <h2>Chamber Lab</h2>
+      <p class="sub">Drop straight into any chamber without playing to it.
+        Chamber ${lab.depth} is <b>${kind}</b>${preview.plan ? `, ${preview.plan.name}` : ''}.</p>
+
+      <div class="sgroup">
+        <div class="srow">
+          <div class="slabel"><b>Chamber</b><i>Guardians stand on every third. 36 is the last.</i></div>
+          <div class="sctl">
+            <button class="step" data-act="lab-depth" data-v="-1">−</button>
+            <span class="sval">${lab.depth}</span>
+            <button class="step" data-act="lab-depth" data-v="1">+</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="tgsec">terrain</div>
+      <div class="chips">
+        ${chip('lab-plan', '', 'auto', !lab.plan)}
+        ${PLANS.map((pl) => chip('lab-plan', pl.id, pl.id, lab.plan === pl.id)).join('')}
+      </div>
+
+      <div class="tgsec">palette</div>
+      <div class="chips">
+        ${chip('lab-biome', '', 'saved', !lab.biome)}
+        ${BIOMES.map((bm) => chip('lab-biome', bm.id, bm.name, lab.biome === bm.id)).join('')}
+      </div>
+
+      <div class="tgsec">guardian</div>
+      <div class="chips">
+        ${chip('lab-boss', '', 'none', !lab.boss)}
+        ${BOSS_POOL.map((bt) => chip('lab-boss', bt, (BOSS_INFO[bt] || {}).animal || bt, lab.boss === bt)).join('')}
+      </div>
+
+      <div class="tgsec">while you are in there</div>
+      <div class="chips">
+        ${chip('lab-tog', 'god', 'Invincible', lab.god)}
+        ${chip('lab-tog', 'empty', 'No enemies', lab.empty)}
+      </div>
+
+      <div class="row">
+        <button class="btn" data-act="lab-go">Enter</button>
+        <button class="btn ghost" data-act="s-back">Back</button>
+      </div>
+      <div class="keys">
+        In the chamber: <kbd>[</kbd> <kbd>]</kbd> previous / next chamber ·
+        <kbd>G</kbd> invincible · <kbd>K</kbd> kill everything ·
+        <kbd>N</kbd> next terrain · <kbd>B</kbd> a boon · <kbd>P</kbd> pause
+      </div>
+    </div>`);
+}
+
+/** The lab's hotkeys. Only live in a dev build, and only inside the lab. */
+function labKey(k) {
+  if (!devEnabled() || !world.lab) return false;
+  const p = world.player;
+  if (k === '[') { lab.depth = Math.max(1, lab.depth - 1); enterLab(); return true; }
+  if (k === ']') { lab.depth = Math.min(FINAL_DEPTH, lab.depth + 1); enterLab(); return true; }
+  if (k === 'g') {
+    lab.god = !lab.god;
+    if (p) p.invincible = lab.god;
+    showToast(lab.god ? 'INVINCIBLE' : 'MORTAL', '');
+    return true;
+  }
+  if (k === 'k') {
+    for (const e of world.enemies) if (!e.dead) e.hp = 0;
+    showToast('CLEARED', '');
+    return true;
+  }
+  if (k === 'n') {
+    const i = lab.plan ? PLANS.findIndex((pl) => pl.id === lab.plan) : -1;
+    lab.plan = PLANS[(i + 1) % PLANS.length].id;
+    enterLab();
+    return true;
+  }
+  if (k === 'b' && p) { showBoonSelect(); return true; }
+  return false;
+}
+
 function showDevMenu() {
   state = 'title';
   showOverlay(`
@@ -1387,6 +1528,7 @@ function showDevMenu() {
       ${versionRow()}
       ${buildRow()}
       <div class="row">
+        <button class="btn" data-act="lab">Chamber Lab</button>
         <button class="btn ghost" data-act="biome">Pick Biome</button>
         <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
@@ -3196,6 +3338,7 @@ function showPause() {
   if (world.tutorial) { showTutorialPause(); return; }
   if (world.overworld || world.owBoss) { showWildsPause(); return; }
 
+  if (world.lab) { showLab(showPause); return; }
   state = 'paused';
   const act = actOf(world.depth);
   showOverlay(`
@@ -3586,6 +3729,16 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'locked': break;
     case 'howto': showHowTo(); break;
     case 'devmenu': showDevMenu(); break;
+    case 'lab': showLab(showDevMenu); break;
+    case 'lab-depth':
+      lab.depth = Math.min(FINAL_DEPTH, Math.max(1, lab.depth + Number(el.dataset.v)));
+      showLab();
+      break;
+    case 'lab-plan': lab.plan = el.dataset.v || null; showLab(); break;
+    case 'lab-biome': lab.biome = el.dataset.v || null; showLab(); break;
+    case 'lab-boss': lab.boss = el.dataset.v || null; showLab(); break;
+    case 'lab-tog': lab[el.dataset.v] = !lab[el.dataset.v]; showLab(); break;
+    case 'lab-go': enterLab(); break;
     case 'settings': showSettings(state === 'paused' ? showPause : showTitle); break;
     case 's-tab': settingsTab = el.dataset.v; showSettings(); break;
     case 's-back': (settingsReturn || showTitle)(); break;
@@ -3766,7 +3919,12 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'escape' || k === 'p') {
     if (state === 'playing') showPause();
     else if (state === 'paused') { state = 'playing'; hideOverlay(); resetInput(); }
+    return;
   }
+
+  // The Chamber Lab's own keys. Last, so they can never shadow a real one,
+  // and they only answer inside the lab in a dev build.
+  if (state === 'playing' && labKey(k)) ev.preventDefault();
 });
 
 // --- leaving and coming back (a phone switching apps) -------------------------
