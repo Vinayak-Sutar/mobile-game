@@ -53,6 +53,7 @@ import {
 } from './projectiles.js';
 import {
   generateRoom, startRoom, updateRoom, drawFloor, drawObstacles, drawDoors, drawRoomIntro,
+  drawChamberCanopy,
   FINAL_DEPTH, FIRST_BOSS_DEPTH, BOSS_GAP, effDepth,
 } from './rooms.js';
 import { updateHazards, drawHazardsBelow, drawHazardsAbove } from './hazards.js';
@@ -87,7 +88,7 @@ import {
 } from './run-save.js';
 import { applyTouchLayout } from './input.js';
 import { applySkin, applyMotion } from './skin.js';
-import { clearGroundCache, PLANS, dressObstacles } from './chamber-terrain.js';
+import { clearGroundCache, PLANS, dressObstacles, furnish } from './chamber-terrain.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -829,6 +830,9 @@ function render() {
     drawHazardsAbove(ctx);
     drawGrenades(ctx, world.runTime);
     if (wilds) drawOverworldAbove(ctx, world.runTime);
+    // Chamber canopies, over everyone - the same pass the overworld uses, so
+    // walking under a sakura behaves the same in a chamber as in the Wilds.
+    if (!wilds && !dungeon) drawChamberCanopy(ctx, world.runTime);
     drawFxAbove(ctx);
     if (dungeon) drawDungeonAbove(ctx, world.runTime);
     if (!wilds && !dungeon) drawRoomIntro(ctx, world.room, world.runTime);
@@ -1463,8 +1467,11 @@ function enterLab() {
 
   const opts = lab.boss ? { bossType: lab.boss, slot: Math.min(11, Math.floor(lab.depth / 3)) } : {};
   const room = generateRoom(lab.depth, 0, opts);
-  if (lab.plan) room.plan = PLANS.find((pl) => pl.id === lab.plan) || room.plan;
-  if (lab.plan) dressObstacles(room);
+  if (lab.plan) {
+    room.plan = PLANS.find((pl) => pl.id === lab.plan) || room.plan;
+    dressObstacles(room);
+    furnish(room);        // or the trees stay the rotation's, not the one asked for
+  }
   if (lab.empty) { room.waves = []; room.cleared = true; }
   clearGroundCache();
   startRoom(room);

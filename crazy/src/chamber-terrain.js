@@ -28,9 +28,10 @@
 // The biome is now a PALETTE rather than a place. It tints soil, grass and
 // stone, and the chamber plan decides what is actually growing there.
 
-import { arena } from './state.js';
+import { arena, world } from './state.js';
 import { TAU, clamp } from './util.js';
 import { mulberry } from './terrain.js';
+import { drawTreeOf, drawTreeBase, drawDecor } from './wilds-draw.js';
 
 // --- chamber plans ----------------------------------------------------------
 //
@@ -41,63 +42,91 @@ import { mulberry } from './terrain.js';
 
 export const PLANS = [
   {
-    id: 'meadow',
-    name: 'open grass',
+    id: 'meadow', name: 'open grass',
     base: 'grass', ground: { dirt: 0.22, stone: 0.05 },
     tufts: 1.0, detail: 0.7, verge: 'grass',
-    props: ['bush', 'bush', 'bush', 'rock'],
-    layout: 'scatter',
+    props: ['bush', 'bush', 'bush', 'rock'], layout: 'scatter',
+    trees: ['blossom', 'dark'], treeN: 5,
+    decals: ['flowers', 'flowers', 'pebbles'], decalN: 14,
   },
   {
-    id: 'clearing',
-    name: 'a ring of thicket',
-    base: 'grass', ground: { dirt: 0.34, stone: 0.05 },
-    tufts: 0.8, detail: 0.6, verge: 'grass',
-    props: ['bush', 'bush', 'stump'],
-    layout: 'ring',
+    id: 'sakura', name: 'a sakura grove',
+    base: 'grass', ground: { dirt: 0.1, stone: 0.03 },
+    tufts: 0.9, detail: 0.5, verge: 'grass',
+    props: ['bush', 'stump', 'rock'], layout: 'scatter',
+    trees: ['sakura', 'sakura', 'blossom'], treeN: 9,
+    decals: ['petalbed', 'petalbed', 'flowers'], decalN: 12,
+    air: 'sakura',
   },
   {
-    id: 'rocks',
-    name: 'broken stone',
+    id: 'pinewood', name: 'a stand of pines',
+    base: 'grass', ground: { dirt: 0.3, stone: 0.08 },
+    tufts: 0.6, detail: 0.9, verge: 'grass',
+    props: ['stump', 'rock', 'bush'], layout: 'clusters',
+    trees: ['pine', 'pine', 'cypress'], treeN: 11, snowy: false,
+    decals: ['shrooms', 'pebbles', 'stump'], decalN: 12,
+  },
+  {
+    id: 'rocks', name: 'broken stone',
     base: 'stone', ground: { dirt: 0.3, grass: 0.26 },
     tufts: 0.4, detail: 1.0, verge: 'rock',
-    props: ['rock', 'rock', 'rock', 'bush'],
-    layout: 'clusters',
+    props: ['rock', 'rock', 'rock', 'bush'], layout: 'clusters',
+    trees: ['dead', 'cypress'], treeN: 4,
+    decals: ['pebbles', 'pebbles', 'fissure', 'stone'], decalN: 18,
   },
   {
-    id: 'grove',
-    name: 'old trees',
-    base: 'grass', ground: { dirt: 0.14, stone: 0.04 },
-    tufts: 1.25, detail: 0.9, verge: 'grass',
-    props: ['stump', 'bush', 'bush', 'stump'],
-    layout: 'scatter',
+    id: 'ruins', name: 'old walls',
+    base: 'stone', ground: { dirt: 0.34, grass: 0.3 },
+    tufts: 0.7, detail: 1.0, verge: 'rock',
+    props: ['rock', 'stump', 'bush'], layout: 'ring',
+    trees: ['dark', 'dead'], treeN: 5,
+    decals: ['pebbles', 'web', 'stone', 'flowers'], decalN: 16,
+    air: 'dust',
   },
   {
-    id: 'road',
-    name: 'an old road',
+    id: 'road', name: 'an old road',
     base: 'grass', ground: { dirt: 0.14, stone: 0.06 },
     tufts: 0.9, detail: 0.7, verge: 'grass',
-    props: ['bush', 'rock', 'bush'],
-    layout: 'flanks',
+    props: ['bush', 'rock', 'bush'], layout: 'flanks',
+    trees: ['cypress', 'cypress', 'dark'], treeN: 8,
+    decals: ['flowers', 'pebbles'], decalN: 12,
     road: true,
   },
   {
-    id: 'marsh',
-    name: 'wet ground',
+    id: 'marsh', name: 'wet ground',
     base: 'grass', ground: { dirt: 0.4, stone: 0.03 },
     tufts: 1.1, detail: 0.5, verge: 'reed',
-    props: ['reeds', 'bush', 'reeds'],
-    layout: 'scatter',
-    pools: true,
+    props: ['reeds', 'bush', 'reeds'], layout: 'scatter',
+    trees: ['dead', 'palm'], treeN: 5,
+    decals: ['reeds', 'reeds', 'shrooms', 'shell'], decalN: 16,
+    pools: true, air: 'mist',
   },
   {
-    id: 'burnt',
-    name: 'burnt over',
-    base: 'dirt',  ground: { stone: 0.16, grass: 0.12 },
+    id: 'graves', name: 'a burial ground',
+    base: 'grass', ground: { dirt: 0.38, stone: 0.12 },
+    tufts: 0.6, detail: 0.9, verge: 'grass',
+    props: ['rock', 'stump', 'bush'], layout: 'ring',
+    trees: ['dead', 'dead', 'cypress'], treeN: 7,
+    decals: ['grave', 'grave', 'skull', 'web'], decalN: 14,
+    air: 'mist',
+  },
+  {
+    id: 'burnt', name: 'burnt over',
+    base: 'dirt', ground: { stone: 0.16, grass: 0.12 },
     tufts: 0.3, detail: 1.1, verge: 'rock',
-    props: ['stump', 'rock', 'stump'],
-    layout: 'clusters',
-    ash: true,
+    props: ['stump', 'rock', 'stump'], layout: 'clusters',
+    trees: ['dead', 'dead'], treeN: 8,
+    decals: ['ember', 'ember', 'fissure', 'skull'], decalN: 16,
+    ash: true, air: 'ash',
+  },
+  {
+    id: 'dunes', name: 'dry country',
+    base: 'dirt', ground: { stone: 0.22, grass: 0.06 },
+    tufts: 0.25, detail: 0.8, verge: 'rock',
+    props: ['rock', 'rock', 'bush'], layout: 'scatter',
+    trees: ['palm', 'dead'], treeN: 4,
+    decals: ['pebbles', 'skull', 'shell', 'fissure'], decalN: 16,
+    air: 'dust',
   },
 ];
 
@@ -425,6 +454,88 @@ export function dressObstacles(room) {
     o.kind = plan.props[(rng() * plan.props.length) | 0];
     o.seed = (rng() * 1e6) | 0;
   }
+}
+
+/**
+ * Furnish a chamber from the open world's own vocabulary.
+ *
+ * The Wilds has seven kinds of tree and twenty kinds of ground decoration -
+ * sakura, pines, graves, mushrooms, embers, fissures, petal beds - and the
+ * chambers were drawing none of them. They were blobs, tufts and four props,
+ * which is why every chamber looked like every other chamber.
+ *
+ * Trees stay out of the middle and off the fighting floor: they ring the
+ * verge, where they frame the room without standing in a fight. They are
+ * decoration only - collision is still the obstacle rectangles, so nothing
+ * here can change how a room plays.
+ */
+export function furnish(room) {
+  const plan = room.plan || planFor(room.depth, room.loop || 0);
+  const rng = mulberry(room.depth * 2017 + (room.loop || 0) * 613 + 71);
+  const b = { l: arena.x, t: arena.y, r: arena.x + arena.w, b: arena.y + arena.h };
+  const cx = (b.l + b.r) / 2;
+  const cy = (b.t + b.b) / 2;
+  const open = Math.min(arena.w, arena.h) * 0.34;      // the floor a fight needs
+
+  room.trees = [];
+  for (let i = 0; i < (plan.treeN || 0); i++) {
+    // Pushed to the edges: pick a point, then shove it outward until it is
+    // clear of the open floor. A tree in the middle of an arena is an
+    // obstacle you cannot walk round and did not agree to.
+    let x = b.l + rng() * arena.w;
+    let y = b.t + rng() * arena.h;
+    const dx = x - cx;
+    const dy = y - cy;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d < open) {
+      x = cx + (dx / d) * open * (1 + rng() * 0.5);
+      y = cy + (dy / d) * open * (1 + rng() * 0.5);
+    }
+    room.trees.push({
+      x: Math.max(b.l + 8, Math.min(b.r - 8, x)),
+      y: Math.max(b.t + 20, Math.min(b.b - 6, y)),
+      r: 24 + rng() * 26,
+      kind: plan.trees[(rng() * plan.trees.length) | 0],
+      sway: rng() * TAU,
+      snowy: !!plan.snowy,
+    });
+  }
+  // Drawn back to front, or a near tree sits behind a far one.
+  room.trees.sort((p1, p2) => p1.y - p2.y);
+
+  room.decor = [];
+  for (let i = 0; i < (plan.decalN || 0); i++) {
+    room.decor.push({
+      t: plan.decals[(rng() * plan.decals.length) | 0],
+      x: b.l + 20 + rng() * (arena.w - 40),
+      y: b.t + 24 + rng() * (arena.h - 48),
+      ph: rng() * TAU,
+    });
+  }
+}
+
+/** Ground decoration and tree trunks: under everything, including the player. */
+export function drawChamberDecor(ctx, room, time) {
+  if (!room) return;
+  for (const d of room.decor || []) {
+    try { drawDecor(ctx, d, time); } catch { /* one bad decal must not take the frame */ }
+  }
+  for (const t of room.trees || []) {
+    try { drawTreeBase(ctx, t); } catch { /* same */ }
+  }
+}
+
+/** Trees: over everything, so a canopy passes across the player as it does in the Wilds. */
+export function drawChamberTrees(ctx, room, time) {
+  if (!room || !room.trees) return;
+  const p = world.player;
+  for (const t of room.trees) {
+    // Fade a canopy you are standing under, or it hides you.
+    const under = p && Math.hypot(p.x - t.x, p.y - (t.y - 10)) < t.r;
+    ctx.globalAlpha = under ? 0.4 : 1;
+    try { drawTreeOf(ctx, t, time); } catch { /* same */ }
+  }
+  ctx.globalAlpha = 1;
 }
 
 /** One prop, drawn where its rectangle is. */

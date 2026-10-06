@@ -450,6 +450,15 @@ function drawSmoulder(ctx, s, time) {
   ctx.fillText(`${s.amount} Cinders`, s.x, s.y - 26);
 }
 
+/**
+ * One piece of ground decoration, by kind.
+ *
+ * Exported so the chambers can use the open world's own vocabulary instead of
+ * inventing a second, poorer one. `d` is { t, x, y, ph } - the kind, where it
+ * is, and a phase so two of the same thing do not nod in unison.
+ */
+export function drawDecor(ctx, d, time) { return drawDecal(ctx, d, time); }
+
 function drawDecal(ctx, d, time) {
   switch (d.t) {
     case 'flowers':
@@ -641,6 +650,44 @@ export function drawOverworldAbove(ctx, time) {
   const [gr, gg, gb, ga] = W.grade;
   ctx.fillStyle = `rgba(${gr | 0},${gg | 0},${gb | 0},${ga.toFixed(3)})`;
   ctx.fillRect(camera.x - 20, camera.y - 20, view.w + 40, view.h + 40);
+}
+
+/**
+ * One tree, by kind: pine, dead, cypress, palm, blossom, sakura, dark, or a
+ * plain broadleaf. `t` is { x, y, r, kind, sway, snowy }.
+ *
+ * Exported for the same reason as drawDecor - seven kinds of tree already
+ * exist and the chambers had none.
+ */
+/**
+ * A tree's shadow and trunk, which belong UNDER everyone.
+ *
+ * The overworld splits a tree in two: this goes down with the ground, the
+ * crown goes over the top so it passes across whoever walks beneath it. Draw
+ * only the crown and you get canopies floating with nothing holding them up,
+ * which is exactly what the chambers looked like on the first attempt.
+ */
+export function drawTreeBase(ctx, t) {
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(t.x + 10, t.y + 8, t.r * 0.9, t.r * 0.45, 0, 0, TAU);
+  ctx.fill();
+  ctx.fillStyle = t.kind === 'dead' ? '#4a4038' : t.kind === 'dark' ? '#241a14' : '#3a2a1c';
+  ctx.fillRect(t.x - 7, t.y - 10, 14, 18);
+}
+
+export function drawTreeOf(ctx, t, time) {
+  const sway = Math.sin(time * 0.9 + (t.sway || 0)) * 2;
+  switch (t.kind) {
+    case 'pine': return drawPine(ctx, t, sway);
+    case 'dead': return drawDead(ctx, t, sway);
+    case 'cypress': return drawCypress(ctx, t, sway);
+    case 'palm': return drawPalm(ctx, t, sway, time);
+    case 'blossom': return drawBroad(ctx, t, sway, [214, 120, 160], 1, [246, 176, 204]);
+    case 'sakura': return drawSakura(ctx, t, sway, time);
+    case 'dark': return drawBroad(ctx, t, sway, [18, 34, 26], 0.9);
+    default: return drawBroad(ctx, t, sway, null, 1);
+  }
 }
 
 function drawBroad(ctx, t, sway, tint, k, top = null) {

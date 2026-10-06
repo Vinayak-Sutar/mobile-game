@@ -8,7 +8,7 @@ import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
 import { BOSS_INFO, BOSS_DEFS } from './bosses.js';
 import { BOSS_POOL } from './boss-pool.js';
 import { ACT_COUNT, CHAMBERS_PER_ACT, GUARDIANS_PER_ACT, isActEnd } from './acts.js';
-import { drawChamberGround, dressObstacles, drawProp, planFor } from './chamber-terrain.js';
+import { drawChamberGround, dressObstacles, drawProp, planFor, furnish, drawChamberDecor, drawChamberTrees } from './chamber-terrain.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
@@ -119,6 +119,9 @@ export function generateRoom(depth, loop = 0, opts = {}) {
   // decided once here and seeded by the chamber, so a resume brings back the
   // same place rather than a reshuffled one.
   dressObstacles(room);
+  // Trees and ground decoration, placed once and seeded by the chamber so a
+  // resume brings back the same grove rather than a new one.
+  if (!isBoss) furnish(room);
   return room;
 }
 
@@ -458,6 +461,17 @@ export function drawFloor(ctx, time) {
   ctx.fillStyle = biome.fog;
   ctx.fillRect(b.l, b.t, arena.w, arena.h);
   ctx.globalAlpha = 1;
+
+  // Flowers, graves, embers, mushrooms - the Wilds' own decoration, live
+  // rather than baked because most of it moves.
+  drawChamberDecor(ctx, room, time);
+}
+
+/** Canopies, over everyone, exactly as the overworld draws them. */
+export function drawChamberCanopy(ctx, time) {
+  const room = world.room;
+  if (!room || (bossSpec(room) || {}).drawArena) return;
+  drawChamberTrees(ctx, room, time);
 }
 
 /**
