@@ -1028,8 +1028,37 @@ function versionRow() {
 
 /** A phone or tablet, judged by the device rather than by recent input. */
 /** On a phone or tablet, go fullscreen (and so lock landscape) if we are not already. */
+/**
+ * Go fullscreen, if this is a phone and we are not there already.
+ *
+ * Touch only. Forcing a desktop browser fullscreen on a click is intrusive and
+ * the screen is big enough anyway.
+ *
+ * Never inside somebody else's iframe: CrazyGames supplies fullscreen itself
+ * and its requirements are explicit that a game must not handle it, so on the
+ * portal this does nothing and the platform's own control does the work.
+ */
 function phoneFullscreen() {
+  if (inFrame()) return;
   if (isTouchDevice() && !isFullscreen()) enterFullscreen();
+}
+
+/**
+ * THE FIRST TAP ANYWHERE GOES FULLSCREEN.
+ *
+ * phoneFullscreen() used to be sprinkled on individual buttons - Play, the
+ * tutorial, the Wilds, a dungeon - which meant any route nobody had thought
+ * of stayed in a browser window with an address bar eating the top of the
+ * screen. The Chamber Lab was exactly that: the whole developer path, which
+ * is the one route the owner actually uses, never went fullscreen at all.
+ *
+ * A browser will only grant fullscreen inside a user gesture, and a gesture
+ * on the launcher page cannot carry across a navigation - so the first touch
+ * on this page is the earliest moment it can possibly happen. Once, because
+ * re-requesting it every tap would fight a player who deliberately left.
+ */
+function firstTouchFullscreen() {
+  phoneFullscreen();
 }
 
 function isTouchDevice() {
@@ -3748,7 +3777,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'endless': pendingTrial = null; pendingEndless = true; phoneFullscreen(); showWeaponSelect(); break;
     case 'locked': break;
     case 'howto': showHowTo(); break;
-    case 'devmenu': showDevMenu(); break;
+    case 'devmenu': phoneFullscreen(); showDevMenu(); break;
     case 'lab': showLab(showDevMenu); break;
     case 'lab-depth':
       lab.depth = Math.min(FINAL_DEPTH, Math.max(1, lab.depth + Number(el.dataset.v)));
@@ -3758,7 +3787,7 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'lab-biome': lab.biome = el.dataset.v || null; showLab(); break;
     case 'lab-boss': lab.boss = el.dataset.v || null; showLab(); break;
     case 'lab-tog': lab[el.dataset.v] = !lab[el.dataset.v]; showLab(); break;
-    case 'lab-go': enterLab(); break;
+    case 'lab-go': phoneFullscreen(); enterLab(); break;
     case 'settings': showSettings(state === 'paused' ? showPause : showTitle); break;
     case 's-tab': settingsTab = el.dataset.v; showSettings(); break;
     case 's-back': (settingsReturn || showTitle)(); break;
@@ -4035,6 +4064,7 @@ function ensureAudio() {
 
 // Any first interaction unlocks WebAudio (mobile requires a gesture).
 window.addEventListener('pointerdown', ensureAudio, { once: true });
+window.addEventListener('pointerdown', firstTouchFullscreen, { once: true });
 // Which gesture unlocks audio differs across mobile browsers; keep retrying
 // on every kind until the context is actually running.
 for (const type of ['touchend', 'pointerup', 'click', 'keydown']) {
