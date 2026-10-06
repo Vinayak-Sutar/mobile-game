@@ -32,6 +32,7 @@ import { clamp, TAU } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, setBossTheme, unlockAudio,
+  setMasterVolume, setSfxVolume,
   setAmbientTheme,
   setMusicVolume, previewMusic, outputLevel,
 } from './audio.js';
@@ -79,6 +80,9 @@ import {
 } from './save.js';
 import { initPortal, gameplayStart, gameplayStop } from './portal.js';
 import { drawJourney, actOf, ACT_COUNT, GROUPS } from './acts.js';
+import { devEnabled } from './flags.js';
+import { applyTouchLayout } from './input.js';
+import { applySkin, applyMotion } from './skin.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -670,6 +674,8 @@ function render() {
   // are drawn on this figure, so there is no second look to maintain.
   look.skin = 'wanderer';
   tuning.speed = save.moveSpeed ?? SPEED_DEFAULT;
+  tuning.shake = save.screenShake ?? 1;
+  applyTouchLayout(save);
   ctx.setTransform(s, 0, 0, s, 0, 0);
 
   ctx.fillStyle = '#08060d';
@@ -810,6 +816,9 @@ function drawMenuBackdrop() {
 // --- menus -----------------------------------------------------------------
 
 function statBlock() {
+  // Nothing to report before the first run, and four zeros under the Play
+  // button is noise at exactly the moment the screen has to be inviting.
+  if (!save.runs && !save.best.depth && !save.darkness) return '';
   return `
     <div class="stats">
       <div class="stat"><b>${save.best.depth}</b><span>Best chamber</span></div>
@@ -1187,48 +1196,113 @@ function showTitle() {
   if (musicRoom) leaveMusicRoom();
   if (ward) closeWardrobe();
   state = 'title';
+  const dev = devEnabled();
+  const acts = save.bestAct || 0;
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">top-down action roguelike · prototype</div>
+      <div class="eyebrow">a roguelike in three acts</div>
       <h1>${NAME}</h1>
+      <p class="sub">Choose a weapon. Take what the guardians leave behind.
+        Three acts stand between you and the surface — and you may stop
+        after any of them.</p>
+
+      <div class="menu">
+        <button class="tile primary" data-act="play">
+          <span><span class="tname">Play</span>
+            <span class="tsub">${acts ? `Act ${Math.min(ACT_COUNT, acts + 1)} of ${ACT_COUNT}` : `${ACT_COUNT} acts · twelve guardians`}</span></span>
+        </button>
+
+        <button class="tile${acts >= 2 ? '' : ' locked'}" data-act="${acts >= 2 ? 'endless' : 'locked'}">
+          <span><span class="tname">Endless</span>
+            <span class="tsub">${acts >= 2 ? 'No ending. Go as deep as you can.' : 'Clear two acts to unlock'}</span></span>
+          ${acts >= 2 ? '' : '<span class="tmark">Locked</span>'}
+        </button>
+
+        <button class="tile" data-act="settings">
+          <span><span class="tname">Settings</span>
+            <span class="tsub">Sound, controls, display</span></span>
+        </button>
+
+        <button class="tile" data-act="howto">
+          <span><span class="tname">How to Play</span>
+            <span class="tsub">Controls, and what the gates mean</span></span>
+        </button>
+
+        ${dev ? `<button class="tile" data-act="devmenu">
+          <span><span class="tname">Developer</span>
+            <span class="tsub">The Wilds, dungeons, training, music room</span></span>
+          <span class="tmark">Dev</span>
+        </button>` : ''}
+      </div>
+
+      ${statBlock()}
+      <div class="foot">Build <b>${BUILD}</b> · ${BUILT}</div>
+    </div>`);
+}
+
+/**
+ * Everything that is not the game.
+ *
+ * Nothing was deleted when the title was cut from eleven buttons to four -
+ * it moved here, behind `?dev`. The Wilds and the dungeons are real content
+ * and will come back to the front when they are ready for a stranger; the
+ * rest are workshop tools that were never meant to be seen.
+ */
+function showDevMenu() {
+  state = 'title';
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">not shipped</div>
+      <h2>Developer</h2>
       ${versionRow()}
       ${buildRow()}
-      <p class="sub">Every guardian stands between you and the surface, one in every other chamber.
-      You have three lives.
-      Clear a room, choose a door, take a boon, go deeper.
-      Death is not the end — the darkness you carry out makes you stronger.</p>
       <div class="row">
-        <button class="btn" data-act="biome">Begin Run</button>
+        <button class="btn ghost" data-act="biome">Pick Biome</button>
         <button class="btn ghost" data-act="trials">Boss Trials</button>
         <button class="btn ghost" data-act="tutorial">Tutorial</button>
         <button class="btn ghost" data-act="training">Training Ground</button>
         <button class="btn ghost" data-act="mowing">The Lawn</button>
-        <button class="btn ghost" data-act="wilds">The Wilds (open world)</button>
+        <button class="btn ghost" data-act="wilds">The Wilds</button>
         <button class="btn ghost" data-act="dungeon-demo">Dungeons</button>
         <button class="btn ghost" data-act="opening">The Opening</button>
         <button class="btn ghost" data-act="music-room">Music Room</button>
-        <button class="btn ghost" data-act="mirror">Mirror of Night · ${save.darkness} ◆</button>
+        <button class="btn ghost" data-act="mirror">Mirror of Night</button>
         <button class="btn ghost" data-act="padcheck">Controller Check</button>
       </div>
       ${fullscreenRow()}
-      ${playerRows(showTitle)}
-      ${statBlock()}
-      ${musicVolumeRow()}
       ${dualSenseRow()}
-      <div class="keys">
-        <b>Touch</b> — left half drags to move · <kbd>ATK</kbd> attack · <kbd>DASH</kbd> dash ·
-        <kbd>SPEC</kbd> special · <kbd>BOMB</kbd> grenade (drag from it to aim; drag onto ✕ to cancel) ·
-        the row at the bottom casts your spells<br>
-        <b>Keyboard</b> — <kbd>WASD</kbd> move · <kbd>mouse</kbd> aim · <kbd>click</kbd>/<kbd>J</kbd> attack ·
-        <kbd>Space</kbd> dash · <kbd>K</kbd> special · <kbd>Q</kbd> grenade (hold to aim, right-click cancels) ·
-        <kbd>R</kbd> reload (blunderbuss) ·
-        <kbd>1</kbd>–<kbd>4</kbd> spells ·
-        <kbd>M</kbd> mute · <kbd>Esc</kbd> pause<br>
-        <b>Controller</b> — <kbd>L stick</kbd> move · <kbd>R stick</kbd> aim · <kbd>R2</kbd> attack ·
-        <kbd>L2</kbd> special · <kbd>✕</kbd>/<kbd>L1</kbd> dash · <kbd>○</kbd> grenade (hold + R stick; dash cancels) ·
-        hold <kbd>R1</kbd> + <kbd>✕○□△</kbd> spells ·
-        <kbd>Options</kbd> pause
+      <div class="row"><button class="btn ghost" data-act="title">Back</button></div>
+    </div>`);
+}
+
+/**
+ * How to play, shown rather than explained.
+ *
+ * The platform asks for onboarding in gameplay, visual, with nothing to read -
+ * so this screen is the fallback for someone who went looking, not the way
+ * anyone is taught. It lists only what a first run needs.
+ */
+function showHowTo() {
+  const touch = input.touchMode;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">the short version</div>
+      <h2>How to Play</h2>
+      <div class="sgroup">
+        <div class="srow"><div class="slabel"><b>Clear the chamber</b>
+          <i>Every foe down opens the gates out. A guardian stands every third chamber.</i></div></div>
+        <div class="srow"><div class="slabel"><b>Choose a gate</b>
+          <i>Each one shows what it holds — a boon, a spell, health, or gold. You take one.</i></div></div>
+        <div class="srow"><div class="slabel"><b>Boons stack</b>
+          <i>They are the whole build. Taking the same one again makes it stronger.</i></div></div>
+        <div class="srow"><div class="slabel"><b>An act is a sitting</b>
+          <i>Twelve chambers, four guardians, about ten minutes. Stop at the end of one and keep what you built.</i></div></div>
+        <div class="srow"><div class="slabel"><b>${touch ? 'Touch' : 'Keyboard'}</b>
+          <i>${touch
+            ? 'Drag anywhere on the left to move. ATK, DASH, SPEC and BOMB sit under your right thumb; spells run along the bottom.'
+            : 'WASD to move, mouse to aim, click or J to attack, Space to dash, K for special, Q for a grenade, 1-4 for spells. P pauses.'}</i></div></div>
       </div>
+      <div class="row"><button class="btn" data-act="title">Back</button></div>
     </div>`);
 }
 
@@ -1265,6 +1339,128 @@ async function checkBuild() {
 }
 
 let pendingBiome = null;
+
+
+// --- settings ---------------------------------------------------------------
+//
+// There was no settings screen. Volume, move speed, FPS and the wardrobe were
+// loose rows stacked on the title and repeated on three pause screens, each
+// one a `*Row()` helper plus its own case in the click switch. Adding a
+// setting meant touching four places.
+//
+// This is one screen, built from a list. A new setting is one entry in SETTINGS
+// and nothing else: it renders, it dispatches, it persists, on every screen
+// that shows it. `back` is passed in rather than parked in a module variable,
+// so the same screen serves the title and every pause.
+
+let settingsTab = 'audio';
+let settingsReturn = null;
+
+const pct = (v) => `${Math.round(v * 100)}%`;
+
+/**
+ * Every setting, as data.
+ *
+ *   kind    step (a number with - and +), switch (on/off), pick (2-3 choices)
+ *   get     reads the live value
+ *   set     writes it, applies it, and saves
+ *
+ * `dev` entries only appear in a developer build.
+ */
+function settingsFor(tab) {
+  const S = {
+    audio: [
+      { id: 'master', kind: 'step', name: 'Master volume', note: 'Everything, all at once.',
+        get: () => pct(save.masterVolume), act: 'set-master' },
+      { id: 'music', kind: 'step', name: 'Music', note: 'The score, and nothing else.',
+        get: () => (audio.music ? pct(save.musicVolume) : 'Off'), act: 'set-music' },
+      { id: 'sfx', kind: 'step', name: 'Sound effects', note: 'Blades, spells, footsteps.',
+        get: () => pct(save.sfxVolume), act: 'set-sfx' },
+      { id: 'mute', kind: 'switch', name: 'Mute everything', note: 'Also on the M key.',
+        get: () => audio.muted, act: 'tog-mute' },
+    ],
+    controls: [
+      { id: 'speed', kind: 'step', name: 'Move speed', note: 'How fast the Wanderer walks. Taste, not difficulty.',
+        get: () => pct(save.moveSpeed), act: 'set-speed' },
+      { id: 'stick', kind: 'pick', name: 'Touch stick', note: 'Which thumb moves you. The buttons swap with it.',
+        get: () => save.touchSide, act: 'set-side',
+        options: [['left', 'Left'], ['right', 'Right']] },
+      { id: 'tscale', kind: 'step', name: 'Button size', note: 'Bigger is easier to hit; smaller shows more room.',
+        get: () => pct(save.touchScale), act: 'set-tscale' },
+      { id: 'vibrate', kind: 'switch', name: 'Vibration', note: 'A short buzz when something lands.',
+        get: () => save.vibration, act: 'tog-vibrate' },
+    ],
+    display: [
+      { id: 'shake', kind: 'step', name: 'Screen shake', note: 'Set it to 0% if motion bothers you.',
+        get: () => pct(save.screenShake), act: 'set-shake' },
+      { id: 'motion', kind: 'switch', name: 'Reduce motion', note: 'Calms menus and the drifting embers behind them.',
+        get: () => save.reduceMotion, act: 'tog-motion' },
+      { id: 'fps', kind: 'switch', name: 'Show FPS', note: 'Frames a second, and what a frame costs.',
+        get: () => save.showFps, act: 'tog-fps' },
+    ],
+    game: [
+      { id: 'biome', kind: 'pick', name: 'Chambers', note: 'Which place the run is set in.',
+        get: () => save.biome, act: 'set-biome',
+        options: BIOMES.map((b) => [b.id, b.name]) },
+      { id: 'ward', kind: 'button', name: 'Wardrobe', note: 'What the Wanderer wears.',
+        get: () => 'Open', act: 'wardrobe' },
+    ],
+  };
+  return S[tab] || S.audio;
+}
+
+function settingRow(f) {
+  let ctl = '';
+  if (f.kind === 'step') {
+    ctl = `<button class="step" data-act="${f.act}" data-v="-1">−</button>
+           <span class="sval">${f.get()}</span>
+           <button class="step" data-act="${f.act}" data-v="1">+</button>`;
+  } else if (f.kind === 'switch') {
+    ctl = `<button class="sw ${f.get() ? 'on' : ''}" data-act="${f.act}"
+             aria-pressed="${!!f.get()}" aria-label="${f.name}"></button>`;
+  } else if (f.kind === 'pick') {
+    ctl = `<div class="pick">${f.options.map(([v, label]) =>
+      `<button data-act="${f.act}" data-v="${v}" class="${f.get() === v ? 'on' : ''}">${label}</button>`).join('')}</div>`;
+  } else {
+    ctl = `<button class="btn ghost" data-act="${f.act}">${f.get()}</button>`;
+  }
+  return `<div class="srow">
+      <div class="slabel"><b>${f.name}</b><i>${f.note}</i></div>
+      <div class="sctl">${ctl}</div>
+    </div>`;
+}
+
+const TABS = [['audio', 'Sound'], ['controls', 'Controls'], ['display', 'Display'], ['game', 'Game']];
+
+/**
+ * @param back where the Back button goes. Passed, never remembered globally,
+ *             because this screen is opened from the title and from pause and
+ *             both have to come home to the right place.
+ */
+function showSettings(back) {
+  if (back) settingsReturn = back;
+  state = overlayVisible() && state === 'paused' ? 'paused' : state;
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">settings</div>
+      <h2>${TABS.find((t) => t[0] === settingsTab)[1]}</h2>
+      <div class="tabs">
+        ${TABS.map(([id, label]) =>
+          `<button class="tab ${id === settingsTab ? 'on' : ''}" data-act="s-tab" data-v="${id}">${label}</button>`).join('')}
+      </div>
+      <div class="sgroup">${settingsFor(settingsTab).map(settingRow).join('')}</div>
+      <div class="row"><button class="btn" data-act="s-back">Back</button></div>
+    </div>`);
+}
+
+/** Nudge a numeric setting and re-render just enough to show it moved. */
+function stepSetting(key, dir, { min, max, step, apply }) {
+  const v = Math.round(Math.min(max, Math.max(min, (save[key] ?? min) + dir * step)) * 100) / 100;
+  save[key] = v;
+  if (apply) apply(v);
+  writeSave();
+  showSettings();
+}
 
 function showBiomeSelect() {
   state = 'biome';
@@ -1593,6 +1789,7 @@ function showTrialEnd(won) {
  */
 function showActEnd() {
   const done = actOf(world.depth);
+  if (done > (save.bestAct || 0)) { save.bestAct = done; writeSave(); }
   const next = done + 1;
   const group = GROUPS[next - 1];
   state = 'victory';
@@ -2859,21 +3056,24 @@ function showPause() {
   if (world.overworld || world.owBoss) { showWildsPause(); return; }
 
   state = 'paused';
+  const act = actOf(world.depth);
   showOverlay(`
     <div class="panel">
-      <div class="eyebrow">chamber ${world.depth}</div>
+      <div class="eyebrow">act ${act} of ${ACT_COUNT} · chamber ${world.depth}</div>
       <h2>Paused</h2>
-      <div class="row">
-        <button class="btn" data-act="resume">Resume</button>
-        <button class="btn ghost" data-act="mute">${audio.muted ? 'Unmute' : 'Mute'}</button>
-        <button class="btn ghost" data-act="music">Music: ${audio.music ? 'On' : 'Off'}</button>
-        <button class="btn ghost" data-act="abandon">Abandon Run</button>
+      <div class="menu">
+        <button class="tile primary" data-act="resume">
+          <span><span class="tname">Resume</span><span class="tsub">P, or the button top-left</span></span>
+        </button>
+        <button class="tile" data-act="settings">
+          <span><span class="tname">Settings</span><span class="tsub">Sound, controls, display</span></span>
+        </button>
+        <button class="tile" data-act="abandon">
+          <span><span class="tname">Abandon Run</span><span class="tsub">Bank what you carry and return to the title</span></span>
+        </button>
       </div>
-      ${playerRows(showPause)}
       ${spellSlotsRow()}
-      ${musicVolumeRow()}
-      ${fullscreenRow()}
-      ${dualSenseRow()}
+      ${devEnabled() ? fullscreenRow() + dualSenseRow() : ''}
     </div>`);
   bindSlotDrag();
 }
@@ -3230,6 +3430,63 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
     case 'vol-up': applyMusicVolume(audio.musicVolume + 0.1); break;
     case 'fullscreen': toggleFullscreen().then(() => showTitle()); break;
     case 'weapon': pendingTrial = null; showWeaponSelect(); break;
+
+    // --- the title's four doors ---------------------------------------------
+    // Play goes straight to the weapon, using the biome already chosen in
+    // settings. The biome picker was a screen between the player and the game
+    // for a choice that almost never changes, and the first minute is the one
+    // the platform ranks us on.
+    case 'play': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
+    case 'endless': pendingTrial = null; phoneFullscreen(); showWeaponSelect(); break;
+    case 'locked': break;
+    case 'howto': showHowTo(); break;
+    case 'devmenu': showDevMenu(); break;
+    case 'settings': showSettings(state === 'paused' ? showPause : showTitle); break;
+    case 's-tab': settingsTab = el.dataset.v; showSettings(); break;
+    case 's-back': (settingsReturn || showTitle)(); break;
+
+    // --- settings -----------------------------------------------------------
+    case 'set-master':
+      stepSetting('masterVolume', Number(el.dataset.v), {
+        min: 0, max: 1, step: 0.1, apply: () => applyAudioLevels(),
+      });
+      break;
+    case 'set-music':
+      stepSetting('musicVolume', Number(el.dataset.v), {
+        min: 0, max: 1, step: 0.1, apply: (v) => { setMusicVolume(v); previewMusic(); },
+      });
+      break;
+    case 'set-sfx':
+      stepSetting('sfxVolume', Number(el.dataset.v), {
+        min: 0, max: 1, step: 0.1, apply: () => { applyAudioLevels(); sfx.ui(); },
+      });
+      break;
+    case 'tog-mute': toggleMute(); save.muted = audio.muted; writeSave(); showSettings(); break;
+    case 'set-speed':
+      stepSetting('moveSpeed', Number(el.dataset.v), {
+        min: SPEED_MIN, max: SPEED_MAX, step: SPEED_STEP, apply: (v) => { tuning.speed = v; },
+      });
+      break;
+    case 'set-side':
+      save.touchSide = el.dataset.v; writeSave(); applyTouchLayout(save); showSettings();
+      break;
+    case 'set-tscale':
+      stepSetting('touchScale', Number(el.dataset.v), {
+        min: 0.75, max: 1.4, step: 0.05, apply: () => applyTouchLayout(save),
+      });
+      break;
+    case 'tog-vibrate': save.vibration = !save.vibration; writeSave(); showSettings(); break;
+    case 'set-shake':
+      stepSetting('screenShake', Number(el.dataset.v), {
+        min: 0, max: 1.5, step: 0.25, apply: (v) => { tuning.shake = v; },
+      });
+      break;
+    case 'tog-motion':
+      save.reduceMotion = !save.reduceMotion; writeSave();
+      applyMotion(save.reduceMotion); showSettings();
+      break;
+    case 'tog-fps': save.showFps = !save.showFps; writeSave(); showSettings(); break;
+    case 'set-biome': save.biome = el.dataset.v; writeSave(); showSettings(); break;
     case 'biome': {
       if (isTouchDevice() && !isFullscreen()) enterFullscreen();
       if (!save.tutorialSeen) showTutorialOffer();
@@ -3432,10 +3689,17 @@ setInterval(() => { if (rotateEl.classList.contains('on')) checkOrientation(); }
 // The phone reclaimed the GPU: redraw everything cached once it is back.
 canvas.addEventListener('contextrestored', rebuildGraphics);
 
+/** Master and SFX, from the save. Music has its own curve and its own setter. */
+function applyAudioLevels() {
+  setMasterVolume(save.masterVolume ?? 1);
+  setSfxVolume(save.sfxVolume ?? 1);
+}
+
 function ensureAudio() {
   if (audioStarted) return;
   audioStarted = true;
   initAudio();
+  applyAudioLevels();
   if (save.muted) toggleMute();
   setMusicVolume(typeof save.musicVolume === 'number' ? save.musicVolume : 0.7);
   setMusicEnabled(save.musicOn !== false);
@@ -3460,6 +3724,8 @@ initInput(canvas);
 initFullscreen({ onChange: () => { if (overlayVisible() && state === 'title') showTitle(); } });
 registerServiceWorker();
 initPortal();
+applySkin();
+applyMotion(save.reduceMotion);
 initGamepad({
   pause: () => {
     if (state === 'playing') showPause();

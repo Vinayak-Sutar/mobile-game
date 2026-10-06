@@ -3,6 +3,7 @@
 // real system rather than ad-hoc effects at call sites.
 
 import { TAU, rand, clamp, easeOutCubic, easeOutQuad, polygon } from './util.js';
+import { tuning } from './state.js';
 
 const MAX_PARTICLES = 420;
 
@@ -22,7 +23,9 @@ export const fx = {
 };
 
 export function shake(amount) {
-  fx.trauma = clamp(fx.trauma + amount, 0, 1);
+  // Scaled at the one place every shake enters, so the setting cannot be
+  // bypassed by a caller that nobody remembered to update. 0 turns it off.
+  fx.trauma = clamp(fx.trauma + amount * tuning.shake, 0, 1);
 }
 
 export function hitstop(seconds) {

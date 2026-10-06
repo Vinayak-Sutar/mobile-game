@@ -8,6 +8,7 @@ let master = null;
 let noiseBuf = null;
 let compressor = null;
 let musicBus = null;
+let sfxBus = null;
 // Music plays only inside a run and goes silent whenever the page is hidden,
 // so it can default on without droning at you from a menu or a background tab.
 // Two separate questions, deliberately kept apart:
@@ -18,6 +19,8 @@ let musicBus = null;
 export const audio = {
   muted: false, music: true, active: false, ready: false, suspended: false,
   musicVolume: 0.7,   // the player's slider, 0..1
+  masterVolume: 1,    // 1 is the level the mix was BUILT at, not a maximum
+  sfxVolume: 1,
   bossTrackUntil: 0,  // a boss playing its own music (the Maestro) keeps this in the future
 };
 
@@ -27,6 +30,15 @@ export const audio = {
 // and full volume brings the melody up level with the combat effects.
 const MUSIC_MAX_GAIN = 2.4;
 function musicGain(v) { return Math.pow(clamp(v, 0, 1), 1.6) * MUSIC_MAX_GAIN; }
+
+// THE LEVEL THE MIX WAS BUILT AT. Every effect in this file was balanced with
+// the master bus here, so a setting of 1 means "as designed" and the slider
+// only ever goes down. The old setVolume() clamped the raw gain to 0..1, which
+// made full volume DOUBLE the designed headroom and punched straight through
+// the limiter - which is why no setting ever called it.
+const DESIGN_MASTER = 0.5;
+function masterGain(v) { return clamp(v, 0, 1) * DESIGN_MASTER; }
+function sfxGain(v) { return Math.pow(clamp(v, 0, 1), 1.4); }
 
 let makeup = null;
 let outTap = null;
@@ -70,8 +82,15 @@ export function initAudio() {
   compressor.connect(makeup).connect(limiter).connect(outTap).connect(ctx.destination);
 
   master = ctx.createGain();
-  master.gain.value = 0.5;
+  master.gain.value = audio.muted ? 0 : masterGain(audio.masterVolume);
   master.connect(compressor);
+
+  // A bus for everything that is not music. There was none: tone() and the
+  // noise path connected straight to master, so music had a fader and the
+  // other four hundred sounds did not.
+  sfxBus = ctx.createGain();
+  sfxBus.gain.value = sfxGain(audio.sfxVolume);
+  sfxBus.connect(master);
 
   musicBus = ctx.createGain();
   musicBus.gain.value = musicGain(audio.musicVolume);
@@ -87,8 +106,22 @@ export function initAudio() {
 
 export function toggleMute() {
   audio.muted = !audio.muted;
-  if (master) master.gain.value = audio.muted ? 0 : 0.5;
+  // Restores the player's own level, not a hardcoded one. This used to snap
+  // back to 0.5 whichever way the master slider had been set.
+  if (master) master.gain.value = audio.muted ? 0 : masterGain(audio.masterVolume);
   return audio.muted;
+}
+
+/** The master fader, 0..1, where 1 is the level the mix was built at. */
+export function setMasterVolume(v) {
+  audio.masterVolume = clamp(v, 0, 1);
+  if (master) master.gain.value = audio.muted ? 0 : masterGain(audio.masterVolume);
+}
+
+/** Everything that is not music. */
+export function setSfxVolume(v) {
+  audio.sfxVolume = clamp(v, 0, 1);
+  if (sfxBus) sfxBus.gain.value = sfxGain(audio.sfxVolume);
 }
 
 function now() { return ctx.currentTime; }
@@ -122,7 +155,7 @@ function tone({
   } else {
     osc.connect(gain);
   }
-  gain.connect(out || master);
+  gain.connect(out || sfxBus);
   osc.start(t);
   osc.stop(t + dur + 0.02);
 }
@@ -144,7 +177,7 @@ function noise({
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(vol, t);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(filter).connect(gain).connect(out || master);
+  src.connect(filter).connect(gain).connect(out || sfxBus);
   src.start(t);
   src.stop(t + dur + 0.02);
 }
@@ -722,6 +755,5 @@ export function resumeAudio() {
 export function musicRunning() { return schedTimer !== null; }
 export function audioContextState() { return ctx ? ctx.state : 'none'; }
 
-export function setVolume(v) {
-  if (master) master.gain.value = audio.muted ? 0 : clamp(v, 0, 1);
-}
+/** @deprecated Use setMasterVolume: this took a raw gain, not a setting. */
+export function setVolume(v) { setMasterVolume(v); }

@@ -26,6 +26,19 @@ const DEFAULTS = {
   moveSpeed: 0.85,       // walking speed multiplier (settings); 1 was the old default
   tutorialSeen: false,   // the tutorial is offered once, before the first run
   showFps: false,        // frames per second and frame cost, in the corner
+
+  // SETTINGS. Every default below reproduces exactly how the game played
+  // before there was a settings screen, so an existing save is unchanged by
+  // meeting them: loadSave() spreads DEFAULTS *under* the stored object, so
+  // new keys appear on old saves on their own and nothing needs migrating.
+  masterVolume: 1,       // 1 is the level the mix was built at, not a maximum
+  sfxVolume: 1,
+  touchSide: 'left',     // which thumb moves you; the buttons follow
+  touchScale: 1,
+  vibration: true,
+  reduceMotion: false,
+  screenShake: 1,
+  bestAct: 0,            // acts cleared, ever. Two unlocks Endless.
   mapNoFog: false,       // The Wilds' map shows everything, not just where you have been
 };
 

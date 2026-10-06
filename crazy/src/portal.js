@@ -87,10 +87,28 @@ export function gameplayStop() {
 }
 
 /**
- * Inside the portal, as far as the SDK knows.
+ * Where the SDK thinks we are: 'crazygames', 'local', 'disabled', or null
+ * while init() is still resolving.
  *
- * NOT a gate for anything that must not ship. An ad blocker or a slow CDN
- * makes this false on the portal, so using it to hide a dev menu would ship
- * the dev menu. That gate is a build-time constant - see the plan.
+ * v3 exposes this as a plain property rather than v2's async getter, but only
+ * once init() has resolved - hence the `ready` check and the null.
  */
-export const onPortal = () => !!sdk();
+export function environment() {
+  const s = sdk();
+  if (!s || !ready) return null;
+  try { return s.environment || null; } catch { return null; }
+}
+
+/**
+ * Actually inside the portal.
+ *
+ * This used to be `!!sdk()` - "did the SDK script load" - which is true on
+ * localhost too, since the script loads fine from anywhere. Anything built on
+ * it was therefore wrong off-platform as well as on: the `?dev` door checked
+ * `!onPortal()` and never opened.
+ *
+ * STILL NOT A GATE FOR WHAT SHIPS. It is null until init resolves, and false
+ * whenever an ad blocker stops the SDK, so hiding something behind it would
+ * show that thing on the portal. flags.js owns that decision with a constant.
+ */
+export const onPortal = () => environment() === 'crazygames';

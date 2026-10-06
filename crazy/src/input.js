@@ -71,35 +71,78 @@ let canvasEl = null;
 let mouseWorld = { x: 0, y: 0 };
 let mouseSeen = false;
 
+/**
+ * Where the touch controls sit, and how big they are.
+ *
+ * `side` says which thumb moves you; everything else mirrors to follow. `scale`
+ * sizes the whole action cluster.
+ *
+ * SCALE IS APPLIED TO THE RADII HERE, not at draw time. pickButton() tests
+ * `b.r` and drawControls() draws `b.r`, so scaling in one place keeps what you
+ * can hit and what you can see in agreement. Scaling only the drawing would
+ * leave buttons that look big and miss.
+ */
+export const touchLayout = { side: 'left', scale: 1, opacity: 1 };
+
+export function applyTouchLayout(cfg = {}) {
+  if (cfg.touchSide === 'left' || cfg.touchSide === 'right') touchLayout.side = cfg.touchSide;
+  if (Number.isFinite(cfg.touchScale)) touchLayout.scale = Math.min(1.6, Math.max(0.6, cfg.touchScale));
+  layoutControls();
+}
+
+/** Base radii, so a rescale is always measured from the design, never compounded. */
+const BASE_R = {};
+for (const k of Object.keys(controls)) if (controls[k] && controls[k].r) BASE_R[k] = controls[k].r;
+
+/** The half of the screen a movement drag starts in. */
+export function inStickZone(x) {
+  return touchLayout.side === 'right' ? x > view.w * 0.48 : x < view.w * 0.52;
+}
+
 export function layoutControls() {
   const { w, h } = view;
-  controls.attack.x = w - 104;
-  controls.attack.y = h - 100;
-  controls.dash.x = w - 212;
-  controls.dash.y = h - 142;
-  controls.special.x = w - 124;
-  controls.special.y = h - 224;
-  controls.grenade.x = w - 232;
-  controls.grenade.y = h - 256;
-  // Touch spells: an arc up the right edge above SPEC, under the right thumb
-  // with the other action buttons (the owner's call). Offsets are from the
-  // bottom-right corner, so the cluster is the same on every screen; checked
-  // at the phone's 1298x600 view with no overlaps. (Keyboard and pad show
-  // the spells as a row along the bottom instead: ui.js.)
-  // The cancel zone sits far up-right of BOMB, where a normal aiming drag
-  // never reaches.
-  controls.spell0.x = w - 44;  controls.spell0.y = h - 214;
-  controls.spell1.x = w - 52;  controls.spell1.y = h - 292;
-  controls.spell2.x = w - 120; controls.spell2.y = h - 322;
-  controls.spell3.x = w - 190; controls.spell3.y = h - 336;
-  // Tucked into the bottom-right corner, under the right thumb, clear of ATK.
-  controls.reload.x = w - 34;
-  controls.reload.y = h - 42;
-  controls.gcancel.x = w - 150;
-  controls.gcancel.y = 118;
-  controls.pause.x = w - 32;
-  controls.pause.y = 32;
+  const k = touchLayout.scale;
+  // Offsets are from the action cluster's own corner. On a left-stick layout
+  // that corner is bottom-right; flipping `side` mirrors every x about the
+  // screen, so one table of numbers serves both hands.
+  const flip = touchLayout.side === 'right';
+  const X = (fromRight) => (flip ? fromRight * k : w - fromRight * k);
+
+  for (const key of Object.keys(BASE_R)) controls[key].r = BASE_R[key] * k;
+
+  controls.attack.x = X(104);  controls.attack.y = h - 100 * k;
+  controls.dash.x = X(212);    controls.dash.y = h - 142 * k;
+  controls.special.x = X(124); controls.special.y = h - 224 * k;
+  controls.grenade.x = X(232); controls.grenade.y = h - 256 * k;
+  // Touch spells: an arc up the edge above SPEC, under the acting thumb with
+  // the other action buttons (the owner's call). Checked at the phone's
+  // 1298x600 view with no overlaps. (Keyboard and pad show the spells as a row
+  // along the bottom instead: ui.js.)
+  controls.spell0.x = X(44);  controls.spell0.y = h - 214 * k;
+  controls.spell1.x = X(52);  controls.spell1.y = h - 292 * k;
+  controls.spell2.x = X(120); controls.spell2.y = h - 322 * k;
+  controls.spell3.x = X(190); controls.spell3.y = h - 336 * k;
+  // Tucked into the cluster's corner, clear of ATK.
+  controls.reload.x = X(34);  controls.reload.y = h - 42 * k;
+  // The cancel zone sits far up from BOMB, where an aiming drag never reaches.
+  controls.gcancel.x = X(150); controls.gcancel.y = 118;
+  // Pause rides the opposite top corner from the action cluster, and clears
+  // the notch: viewport-fit=cover is set, so without this it sits under it.
+  controls.pause.x = flip ? w - 32 : 32 + safeLeft();
+  controls.pause.y = 32 + safeTop();
 }
+
+/** Safe-area insets, in world units. */
+function inset(side) {
+  try {
+    const v = getComputedStyle(document.documentElement)
+      .getPropertyValue(`--safe-${side}`).trim();
+    const px = parseFloat(v) || 0;
+    return px / (view.scale || 1);
+  } catch { return 0; }
+}
+const safeTop = () => inset('t');
+const safeLeft = () => 0;
 
 function toWorld(clientX, clientY) {
   const rect = canvasEl.getBoundingClientRect();
@@ -184,8 +227,8 @@ export function initInput(canvas) {
         return assign(ev.pointerId, 'grenade');
       }
 
-      // Anything on the left half becomes the movement stick.
-      if (x < view.w * 0.52 && !controls.stick.active) {
+      // Anything on the moving thumb's half becomes the movement stick.
+      if (inStickZone(x) && !controls.stick.active) {
         controls.stick.active = true;
         controls.stick.id = ev.pointerId;
         controls.stick.ox = x;

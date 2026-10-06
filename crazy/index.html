@@ -13,11 +13,44 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2308060d'/%3E%3Cpath d='M16 5l3.6 8.2L28 16l-8.4 2.8L16 27l-3.6-8.2L4 16l8.4-2.8z' fill='%23ff8a3d'/%3E%3C/svg%3E">
 <style>
   :root{
-    --bg:#08060d;
-    --ink:#f2ecff;
-    --dim:#9a90b5;
+    /* INK. Lifted off pure black: #08060d read as a hole in the screen, and
+       everything placed on it had to shout. A touch of warmth in the dark
+       lets the ember accent be the only loud thing. */
+    --bg:#0c0a12;
+    --ink:#f4f0fb;
+    --dim:#9f97b6;
+    --faint:rgba(159,151,182,.62);
+
+    /* ACCENT. One, and the game's own fire. */
     --gold:#ffc861;
+    --hot:#ff9a4d;
+    --deep:#d8433f;
     --blood:#ff4d5e;
+
+    /* SURFACES and LINES. These were ~40 hardcoded rgba() values scattered
+       through the sheet, which is why nothing could be restyled without
+       hunting. Named once, used everywhere. */
+    --surf-1:rgba(255,255,255,.055);
+    --surf-2:rgba(255,255,255,.085);
+    --surf-3:rgba(255,255,255,.12);
+    --line-1:rgba(255,255,255,.10);
+    --line-2:rgba(255,255,255,.17);
+    --line-3:rgba(255,255,255,.30);
+
+    --r-sm:9px; --r-md:12px; --r-lg:16px; --r-pill:999px;
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:18px; --sp-5:26px; --sp-6:36px;
+    --dur:160ms; --ease:cubic-bezier(.2,.9,.3,1);
+
+    --shadow:0 10px 30px rgba(0,0,0,.45);
+    --ring:0 0 0 2px rgba(255,200,97,.75), 0 0 20px rgba(255,180,80,.3);
+
+    /* The banner reserve. Zero until ads are switched on, so reserving it
+       now costs nothing and saves relaying out every screen later. */
+    --ad-h:0px; --ad-gap:12px;
+    --safe-t:env(safe-area-inset-top,0px);
+    --safe-b:env(safe-area-inset-bottom,0px);
+
+    --grain:none;   /* replaced at boot by skin.js with a baked data URL */
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{
@@ -30,9 +63,10 @@
 
   #overlay{
     position:fixed;inset:0;display:none;align-items:flex-start;justify-content:center;
-    padding:16px;z-index:10;
-    background:radial-gradient(ellipse at center,rgba(20,12,34,.82),rgba(4,3,8,.95));
-    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    z-index:10;
+    padding:calc(16px + var(--safe-t)) 16px calc(16px + var(--ad-h) + var(--ad-gap) + var(--safe-b));
+    background:radial-gradient(ellipse at 50% 42%,rgba(26,16,40,.74),rgba(5,4,9,.95));
+    backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);
     overflow-y:auto;
   }
   #overlay.on{display:flex}
@@ -43,15 +77,26 @@
   /* margin:auto centres the panel when it fits and top-aligns it when it's
      taller than the screen. Flex align-items:center pushed the top of a tall
      panel above the viewport, out of scroll reach, on landscape phones. */
-  .panel{width:100%;max-width:900px;margin:auto;text-align:center;animation:rise .28s cubic-bezier(.2,.9,.3,1.2)}
+  .panel{width:100%;max-width:900px;margin:auto;text-align:center;animation:rise .28s var(--ease)}
   @keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
 
-  .eyebrow{font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
-  h1{margin:0 0 4px;font-size:clamp(30px,7vw,54px);letter-spacing:.12em;text-transform:uppercase;
-     background:linear-gradient(180deg,#fff5e0,#ff9a4d 60%,#c8354f);
+  .eyebrow{font-size:10.5px;letter-spacing:.34em;text-transform:uppercase;color:var(--dim);margin-bottom:var(--sp-2)}
+  h1{margin:0 0 var(--sp-1);font-size:clamp(30px,7vw,54px);letter-spacing:.12em;text-transform:uppercase;
+     background:linear-gradient(180deg,#fff5e0,var(--hot) 60%,#c8354f);
      -webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
-  h2{margin:0 0 14px;font-size:clamp(18px,4.2vw,28px);letter-spacing:.06em;font-weight:700}
-  .sub{color:var(--dim);font-size:13px;line-height:1.55;margin:0 auto 18px;max-width:520px}
+  h2{margin:0 0 var(--sp-4);font-size:clamp(18px,4.2vw,28px);letter-spacing:.06em;font-weight:700}
+  .sub{color:var(--dim);font-size:13px;line-height:1.6;margin:0 auto var(--sp-4);max-width:520px}
+
+  /* THE TEXTURE. One baked grain (skin.js), laid over a surface rather than
+     replacing it, and only where a panel is big enough to read as flat. Under
+     data-skin="rich" so the untextured state is a design, not a broken load. */
+  html[data-skin="rich"] .card,
+  html[data-skin="rich"] .tile,
+  html[data-skin="rich"] .srow,
+  html[data-skin="rich"] .mrow{background-image:var(--grain),linear-gradient(170deg,var(--surf-2),var(--surf-1))}
+
+  /* And one place to turn motion down, for the setting and for the OS. */
+  html[data-motion="reduced"] *{animation:none!important;transition:none!important}
 
   .cards{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
   .card{
@@ -70,14 +115,102 @@
   .card.rare{border-color:rgba(255,200,97,.5);box-shadow:0 0 22px rgba(255,180,60,.14) inset}
 
   .btn{
-    display:inline-block;margin:6px;padding:13px 30px;cursor:pointer;
-    background:linear-gradient(180deg,#ff9a4d,#d8433f);color:#1a0d08;
-    border:0;border-radius:11px;font-weight:800;font-size:15px;letter-spacing:.1em;text-transform:uppercase;
-    transition:transform .1s,filter .1s;font-family:inherit;
+    display:inline-block;margin:var(--sp-1);padding:14px 32px;cursor:pointer;
+    background:linear-gradient(180deg,var(--hot),var(--deep));color:#1a0d08;
+    border:0;border-radius:var(--r-md);font-weight:800;font-size:15px;
+    letter-spacing:.1em;text-transform:uppercase;
+    box-shadow:0 2px 0 rgba(0,0,0,.3),0 8px 22px rgba(255,120,60,.22);
+    transition:transform var(--dur) var(--ease),filter var(--dur),box-shadow var(--dur);
+    font-family:inherit;
   }
-  .btn:active{transform:scale(.95)}
-  .btn.ghost{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.28)}
-  .row{margin-top:16px}
+  .btn:hover{filter:brightness(1.08)}
+  .btn:active{transform:translateY(1px) scale(.98);box-shadow:0 1px 0 rgba(0,0,0,.3)}
+  .btn.ghost{
+    background:var(--surf-1);color:var(--ink);border:1px solid var(--line-2);
+    box-shadow:none;font-weight:700;
+  }
+  .btn.ghost:hover{background:var(--surf-2);border-color:var(--line-3)}
+  .btn:disabled,.btn.locked{opacity:.38;cursor:default;filter:none;box-shadow:none}
+  .btn:disabled:active,.btn.locked:active{transform:none}
+  .row{margin-top:var(--sp-4);display:flex;gap:var(--sp-2);flex-wrap:wrap;justify-content:center}
+
+  /* --- the title's own menu ------------------------------------------------
+     Four actions, not eleven. The first is the game; the rest are doors beside
+     it. Sized for a thumb, which is the only input that matters on a phone. */
+  .menu{display:flex;flex-direction:column;gap:var(--sp-2);max-width:380px;margin:var(--sp-5) auto 0}
+  .tile{
+    display:flex;align-items:center;gap:var(--sp-3);width:100%;cursor:pointer;
+    padding:15px 18px;border-radius:var(--r-md);text-align:left;font:inherit;
+    background:var(--surf-1);border:1px solid var(--line-1);color:var(--ink);
+    transition:background var(--dur) var(--ease),border-color var(--dur),transform var(--dur);
+  }
+  .tile:hover{background:var(--surf-2);border-color:var(--line-2);transform:translateY(-1px)}
+  .tile:active{transform:translateY(0) scale(.99)}
+  .tile .tname{font-weight:750;font-size:15px;letter-spacing:.04em;display:block}
+  .tile .tsub{display:block;margin-top:2px;font-size:11.5px;color:var(--faint);letter-spacing:.02em}
+  .tile .tmark{margin-left:auto;font-size:11px;color:var(--faint);letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+  .tile.primary{
+    background:linear-gradient(165deg,rgba(255,154,77,.18),rgba(255,154,77,.05));
+    border-color:rgba(255,200,97,.45);padding:19px 20px;
+  }
+  .tile.primary:hover{border-color:rgba(255,200,97,.85)}
+  .tile.primary .tname{font-size:19px;font-weight:800;color:var(--gold);letter-spacing:.09em;text-transform:uppercase}
+  .tile.locked{opacity:.45;cursor:default}
+  .tile.locked:hover{transform:none;background:var(--surf-1);border-color:var(--line-1)}
+
+  /* --- settings ------------------------------------------------------------ */
+  .tabs{display:flex;gap:var(--sp-1);justify-content:center;flex-wrap:wrap;margin:0 auto var(--sp-4)}
+  .tab{
+    padding:9px 17px;border-radius:var(--r-pill);cursor:pointer;font:inherit;
+    font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    background:transparent;border:1px solid var(--line-1);color:var(--dim);
+    transition:all var(--dur) var(--ease);
+  }
+  .tab:hover{border-color:var(--line-3);color:var(--ink)}
+  .tab.on{background:rgba(255,200,97,.14);border-color:rgba(255,200,97,.6);color:var(--gold)}
+  .sgroup{display:flex;flex-direction:column;gap:var(--sp-2);max-width:560px;margin:0 auto;text-align:left}
+  .srow{
+    display:flex;align-items:center;gap:var(--sp-3);padding:13px 16px;
+    border-radius:var(--r-md);background:var(--surf-1);border:1px solid var(--line-1);
+  }
+  .srow .slabel{flex:1;min-width:0}
+  .srow .slabel b{display:block;font-size:14px;font-weight:650;letter-spacing:.02em}
+  .srow .slabel i{display:block;margin-top:2px;font-style:normal;font-size:11.5px;color:var(--faint);line-height:1.45}
+  .sctl{display:flex;align-items:center;gap:var(--sp-2);flex-shrink:0}
+
+  /* A stepper: minus, value, plus. One control for every numeric setting. */
+  .step{
+    width:36px;height:36px;border-radius:50%;cursor:pointer;font:inherit;font-size:19px;line-height:1;
+    background:var(--surf-2);border:1px solid var(--line-2);color:var(--ink);
+    transition:background var(--dur),border-color var(--dur),transform var(--dur);
+  }
+  .step:hover{background:var(--surf-3);border-color:var(--line-3)}
+  .step:active{transform:scale(.92)}
+  .sval{min-width:58px;text-align:center;font-weight:750;color:var(--gold);font-size:13.5px;font-variant-numeric:tabular-nums}
+
+  /* A switch. Reads as on/off at a glance without needing its label. */
+  .sw{
+    position:relative;width:52px;height:30px;border-radius:var(--r-pill);cursor:pointer;
+    background:var(--surf-2);border:1px solid var(--line-2);padding:0;
+    transition:background var(--dur) var(--ease),border-color var(--dur);
+  }
+  .sw::after{
+    content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;
+    background:var(--dim);transition:transform var(--dur) var(--ease),background var(--dur);
+  }
+  .sw.on{background:rgba(255,200,97,.22);border-color:rgba(255,200,97,.6)}
+  .sw.on::after{transform:translateX(22px);background:var(--gold)}
+
+  /* A two- or three-way pick, for things that are not numbers. */
+  .pick{display:flex;gap:3px;background:var(--surf-2);border:1px solid var(--line-1);border-radius:var(--r-pill);padding:3px}
+  .pick button{
+    padding:7px 14px;border-radius:var(--r-pill);cursor:pointer;font:inherit;font-size:12px;font-weight:700;
+    background:transparent;border:0;color:var(--dim);letter-spacing:.04em;transition:all var(--dur)
+  }
+  .pick button.on{background:rgba(255,200,97,.2);color:var(--gold)}
+
+  .foot{margin-top:var(--sp-5);font-size:11px;color:var(--faint);letter-spacing:.06em}
+  .foot b{color:var(--dim);font-weight:600}
 
   .stats{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
   .stat b{display:block;font-size:24px;color:var(--gold)}
@@ -283,7 +416,14 @@
   /* Narrow (upright phone) screens: menus stay usable before a run starts,
      two cards per row instead of one tall column. */
   @media (max-width: 560px){
-    #overlay{padding:12px 10px}
+    #overlay{padding:calc(12px + var(--safe-t)) 10px calc(12px + var(--ad-h) + var(--ad-gap) + var(--safe-b))}
+    /* Four tabs on one line rather than three and an orphan. */
+    .tab{padding:8px 11px;font-size:11px;letter-spacing:.07em}
+    .srow{padding:12px 13px;gap:var(--sp-2)}
+    .srow .slabel b{font-size:13.5px}
+    .srow .slabel i{font-size:11px}
+    .sval{min-width:48px;font-size:13px}
+    .step{width:34px;height:34px}
     .card{flex:1 1 140px;min-height:112px;padding:11px}
     .biomecard{min-height:124px}
     .btn{padding:12px 20px;font-size:14px}
