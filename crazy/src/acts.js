@@ -21,10 +21,10 @@
 // power never resets either. An act is a boundary, not a fresh start.
 //
 // WHY TWELVE GUARDIANS AND NOT FOURTEEN. Four from each group, drawn at random,
-// out of 5 + 5 + 4. So you fight twelve of the fourteen and two journeys are
-// never the same. The hard group has only four, so all four always appear -
-// the variety is deliberately spent on acts 1 and 2, which is where nearly
-// every player will be.
+// out of 4 + 5 + 5. So you fight twelve of the fourteen and two journeys are
+// never the same. The easy group has only four, so all four always appear in
+// act 1 - which is the one act where a fixed cast is least of a loss, since
+// almost nobody sees act 1 twice before they have seen acts 2 and 3 once.
 
 import { BOSS_POOL } from './boss-pool.js';
 
@@ -50,12 +50,40 @@ export const GUARDIANS_PER_ACT = 4;
  * groups is one line here and changes nothing else, which is the point: the
  * ladder died because a balance assumption was buried in code nobody reread.
  */
+/**
+ * Each guardian's own weight, as base hp x base damage, read out of
+ * bosses.js and enemies.js. Thousands, rounded.
+ *
+ * It exists so an act can open on its gentlest guardian. Difficulty inside an
+ * act was already a smooth 5-8% a fight, but the act BOUNDARIES cliffed - 19%
+ * into act 2 and 35% into act 3 - because the group's base difficulty stepped
+ * up at the same moment slot scaling kept climbing, and a random draw could
+ * put the group's hardest guardian first. A 35% spike landing immediately
+ * after the screen that invites you to stop is the worst possible place for
+ * one.
+ *
+ * Measured, not guessed, and the measurement is worth redoing whenever a
+ * guardian's numbers change.
+ */
+export const THREAT = {
+  peacock: 18.0, croc: 22.0, turtle: 22.5, gorilla: 26.4,
+  aldric: 22.1, warden: 22.5, bride: 22.5, monkey: 23.4, vesper: 23.8,
+  naga: 25.5, maestro: 28.0, anansi: 28.5,
+  // THE TWIN WARDENS ARE TWO BOSSES. Solaris alone is 780 hp and the gentlest
+  // thing in the game, which is how they ended up leading the easy group - the
+  // first scoring counted Solaris and forgot Grumm's 1050 entirely. Together
+  // they are 32.4, second only to Mau, and they transform in phase 2 on top of
+  // that. An act-1 opener they are not.
+  solaris: 32.4,
+  mau: 34.2,
+};
+
 export const GROUPS = [
   {
     id: 'easy',
     name: 'The Outer Ash',
-    // The original five. Simple movesets, no dedicated boss file.
-    bosses: ['solaris', 'peacock', 'croc', 'turtle', 'gorilla'],
+    // The simple ones: no dedicated boss file, one creature, no phase change.
+    bosses: ['peacock', 'croc', 'turtle', 'gorilla'],
   },
   {
     id: 'middle',
@@ -66,8 +94,10 @@ export const GROUPS = [
   {
     id: 'hard',
     name: 'The Last Ash',
-    // The four heaviest. All four appear in every journey.
-    bosses: ['naga', 'maestro', 'anansi', 'mau'],
+    // The heaviest, including the Twin Wardens - a duo with two phase-two
+    // transformations, which is not an act-1 fight whatever Solaris weighs
+    // on his own.
+    bosses: ['naga', 'maestro', 'anansi', 'mau', 'solaris'],
   },
 ];
 
@@ -109,7 +139,14 @@ function shuffled(a) {
  */
 export function drawJourney() {
   const out = [];
-  for (const g of GROUPS) out.push(...shuffled(g.bosses).slice(0, GUARDIANS_PER_ACT));
+  for (const g of GROUPS) {
+    // WHICH four is random; the ORDER they come in is not. Each act opens on
+    // its gentlest guardian and closes on its hardest, so the step up at an
+    // act boundary is cushioned instead of being whatever the shuffle dealt.
+    const four = shuffled(g.bosses).slice(0, GUARDIANS_PER_ACT);
+    four.sort((a, b) => (THREAT[a] || 0) - (THREAT[b] || 0));
+    out.push(...four);
+  }
   return out;
 }
 

@@ -91,6 +91,69 @@ console.log('a journey draws the right guardians, in rising order:');
     : 'act 1 is always easy-group, act 2 middle, act 3 hard');
 }
 
+// --- 2b. the difficulty curve ----------------------------------------------
+console.log('');
+console.log('and difficulty climbs without cliffs:');
+{
+  // Base hp per guardian. The Twin Wardens are BOTH of them, which is the
+  // whole reason this section exists: scored on Solaris alone they looked like
+  // the gentlest fight in the game and led the easy group, when together they
+  // are second only to Mau and transform in phase 2 on top of it.
+  const BASE = {
+    peacock: 1000, croc: 1100, gorilla: 1200, turtle: 1250,
+    warden: 1250, bride: 1250, aldric: 1300, monkey: 1300, vesper: 1400,
+    maestro: 1400, naga: 1500, anansi: 1500, mau: 1800, solaris: 1830,
+  };
+  const N = A.ACT_COUNT * A.GUARDIANS_PER_ACT;
+  const scale = (slot) => 1 + Math.min(3, (slot * 3) / (N - 1)) * 0.3;
+
+  const missing = BOSS_POOL.filter((b) => !(b in A.THREAT));
+  ok(missing.length === 0, missing.length
+    ? `no threat score for ${missing.join(', ')}`
+    : 'every guardian has a measured threat score');
+
+  // Each act must open on its gentlest draw, or a boundary can land on a
+  // spike at exactly the moment the player is being offered the chance to stop.
+  let unsorted = 0;
+  const b1 = [];
+  const b2 = [];
+  let worst = 0;
+  let worstAt = '';
+  for (let i = 0; i < 3000; i++) {
+    const j = A.drawJourney();
+    for (let act = 1; act <= A.ACT_COUNT; act++) {
+      const four = A.actGuardians(j, act);
+      for (let k = 1; k < four.length; k++) {
+        if (A.THREAT[four[k]] < A.THREAT[four[k - 1]]) unsorted++;
+      }
+    }
+    const eff = j.map((b, slot) => (BASE[b] || 1200) * scale(slot));
+    b1.push(eff[4] / eff[3] - 1);
+    b2.push(eff[8] / eff[7] - 1);
+    for (let k = 1; k < eff.length; k++) {
+      const r = eff[k] / eff[k - 1] - 1;
+      if (r > worst) { worst = r; worstAt = `${j[k - 1]} -> ${j[k]} at slot ${k}`; }
+    }
+  }
+  ok(unsorted === 0, unsorted
+    ? `${unsorted} acts opened on a harder guardian than they closed on`
+    : 'every act opens on its gentlest guardian and closes on its hardest');
+
+  const mean = (a) => (a.reduce((x, y) => x + y, 0) / a.length) * 100;
+  const j1 = mean(b1);
+  const j2 = mean(b2);
+  console.log(`         act 1 -> 2 : +${j1.toFixed(0)}%   act 2 -> 3 : +${j2.toFixed(0)}%`);
+  console.log(`         worst single step : +${(worst * 100).toFixed(0)}%  (${worstAt})`);
+
+  // An act boundary should feel like a step up and not like a wall. These
+  // were +19% and +35% before the guardians were ordered and the Wardens were
+  // moved out of the easy group.
+  ok(j1 < 22 && j2 < 22,
+    `both act boundaries stay under +22% (got +${j1.toFixed(0)}% and +${j2.toFixed(0)}%)`);
+  ok(worst < 45,
+    `and no single fight is more than +45% harder than the one before it (got +${(worst * 100).toFixed(0)}%)`);
+}
+
 // --- 3. the shape -----------------------------------------------------------
 console.log('');
 console.log('the shape of a journey:');
