@@ -8,6 +8,7 @@ import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
 import { BOSS_INFO, BOSS_DEFS } from './bosses.js';
 import { BOSS_POOL } from './boss-pool.js';
 import { ACT_COUNT, CHAMBERS_PER_ACT, GUARDIANS_PER_ACT, isActEnd } from './acts.js';
+import { drawChamberGround, dressObstacles, drawProp, planFor } from './chamber-terrain.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
@@ -32,6 +33,18 @@ export function isBossDepth(depth) {
 
 /** 0 for the first guardian, GUARDIAN_COUNT - 1 for the last. */
 function guardianIndex(depth) { return Math.floor((depth - FIRST_BOSS_DEPTH) / BOSS_GAP); }
+
+/**
+ * How many ordinary chambers come before this one.
+ *
+ * This is what drives the terrain rotation, so that every plan lands on a
+ * chamber where it can actually be seen rather than under a guardian's own
+ * arena.
+ */
+function plainIndex(depth) {
+  const bosses = depth < FIRST_BOSS_DEPTH ? 0 : guardianIndex(depth) + 1;
+  return depth - 1 - bosses;
+}
 
 // The fight curve was measured over 8 chambers; a run of any length is
 // stretched onto it, so its last chamber plays like the old chamber 8.
@@ -98,7 +111,14 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     doorsOpen: false,
     intro: isBoss ? 1.6 : 0,
     hue: (world.biome || getBiome()).floor.hue,
+    // What kind of place this is: grass, broken stone, an old road. Stored on
+    // the room so the ground and its props cannot disagree about it.
+    plan: planFor(plainIndex(depth), loop),
   };
+  // What each obstacle actually looks like - a bush, a boulder, a stump -
+  // decided once here and seeded by the chamber, so a resume brings back the
+  // same place rather than a reshuffled one.
+  dressObstacles(room);
   return room;
 }
 
@@ -382,57 +402,23 @@ function makeDoor(x, y, reward) {
 // --- rendering -------------------------------------------------------------
 
 export function drawFloor(ctx, time) {
-  const b = arenaBounds();
   const room = world.room;
   const biome = world.biome || getBiome();
-  const hue = biome.floor.hue;
 
-  // Procedural tile for this biome, generated once per depth band and cached.
-  const pat = getFloorPattern(ctx, biome, room ? room.depth : 1);
-  if (pat) {
-    ctx.fillStyle = pat;
-    ctx.fillRect(b.l, b.t, arena.w, arena.h);
-  } else {
-    ctx.fillStyle = `hsl(${hue},22%,9%)`;
-    ctx.fillRect(b.l, b.t, arena.w, arena.h);
-  }
+  // Composed ground - soil, patches, grass, a verge of undergrowth - baked
+  // once per chamber and blitted. See chamber-terrain.js.
+  drawChamberGround(ctx, room, biome);
 
-  // Vignette the floor edges so the arena reads as a lit room, not a sheet.
-  const vg = ctx.createRadialGradient(
-    b.l + arena.w / 2, b.t + arena.h / 2, Math.min(arena.w, arena.h) * 0.25,
-    b.l + arena.w / 2, b.t + arena.h / 2, Math.max(arena.w, arena.h) * 0.62,
-  );
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,0.55)');
-  ctx.fillStyle = vg;
-  ctx.fillRect(b.l, b.t, arena.w, arena.h);
-
-  // A wash of the biome's own colour, so the room reads as one place.
+  // A light wash of the biome's own colour, so the room still reads as one
+  // place. A fraction of what it was: that opacity was chosen over a flat dark
+  // tile and it buried composed ground in sludge.
+  const b = arenaBounds();
+  ctx.globalAlpha = 0.3;
   ctx.fillStyle = biome.fog;
   ctx.fillRect(b.l, b.t, arena.w, arena.h);
+  ctx.globalAlpha = 1;
 
-  // Centre sigil
-  const cx = b.l + arena.w / 2, cy = b.t + arena.h / 2;
-  ctx.strokeStyle = biome.accent + '18';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(cx, cy, 108, 0, TAU);
-  ctx.stroke();
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(time * 0.08);
-  polygon(ctx, 0, 0, 76, 6, 0);
-  ctx.stroke();
-  ctx.restore();
-
-  // Wall band
-  ctx.strokeStyle = biome.wallTint;
-  ctx.lineWidth = 4;
-  ctx.strokeRect(b.l - 2, b.t - 2, arena.w + 4, arena.h + 4);
-  ctx.strokeStyle = biome.accent + '20';
-  ctx.lineWidth = 16;
-  ctx.strokeRect(b.l - 10, b.t - 10, arena.w + 20, arena.h + 20);
-  // A boss may paint its own arena over the floor (Vesper's sun-baked square).
+  // A boss may paint its own arena over the ground (Vesper's sun-baked square).
   const spec = bossSpec(room);
   if (spec && spec.drawArena) spec.drawArena(ctx, room, time);
 }
@@ -501,29 +487,13 @@ function drawPillar(ctx, o, k) {
   }
 }
 
-export function drawObstacles(ctx) {
+export function drawObstacles(ctx, time = 0) {
   const room = world.room;
   if (!room) return;
+  const biome = world.biome || getBiome();
   for (const o of room.obstacles) {
     if (o.crate) { drawCrate(ctx, o); continue; }
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    roundRect(ctx, o.x + 4, o.y + 8, o.w, o.h, 8);
-    ctx.fill();
-    const biome = world.biome || getBiome();
-    const rad = biome.rockCap.radius;
-    const rock = getRockPattern(ctx, biome);
-    ctx.fillStyle = rock || `hsl(${biome.floor.hue},18%,22%)`;
-    roundRect(ctx, o.x, o.y, o.w, o.h, rad);
-    ctx.fill();
-    // Lit top face, so pillars read as solid volumes from above. Its colour
-    // and corner radius are what separate an ice shard from a mossy boulder.
-    ctx.fillStyle = biome.rockCap.color;
-    roundRect(ctx, o.x + 5, o.y + 5, o.w - 10, o.h * 0.34, Math.max(2, rad - 2));
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-    ctx.lineWidth = 2;
-    roundRect(ctx, o.x, o.y, o.w, o.h, rad);
-    ctx.stroke();
+    drawProp(ctx, o, biome, time);
   }
 }
 

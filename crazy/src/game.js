@@ -87,6 +87,7 @@ import {
 } from './run-save.js';
 import { applyTouchLayout } from './input.js';
 import { applySkin, applyMotion } from './skin.js';
+import { clearGroundCache } from './chamber-terrain.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -158,6 +159,7 @@ function resize() {
     clampObstacles();
   }
   checkOrientation();
+  clearGroundCache();   // the arena changed shape: the ground must be rebaked
 }
 
 /** The chambers' floor: the view, inset for the HUD. */
@@ -798,7 +800,7 @@ function render() {
       drawAmbient(ctx, world.biome);
       if (world.mowing) drawLawnBelow(ctx);
       drawFxBelow(ctx);
-      drawObstacles(ctx);
+      drawObstacles(ctx, world.runTime);
       drawDoors(ctx, world.runTime);
     }
     drawHazardsBelow(ctx, world.runTime);
