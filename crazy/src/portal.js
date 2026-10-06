@@ -20,50 +20,77 @@
 // every call is feature-detected and wrapped. If the SDK is missing, blocked
 // by an ad blocker, or throws, the game does not notice.
 
-/** Resolved once: the SDK object, or null everywhere that is not the portal. */
+// PARKED UNTIL THE GAME IS THE GAME.
+//
+// Only the play clock is wired up. The Data module, the platform's own mute,
+// loading events, happytime and banners all come later, deliberately: none of
+// them changes how the game plays, and all of them are easier to get right
+// against a finished build than a moving one.
+//
+// What matters until then is that this file is SILENT and INERT off-platform.
+
+/**
+ * The SDK object once it exists, else null.
+ *
+ * Deliberately does NOT touch `.game`. The v3 SDK installs this global
+ * asynchronously and complains loudly - "CrazySDK is not initialized yet" - if
+ * a module is read before `init()` resolves. Since frame() asks the clock about
+ * itself sixty times a second, probing `.game` here printed that error on a
+ * loop. Checking only for the global is enough, and says nothing.
+ */
 function sdk() {
   try {
-    const s = window.CrazyGames && window.CrazyGames.SDK;
-    return s && s.game ? s : null;
+    return (window.CrazyGames && window.CrazyGames.SDK) || null;
   } catch { return null; }
 }
 
-let started = false;
-let ready = false;
+let started = false;   // what we have told the platform
+let ready = false;     // init() has resolved and the modules are safe to call
 
 /**
  * Called once at boot. Safe to call when the script never loaded.
  *
- * The SDK's own init is async and may reject off-platform; we neither wait
- * for it nor care if it fails, because nothing downstream depends on it.
+ * v3 requires init() and resolves it asynchronously. We do not wait: nothing
+ * downstream depends on it, and a blocked or slow CDN must never hold up a
+ * game that plays perfectly well without any of this.
  */
 export function initPortal() {
   const s = sdk();
-  if (!s) return;
+  if (!s || typeof s.init !== 'function') return;
   try {
-    const p = s.init && s.init();
+    const p = s.init();
     if (p && p.then) p.then(() => { ready = true; }).catch(() => {});
     else ready = true;
   } catch { /* off-platform, or blocked: play on */ }
 }
 
-/** A level has begun, or resumed after a pause. Idempotent. */
+/**
+ * A run has begun, or resumed. Idempotent.
+ *
+ * `started` tracks what the platform has been told, so it only moves when we
+ * actually tell it something. Setting it before `ready` would mean a session
+ * that starts playing during init is never reported at all.
+ */
 export function gameplayStart() {
-  if (started) return;
-  started = true;
+  if (started || !ready) return;
   const s = sdk();
-  if (!s || !ready) return;
-  try { s.game.gameplayStart(); } catch { /* never let telemetry break play */ }
+  if (!s) return;
+  try { s.game.gameplayStart(); started = true; } catch { /* never let telemetry break play */ }
 }
 
 /** The player is in a menu, paused, dead, or looking at a results screen. */
 export function gameplayStop() {
   if (!started) return;
-  started = false;
   const s = sdk();
   if (!s || !ready) return;
-  try { s.game.gameplayStop(); } catch { /* same */ }
+  try { s.game.gameplayStop(); started = false; } catch { /* same */ }
 }
 
-/** True only inside the portal - for anything we want to show or hide there. */
+/**
+ * Inside the portal, as far as the SDK knows.
+ *
+ * NOT a gate for anything that must not ship. An ad blocker or a slow CDN
+ * makes this false on the portal, so using it to hide a dev menu would ship
+ * the dev menu. That gate is a build-time constant - see the plan.
+ */
 export const onPortal = () => !!sdk();

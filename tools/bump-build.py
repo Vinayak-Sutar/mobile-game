@@ -58,7 +58,7 @@ CHECKS = {
     # A new folder that quietly shares another's cache prefix or save key
     # is invisible until two versions start deleting each other's data.
     'v7': ('check-version.mjs', 'check-progress.mjs'),
-    'crazy': ('check-version.mjs', 'check-progress.mjs'),
+    'crazy': ('check-version.mjs', 'check-progress.mjs', 'check-acts.mjs'),
 }
 
 

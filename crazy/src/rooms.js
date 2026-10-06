@@ -7,20 +7,24 @@ import { TAU, rand, randInt, pick, chance, clamp, dist, roundRect, polygon } fro
 import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
 import { BOSS_INFO, BOSS_DEFS } from './bosses.js';
 import { BOSS_POOL } from './boss-pool.js';
+import { ACT_COUNT, CHAMBERS_PER_ACT, GUARDIANS_PER_ACT, isActEnd } from './acts.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
 import { getBiome, updateAmbient } from './biomes.js';
 
-// A run fights EVERY guardian in the pool, in a fresh random order: two fights
-// to warm up, then fight and guardian alternate (chambers 3, 5, 7, …), and the
-// run is won when the last guardian falls. The Warden of Ash is one of them,
-// not a fixed finale. A new boss joins BOSS_POOL (boss-pool.js) and the run
-// grows by two chambers on its own: 10 guardians = 21 chambers.
+// A journey is three acts of twelve chambers, with a guardian every third
+// chamber - so an act closes ON a guardian, at chambers 12, 24 and 36. See
+// acts.js for why twelve, and for the three difficulty groups the guardians
+// are drawn from.
+//
+// Depth runs 1 to 36 unbroken: the act boundary is where the journey can be
+// put down, not where difficulty restarts. Everything below is derived, so
+// changing the shape of an act in acts.js moves all of it together.
 export const FIRST_BOSS_DEPTH = 3;
-export const BOSS_GAP = 2;
-export const GUARDIAN_COUNT = BOSS_POOL.length;
-export const FINAL_DEPTH = FIRST_BOSS_DEPTH + (GUARDIAN_COUNT - 1) * BOSS_GAP;
+export const BOSS_GAP = CHAMBERS_PER_ACT / GUARDIANS_PER_ACT;          // 3
+export const GUARDIAN_COUNT = ACT_COUNT * GUARDIANS_PER_ACT;           // 12
+export const FINAL_DEPTH = FIRST_BOSS_DEPTH + (GUARDIAN_COUNT - 1) * BOSS_GAP;  // 36
 
 export function isBossDepth(depth) {
   return depth >= FIRST_BOSS_DEPTH && (depth - FIRST_BOSS_DEPTH) % BOSS_GAP === 0;
@@ -82,6 +86,9 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     bossTier: opts.tier,
     // The last guardian of the run: its door is the way out.
     final: isBoss && !world.trial && depth >= FINAL_DEPTH,
+    // The guardian that closes an act 1 or 2: its door leads on to the next
+    // act, with a pause in between. The last act's guardian is `final`.
+    actEnd: isBoss && !world.trial && isActEnd(depth) && depth < FINAL_DEPTH,
     obstacles: opts.training ? [] : isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
     waves: (isBoss || opts.training) ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,
@@ -316,6 +323,7 @@ function clearRoom(room) {
 }
 
 const REWARD_STYLES = {
+  act: { color: '#ffd9a0', glyph: '↟', label: 'Onward' },
   boon: { color: '#c07bff', glyph: '✦', label: 'Boon' },
   heal: { color: '#7dff9c', glyph: '✚', label: 'Health' },
   gold: { color: '#ffc861', glyph: '◈', label: 'Gold' },
@@ -333,6 +341,9 @@ function makeDoors(room) {
 
   if (room.type === 'boss') {
     if (room.final || world.trial) return [makeDoor((b.l + b.r) / 2, y, 'exit')];
+    // An act ends on one door. There is no choice to make here: the choice is
+    // whether to walk through it now or come back to it later.
+    if (room.actEnd) return [makeDoor((b.l + b.r) / 2, y, 'act')];
     // A guardian always pays out a boon, plus health if you need it, else a spell.
     const second = p && p.hp / p.stats.maxHp < 0.85 ? 'heal' : spellsLeft(p) ? 'spell' : 'gold';
     return [

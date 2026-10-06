@@ -28,7 +28,7 @@ import { startCinema, updateCinema, drawCinema, skipCinema } from './cinema.js';
 import { openingFilm } from './cinema-opening.js';
 import { drawDungeonBelow, drawDungeonAbove } from './dungeon-draw.js';
 import { drawOverworldMap, mountWildsMap } from './wilds-map.js';
-import { clamp, TAU, shuffle } from './util.js';
+import { clamp, TAU } from './util.js';
 import {
   initAudio, sfx, audio, toggleMute, startMusic, stopMusic,
   setMusicEnabled, setMusicActive, suspendAudio, resumeAudio, setMusicIntensity, setBossTheme, unlockAudio,
@@ -78,6 +78,7 @@ import {
   talkState, missionDone, clearMission, flag, setFlag, markMet,
 } from './save.js';
 import { initPortal, gameplayStart, gameplayStop } from './portal.js';
+import { drawJourney, actOf, ACT_COUNT, GROUPS } from './acts.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -231,8 +232,11 @@ function startRun(weapon) {
   world.player = createPlayer(weapon, metaBonuses());
   world.depth = 1;
   world.loop = 0;
-  // Every guardian, in a different order every run.
-  world.bossOrder = shuffle(BOSS_POOL);
+  // The journey's twelve guardians: four drawn from each difficulty group, in
+  // group order, so the climb rises across the three acts. rooms.js already
+  // indexes this list by guardian number, so acts needed nothing new here.
+  world.bossOrder = drawJourney();
+  world.act = 1;
 
   const room = generateRoom(1, 0);
   startRoom(room);
@@ -316,7 +320,8 @@ function beginRun(weapon) {
 function loopDeeper() {
   world.loop++;
   world.depth = 0;   // advanceRoom increments to 1
-  world.bossOrder = shuffle(BOSS_POOL);
+  world.bossOrder = drawJourney();
+  world.act = 1;
   advanceRoom();
   showToast(`LOOP ${world.loop + 1}`, 'The dungeon sharpens its teeth.');
 }
@@ -325,6 +330,10 @@ function handleDoor(door) {
   if (door.reward === 'exit') {
     if (world.trial) showTrialEnd(true);
     else onVictory();
+    return;
+  }
+  if (door.reward === 'act') {
+    showActEnd();
     return;
   }
   if (door.reward === 'boon') {
@@ -1566,6 +1575,43 @@ function showTrialEnd(won) {
         <button class="btn" data-act="trial-again" data-boss="${last}">${won ? 'Fight Again' : 'Retry'}</button>
         <button class="btn ghost" data-act="trials">Other Trials</button>
         <button class="btn ghost" data-act="title">Title</button>
+      </div>
+    </div>`);
+}
+
+/**
+ * An act is done.
+ *
+ * This screen is the whole reason the journey is split up. It is a real
+ * stopping point: a 36-chamber climb nobody can put down is a worse game than
+ * three sittings of twelve, and on a web portal it is also a worse business -
+ * an unfinished journey is a reason to come back tomorrow.
+ *
+ * Carrying on is the louder button, because most people will. Stopping is
+ * offered plainly rather than buried, because an exit the player trusts is
+ * what makes them willing to start at all.
+ */
+function showActEnd() {
+  const done = actOf(world.depth);
+  const next = done + 1;
+  const group = GROUPS[next - 1];
+  state = 'victory';
+  flash(0.3, '#ffd9a0');
+  showOverlay(`
+    <div class="panel">
+      <div class="eyebrow">act ${done} of ${ACT_COUNT}</div>
+      <h1>${['', 'The Outer Ash', 'The Deep Ash', 'The Last Ash'][done] || 'Onward'}</h1>
+      <p class="sub">Four guardians down, and everything you took from them comes with you.
+        ${group ? `Ahead lies <b>${group.name}</b> — the guardians there do not fight like the ones behind you.` : ''}</p>
+      <div class="stats">
+        <div class="stat"><b>${world.depth}</b><span>Chamber</span></div>
+        <div class="stat"><b>${world.kills}</b><span>Kills</span></div>
+        <div class="stat"><b>${Math.floor(world.runTime / 60)}:${String(Math.floor(world.runTime % 60)).padStart(2, '0')}</b><span>Time</span></div>
+        <div class="stat"><b>${world.player ? world.player.boonOrder.length : 0}</b><span>Boons</span></div>
+      </div>
+      <div class="row">
+        <button class="btn" data-act="act-next">Into Act ${next}</button>
+        <button class="btn ghost" data-act="title">Stop Here</button>
       </div>
     </div>`);
 }
@@ -3256,6 +3302,13 @@ document.getElementById('overlay').addEventListener('click', (ev) => {
       break;
     }
     case 'loop': loopDeeper(); break;
+    // On into the next act, with the build you walked out of the last one with.
+    case 'act-next':
+      world.act = actOf(world.depth) + 1;
+      hideOverlay();
+      state = 'playing';
+      advanceRoom();
+      break;
     case 'resume':
       state = 'playing'; hideOverlay(); resetInput();
       break;
