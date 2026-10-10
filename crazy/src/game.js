@@ -1352,44 +1352,30 @@ function showTitle() {
             hostile, and a player has no use for it anyway. */''}
       ${inFrame() ? '' : buildRow()}
 
-      <div class="menu">
-        ${resume ? `<button class="tile primary" data-act="resume-run">
-          <span><span class="tname">Continue</span>
-            <span class="tsub">${resume}</span></span>
-        </button>
-        <button class="tile" data-act="new-run">
-          <span><span class="tname">New Journey</span>
-            <span class="tsub">Start again from Act 1. This one is forgotten.</span></span>
-        </button>`
-        : `<button class="tile primary" data-act="play">
-          <span><span class="tname">Play</span>
-            <span class="tsub">${ACT_COUNT} acts · twelve guardians</span></span>
-        </button>`}
+      ${/* VERSION 5'S BUTTON LANGUAGE. This was a column of left-aligned
+            cards with grey sub-labels, which read as a settings list rather
+            than a game menu - and at a phone held sideways only one and a
+            half of them fitted on screen, where v5 showed six. Chunky
+            uppercase pills in a wrapping row, the way v5 has always had it.
 
-        <button class="tile${acts >= 2 ? '' : ' locked'}" data-act="${acts >= 2 ? 'endless' : 'locked'}">
-          <span><span class="tname">Endless</span>
-            <span class="tsub">${acts >= 2 ? 'No ending. Go as deep as you can.' : 'Clear two acts to unlock'}</span></span>
-          ${acts >= 2
-            ? (save.bestEndless ? `<span class="tmark">Best ${save.bestEndless}</span>` : '')
-            : '<span class="tmark">Locked</span>'}
-        </button>
-
-        <button class="tile" data-act="settings">
-          <span><span class="tname">Settings</span>
-            <span class="tsub">Sound, controls, display</span></span>
-        </button>
-
-        <button class="tile" data-act="howto">
-          <span><span class="tname">How to Play</span>
-            <span class="tsub">Controls, and what the gates mean</span></span>
-        </button>
-
-        ${dev ? `<button class="tile" data-act="devmenu">
-          <span><span class="tname">Developer</span>
-            <span class="tsub">The Wilds, dungeons, training, music room</span></span>
-          <span class="tmark">Dev</span>
-        </button>` : ''}
+            What the cards carried in their sub-labels moves to one line
+            underneath, so nothing is lost but the clutter. */''}
+      <div class="row">
+        ${resume
+          ? `<button class="btn" data-act="resume-run">Continue</button>
+             <button class="btn ghost" data-act="new-run">New Journey</button>`
+          : '<button class="btn" data-act="play">Begin Journey</button>'}
+        <button class="btn ghost${acts >= 2 ? '' : ' locked'}"
+          data-act="${acts >= 2 ? 'endless' : 'locked'}"${acts >= 2 ? '' : ' disabled'}>Endless</button>
+        <button class="btn ghost" data-act="settings">Settings</button>
+        <button class="btn ghost" data-act="howto">How to Play</button>
+        ${dev ? '<button class="btn ghost" data-act="devmenu">Developer</button>' : ''}
       </div>
+      <div class="hint">${resume
+        ? resume
+        : acts >= 2
+          ? `${ACT_COUNT} acts · twelve guardians · Endless best ${save.bestEndless || 0}`
+          : `${ACT_COUNT} acts · twelve guardians · clear two to unlock Endless`}</div>
 
       ${statBlock()}
       ${inFrame() ? `<div class="foot">Build <b>${BUILD}</b> · ${BUILT}</div>` : ''}
@@ -1821,9 +1807,12 @@ function showSettings(back) {
       <div class="tabs">
         ${TABS.map(([id, label]) =>
           `<button class="tab ${id === settingsTab ? 'on' : ''}" data-act="s-tab" data-v="${id}">${label}</button>`).join('')}
+        ${/* Back sits with the tabs. A settings list is long by nature, so at
+              the foot it is below the fold on a phone - the same trap the
+              Chamber Lab's Enter button fell into. */''}
+        <button class="tab" data-act="s-back">← Back</button>
       </div>
       <div class="sgroup">${settingsFor(settingsTab).map(settingRow).join('')}</div>
-      <div class="row"><button class="btn" data-act="s-back">Back</button></div>
     </div>`);
 }
 
@@ -3447,17 +3436,12 @@ function showPause() {
     <div class="panel">
       <div class="eyebrow">act ${act} of ${ACT_COUNT} · chamber ${world.depth}</div>
       <h2>Paused</h2>
-      <div class="menu">
-        <button class="tile primary" data-act="resume">
-          <span><span class="tname">Resume</span><span class="tsub">P, or the button top-left</span></span>
-        </button>
-        <button class="tile" data-act="settings">
-          <span><span class="tname">Settings</span><span class="tsub">Sound, controls, display</span></span>
-        </button>
-        <button class="tile" data-act="abandon">
-          <span><span class="tname">Abandon Run</span><span class="tsub">Bank what you carry and return to the title</span></span>
-        </button>
+      <div class="row">
+        <button class="btn" data-act="resume">Resume</button>
+        <button class="btn ghost" data-act="settings">Settings</button>
+        <button class="btn ghost" data-act="abandon">Abandon Run</button>
       </div>
+      <div class="hint">P resumes too · abandoning banks what you carry and returns to the title</div>
       ${spellSlotsRow()}
       ${devEnabled() ? fullscreenRow() + dualSenseRow() : ''}
     </div>`);

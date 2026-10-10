@@ -210,6 +210,9 @@
   .pick button.on{background:rgba(255,200,97,.2);color:var(--gold)}
 
   .foot{margin-top:var(--sp-5);font-size:11px;color:var(--faint);letter-spacing:.06em}
+  /* One line of context under the title's buttons, carrying what the old
+     card sub-labels used to say. */
+  .hint{margin-top:var(--sp-3);font-size:12px;color:var(--dim);letter-spacing:.05em}
   .foot b{color:var(--dim);font-weight:600}
 
   .stats{display:flex;gap:22px;justify-content:center;flex-wrap:wrap;margin:14px 0 4px}
@@ -415,6 +418,30 @@
 
   /* Narrow (upright phone) screens: menus stay usable before a run starts,
      two cards per row instead of one tall column. */
+  /* A PHONE HELD SIDEWAYS IS SHORT, NOT NARROW.
+     Every panel here was sized against a desktop window, and the one
+     dimension that actually runs out on the device this is tested on is
+     height - 375px of it. The title block alone was eating 200 of them before
+     a single button. Tighten the furniture, never the buttons: the things you
+     press stay the size your thumb needs. */
+  @media (max-height: 460px){
+    .eyebrow{font-size:9.5px;letter-spacing:.28em;margin-bottom:3px}
+    h1{font-size:clamp(26px,5.5vw,40px);margin-bottom:2px}
+    h2{font-size:clamp(17px,3.4vw,22px);margin-bottom:10px}
+    .sub{font-size:12px;line-height:1.45;margin-bottom:10px;max-width:620px}
+    .row{margin-top:10px;gap:6px}
+    .hint{margin-top:8px;font-size:11px}
+    .build{margin-top:10px}
+    .stats{margin:8px 0 2px}
+    .stat b{font-size:19px}
+    .tabs{margin-bottom:10px}
+    .srow{padding:10px 14px}
+    .srow .slabel b{font-size:13px}
+    .srow .slabel i{font-size:10.5px}
+    .sgroup{gap:6px}
+    .tgsec{margin:10px 0 3px}
+  }
+
   @media (max-width: 560px){
     #overlay{padding:calc(12px + var(--safe-t)) 10px calc(12px + var(--ad-h) + var(--ad-gap) + var(--safe-b))}
     /* Four tabs on one line rather than three and an orphan. */
