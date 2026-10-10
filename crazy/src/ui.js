@@ -158,20 +158,40 @@ export function drawHud(ctx, time) {
     : chambers ? `CHAMBER ${world.depth} / ${FINAL_DEPTH}${loopTag}` : '';
   if (label) ctx.fillText(label, cx, 26);
 
-  // Depth pips: bars for fights, diamonds for guardians.
-  const pipW = 10, gap = 4;
+  // DEPTH PIPS: bars for fights, diamonds for guardians.
+  //
+  // Laid into the gap between the health cluster and the purse, rather than
+  // centred on the screen and hoped for. Centring was fine at 29 chambers -
+  // a 402px strip cleared the hearts by a few pixels - and the moment a
+  // journey became 36 chambers the strip grew to 500px and ran straight
+  // through them. A layout that only works at one content length is a layout
+  // that will break again, so this one measures.
+  const livesWide = Math.max(START_LIVES_SHOWN, p.lives || 0) * 24;
+  const leftEdge = (livesBeside ? x + w + 16 + livesWide : x + w) + 18;
+  const rightEdge = (input.touchMode ? view.w - 66 : view.w - 30) - 58;   // clear of the purse
+  const band = Math.max(90, rightEdge - leftEdge);
+
+  let pipW = 10;
+  let gap = 4;
+  const want = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
+  if (want > band) {                      // too many chambers for the room: shrink to fit
+    const k = band / want;
+    pipW *= k;
+    gap *= k;
+  }
   const total = FINAL_DEPTH * pipW + (FINAL_DEPTH - 1) * gap;
-  let ppx = cx - total / 2;
+  let ppx = leftEdge + (band - total) / 2;
+
   for (let i = 1; i <= FINAL_DEPTH && chambers; i++) {
     const done = i < world.depth;
     const here = i === world.depth;
     ctx.fillStyle = here ? '#ffd45e' : done ? 'rgba(255,212,94,0.45)' : 'rgba(255,255,255,0.14)';
     if (isBossDepth(i)) {
       if (!done && !here) ctx.fillStyle = 'rgba(255,120,120,0.4)';
-      polygon(ctx, ppx + pipW / 2, 43.5, 5.5, 4, 0);
+      polygon(ctx, ppx + pipW / 2, 43.5, Math.max(3, pipW * 0.55), 4, 0);
       ctx.fill();
     } else {
-      roundRect(ctx, ppx, 41, pipW, 5, 2.5);
+      roundRect(ctx, ppx, 41, pipW, 5, Math.min(2.5, pipW / 4));
       ctx.fill();
     }
     ppx += pipW + gap;

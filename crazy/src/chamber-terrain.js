@@ -491,10 +491,17 @@ export function furnish(room) {
       x = cx + (dx / d) * open * (1 + rng() * 0.5);
       y = cy + (dy / d) * open * (1 + rng() * 0.5);
     }
+    // Sized to the room, so a small arena is not swallowed by one tree.
+    const r = (20 + rng() * 22) * Math.min(1, Math.min(arena.w, arena.h) / 520);
+    // A canopy is drawn ABOVE the trunk - up to r*1.2 + 16 above it - so
+    // clamping the trunk inside the arena is not enough: it let crowns near
+    // the top edge spill out of the room and across the HUD. Clamp what is
+    // actually drawn, not where the tree stands.
+    const topRoom = b.t + r * 1.2 + 18;
     room.trees.push({
-      x: Math.max(b.l + 8, Math.min(b.r - 8, x)),
-      y: Math.max(b.t + 20, Math.min(b.b - 6, y)),
-      r: 24 + rng() * 26,
+      x: Math.max(b.l + 10, Math.min(b.r - 10, x)),
+      y: Math.max(topRoom, Math.min(b.b - 8, y)),
+      r,
       kind: plan.trees[(rng() * plan.trees.length) | 0],
       sway: rng() * TAU,
       snowy: !!plan.snowy,
