@@ -36,9 +36,76 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 OUT = os.path.join(ROOT, 'COVER.png')
 
-W, H = 630, 500
-S = 3
-WW, HH = W * S, H * S
+# --- the sizes this script renders -----------------------------------------
+#
+# itch wants one 630x500. CrazyGames wants THREE, at exact sizes, and will not
+# take an upscale: "Don't use blurry or pixelated visuals". So the composition
+# is laid out in fractions of the canvas and re-placed per aspect rather than
+# stretched - a 16:9 banner and a 2:3 portrait want the banyan in different
+# places, not the same picture squashed.
+#
+#   S   supersample. Pillow has no antialiasing of its own, so everything is
+#       drawn large and resampled down. Lower it on the big canvases or the
+#       1920 one is 5760px wide and slow for no visible gain.
+#
+#   tree / crown / savi / title are all fractions of the canvas.
+#
+# CrazyGames also says: no borders, no text but the game's title, no icons or
+# store logos. So the subtitle is dropped from their three and kept on itch's.
+SIZES = [
+    dict(name='COVER.png', w=630, h=500, s=3, sub=True,
+         tree=(0.665, 0.815), crown=(0.300, 0.150), crowny=0.300,
+         savi=(0.215, 0.880), savik=2.35, title=0.236, tpos=(0.070, 0.092)),
+
+    # CrazyGames landscape - 16:9. Wider than itch's, so the valley opens out:
+    # the tree moves right, Savi further left, and the crown spreads.
+    # Savi is scaled UP here, not down. The first pass used the same figure
+    # size as itch's and at 1920 wide she was a speck - and a cover is judged
+    # as a thumbnail in a grid, not at full size. She has to be the second
+    # thing you see after the tree.
+    dict(name='cover-landscape-1920x1080.png', w=1920, h=1080, s=2, sub=False,
+         tree=(0.705, 0.845), crown=(0.270, 0.160), crowny=0.315,
+         savi=(0.215, 0.885), savik=3.40, title=0.200, tpos=(0.055, 0.085)),
+
+    # CrazyGames portrait - 2:3. Tall and narrow: the tree stands centre and
+    # fills the height, Savi sits below it, the title rides the top.
+    dict(name='cover-portrait-800x1200.png', w=800, h=1200, s=3, sub=False,
+         tree=(0.520, 0.700), crown=(0.420, 0.110), crowny=0.330,
+         savi=(0.255, 0.790), savik=2.60, title=0.150, tpos=(0.080, 0.070)),
+
+    # CrazyGames square - 1:1.
+    dict(name='cover-square-800x800.png', w=800, h=800, s=3, sub=False,
+         tree=(0.640, 0.800), crown=(0.330, 0.145), crowny=0.305,
+         savi=(0.225, 0.875), savik=2.45, title=0.195, tpos=(0.070, 0.085)),
+]
+
+# Set by configure() before each render. The drawing functions below read them.
+W = H = S = WW = HH = 0
+TX = TY = CX = CY = CRX = CRY = 0
+TITLE_PT = 0
+TPOS = (0.0, 0.0)
+SUBTITLE = True
+SAVI_AT = (0.0, 0.0)
+SAVI_K = 1.0
+
+
+def configure(c):
+    """Lay the composition out for one canvas size."""
+    global W, H, S, WW, HH, TX, TY, CX, CY, CRX, CRY
+    global TITLE_PT, TPOS, SUBTITLE, SAVI_AT, SAVI_K, rng
+    W, H, S = c['w'], c['h'], c['s']
+    WW, HH = W * S, H * S
+    TX, TY = WW * c['tree'][0], HH * c['tree'][1]
+    CX, CY = TX - WW * 0.012, HH * c['crowny']
+    CRX, CRY = WW * c['crown'][0], HH * c['crown'][1]
+    TITLE_PT = int(H * c['title'] * S)
+    TPOS = c['tpos']
+    SUBTITLE = c['sub']
+    SAVI_AT = (WW * c['savi'][0], HH * c['savi'][1])
+    SAVI_K = S * c['savik']
+    # Same seed every time, so the four covers are the same picture and read
+    # as a set - which CrazyGames asks for ("consistent visuals").
+    rng = random.Random(11)
 
 FONTS = r'C:\Windows\Fonts'
 TITLE_F = os.path.join(FONTS, 'georgiab.ttf')
@@ -55,11 +122,6 @@ BOOT = (58, 43, 34)
 LEAF = [(201, 118, 44), (224, 161, 63), (165, 85, 31), (217, 138, 48)]
 BARK = (38, 26, 22)
 CREAM = (247, 237, 221)
-
-# Where the tree stands and how big it is. Everything else is placed off this.
-TX, TY = WW * 0.665, HH * 0.815          # the foot of the trunk
-CX, CY = TX - WW * 0.012, HH * 0.300     # the middle of the crown
-CRX, CRY = WW * 0.310, HH * 0.150        # how far the crown reaches
 
 rng = random.Random(11)
 
@@ -368,28 +430,36 @@ def lantern_light(at, k):
 
 
 def title(img):
+    """The wordmark. Sized and placed as a fraction of the canvas.
+
+    CrazyGames: "Don't write anything else other than your game's title", so
+    the subtitle only goes on itch's cover.
+    """
     d = ImageDraw.Draw(img)
-    f = ImageFont.truetype(TITLE_F, int(118 * S))
-    fs = ImageFont.truetype(SUB_F, int(19 * S))
-    x, y = int(44 * S), int(46 * S)
+    f = ImageFont.truetype(TITLE_F, TITLE_PT)
+    x, y = int(WW * TPOS[0]), int(HH * TPOS[1])
     b = d.textbbox((x, y), 'SAVI', font=f)
+    u = TITLE_PT / 118.0          # one "point" of the original 118pt layout
 
     # A soft dark wash behind it, so cream letters hold over a bright sky
     # without a box being drawn round them.
     sh = Image.new('L', (WW, HH), 0)
     ImageDraw.Draw(sh).text((x, y), 'SAVI', font=f, fill=200)
-    ImageDraw.Draw(sh).rectangle([x, b[3] + 4 * S, b[2], b[3] + 50 * S], fill=120)
-    sh = sh.filter(ImageFilter.GaussianBlur(20 * S))
+    ImageDraw.Draw(sh).rectangle([x, b[3] + 4 * u, b[2], b[3] + 50 * u], fill=120)
+    sh = sh.filter(ImageFilter.GaussianBlur(20 * u))
     img.paste(Image.new('RGB', (WW, HH), (20, 12, 16)), (0, 0), sh)
 
-    d.text((x + 3 * S, y + 4 * S), 'SAVI', font=f, fill=(24, 13, 12))
+    d.text((x + 3 * u, y + 4 * u), 'SAVI', font=f, fill=(24, 13, 12))
     d.text((x, y), 'SAVI', font=f, fill=CREAM)
-    ly = b[3] + int(4 * S)
-    d.line([(x + 3 * S, ly), (b[2] - 3 * S, ly)], fill=(230, 166, 96), width=int(2.2 * S))
-    d.text((x + 4 * S, ly + int(9 * S)), 'keeper of the Great Banyan', font=fs, fill=(243, 212, 168))
+    ly = b[3] + int(4 * u)
+    d.line([(x + 3 * u, ly), (b[2] - 3 * u, ly)], fill=(230, 166, 96), width=max(1, int(2.2 * u)))
+    if SUBTITLE:
+        fs = ImageFont.truetype(SUB_F, max(8, int(19 * u)))
+        d.text((x + 4 * u, ly + int(9 * u)), 'keeper of the Great Banyan', font=fs, fill=(243, 212, 168))
 
 
-def main():
+def render(c):
+    configure(c)
     img = Image.new('RGB', (WW, HH), (20, 25, 52))
     sky(img)
     img = ImageChops.screen(img, sunlight())
@@ -399,9 +469,9 @@ def main():
     ground(d)
     banyan(d)
 
-    sx, sy, sk = WW * 0.215, HH * 0.880, S * 2.35
-    at = savi(d, sx, sy, sk)
-    img = ImageChops.screen(img, lantern_light(at, sk))
+    sx, sy = SAVI_AT
+    at = savi(d, sx, sy, SAVI_K)
+    img = ImageChops.screen(img, lantern_light(at, SAVI_K))
 
     vig = Image.new('L', (WW, HH), 0)
     ImageDraw.Draw(vig).ellipse([-WW * 0.26, -HH * 0.34, WW * 1.26, HH * 1.34], fill=255)
@@ -411,9 +481,22 @@ def main():
     title(img)
 
     out = img.resize((W, H), Image.LANCZOS)
-    out.save(OUT)
-    out.resize((W // 2, H // 2), Image.LANCZOS).save(os.path.join(ROOT, 'COVER-thumb.png'))
-    print('%s  %dx%d  %.0f KB' % (OUT, out.width, out.height, os.path.getsize(OUT) / 1024))
+    path = os.path.join(ROOT, c['name'])
+    out.save(path)
+    print('  %-34s %4dx%-4d  %5.0f KB' % (c['name'], out.width, out.height,
+                                          os.path.getsize(path) / 1024))
+    return out
+
+
+def main():
+    print('covers:')
+    for c in SIZES:
+        out = render(c)
+        if c['name'] == 'COVER.png':
+            out.resize((c['w'] // 2, c['h'] // 2), Image.LANCZOS).save(
+                os.path.join(ROOT, 'COVER-thumb.png'))
+    print('')
+    print('itch: COVER.png.  CrazyGames: the three cover-*.png.')
 
 
 if __name__ == '__main__':
