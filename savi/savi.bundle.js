@@ -2130,6 +2130,23 @@
     // draw resistance, then a release click
   };
 
+  // savi/src/flags.js
+  var SHIP = true;
+  var asked = false;
+  var wanted = false;
+  function devRequested() {
+    if (!asked) {
+      asked = true;
+      try {
+        wanted = new URLSearchParams(location.search).has("dev");
+      } catch {
+        wanted = false;
+      }
+    }
+    return wanted;
+  }
+  var fullscreenAllowed = () => !SHIP || devRequested();
+
   // savi/src/fullscreen.js
   var screenState = {
     fullscreen: false,
@@ -2144,6 +2161,7 @@
     return window.matchMedia("(pointer: coarse)").matches || (navigator.maxTouchPoints || 0) > 0 || "ontouchstart" in window;
   }
   function fullscreenSupported() {
+    if (!fullscreenAllowed()) return false;
     const d = document;
     return !!(el().requestFullscreen || el().webkitRequestFullscreen || d.fullscreenEnabled || d.webkitFullscreenEnabled);
   }
@@ -2151,6 +2169,11 @@
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
   async function enterFullscreen() {
+    if (!fullscreenAllowed()) {
+      await lockOrientation();
+      await requestWakeLock();
+      return false;
+    }
     if (isFullscreen()) return true;
     const e = el();
     const req = e.requestFullscreen || e.webkitRequestFullscreen || e.mozRequestFullScreen;
@@ -2210,8 +2233,8 @@
   }
 
   // savi/src/build.js
-  var BUILD = 59;
-  var BUILT = "2026-09-28 00:59";
+  var BUILD = 61;
+  var BUILT = "2026-10-06 00:48";
 
   // savi/src/update.js
   var import_meta = {};
@@ -10332,6 +10355,7 @@
     c.restore();
     glow(c, B.x, B.y, B.r + BAND, `rgba(255,150,60,${(0.05 + 0.1 * (lit.length / N)) * fl})`);
   }
+  var STORY_RAGA = [null, null, "bhairav", "yaman", "malkauns"];
   function wake(r) {
     st.woken[r.id] = true;
     rootDone(st);
@@ -10340,6 +10364,11 @@
     st.step++;
     const beat = ROOTS[st.told] || ROOTS[ROOTS.length - 1];
     st.told++;
+    const raga = STORY_RAGA[st.told];
+    if (raga && raga !== st.raga) {
+      st.raga = raga;
+      setAmbientTheme(themeById(raga));
+    }
     YOUNG.push({
       x: r.at.x + 86,
       y: r.at.y + 34,
@@ -11432,6 +11461,7 @@
   function playOpening(after) {
     startCinema(openingFilm(), () => {
       setAmbientTheme(themeById("bhupali"));
+      st.raga = "bhupali";
       setMusicIntensity(0.4);
       if (after) after();
     }, { manual: true });
@@ -11454,6 +11484,7 @@
       setMusicActive(true);
       setMusicIntensity(0);
       setAmbientTheme(themeById("bhupali"));
+      st.raga = "bhupali";
     } catch (e) {
     }
   }

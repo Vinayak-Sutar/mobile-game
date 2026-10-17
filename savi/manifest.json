@@ -1,15 +1,20 @@
 {
-  "name": "Ashfall — Version 5",
-  "short_name": "Ashfall v5",
-  "description": "A top-down action roguelike.",
+  "name": "Savi",
+  "short_name": "Savi",
+  "description": "A cozy walk through a dying valley: sweep, light and lift five Great Roots free, and the Banyan remembers an old story.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",
-  "display_override": ["fullscreen", "standalone"],
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
   "orientation": "landscape",
-  "background_color": "#08060d",
-  "theme_color": "#08060d",
-  "categories": ["games"],
+  "background_color": "#2a1a2e",
+  "theme_color": "#2a1a2e",
+  "categories": [
+    "games"
+  ],
   "icons": [
     {
       "src": "./icon.svg",

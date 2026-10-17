@@ -47,6 +47,30 @@ for (const f of readdirSync(SRC).filter((n) => n.endsWith('.js'))) {
 }
 
 if (!found) { console.log('  FAIL  nothing asks for a theme at all, which cannot be right'); bad++; }
+
+// The story's own ragas, which are named in a table rather than in a call.
+//
+// STORY_RAGA lays a raga along Savitri's five beats, and the ids in it never
+// pass through a literal themeById('...') - so the scan above cannot see them
+// and a typo there would fail exactly the silent way the bug above failed.
+{
+  console.log('');
+  console.log('and the ragas the story walks through:');
+  const text = code(readFileSync(join(SRC, 'savi.js'), 'utf8'));
+  const m = /const STORY_RAGA = \[([^\]]*)\]/.exec(text);
+  if (!m) {
+    console.log('  FAIL  STORY_RAGA is gone from savi.js - if it was renamed, rename it here too');
+    bad++;
+  } else {
+    const ids = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+    if (!ids.length) { console.log('  FAIL  STORY_RAGA names no ragas at all'); bad++; }
+    for (const id of ids) {
+      const t = themeById(id);
+      if (t) console.log(`  ok    the story turns to '${id}' — ${t.name}, ${t.raga}`);
+      else { console.log(`  FAIL  the story turns to '${id}', which is not a theme id`); bad++; }
+    }
+  }
+}
 console.log('');
 console.log(bad ? `${bad} piece(s) of music do not exist` : 'the music is all there');
 process.exit(bad ? 1 : 0);

@@ -5,6 +5,8 @@
 // wrapped — a browser that refuses any of them still plays the game fine, just
 // windowed.
 
+import { fullscreenAllowed } from './flags.js';
+
 export const screenState = {
   fullscreen: false,
   wakeLock: null,
@@ -25,7 +27,14 @@ export function touchLike() {
     || 'ontouchstart' in window;
 }
 
+/**
+ * Can this build offer a fullscreen control?
+ *
+ * Answers no on a shipped build whatever the browser can do, because the
+ * question every caller is really asking is "should I show a button".
+ */
 export function fullscreenSupported() {
+  if (!fullscreenAllowed()) return false;
   const d = document;
   return !!(el().requestFullscreen || el().webkitRequestFullscreen ||
             d.fullscreenEnabled || d.webkitFullscreenEnabled);
@@ -35,7 +44,21 @@ export function isFullscreen() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement);
 }
 
+/**
+ * Go fullscreen, lock to landscape, and keep the screen awake.
+ *
+ * On a shipped build the FULLSCREEN REQUEST is skipped and the other two
+ * still happen: CrazyGames prohibits a game handling fullscreen, but has no
+ * objection to a landscape lock or a wake lock, and a phone that rotates or
+ * dims mid-game is a worse game. See flags.js.
+ */
 export async function enterFullscreen() {
+  // Landscape and a screen that stays lit are wanted either way.
+  if (!fullscreenAllowed()) {
+    await lockOrientation();
+    await requestWakeLock();
+    return false;
+  }
   if (isFullscreen()) return true;
   const e = el();
   const req = e.requestFullscreen || e.webkitRequestFullscreen || e.mozRequestFullScreen;
@@ -124,12 +147,16 @@ export function initFullscreen({ onChange } = {}) {
     if (document.visibilityState === 'visible' && screenState.fullscreen) requestWakeLock();
   });
 
-  window.addEventListener('keydown', (ev) => {
-    if (ev.key === 'f' || ev.key === 'F') {
-      if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
-      toggleFullscreen();
-    }
-  });
+  // The F key is a custom fullscreen control, which CrazyGames prohibits -
+  // the platform supplies its own around the iframe. Kept for development.
+  if (fullscreenAllowed()) {
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'f' || ev.key === 'F') {
+        if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+        toggleFullscreen();
+      }
+    });
+  }
 }
 
 // --- PWA -------------------------------------------------------------------

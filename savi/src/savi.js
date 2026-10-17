@@ -2022,6 +2022,33 @@ function drawBlaze(c) {
   glow(c, B.x, B.y, B.r + BAND, `rgba(255,150,60,${(0.05 + 0.1 * (lit.length / N)) * fl})`);
 }
 
+/**
+ * THE SCORE FOLLOWS THE STORY.
+ *
+ * Six ragas are composed in music-regions.js and Savi was playing two of
+ * them - Bhupali at the title and Durga at the ending bloom. The other four
+ * were written and never heard.
+ *
+ * The tradition supplies the mapping, so none of this is arbitrary: the day
+ * divides into eight three-hour prahars and each raga carries an hour and a
+ * rasa. Savitri's story is a night journey - a wedding, a death at dusk, a
+ * pursuit into the dark, and a dawn - so the ragas are laid along it in their
+ * own order.
+ *
+ *   Bhupali   evening, shanta (peace)      the valley, and The Choice
+ *   Bhairav   daybreak, grave, devotional  The Fall - Shiva's raga, and this
+ *                                          is where Yama arrives
+ *   Yaman     first night prahar, yearning The Pursuit - she follows him, and
+ *                                          yearning is literally its rasa
+ *   Malkauns  after midnight               The Seven Steps, the deepest point
+ *   Durga     late evening                 The Boon, already wired at the end
+ *
+ * Indexed by how many beats have been told. Ids, not names - themeById looks
+ * up ids, and `themeById('hearthfields')` has already silently returned null
+ * once (see the note at begin()).
+ */
+const STORY_RAGA = [null, null, 'bhairav', 'yaman', 'malkauns'];
+
 function wake(r) {
   st.woken[r.id] = true;
   rootDone(st);
@@ -2034,6 +2061,13 @@ function wake(r) {
   // forgotten. Route is hers; the story is still Savitri's, in order.
   const beat = ROOTS[st.told] || ROOTS[ROOTS.length - 1];
   st.told++;
+  // The valley turns with the tale. Only on a change, so a re-entered root
+  // does not restart the piece under the player.
+  const raga = STORY_RAGA[st.told];
+  if (raga && raga !== st.raga) {
+    st.raga = raga;
+    setAmbientTheme(themeById(raga));
+  }
   // An aerial root comes down where the burden was, takes hold, and is a tree.
   YOUNG.push({
     x: r.at.x + 86, y: r.at.y + 34, grow: 0, pending: true,
@@ -3350,6 +3384,7 @@ function playOpening(after) {
     // engine's generic track. The raga stopped the moment the opening film
     // ended and the whole game played on the wrong music.
     setAmbientTheme(themeById('bhupali'));
+    st.raga = 'bhupali';
     setMusicIntensity(0.4);
     if (after) after();
   }, { manual: true });
@@ -3369,6 +3404,7 @@ function begin() {
     loadSound();
     setMusicEnabled(true); setMusicActive(true); setMusicIntensity(0);
     setAmbientTheme(themeById('bhupali'));
+    st.raga = 'bhupali';
   } catch (e) { /* silence is survivable */ }
 }
 
