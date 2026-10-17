@@ -62,6 +62,32 @@ export const camera = { x: 0, y: 0 };
 // The playable floor, inset from the view so the HUD has breathing room.
 export const arena = { x: 0, y: 0, w: 0, h: 0 };
 
+/**
+ * Lay out a chamber's floor: the view, inset for the HUD, sized by the room.
+ *
+ * Lives here rather than in game.js because rooms.js has to size the arena
+ * before it places anything in it, and `view` and `arena` both live here - so
+ * this is the one place that can do it without an import cycle.
+ *
+ * `shape` is { size, squash } from the chamber's plan. Every chamber used to
+ * take the whole inset rectangle, which is why all 36 of a journey were the
+ * same room.
+ */
+export function layoutArena(shape = null) {
+  const mx = 38, top = 74, bottom = 38;
+  const fullW = view.w - mx * 2;
+  const fullH = view.h - top - bottom;
+  const size = (shape && shape.size) || 1;
+  const squash = (shape && shape.squash) || 1;
+
+  const w = Math.max(360, fullW * size);
+  const h = Math.max(260, fullH * size * squash);
+  arena.w = w;
+  arena.h = h;
+  arena.x = mx + (fullW - w) / 2;
+  arena.y = top + (fullH - h) / 2;
+}
+
 export function arenaBounds() {
   return { l: arena.x, t: arena.y, r: arena.x + arena.w, b: arena.y + arena.h };
 }

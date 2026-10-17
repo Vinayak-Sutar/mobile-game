@@ -2,13 +2,13 @@
 // door choice that drives the run's reward loop.
 
 import { offerSpells } from './spells.js';
-import { world, arena, arenaBounds } from './state.js';
+import { world, arena, arenaBounds, layoutArena } from './state.js';
 import { TAU, rand, randInt, pick, chance, clamp, dist, roundRect, polygon } from './util.js';
 import { spawnEnemy, ENEMY_DEFS } from './enemies.js';
 import { BOSS_INFO, BOSS_DEFS } from './bosses.js';
 import { BOSS_POOL } from './boss-pool.js';
 import { ACT_COUNT, CHAMBERS_PER_ACT, GUARDIANS_PER_ACT, isActEnd } from './acts.js';
-import { drawChamberGround, dressObstacles, drawProp, planFor, furnish, drawChamberDecor, drawChamberTrees } from './chamber-terrain.js';
+import { drawChamberGround, dressObstacles, drawProp, planFor, furnish, drawChamberDecor, drawChamberTrees, shapeOf } from './chamber-terrain.js';
 import { ring, burst, shake, flash } from './fx.js';
 import { sfx } from './audio.js';
 import { getFloorPattern, getRockPattern } from './texture.js';
@@ -83,6 +83,10 @@ export function bossForDepth(depth) {
 
 export function generateRoom(depth, loop = 0, opts = {}) {
   const isBoss = !!opts.bossType || isBossDepth(depth);
+  // The room decides its own floor before anything is placed on it. A
+  // guardian's arena keeps the full rectangle: those are authored against it.
+  const plan = isBoss ? null : planFor(plainIndex(depth), loop);
+  layoutArena(isBoss ? null : shapeOf(plan));
   const isElite = !isBoss && ELITE_DEPTHS.includes(depth);
   const eff = effDepth(depth);
   const bossType = isBoss ? (opts.bossType || bossForDepth(depth)) : null;
@@ -102,7 +106,7 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     // The guardian that closes an act 1 or 2: its door leads on to the next
     // act, with a pause in between. The last act's guardian is `final`.
     actEnd: isBoss && !world.trial && !world.endless && isActEnd(depth) && depth < FINAL_DEPTH,
-    obstacles: opts.training ? [] : isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff),
+    obstacles: opts.training ? [] : isBoss ? (bossArena(bossType) || bossObstacles()) : makeObstacles(eff, plan),
     waves: (isBoss || opts.training) ? [] : makeWaves(eff, loop, isElite),
     waveIndex: -1,
     waveDelay: 0.6,
@@ -113,7 +117,7 @@ export function generateRoom(depth, loop = 0, opts = {}) {
     hue: (world.biome || getBiome()).floor.hue,
     // What kind of place this is: grass, broken stone, an old road. Stored on
     // the room so the ground and its props cannot disagree about it.
-    plan: planFor(plainIndex(depth), loop),
+    plan,
   };
   // What each obstacle actually looks like - a bush, a boulder, a stump -
   // decided once here and seeded by the chamber, so a resume brings back the
@@ -125,8 +129,47 @@ export function generateRoom(depth, loop = 0, opts = {}) {
   return room;
 }
 
-function makeObstacles(depth) {
+/**
+ * THE CORNERS, FILLED IN.
+ *
+ * This is how a chamber stops being a rectangle. `arena` has to stay one -
+ * arenaBounds() is read in 112 places and every one assumes it - so the shape
+ * is made of cover instead: four blocks in the corners, which the obstacle
+ * system already collides with. A rectangle with its corners taken off is an
+ * octagon.
+ *
+ * It is also what the level-design research recommends on its own terms: a
+ * square arena corners the player, and the fix is to remove the corners.
+ *
+ * They are marked `corner` so the renderer draws them as the room's own
+ * material - rock or thicket - rather than dressing them as a bush.
+ */
+function cornerBlocks(plan) {
+  const cut = shapeOf(plan).corner || 0;
+  if (cut <= 0) return [];
+  const b = arenaBounds();
+  const d = Math.min(arena.w, arena.h) * cut;
+  // Two overlapping blocks per corner read as a bevel rather than a step.
   const out = [];
+  for (const [sx, sy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) {
+    const x0 = sx ? b.r - d : b.l;
+    const y0 = sy ? b.b - d : b.t;
+    // Each corner is two overlapping blocks that together bevel it, and both
+    // carry which corner they belong to so the renderer can anchor its mass
+    // outward - otherwise the fill sits inside the block and leaves a notch
+    // of bare floor in the very corner.
+    out.push({ x: x0, y: y0, w: d, h: d * 0.6, corner: true, cx: sx, cy: sy });
+    out.push({
+      x: sx ? b.r - d * 0.6 : b.l,
+      y: sy ? b.b - d : b.t,
+      w: d * 0.6, h: d, corner: true, cx: sx, cy: sy,
+    });
+  }
+  return out;
+}
+
+function makeObstacles(depth, plan) {
+  const out = cornerBlocks(plan);
   const count = randInt(depth < 2 ? 0 : 1, depth < 4 ? 2 : 4);
   const cx = arena.x + arena.w / 2;
   const cy = arena.y + arena.h / 2;
@@ -544,7 +587,7 @@ export function drawObstacles(ctx, time = 0) {
   const biome = world.biome || getBiome();
   for (const o of room.obstacles) {
     if (o.crate) { drawCrate(ctx, o); continue; }
-    drawProp(ctx, o, biome, time);
+    drawProp(ctx, o, biome, time, room.plan);
   }
 }
 

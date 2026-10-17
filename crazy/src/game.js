@@ -1,7 +1,7 @@
 // Entry point: canvas setup, the fixed-timestep loop, the run state machine
 // and every menu screen.
 
-import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning } from './state.js';
+import { world, view, arena, arenaBounds, resetWorld, clearEntities, gfx, camera, tuning, layoutArena } from './state.js';
 import {
   enterOverworld, updateOverworld, applyOverworldBounds, overworldRespawn,
   overworldProgress, bindOverworldSpawner, arriveAt, setMapFog, lairById, markLairBeaten, remnantCount, lastLampId,
@@ -88,7 +88,7 @@ import {
 } from './run-save.js';
 import { applyTouchLayout } from './input.js';
 import { applySkin, applyMotion } from './skin.js';
-import { clearGroundCache, PLANS, dressObstacles, furnish } from './chamber-terrain.js';
+import { clearGroundCache, PLANS, dressObstacles, furnish, shapeOf } from './chamber-terrain.js';
 import {
   pad, initGamepad, pollGamepad, updateDualSenseFeedback, resetMenuFocus, resetDualSenseFeedback, rumble,
 } from './gamepad.js';
@@ -163,13 +163,9 @@ function resize() {
   clearGroundCache();   // the arena changed shape: the ground must be rebaked
 }
 
-/** The chambers' floor: the view, inset for the HUD. */
-function chamberArena() {
-  const mx = 38, top = 74, bottom = 38;
-  arena.x = mx;
-  arena.y = top;
-  arena.w = view.w - mx * 2;
-  arena.h = view.h - top - bottom;
+/** The chambers' floor. The work is in state.js, where rooms.js can reach it. */
+function chamberArena(plan = null) {
+  layoutArena(shapeOf(plan));
 }
 
 /**

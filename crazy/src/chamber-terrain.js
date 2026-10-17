@@ -40,9 +40,44 @@ import { drawTreeOf, drawTreeBase, drawDecor } from './wilds-draw.js';
 // changed by any of it - obstacle count and the clear centre are still decided
 // by rooms.js, so a plan cannot quietly alter difficulty.
 
+/**
+ * THE SHAPE OF A CHAMBER.
+ *
+ * Every chamber in the game has been the same rectangle: `chamberArena()` sized
+ * it from the window and nothing else ever touched it, so all 36 chambers of a
+ * journey were one shape. Level-design writing is specific that this is the
+ * worst available choice - a square arena corners the player - and recommends
+ * an octagon, a round, or anything without inside corners.
+ *
+ * Changing `arena` itself was not an option: `arenaBounds()` is read in 112
+ * places across twenty files, and every one of them assumes a rectangle.
+ *
+ * So the shape is made of COVER instead. The arena stays a rectangle and the
+ * corners are filled in with blocks, which the obstacle system already
+ * collides with. An octagon is a rectangle with its corners taken off. This
+ * costs nothing, risks nothing, and is also what the research recommends
+ * independently: cover placed to stop the player being cornered.
+ *
+ *   size    how much of the available floor this chamber uses, 0..1
+ *   corner  how far the corners are cut, as a fraction of the short side
+ */
+export const SHAPES = {
+  /** The old behaviour, for anything that has not opted in. */
+  hall:   { size: 1.00, corner: 0.00 },
+  /** The default: corners gone, room to circle. */
+  round:  { size: 0.96, corner: 0.30 },
+  octagon:{ size: 0.94, corner: 0.22 },
+  /** Wide and shallow. Favours reach; punishes standing still. */
+  long:   { size: 1.00, corner: 0.14, squash: 0.76 },
+  /** Tight and close, for a short sharp fight. */
+  pit:    { size: 0.72, corner: 0.26 },
+};
+
+export const shapeOf = (plan) => SHAPES[(plan && plan.shape) || 'round'] || SHAPES.round;
+
 export const PLANS = [
   {
-    id: 'meadow', name: 'open grass',
+    id: 'meadow', shape: 'round', name: 'open grass',
     base: 'grass', ground: { dirt: 0.22, stone: 0.05 },
     tufts: 1.0, detail: 0.7, verge: 'grass',
     props: ['bush', 'bush', 'bush', 'rock'], layout: 'scatter',
@@ -50,7 +85,7 @@ export const PLANS = [
     decals: ['flowers', 'flowers', 'pebbles'], decalN: 14,
   },
   {
-    id: 'sakura', name: 'a sakura grove',
+    id: 'sakura', shape: 'round', name: 'a sakura grove',
     base: 'grass', ground: { dirt: 0.1, stone: 0.03 },
     tufts: 0.9, detail: 0.5, verge: 'grass',
     props: ['bush', 'stump', 'rock'], layout: 'scatter',
@@ -59,7 +94,7 @@ export const PLANS = [
     air: 'sakura',
   },
   {
-    id: 'pinewood', name: 'a stand of pines',
+    id: 'pinewood', shape: 'octagon', name: 'a stand of pines',
     base: 'grass', ground: { dirt: 0.3, stone: 0.08 },
     tufts: 0.6, detail: 0.9, verge: 'grass',
     props: ['stump', 'rock', 'bush'], layout: 'clusters',
@@ -67,7 +102,7 @@ export const PLANS = [
     decals: ['shrooms', 'pebbles', 'stump'], decalN: 12,
   },
   {
-    id: 'rocks', name: 'broken stone',
+    id: 'rocks', shape: 'octagon', name: 'broken stone',
     base: 'stone', ground: { dirt: 0.3, grass: 0.26 },
     tufts: 0.4, detail: 1.0, verge: 'rock',
     props: ['rock', 'rock', 'rock', 'bush'], layout: 'clusters',
@@ -75,7 +110,7 @@ export const PLANS = [
     decals: ['pebbles', 'pebbles', 'fissure', 'stone'], decalN: 18,
   },
   {
-    id: 'ruins', name: 'old walls',
+    id: 'ruins', shape: 'pit', name: 'old walls',
     base: 'stone', ground: { dirt: 0.34, grass: 0.3 },
     tufts: 0.7, detail: 1.0, verge: 'rock',
     props: ['rock', 'stump', 'bush'], layout: 'ring',
@@ -84,7 +119,7 @@ export const PLANS = [
     air: 'dust',
   },
   {
-    id: 'road', name: 'an old road',
+    id: 'road', shape: 'long', name: 'an old road',
     base: 'grass', ground: { dirt: 0.14, stone: 0.06 },
     tufts: 0.9, detail: 0.7, verge: 'grass',
     props: ['bush', 'rock', 'bush'], layout: 'flanks',
@@ -93,7 +128,7 @@ export const PLANS = [
     road: true,
   },
   {
-    id: 'marsh', name: 'wet ground',
+    id: 'marsh', shape: 'round', name: 'wet ground',
     base: 'grass', ground: { dirt: 0.4, stone: 0.03 },
     tufts: 1.1, detail: 0.5, verge: 'reed',
     props: ['reeds', 'bush', 'reeds'], layout: 'scatter',
@@ -102,7 +137,7 @@ export const PLANS = [
     pools: true, air: 'mist',
   },
   {
-    id: 'graves', name: 'a burial ground',
+    id: 'graves', shape: 'octagon', name: 'a burial ground',
     base: 'grass', ground: { dirt: 0.38, stone: 0.12 },
     tufts: 0.6, detail: 0.9, verge: 'grass',
     props: ['rock', 'stump', 'bush'], layout: 'ring',
@@ -111,7 +146,7 @@ export const PLANS = [
     air: 'mist',
   },
   {
-    id: 'burnt', name: 'burnt over',
+    id: 'burnt', shape: 'pit', name: 'burnt over',
     base: 'dirt', ground: { stone: 0.16, grass: 0.12 },
     tufts: 0.3, detail: 1.1, verge: 'rock',
     props: ['stump', 'rock', 'stump'], layout: 'clusters',
@@ -120,7 +155,7 @@ export const PLANS = [
     ash: true, air: 'ash',
   },
   {
-    id: 'dunes', name: 'dry country',
+    id: 'dunes', shape: 'long', name: 'dry country',
     base: 'dirt', ground: { stone: 0.22, grass: 0.06 },
     tufts: 0.25, detail: 0.8, verge: 'rock',
     props: ['rock', 'rock', 'bush'], layout: 'scatter',
@@ -451,6 +486,7 @@ export function dressObstacles(room) {
   const rng = mulberry(room.depth * 31 + (room.loop || 0) * 17 + 5);
   for (const o of room.obstacles) {
     if (o.crate) continue;                       // Vesper's arena brings its own
+    if (o.corner) { o.kind = 'corner'; o.seed = (rng() * 1e6) | 0; continue; }
     o.kind = plan.props[(rng() * plan.props.length) | 0];
     o.seed = (rng() * 1e6) | 0;
   }
@@ -546,7 +582,7 @@ export function drawChamberTrees(ctx, room, time) {
 }
 
 /** One prop, drawn where its rectangle is. */
-export function drawProp(ctx, o, biome, time) {
+export function drawProp(ctx, o, biome, time, plan = null) {
   const P = palette(biome);
   const cx = o.x + o.w / 2;
   const cy = o.y + o.h / 2;
@@ -559,6 +595,35 @@ export function drawProp(ctx, o, biome, time) {
   ctx.beginPath();
   ctx.ellipse(cx + 5, cy + o.h * 0.34, o.w * 0.52, o.h * 0.26, 0, 0, TAU);
   ctx.fill();
+
+  if (o.kind === 'corner') {
+    // The room's own edge, not an object in it: the same material as the verge,
+    // so a cut corner reads as the chamber being this shape rather than as
+    // four boulders someone put in the way.
+    const rock = plan && plan.verge === 'rock';
+    // Anchored OUTWARD, toward the corner it belongs to, and drawn large
+    // enough that the two blocks of a corner merge into one mass. Centred and
+    // undersized, they read as four separate bushes with a notch of bare
+    // floor behind them instead of as the room being this shape.
+    const ax = cx + (o.cx ? 1 : -1) * o.w * 0.3;
+    const ay = cy + (o.cy ? 1 : -1) * o.h * 0.3;
+    const rr = Math.max(o.w, o.h) * 0.95;
+    ctx.fillStyle = rock ? P.stone : `hsl(${96 + (biome.floor.hue - 96) * 0.16}, 26%, 15%)`;
+    blob(ctx, ax, ay, rr, rng, 0.16, 11);
+    ctx.fill();
+    ctx.fillStyle = rock ? P.stoneHi : `hsl(${96 + (biome.floor.hue - 96) * 0.16}, 32%, 21%)`;
+    blob(ctx, ax - o.w * 0.1, ay - o.h * 0.14, rr * 0.6, rng, 0.22, 9);
+    ctx.fill();
+    // A few blades along its inner edge so it joins the verge rather than
+    // sitting on top of the ground.
+    for (let i = 0; i < 7; i++) {
+      ctx.globalAlpha = 0.5 + rng() * 0.4;
+      tuft(ctx, ax + (rng() - 0.5) * o.w * 1.1, ay + (rng() - 0.5) * o.h * 1.1, 6 + rng() * 8, rng,
+        rng() < 0.35 ? P.bladeHi : P.blade);
+    }
+    ctx.globalAlpha = 1;
+    return;
+  }
 
   if (o.kind === 'rock') {
     // Two or three stones leaning together, lit from above-left.
